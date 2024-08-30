@@ -74,7 +74,7 @@ sudo apt-get install pd-comport
 # add externals to local extra folder
 mkdir ~/pd-externals
 cd ~/pd-externals 
-sudo cp /lib/pd/extra/* ./
+sudo cp -r /lib/pd/extra/* ./
 sudo chown -R pi ./*
 
 #install pip
