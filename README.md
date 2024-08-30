@@ -22,6 +22,15 @@ Reads distance sensor and controls lights and stepper motor.  Communicates with 
 
 # Installation and Setup
 
+## Prepare you sketch
+- fork this repo and clone to your development machine
+```
+git clone https://github.com/[yourUserName]/bopOS --recursive
+```
+- Edit \_Main.pd in PD
+- Edit rc.local and start.sh to point to your fork
+- commit and push your changes
+
 ## Flash SD using Raspberry Pi Imager
 - Choose OS RASPBERRY PI OS LITE (64-BIT)
 - Set username and password
