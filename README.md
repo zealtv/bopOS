@@ -89,6 +89,7 @@ cd ~
 git clone https://github.com/zealtv/bopOS.git
 
 # !copy samples
+# !edit scripts/start.sh to configure soundcard
 
 # run update script 
 sudo ~/bopOS/scripts/update.sh
