@@ -21,6 +21,7 @@ Reads distance sensor and controls lights and stepper motor.  Communicates with 
 
 
 # Installation and Setup
+
 ## Flash SD using Raspberry Pi Imager
 - Choose OS RASPBERRY PI OS LITE (64-BIT)
 - Set username and password
