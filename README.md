@@ -1,17 +1,12 @@
 # bopOS
 
-A Raspberry Pi and Arduino based framework for networked multichannel sound, light, and motion.   Provides scaffolding for the [bop](https://github.com/zealtv/bop) library for PD Vanilla. 
-
-Python scripts provide admin services (updating, rebooting, shutdown). 
-
-
+A Raspberry Pi and Arduino based framework for networked multichannel sound, light, and motion.   This repo provides scaffolding for the [bop](https://github.com/zealtv/bop) library for PD Vanilla. Python scripts provide admin services (updating, rebooting, shutdown). 
 
 # Requirements 
 
 - puredata 0.54 vanilla 
 - python3
 - [pyOSC3](https://pypi.org/project/pyOSC3/)
-
 
 ## Optional Requirements for Arduino
 - pd-comport 
