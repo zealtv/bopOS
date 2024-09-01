@@ -28,7 +28,7 @@ Reads distance sensor and controls lights and stepper motor.  Communicates with 
 git clone https://github.com/[yourUserName]/bopOS --recursive
 ```
 - Edit \_Main.pd in PD
-- Edit rc.local and start.sh to point to your fork
+- Edit rc.local, update.sh, and start.sh to point to your fork
 - commit and push your changes
 
 ## Flash SD using Raspberry Pi Imager
