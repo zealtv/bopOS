@@ -55,7 +55,9 @@ sudo apt-get install -y git pip build-essential automake autoconf libtool gettex
 sudo apt-get install -y jackd2
 ```
 
-- build and puredata 0.54+, add externals to local extra folder, install pyOSC to vitual environment
+- build and install puredata 0.54+
+- copy PD externals to local folder
+- install pyOSC to vitual environment
 ```
 cd ~; 
 git clone https://github.com/pure-data/pure-data.git; 
