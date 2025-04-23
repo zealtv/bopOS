@@ -27,8 +27,8 @@ echo "STARTTIME: $STARTTIME"
 sleep 5
 
 #Start Jack 
-jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 44100 -s -P& #44.1khz        
-#jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 22050 -s -P& #22khz
+# jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 44100 -s -P& #44.1khz        
+jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 22050 -s -P& #22khz
 
 # leave enough time for jack to start before launching PD
 sleep 10
