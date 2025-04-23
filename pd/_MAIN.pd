@@ -19,7 +19,6 @@
 #X obj 243 171 makenote 127 3000;
 #X text 29 19 bopOS Template;
 #X obj 44 227 bopos.osc;
-#X obj 45 257 bopos.feedback;
 #X obj 311 52 r osc-in;
 #X obj 311 87 route aloha;
 #X obj 311 116 random 24;
@@ -32,7 +31,7 @@
 #X connect 7 0 2 0;
 #X connect 8 0 7 0;
 #X connect 8 1 7 1;
+#X connect 11 0 12 0;
 #X connect 12 0 13 0;
 #X connect 13 0 14 0;
-#X connect 14 0 15 0;
-#X connect 15 0 8 0;
+#X connect 14 0 8 0;

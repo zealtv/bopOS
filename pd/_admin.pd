@@ -1,4 +1,4 @@
-#N canvas 843 42 934 334 12;
+#N canvas 1638 627 722 343 12;
 #N canvas 298 40 365 864 osc 0;
 #X obj 64 471 netsend -u -b;
 #X msg 62 71 connect 255.255.255.255 7770;
@@ -59,11 +59,10 @@
 #X obj 147 196 bng 19 250 50 0 updatesamples empty updatesamples 25 10 0 12 #fcfcfc #000000 #000000;
 #X obj 147 177 bng 19 250 50 0 update empty update 25 10 0 12 #fcfcfc #000000 #000000;
 #X obj 37 196 bng 19 250 50 0 shutdown empty shutdown 25 10 0 12 #fcfcfc #000000 #000000;
-#N canvas 655 195 175 152 message 1;
+#N canvas 655 195 175 152 message 0;
 #X text 11 5 available messages;
 #X text 9 33 aloha \; admin update \; admin updatesamples \; admin shutdown \; admin reboot \;;
 #X restore 28 111 pd message list;
 #X obj 326 17 admin.device 0;
 #X obj 483 17 admin.device 1;
-#X text 327 263 no ID set;
-#X text 643 266 additional devices [admin.device 2];
+#X text 331 289 for additional devices create [admin.device 2] etc.;
