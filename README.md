@@ -47,18 +47,15 @@ ssh pi@bop.local
 
 - update system 
 - install git, pip, pure-data dependencies, and pd-comport
-- install jack2 and manually enable realtime priority
-```
-sudo apt-get update -y; 
-sudo apt-get upgrade -y; 
-sudo apt-get install -y git pip build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish pd-comport;
-sudo apt-get install -y jackd2
-```
-
+- install jack2 and manually enable realtime priority if prompted
 - build and install puredata 0.54+
 - copy PD externals to local folder
 - install pyOSC to vitual environment
+
 ```
+sudo apt-get update -y; 
+sudo apt-get upgrade -y; 
+sudo apt-get install -y git pip build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish pd-comport jackd2;
 cd ~; 
 git clone https://github.com/pure-data/pure-data.git; 
 cd ./pure-data/; 
