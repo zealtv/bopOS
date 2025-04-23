@@ -32,77 +32,59 @@ git clone https://github.com/[yourUserName]/bopOS --recursive
 - commit and push your changes
 
 ## Flash SD using Raspberry Pi Imager
-- Choose OS RASPBERRY PI OS LITE (64-BIT)
-- Set username and password
+- OS: RASPBERRY PI OS LITE
+- username: pi
+- hostname: bop
 - configure wireless LAN
 - enable SSH
 - Flash SD
 
 ## Install packages
+- boot pi and login over ssh
 ```
-# login
-ssh pi@raspberrypi.local
+ssh pi@bop.local
+```
 
-# update
-sudo apt-get update
-sudo apt-get upgrade
+- update system 
+- install git, pip, pure-data dependencies, and pd-comport
+- install jack2 and manually enable realtime priority
+```
+sudo apt-get update -y; 
+sudo apt-get upgrade -y; 
+sudo apt-get install -y git pip build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish pd-comport;
+sudo apt-get install -y jackd2
+```
 
-# set gpu memory to 16 (if applicable)
-sudo raspi-config
-
-# install jack2
-sudo apt-get install jackd2
-
-# install git
-sudo apt-get install git
-
-# install pure-data dependencies
-sudo apt-get install build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish
-
-# install puredata 0.54+
-cd ~
-git clone https://github.com/pure-data/pure-data.git
-cd ./pure-data/
-./autogen.sh
-./configure --enable-jack
-make
-sudo make install
-
-# install pd externals
-sudo apt-get install pd-comport
-
-# add externals to local extra folder
-mkdir ~/pd-externals
-cd ~/pd-externals 
-sudo cp -r /lib/pd/extra/* ./
-sudo chown -R pi ./*
-
-#install pip
-sudo apt-get install pip
-
-#make python virtual environment
-cd ~
-python3 -m venv ./venv
-
-# install python dependencies
+- build and puredata 0.54+, add externals to local extra folder, install pyOSC to vitual environment
+```
+cd ~; 
+git clone https://github.com/pure-data/pure-data.git; 
+cd ./pure-data/; 
+./autogen.sh; 
+./configure --enable-jack; 
+make; 
+sudo make install; 
+mkdir ~/pd-externals; 
+cd ~/pd-externals; 
+sudo cp -r /lib/pd/extra/* ./; 
+sudo chown -R pi ./*; cd ~; 
+python3 -m venv ./venv; 
 ./venv/bin/pip install pyOSC3
-
 ```
 
 ## Install project code
-```
-# goto home directory
-cd ~
 
-# clone this repo (or your fork)
+- goto home directory, clone this repo (or your fork)
+```
+cd ~; 
 git clone https://github.com/zealtv/bopOS.git
-
-# !copy samples
-# !edit scripts/start.sh to configure soundcard
-
-# run update script 
-sudo ~/bopOS/scripts/update.sh
-
-# pi should copy rc.local and reboot with jack, puredata, and helper.py running
-
 ```
+
+- !copy samples
+- !edit scripts/start.sh to configure soundcard
+- run update script 
+```
+sudo ~/bopOS/scripts/update.sh
+```
+
+- pi should copy rc.local and reboot with jack, puredata, and helper.py running
