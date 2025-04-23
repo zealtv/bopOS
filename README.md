@@ -77,11 +77,16 @@ python3 -m venv ./venv;
 
 ## Install and configure your specific soundcard
 on your pi:
-- run any commands required to install your soundcard (usually involing editing config.txt)
+- install your soundcard if required (usually involing editing config.txt)
+- reboot pi
+- list available soundcards
+```
+cat /proc/asound/cards
+```
 
 on your laptop:
 - edit bopOS/scripts/start.sh to add you soundcard 
-- commit changes to git repo
+- save, commit changes and push to github
 
 on your pi:
 - goto home directory, clone this repo (or your fork)

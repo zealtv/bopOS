@@ -23,7 +23,6 @@ echo "STARTDATE: $STARTDATE"
 echo "STARTTIME: $STARTTIME"
 
 
-
 sleep 5
 
 #Start Jack 
