@@ -1,34 +1,28 @@
 # bopOS
 
-A Raspberry Pi and Arduino based framework for networked multichannel sound, light, and motion.   This repo provides scaffolding for the [bop](https://github.com/zealtv/bop) library for PD Vanilla. Python scripts provide admin services (updating, rebooting, shutdown). 
+A Raspberry Pi and Arduino based framework for networked multichannel sound and more.   
 
 # Requirements 
 
+- A Raspberry Pi zero or above
+- A Raspberry Pi soundcard
+
+# bopOS uses
 - puredata 0.54 vanilla 
 - python3
 - [pyOSC3](https://pypi.org/project/pyOSC3/)
-
-## Optional Requirements for Arduino
-- pd-comport 
-
-Reads distance sensor and controls lights and stepper motor.  Communicates with PD via SLIP encoded OSC over USB serial.
-
-### Arduino Sketch Requires:
-- https://github.com/thomasfredericks/MicroOsc
-- https://github.com/qub1750ul/Arduino_SharpIR
-- http://www.airspayce.com/mikem/arduino/AccelStepper/
-- https://github.com/FastLED/FastLED
+- pd-comport (for arduino)
 
 
-# Installation and Setup
+# Setup
 
-## Prepare you sketch
-- fork this repo and clone to your development machine
+## Prepare you bopOS project
+- fork this repo and clone to your computer
 ```
 git clone https://github.com/[yourUserName]/bopOS --recursive
 ```
-- Edit \_Main.pd in PD
-- Edit rc.local, update.sh, and start.sh to point to your fork
+- Edit \_Main.pd in Pure Data
+- Edit rc.local, update.sh, and start.sh to point to your github repository
 - commit and push your changes
 
 ## Flash SD using Raspberry Pi Imager
@@ -39,15 +33,20 @@ git clone https://github.com/[yourUserName]/bopOS --recursive
 - enable SSH
 - Flash SD
 
+
+# Installation 
+
 ## Install packages
 - boot pi and login over ssh
+
 ```
 ssh pi@bop.local
 ```
 
 - update system 
-- install git, pip, pure-data dependencies, and pd-comport
-- install jack2 and manually enable realtime priority if prompted
+- install jack2
+- !!! (manually enable realtime priority for Jack when prompted)
+- install git, pip, pure-data dependencies, pd-comport, 
 - build and install puredata 0.54+
 - copy PD externals to local folder
 - install pyOSC to vitual environment
@@ -55,7 +54,10 @@ ssh pi@bop.local
 ```
 sudo apt-get update -y; 
 sudo apt-get upgrade -y; 
-sudo apt-get install -y git pip build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish pd-comport jackd2;
+sudo apt-get install -y jackd2;
+sudo apt-get install -y git pip; 
+sudo apt-get install -y build-essential automake autoconf libtool gettext libasound2-dev libjack-jackd2-dev tcl tk wish;
+sudo apt-get install -y pd-comport;
 cd ~; 
 git clone https://github.com/pure-data/pure-data.git; 
 cd ./pure-data/; 
@@ -73,23 +75,28 @@ python3 -m venv ./venv;
 
 ## Install project code
 - goto home directory, clone this repo (or your fork)
+
 ```
 cd ~; 
 git clone https://github.com/zealtv/bopOS.git
 ```
 
 ## Install and configure your specific soundcard
-- run any commands required to install your soundcard
-- edit bopOS/scripts/start.sh in git repo to configure soundcard in bopOS 
+- run any commands required to install your soundcard (usually involing editing config.txt)
+- edit bopOS/scripts/start.sh to add you soundcard 
+
 ```
 nano ~/bopOS/scripts/start.sh
 ```
 
-## Update and reboot
-- run update script to: 
+- commit changes to git repo
+
+# Update and reboot
+run update script to
     - download bop submodules
     - copy rc.local
     - reboot with jack, puredata, and helper.py running
+    
 ```
 sudo ~/bopOS/scripts/update.sh
 ```
