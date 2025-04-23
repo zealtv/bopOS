@@ -82,22 +82,19 @@ git clone https://github.com/zealtv/bopOS.git
 ```
 
 ## Install and configure your specific soundcard
+on your pi:
 - run any commands required to install your soundcard (usually involing editing config.txt)
+on your laptop:
 - edit bopOS/scripts/start.sh to add you soundcard 
-
-```
-nano ~/bopOS/scripts/start.sh
-```
-
 - commit changes to git repo
 
 # Update and reboot
 run update script to
-    - pull lates changes from github
-    - download bop submodules
-    - copy rc.local start script to /etc
-    - reboot with jack, puredata, and helper.py running
-    - if you have speakers plugged in it might make a noise at this point
+- pull lates changes from github
+- download bop submodules
+- copy rc.local start script to /etc
+- reboot with jack, puredata, and helper.py running
+- if you have speakers plugged in it might make a noise at this point
 
 ```
 sudo ~/bopOS/scripts/update.sh
