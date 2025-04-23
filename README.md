@@ -72,21 +72,20 @@ python3 -m venv ./venv;
 ```
 
 ## Install project code
-
 - goto home directory, clone this repo (or your fork)
 ```
 cd ~; 
 git clone https://github.com/zealtv/bopOS.git
 ```
 
-- ! Install and configure your specific soundcard
-
-- edit scripts/start.sh in git repo to configure soundcard
+## Install and configure your specific soundcard
+- run any commands required to install your soundcard
+- edit bopOS/scripts/start.sh in git repo to configure soundcard in bopOS 
 ```
 nano ~/bopOS/scripts/start.sh
 ```
 
-- ! copy samples
+## Update and reboot
 - run update script to: 
     - download bop submodules
     - copy rc.local
