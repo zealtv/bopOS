@@ -74,6 +74,16 @@ python3 -m venv ./venv;
 ```
 
 ## Install project code
+
+## Install and configure your specific soundcard
+on your pi:
+- run any commands required to install your soundcard (usually involing editing config.txt)
+
+on your laptop:
+- edit bopOS/scripts/start.sh to add you soundcard 
+- commit changes to git repo
+
+on your pi:
 - goto home directory, clone this repo (or your fork)
 
 ```
@@ -81,12 +91,6 @@ cd ~;
 git clone https://github.com/zealtv/bopOS.git
 ```
 
-## Install and configure your specific soundcard
-on your pi:
-- run any commands required to install your soundcard (usually involing editing config.txt)
-on your laptop:
-- edit bopOS/scripts/start.sh to add you soundcard 
-- commit changes to git repo
 
 # Update and reboot
 run update script to
