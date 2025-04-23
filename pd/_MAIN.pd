@@ -30,7 +30,6 @@
 #X obj 456 161 pow~ 4;
 #X obj 458 271 dac~;
 #X obj 457 201 *~, f 9;
-#X obj 34 347 bopos.feedback, f 23;
 #X obj 281 31 r osc-in;
 #X obj 281 55 route ding;
 #X msg 174 265 id 0;
@@ -53,6 +52,6 @@
 #X connect 19 0 21 0;
 #X connect 21 0 20 0;
 #X connect 21 0 20 1;
-#X connect 23 0 24 0;
-#X connect 24 0 12 0;
-#X connect 25 0 8 0;
+#X connect 22 0 23 0;
+#X connect 23 0 12 0;
+#X connect 24 0 8 0;
