@@ -1,7 +1,5 @@
-#N canvas 112 127 964 835 12;
-#N canvas 991 1058 885 156 variables 0;
-#X obj 21 22 r RANDOM;
-#X obj 21 51 print RANDOM;
+#N canvas 1492 311 964 835 12;
+#N canvas 991 1058 885 156 variables 1;
 #X obj 129 22 r ID;
 #X obj 129 51 print ID;
 #X obj 447 21 r RANDOM;
@@ -18,9 +16,8 @@
 #X connect 2 0 3 0;
 #X connect 4 0 5 0;
 #X connect 6 0 7 0;
-#X connect 8 0 9 0;
-#X connect 10 0 12 0;
-#X connect 11 0 13 0;
+#X connect 8 0 10 0;
+#X connect 9 0 11 0;
 #X restore 699 53 pd variables;
 #N canvas 899 156 450 300 ID 0;
 #X obj 145 50 r ID;
