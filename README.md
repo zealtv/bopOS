@@ -93,10 +93,12 @@ nano ~/bopOS/scripts/start.sh
 
 # Update and reboot
 run update script to
+    - pull lates changes from github
     - download bop submodules
-    - copy rc.local
+    - copy rc.local start script to /etc
     - reboot with jack, puredata, and helper.py running
-    
+    - if you have speakers plugged in it might make a noise at this point
+
 ```
 sudo ~/bopOS/scripts/update.sh
 ```
