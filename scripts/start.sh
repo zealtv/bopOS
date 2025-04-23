@@ -1,48 +1,31 @@
 #!/bin/bash
 
-# JACK OPTIMISATION STUFF
-#not running on pi zero raspbian lite
-#sudo service ntp stop
-#sudo service triggerhappy stop
+#1.) get list of available soundcards by running:
+#    cat /proc/asound/cards
+#2.) edit the SOUNDCARD variable below as needed
 
-# the below was hanging on pi4 bookworm
-#sudo service dbus stop
-
-#not running on pi zero raspbian lite
-#sudo killall console-kit-daemon
-#sudo killall polkitd
-## Only needed when Jack2 is compiled with D-Bus support
-#export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
-
-
-#sudo mount -o remount,size=128M /dev/shm
-
-#killall gvfsd
-#killall dbus-daemon
-#killall dbus-launch
-
-## Uncomment if you'd like to disable the network adapter completely
-#echo -n "1-1.1:1.0" | sudo tee /sys/bus/usb/drivers/smsc95xx/unbind
-#echo -n performance | sudo tee /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-
-# get available soundcards using cat /proc/asound/cards
-# edit the -dhw: command below as needed
+#SOUNDCARD="YOUR_SOUNDCARD"
+SOUNDCARD="sndrpihifiberry"
+MACADDRESS=$(cat /sys/class/net/wlan0/address)
+echo "MAC: $MACADDRESS"
 
 sleep 5
 
-#Running Jack at 22050khz
-jackd -P70 -p16 -t2000 -d alsa -dhw:Device -p 128 -n 3 -r 44100 -s &
+#Start Jack 
+jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 128 -n 3 -r 44100 -s &
+#jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 128 -n 3 -r 22050 -s & #Jack at 22khz
 
 # leave enough time for jack to start before launching PD
 sleep 10
 
-MACADDRESS=$(cat /sys/class/net/wlan0/address)
-echo "MAC: $MACADDRESS"
+# PUREDATA
+pd -nogui -jack -open "/home/pi/bopOS/pd/_MAIN.pd" -send "; RANDOM $RANDOM; " &
+
+# leave enough time for PD to start before starting the helper  
+# the helper will parse and forward variables from config.csv
+sleep 5
 
 # PYTHON
 sudo /home/pi/venv/bin/python /home/pi/bopOS/scripts/helper.py $MACADDRESS &
-
-# PUREDATA
-pd -nogui -jack -open "/home/pi/bopOS/pd/_MAIN.pd" -send "; RANDOM $RANDOM; " &
 
 exit

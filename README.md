@@ -79,11 +79,18 @@ cd ~;
 git clone https://github.com/zealtv/bopOS.git
 ```
 
-- !copy samples
-- !edit scripts/start.sh to configure soundcard
-- run update script 
+- ! Install and configure your specific soundcard
+
+- edit scripts/start.sh in git repo to configure soundcard
+```
+nano ~/bopOS/scripts/start.sh
+```
+
+- ! copy samples
+- run update script to: 
+    - download bop submodules
+    - copy rc.local
+    - reboot with jack, puredata, and helper.py running
 ```
 sudo ~/bopOS/scripts/update.sh
 ```
-
-- pi should copy rc.local and reboot with jack, puredata, and helper.py running
