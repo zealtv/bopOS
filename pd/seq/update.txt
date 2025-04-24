@@ -1,2 +1,4 @@
+switch 1;
 attack 0;
 72 127;
+switch 0;

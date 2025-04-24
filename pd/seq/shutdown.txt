@@ -1,3 +1,10 @@
-attack 0;
-61 127;
-67 127;
+switch 1;
+filter 0.2;
+release 0.1;
+sustain 0;
+78 127;
+- 200;
+74 127;
+- 1000;
+stop;
+switch 0;
