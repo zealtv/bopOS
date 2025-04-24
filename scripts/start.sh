@@ -23,15 +23,18 @@ echo "STARTDATE: $STARTDATE"
 echo "STARTTIME: $STARTTIME"
 
 
-sleep 5
+sleep 1
+
 
 #Start Jack 
+echo "Starting Jack..."
 # jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 44100 -s -P& #44.1khz        
 jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 3 -r 22050 -s -P& #22khz
 
 # leave enough time for jack to start before launching PD
-sleep 10
+sleep 15
 
+echo "Starting Pure Data..."
 # PUREDATA
 pd -nogui -jack -open "/home/pi/bopOS/pd/_MAIN.pd" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; " &
 
@@ -39,6 +42,7 @@ pd -nogui -jack -open "/home/pi/bopOS/pd/_MAIN.pd" -send "; RANDOM $RND; STARTTI
 # the helper will parse and forward variables from config.csv
 sleep 5
 
+echo "Starting helper.py..."
 # PYTHON
 sudo /home/pi/venv/bin/python /home/pi/bopOS/scripts/helper.py $MACADDRESS &
 
