@@ -17,7 +17,7 @@ STARTTIME=$(date -d "$now" +%H%M%S)
 
 echo "------------------- Waiting..."
 
-sleep 10
+sleep 15
 
 echo "------------------- Starting bopOS..."
 echo "SOUNDCARD: $SOUNDCARD"
