@@ -1,4 +1,4 @@
-#N canvas 803 81 775 441 12;
+#N canvas 789 306 775 441 12;
 #N canvas 1237 480 373 893 osc 0;
 #X obj 64 471 netsend -u -b;
 #X msg 62 71 connect 255.255.255.255 7770;
@@ -59,9 +59,9 @@
 #X obj 141 156 bng 19 250 50 0 update empty update 25 10 0 12 #fcfcfc #000000 #000000;
 #X obj 31 175 bng 19 250 50 0 shutdown empty shutdown 25 10 0 12 #fcfcfc #000000 #000000;
 #N canvas 639 468 437 382 message 0;
-#X text 107 232 noise 0.0-1.0 \; ding \;;
 #X text 105 105 OSC messages;
-#X text 109 134 aloha \; echo 0-1 \; helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
+#X text 109 129 aloha \; echo 0-1 \; helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
+#X text 107 227 noise 0.0-1.0 \; ding \; dump \;;
 #X coords 0 -1 1 1 160 180 2 100 100;
 #X restore 25 223 pd message list;
 #X obj 321 36 admin.device 0;
