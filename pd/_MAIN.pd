@@ -1,4 +1,4 @@
-#N canvas 1379 59 654 401 12;
+#N canvas 1454 121 654 401 12;
 #X declare -path ./bop;
 #X obj 35 71 declare -path ./bop;
 #X obj 280 272 dac~;
@@ -33,6 +33,7 @@
 #X obj 281 55 route ding;
 #X msg 174 265 id 0;
 #X msg 34 262 version 112 \, id 1;
+#X obj 225 58 print;
 #X connect 2 0 1 0;
 #X connect 2 0 1 1;
 #X connect 4 0 3 0;
@@ -52,6 +53,7 @@
 #X connect 20 0 19 0;
 #X connect 20 0 19 1;
 #X connect 21 0 22 0;
+#X connect 21 0 25 0;
 #X connect 22 0 11 0;
 #X connect 23 0 8 0;
 #X connect 24 0 8 0;
