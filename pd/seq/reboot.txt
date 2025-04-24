@@ -2,4 +2,5 @@ switch 1;
 attack 0.3; 
 50 127; 
 55 127;
+- 1200;
 switch 0;

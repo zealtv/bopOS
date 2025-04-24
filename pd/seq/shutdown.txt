@@ -1,4 +1,5 @@
 switch 1;
+attack 0.01;
 filter 0.2;
 release 0.1;
 sustain 0;
