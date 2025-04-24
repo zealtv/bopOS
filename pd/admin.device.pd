@@ -8,11 +8,11 @@
 #X obj 193 182 r \$0-osc-in;
 #X obj 20 190 tgl 19 1 \$0-print empty print 20 9 0 12 #fcfcfc #000000 #000000 1 1;
 #X obj 353 369 list prepend;
-#X obj 424 341 r \$0-print;
+#X obj 403 339 r \$0-print;
 #X obj 353 417 print device-\$1;
 #X listbox 20 162 18 0 0 2 status___________ \$0-osc-list - 0;
 #X obj 385 300 s \$0-osc-list;
-#X obj 11 11 cnv 18 148 18 empty \$0-header device\ 1 45 10 0 12 #e3c6ff #404040 0;
+#X obj 11 11 cnv 18 148 18 empty \$0-header device\ 0 45 10 0 12 #e3c6ff #404040 0;
 #X obj 545 13 loadbang;
 #X obj 545 37 \$1;
 #X obj 547 96 s \$0-header;
