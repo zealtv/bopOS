@@ -6,7 +6,7 @@
 #X obj 193 10 r osc-from-devices;
 #X obj 193 123 s \$0-osc-in;
 #X obj 193 182 r \$0-osc-in;
-#X obj 20 190 tgl 19 1 \$0-print empty print 20 9 0 12 #fcfcfc #000000 #000000 0 1;
+#X obj 20 190 tgl 19 1 \$0-print empty print 20 9 0 12 #fcfcfc #000000 #000000 1 1;
 #X obj 353 369 list prepend;
 #X obj 424 341 r \$0-print;
 #X obj 353 417 print device-\$1;
@@ -48,8 +48,8 @@
 #X obj 274 535 s \$0-version;
 #X msg 592 365 list helper reboot;
 #X msg 587 305 list helper shutdown;
-#X msg 567 245 list herlper update;
-#X msg 547 185 list herlper updatesamples;
+#X msg 567 245 list helper update;
+#X msg 547 185 list helper updatesamples;
 #X connect 4 0 27 0;
 #X connect 6 0 41 0;
 #X connect 8 0 30 0;
