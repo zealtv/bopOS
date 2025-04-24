@@ -1,5 +1,5 @@
-#N canvas 653 127 775 441 12;
-#N canvas 942 501 373 893 osc 0;
+#N canvas 633 61 775 441 12;
+#N canvas 1237 480 373 893 osc 0;
 #X obj 64 471 netsend -u -b;
 #X msg 62 71 connect 255.255.255.255 7770;
 #X obj 92 158 oscformat reboot;
@@ -18,7 +18,6 @@
 #X obj 54 777 netreceive -u -b 5550;
 #X obj 54 801 oscparse;
 #X obj 54 826 list trim;
-#X text 59 22 broadcast to helper.py;
 #X obj 58 673 netsend -u -b;
 #X obj 59 559 loadbang;
 #X msg 59 582 connect 255.255.255.255 6660;
@@ -27,6 +26,7 @@
 #X obj 70 606 r osc-to-devices;
 #X msg 149 633 connect localhost 6660;
 #X text 51 743 receive messages from devices;
+#X text 59 22 broadcast directly to helper.py;
 #X connect 1 0 0 0;
 #X connect 2 0 0 0;
 #X connect 3 0 2 0;
@@ -43,11 +43,11 @@
 #X connect 14 0 9 0;
 #X connect 15 0 16 0;
 #X connect 16 0 17 0;
-#X connect 17 0 23 0;
-#X connect 20 0 21 0;
-#X connect 21 0 19 0;
-#X connect 24 0 19 0;
-#X connect 25 0 19 0;
+#X connect 17 0 22 0;
+#X connect 19 0 20 0;
+#X connect 20 0 18 0;
+#X connect 23 0 18 0;
+#X connect 24 0 18 0;
 #X restore 28 23 pd osc;
 #X f 22;
 #X text 25 68 helper.py listening on 7770;
@@ -59,9 +59,9 @@
 #X obj 141 156 bng 19 250 50 0 update empty update 25 10 0 12 #fcfcfc #000000 #000000;
 #X obj 31 175 bng 19 250 50 0 shutdown empty shutdown 25 10 0 12 #fcfcfc #000000 #000000;
 #N canvas 639 468 437 382 message 0;
-#X text 114 137 aloha \; admin update \; admin updatesamples \; admin shutdown \; admin reboot \;;
-#X text 112 235 noise 0.0-1.0 \; ding \;;
-#X text 110 108 OSC messages;
+#X text 107 232 noise 0.0-1.0 \; ding \;;
+#X text 105 105 OSC messages;
+#X text 109 134 aloha \; echo 0-1 \; helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
 #X coords 0 -1 1 1 160 180 2 100 100;
 #X restore 25 223 pd message list;
 #X obj 321 36 admin.device 0;
