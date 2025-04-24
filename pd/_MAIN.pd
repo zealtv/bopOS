@@ -33,6 +33,7 @@
 #X obj 281 31 r osc-in;
 #X obj 281 55 route ding;
 #X msg 174 265 id 0;
+#X obj 34 339 bopos.feedback, f 23;
 #X connect 2 0 1 0;
 #X connect 2 0 1 1;
 #X connect 4 0 3 0;
