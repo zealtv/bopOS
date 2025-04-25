@@ -63,7 +63,7 @@
 #X text 109 129 aloha \; echo 0-1 \; helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
 #X text 107 227 noise 0.0-1.0 \; ding \; dump \;;
 #X coords 0 -1 1 1 160 180 2 100 100;
-#X restore 25 223 pd message list;
+#X restore 23 223 pd message list;
 #X obj 321 36 admin.device 0;
 #X obj 478 36 admin.device 1;
 #X text 26 53 open device ports:;
