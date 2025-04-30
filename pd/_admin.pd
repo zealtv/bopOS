@@ -1,4 +1,4 @@
-#N canvas 789 306 775 441 12;
+#N canvas 1897 94 1161 762 12;
 #N canvas 1237 480 373 893 osc 0;
 #X obj 64 471 netsend -u -b;
 #X msg 62 71 connect 255.255.255.255 7770;
@@ -60,11 +60,13 @@
 #X obj 31 175 bng 19 250 50 0 shutdown empty shutdown 25 10 0 12 #fcfcfc #000000 #000000;
 #N canvas 639 468 437 382 message 0;
 #X text 105 105 OSC messages;
-#X text 109 129 aloha \; echo 0-1 \; helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
-#X text 107 227 noise 0.0-1.0 \; ding \; dump \;;
-#X coords 0 -1 1 1 160 180 2 100 100;
+#X text 109 133 aloha \; echo 0-1 \;;
+#X text 107 175 helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
+#X text 108 238 noise 0.0-1.0 \; ding \;;
+#X coords 0 -1 1 1 160 190 2 100 100;
 #X restore 23 223 pd message list;
-#X obj 321 36 admin.device 0;
-#X obj 478 36 admin.device 1;
 #X text 26 53 open device ports:;
 #X text 319 284 for additional devices create [admin.device 2] etc. \; IDs are set in config.csv \;;
+#X obj 343 27 admin.device -1;
+#X obj 529 28 admin.device 0;
+#X obj 425 376 admin.device 1;
