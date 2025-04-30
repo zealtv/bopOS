@@ -1,4 +1,4 @@
-#N canvas 1897 94 1161 762 12;
+#N canvas 1514 112 881 379 12;
 #N canvas 1237 480 373 893 osc 0;
 #X obj 64 471 netsend -u -b;
 #X msg 62 71 connect 255.255.255.255 7770;
@@ -64,9 +64,8 @@
 #X text 107 175 helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
 #X text 108 238 noise 0.0-1.0 \; ding \;;
 #X coords 0 -1 1 1 160 190 2 100 100;
-#X restore 23 223 pd message list;
+#X restore 301 25 pd message list;
 #X text 26 53 open device ports:;
-#X text 319 284 for additional devices create [admin.device 2] etc. \; IDs are set in config.csv \;;
-#X obj 343 27 admin.device -1;
-#X obj 529 28 admin.device 0;
-#X obj 425 376 admin.device 1;
+#X text 468 284 for additional devices create [admin.device 2] etc. \; IDs are set in config.csv \;;
+#X obj 492 27 admin.device -1;
+#X obj 678 28 admin.device 0;
