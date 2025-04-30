@@ -62,8 +62,8 @@
 #X text 105 105 OSC messages;
 #X text 109 133 aloha \; echo 0-1 \;;
 #X text 107 175 helper update \; helper updatesamples \; helper shutdown \; helper reboot \;;
-#X text 108 238 noise 0.0-1.0 \; ding \;;
-#X coords 0 -1 1 1 160 190 2 100 100;
+#X text 108 238 noise 0.0-1.0 \; ding \; l \; r \;;
+#X coords 0 -1 1 1 160 210 2 100 100;
 #X restore 301 25 pd message list;
 #X text 26 53 open device ports:;
 #X text 468 284 for additional devices create [admin.device 2] etc. \; IDs are set in config.csv \;;
