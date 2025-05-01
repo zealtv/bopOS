@@ -33,7 +33,7 @@
 #X obj 109 648 r \$0-osc-from-arduino;
 #X obj 97 94 route ping, f 30;
 #X obj 339 93 route brightness, f 43;
-#X obj 104 412 comport 1 115200;
+#X obj 104 412 comport 2 115200;
 #X connect 1 0 27 0;
 #X connect 2 0 27 0;
 #X connect 3 0 27 0;
