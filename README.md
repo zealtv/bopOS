@@ -77,7 +77,23 @@ python3 -m venv ./venv;
 
 ## Install and configure your specific soundcard
 on your pi:
-- install your soundcard if required (usually involing editing config.txt)
+- install your soundcard if required
+- for example for MAX9857-based i2s soundcards, make the following changes to /boot/firmware/config.txt
+
+```
+dtparam=i2s=on
+#dtparam=audio=on
+dtoverlay=hifiberry-dac
+```
+
+- if using arduino, also add
+
+```
+enable_uart=1
+dtoverlay=pi3-miniuart-bt
+```
+
+
 - reboot pi
 - list available soundcards
 ```
@@ -107,4 +123,18 @@ run update script to
 
 ```
 sudo ~/bopOS/scripts/update.sh
+```
+
+# If using Arduino
+- disable serial console on pi
+- interfaces > serial > disable console, enable hardware 
+
+```
+sudo raspi-config
+```
+
+- reboot and test
+
+```
+sudo reboot
 ```
