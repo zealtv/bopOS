@@ -1,4 +1,4 @@
-#N canvas 1629 536 1398 812 12;
+#N canvas 522 25 1398 812 12;
 #X declare -path ./bop/babs;
 #X obj 996 82 declare -path ./bop/babs;
 #X msg 909 226 close;
@@ -20,7 +20,7 @@
 #X obj 104 355 babs.slipencode;
 #X msg 97 177 1;
 #X obj 96 205 oscformat -f i ping;
-#X obj 338 154 oscformat -f i brightness;
+#X obj 337 145 oscformat -f i brightness;
 #X obj 96 44 inlet;
 #X obj 104 562 oscparse;
 #X obj 338 184 s \$0-osc-to-arduino;
@@ -36,7 +36,7 @@
 #X msg 200 130 open \$1;
 #X obj 200 162 s \$0-to-comport;
 #X msg 123 123 devices;
-#X obj 104 462 comport /dev/ttyS0 115200;
+#X obj 104 462 comport /dev/ttyAMA1 115200;
 #X connect 1 0 27 0;
 #X connect 2 0 27 0;
 #X connect 3 0 27 0;
