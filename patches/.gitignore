@@ -1,0 +1,8 @@
+# Ignore everything in this directory
+*
+# Except these files
+!.gitignore
+!README.md
+!default/
+!default/**
+!active_patch.txt

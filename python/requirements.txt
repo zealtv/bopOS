@@ -1,0 +1,16 @@
+# helper.py and io/main.py dependencies for raspberry pi
+
+# OSC communication
+pyOSC3
+
+# Adafruit CircuitPython libraries
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-mpr121
+adafruit-circuitpython-busdevice
+
+# PiicoDev library for LIS3DH
+piicodev
+
+# sample downloading
+gdown
+

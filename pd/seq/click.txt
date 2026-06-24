@@ -1,0 +1,9 @@
+switch 1;
+attack 0;
+decay 0.1;
+sustain 0;
+62 127;
+- 40;
+90 70;
+- 60;
+switch 0;

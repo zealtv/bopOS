@@ -1,0 +1,18 @@
+# Laptop dependencies (macOS/Linux with MCP2221A USB-to-I2C adapter)
+# Install: pip install -r requirements-laptop.txt
+
+# Blinka — provides board/busio support via MCP2221A
+# Run with: BLINKA_MCP2221=1 python3 ...
+adafruit-blinka
+hidapi
+
+# OSC communication
+pyOSC3
+
+# Adafruit CircuitPython libraries
+adafruit-circuitpython-mpr121
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-busdevice
+
+# PiicoDev SSD1306 OLED
+PiicoDev_SSD1306

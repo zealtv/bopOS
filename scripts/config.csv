@@ -1,5 +1,0 @@
-MAC, ID, POSX, POSY, hostname
-00:00:00:00:00:00, 0, 0, 0, test
-d8:3a:dd:bb:27:87, 1, 0, 0, device1
-d8:3a:dd:bb:28:06, 2, 100, 0, device2
-d8:3a:dd:bb:27:f2, 3, 200, 0, device3
