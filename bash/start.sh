@@ -59,12 +59,15 @@ echo "====================="
 
 
 # Start helper.py to manage system functions
+# NB: no sudo — start.sh runs as user `pi` (rc.local: `su pi -c`), and the `pi`
+# user is in the i2c/gpio/audio groups, so these need no root. On images without
+# passwordless sudo (e.g. Pi OS Trixie) a `sudo` here silently fails at boot.
 echo "------------------- Starting helper.py..."
-sudo /home/pi/venv/bin/python /home/pi/bopOS/python/helper.py $MACADDRESS &
+/home/pi/venv/bin/python /home/pi/bopOS/python/helper.py $MACADDRESS &
 
 # Start io/main.py to access sensors and peripherals
 echo "------------------- Starting io/main.py..."
-sudo /home/pi/venv/bin/python /home/pi/bopOS/python/io/main.py &
+/home/pi/venv/bin/python /home/pi/bopOS/python/io/main.py &
 
 sleep 1
 
