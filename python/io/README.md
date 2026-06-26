@@ -113,6 +113,25 @@ PERIPHERAL_TYPES = {
 4. Create from PD: `[io/create dev1 yourdevice 0x48(`
 
 
+## Peripheral lifecycle (design decision)
+
+Peripherals are **created and managed over OSC by the active patch** (`/io/create …`),
+**not** from a device-level config file. The bridge starts with **no peripherals** — the
+patch declares the ones it needs (the auto-create lines in `main()` stay commented as
+examples only).
+
+This is deliberate:
+
+- **Different patches may handle hardware differently** — so it's fine, and expected, for a
+  patch to (re)instantiate peripherals its own way on load. The hardware complement is a
+  property of the *patch*, not baked into the device.
+- **Keeps the device fully remote-controllable** — anything reachable over OSC can create,
+  reconfigure, or query peripherals at runtime; nothing is locked in at boot.
+
+A patch typically issues its `/io/create` calls on `loadbang`. Peripherals persist until
+replaced or until the bridge restarts (e.g. on a patch switch / reboot).
+
+
 ## Dependencies
 
 Dependencies are listed in `requirements.txt` and should be updated automatically when update.sh is run.
