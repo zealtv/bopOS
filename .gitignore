@@ -1,2 +1,4 @@
 .DS_Store
 samples.zip
+__pycache__/
+*.pyc

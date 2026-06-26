@@ -20,6 +20,8 @@ PERIPHERAL_TYPES = {
     'ads1115': ('io_ads1115', 'IO_ADS1115'), # 4 channel 16-bit ADC
     'lis3dh': ('io_lis3dh', 'IO_LIS3DH'), # 3-axis accelerometer
     'mpr121': ('io_mpr121', 'IO_MPR121'), # 12-channel capacitive touch sensor
+    'ssd1306': ('io_ssd1306', 'IO_SSD1306'), # 128x64 OLED display
+    'switch': ('io_switch', 'IO_Switch'), # PiicoDev momentary button
 }
 
 class IOManager:

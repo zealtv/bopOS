@@ -67,7 +67,7 @@ echo "------------------- Starting helper.py..."
 
 # Start io/main.py to access sensors and peripherals
 echo "------------------- Starting io/main.py..."
-/home/pi/venv/bin/python /home/pi/bopOS/python/io/main.py &
+( cd /home/pi/bopOS/python/io && /home/pi/venv/bin/python main.py ) &
 
 sleep 1
 
