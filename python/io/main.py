@@ -5,9 +5,12 @@ Simple interface between I2C sensors and Pure Data via OSC
 """
 
 import time
+import socket
 import threading
 import signal
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
+
+from sys_wireless import read_wireless
 
 # Settings
 PYTHON_PORT = 8880      # This script listens here for commands from Pure Data
@@ -136,6 +139,22 @@ class IOManager:
             for name, peripheral in self.peripherals.items():
                 print(f"  {name}: {peripheral.__class__.__name__}")
         
+        # /system/rssi -> reply to PD: /system/rssi <dbm> <quality>
+        # /system/id   -> reply to PD: /system/id <hostname>
+        # Decoupled request/reply, manually polled. quality 0 = no link.
+        elif parts[0] == 'system':
+            query = parts[1] if len(parts) >= 2 else 'rssi'
+            if query == 'rssi':
+                rssi, quality = read_wireless()
+                reply = OSCMessage("/system/rssi")
+                reply.append(rssi if rssi is not None else 0)
+                reply.append(quality if quality is not None else 0)
+                self.osc_client.send(reply)
+            elif query == 'id':
+                reply = OSCMessage("/system/id")
+                reply.append(socket.gethostname())
+                self.osc_client.send(reply)
+
         # /<peripheral>/<command> - send to specific peripheral
         elif len(parts) >= 2 and parts[0] in self.peripherals:
             peripheral_name = parts[0]
