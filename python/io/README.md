@@ -79,14 +79,29 @@ class MyPeripheral:
 
 ## OSC Commands
 
-### System Commands
+Three namespaces by first path segment: `/io/*` = bridge management,
+`/system/*` = device facts, `/<name>/*` = control a peripheral.
+
+### Bridge management (`/io/*`)
 ```
 /io/create <name> <type> <address>   Create a peripheral
-/io/list                             List active peripherals
-/poll <rate>                         Set poll rate in Hz
+/io/poll <rate>                      Set poll rate in Hz
+/io/report                           Log active peripherals
+/io/scan [bus]                       Reply /io/scan <addr>... (present I2C addrs)
 ```
 
-### Peripheral Commands
+### Device facts (`/system/*`) — request/reply, manually polled
+```
+/system/rssi      -> /system/rssi <dbm> <quality>   (quality 0 = no link)
+/system/id        -> /system/id <hostname>
+/system/ip        -> /system/ip <ip>
+/system/uptime    -> /system/uptime <seconds>
+/system/rev       -> /system/rev <git-sha>
+/system/patch     -> /system/patch <active-patch>
+/system/info      -> emits all of the above (one message each)
+```
+
+### Peripheral commands
 ```
 /<peripheral>/<command> [args...]    Send command to peripheral
 ```

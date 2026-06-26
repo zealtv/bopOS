@@ -11,6 +11,9 @@ import signal
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
 
 from sys_wireless import read_wireless
+from sys_i2c import scan_bus
+from sys_info import (get_hostname, get_ip, get_uptime,
+                      get_git_rev, get_active_patch)
 
 # Settings
 PYTHON_PORT = 8880      # This script listens here for commands from Pure Data
@@ -113,47 +116,27 @@ class IOManager:
         except Exception as e:
             print(f"Error sending OSC: {e}")
     
+    def _send(self, address, *values):
+        """Send a reply message to PD."""
+        msg = OSCMessage(address)
+        for v in values:
+            msg.append(v)
+        self.osc_client.send(msg)
+
     def handle_command(self, address, tags, args, source):
         """
-        Handle OSC commands from PD.
+        Handle OSC commands from PD. Namespaces:
+          /io/*     - bridge management (create, poll, report, scan)
+          /system/* - device facts (rssi, id, ip, uptime, rev, patch, info)
+          /<name>/* - control the peripheral called <name>
         """
         parts = address.strip('/').split('/')
-        
-        # /create <name> <type> <address>
-        if parts[0] == 'create':
-            if len(args) >= 3:
-                name = str(args[0])
-                device_type = str(args[1])
-                i2c_addr = int(args[2], 16) if isinstance(args[2], str) else int(args[2])
-                self.create_peripheral(name, device_type, i2c_addr)
-        
-        # /poll <rate>
-        elif parts[0] == 'poll':
-            if len(args) > 0:
-                self.poll_rate = max(0.1, float(args[0]))
-                print(f"Poll rate set to {self.poll_rate} Hz")
-        
-        # /list
-        elif parts[0] == 'report':
-            print("\nActive peripherals:")
-            for name, peripheral in self.peripherals.items():
-                print(f"  {name}: {peripheral.__class__.__name__}")
-        
-        # /system/rssi -> reply to PD: /system/rssi <dbm> <quality>
-        # /system/id   -> reply to PD: /system/id <hostname>
-        # Decoupled request/reply, manually polled. quality 0 = no link.
+
+        if parts[0] == 'io':
+            self.handle_io(parts[1:], args)
+
         elif parts[0] == 'system':
-            query = parts[1] if len(parts) >= 2 else 'rssi'
-            if query == 'rssi':
-                rssi, quality = read_wireless()
-                reply = OSCMessage("/system/rssi")
-                reply.append(rssi if rssi is not None else 0)
-                reply.append(quality if quality is not None else 0)
-                self.osc_client.send(reply)
-            elif query == 'id':
-                reply = OSCMessage("/system/id")
-                reply.append(socket.gethostname())
-                self.osc_client.send(reply)
+            self.handle_system(parts[1] if len(parts) >= 2 else 'rssi')
 
         # /<peripheral>/<command> - send to specific peripheral
         elif len(parts) >= 2 and parts[0] in self.peripherals:
@@ -165,7 +148,55 @@ class IOManager:
                 peripheral.write_data(command=command, args=args)
             except Exception as e:
                 print(f"Error writing to {peripheral_name}: {e}")
-    
+
+    def handle_io(self, parts, args):
+        """Bridge management: /io/create|poll|report|scan."""
+        verb = parts[0] if parts else ''
+
+        # /io/create <name> <type> <address>
+        if verb == 'create' and len(args) >= 3:
+            name = str(args[0])
+            device_type = str(args[1])
+            i2c_addr = int(args[2], 16) if isinstance(args[2], str) else int(args[2])
+            self.create_peripheral(name, device_type, i2c_addr)
+
+        # /io/poll <rate>
+        elif verb == 'poll' and len(args) > 0:
+            self.poll_rate = max(0.1, float(args[0]))
+            print(f"Poll rate set to {self.poll_rate} Hz")
+
+        # /io/report
+        elif verb == 'report':
+            print("\nActive peripherals:")
+            for name, peripheral in self.peripherals.items():
+                print(f"  {name}: {peripheral.__class__.__name__}")
+
+        # /io/scan [bus] -> reply /io/scan <addr> <addr> ... (present, ints)
+        # Skips probing live peripherals (reports them from the registry).
+        elif verb == 'scan':
+            bus = int(args[0]) if args else 1
+            skip = [p.address for p in self.peripherals.values()
+                    if getattr(p, 'address', None)]
+            self._send("/io/scan", *scan_bus(bus, skip=skip))
+
+    def handle_system(self, query):
+        """Device facts: /system/rssi|id|ip|uptime|rev|patch|info.
+        Each replies on its own address; /system/info emits them all."""
+        if query in ('rssi', 'info'):
+            rssi, quality = read_wireless()
+            self._send("/system/rssi", rssi if rssi is not None else 0,
+                       quality if quality is not None else 0)
+        if query in ('id', 'info'):
+            self._send("/system/id", get_hostname())
+        if query in ('ip', 'info'):
+            self._send("/system/ip", get_ip())
+        if query in ('uptime', 'info'):
+            self._send("/system/uptime", get_uptime())
+        if query in ('rev', 'info'):
+            self._send("/system/rev", get_git_rev())
+        if query in ('patch', 'info'):
+            self._send("/system/patch", get_active_patch())
+
     def run(self):
         """
         Main loop: poll sensors and send OSC bundle.
@@ -175,9 +206,9 @@ class IOManager:
         print(f"Sending to PD on port {PD_PORT}")
         print(f"Poll rate: {self.poll_rate} Hz")
         print(f"\nCommands:")
-        print(f"  /create <name> <type> <address>")
-        print(f"  /poll <rate>")
-        print(f"  /report")
+        print(f"  /io/create <name> <type> <address>")
+        print(f"  /io/poll <rate>   /io/report   /io/scan [bus]")
+        print(f"  /system/rssi|id|ip|uptime|rev|patch|info")
         print(f"\nPress Ctrl+C to quit\n")
         
         # Setup OSC server in separate thread
