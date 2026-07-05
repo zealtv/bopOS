@@ -143,6 +143,7 @@ A→B is a clean evolution; the OSC shape of B should be sketched in the contrac
 - `pi-zero-performance` — CPU headroom on Zero 2 W: measure first (xruns, top), then tune jackd/-p/-r, patch cost, poll rates; plus the engine question (§11).
 - `scene-sequencing` — scene scripting language + trigger-slot UI + agent-assisted composition; `video-mask` child idea (§10).
 - `sample-distribution` — mass-update audio on all Pis over the local network (§10).
+- `audition-rig` — hear N engine instances on the laptop, spatially monitored; the composition tool (§12).
 
 ## 9. Open questions for Bob
 
@@ -203,3 +204,18 @@ and agent-coded composition is now a target workflow. The framing:
   management on the Pi; more complicated; not now.
 - The `osc-schema-contract` entrypoint generalisation is the enabler: engine becomes a
   per-patch choice, and PD/bop and SC patches coexist in one fleet.
+
+## 12. Audition rig (round 3, 2026-07-05)
+
+**Pain:** composition has been done "deaf" — hearing a piece meant setting up the whole
+Pi fleet. **Attack:** run N *real* engine instances of the target patch on the laptop
+(same OSC control plane; not simulated audio), with a spatial monitor mixer between
+their jack outputs and the speakers. Stages: (0) all instances summed — confirmed
+useful for composition on its own; (A) listener puck (position + heading) dragged on
+the dashboard spatial map, per-instance gain = distance falloff × forward bias, reusing
+`installation.json` positions and the same falloff math as `spatial-audio`; (B)
+binaural/HRTF 6DOF later (near-free under a SuperCollider engine). Load-bearing
+assumption to spike first: N processes on one host sharing broadcast port 6660
+(PD netreceive + SO_REUSEADDR — test Linux and macOS). Single-IP consequence: depends
+on heartbeat-with-identity. Compounding payoff: audition rig + scene language = the
+desk-based composition loop Belief System never had. Thread: `audition-rig`.

@@ -32,7 +32,9 @@ installations. This file is the orientation for any agent working here.
 → `dashboard` phases 1–4 → `clock-sync` → `spatial-audio` / `scene-sequencing`.
 
 Free-floating, any time: `sample-distribution`, `audio-input`, `pi-zero-performance`
-(measurement half), `patch-workflow-friction` (mostly falls out of dashboard-4).
+(measurement half), `patch-workflow-friction` (mostly falls out of dashboard-4),
+`audition-rig` (spike its port-sharing child first; Stage A wants the dashboard
+spatial map).
 Gated by instruction: `video-mask`, the SC proof-of-concept, spatial-audio Stage B.
 Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom` (`bopos-uptodate`) —
 coordinate, don't duplicate.
@@ -45,6 +47,9 @@ coordinate, don't duplicate.
   the deliverable (new protocol features land in the simulator in the same stitch).
 - **Laptop rig:** `bash/start-laptop.sh` runs PD + the io bridge on a laptop
   (MCP2221A USB-I2C adapter) for peripheral work.
+- **Audible fleet:** `audition-rig` builds the composition monitor — N real engine
+  instances on the laptop, spatially mixed. Protocol-only (`simfleet`) and audible
+  instances should stay config-compatible so they can mix in one session.
 - **Real Pi loop:** the edit→push→pull-on-Pi dance and the stop-stack/restart test
   sequence are documented in `kite-choir-brains/.claude/skills/bopos-dev/SKILL.md`.
   Hardware verification ultimately needs Bob or a live rig — say so in the stitch
