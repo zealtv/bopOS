@@ -11,6 +11,10 @@ A Raspberry Pi + Pure Data framework for **networked multi-device sound and inte
 > [plantsOS](https://github.com/playablestreets/plantsOS) and is now the canonical line —
 > plantsOS systems migrate back to bopOS over time. The architecture is **I2C-direct** (the old
 > ESP32 + serial path is archived under `legacy/arduino/`). See `.notes/architecture-overview.md`.
+>
+> **Plans (2026-07):** forward plan + architectural review in
+> `.notes/architecture-review-2026-07-05.md`; work is tracked in `.loom/` (agents: start at
+> `CLAUDE.md`); design/decision records in `.lore/`.
 
 # Requirements
 
