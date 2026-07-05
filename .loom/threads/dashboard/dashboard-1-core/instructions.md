@@ -12,5 +12,10 @@ Checklist:
 - [ ] State persistence to `installation.json`; import `bopos.devices` to seed the device map
 - [ ] Dark, responsive UI
 
+Caveat (Bob, round 2): gain/gain2/backing/echo are **patch-specific**, not framework —
+phase 1 replicates them for parity with DASHBOARD.pd, but build the controls panel as a
+generic "parameter list" component so it can switch to contract-discovered patch
+parameters once `osc-schema-contract` lands. Don't bake the three sliders in deep.
+
 Done when: a real installation can be monitored and mixed from a browser with
 DASHBOARD.pd closed, using unmodified Pis.

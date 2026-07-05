@@ -7,9 +7,25 @@ Context: `.notes/architecture-review-2026-07-05.md` §4, §7. **Overlaps kite-ch
 loom thread `bopos-uptodate/osc-contract-pd-agnostic`** — coordinate/absorb, don't
 duplicate. That thread stays spool-scoped; the generic work lands here.
 
+**Do this ahead of dashboard build** — schema decisions steer the dashboard design
+(Bob, round 2). Specifically rethink, don't just document:
+
+- **Framework vs patch namespaces:** `/gain` `/gain2` `/backing` are *patch-specific*
+  targets, not framework — the contract needs a clean split (e.g. `/os/*` framework,
+  `/p/*` or patch-declared parameter namespace) so the dashboard can discover a patch's
+  parameters instead of hardcoding three sliders.
+- **`/echo` is an OSC echo-back hack** — either move it into helper.py as a proper
+  liveness/latency probe, or remove it in favour of deliberate discoverability/debug
+  design (e.g. `/os/ping`, parameter listing, verbose-mode reporting).
+- **The ports smell** (quantity, arbitrary numbers, overall protocol design). Consider:
+  fewer sockets, coherent numbering, or single-port-with-namespaces on each side; weigh
+  against migration cost for deployed fleets.
+
 Checklist:
 - [ ] `docs/OSC-CONTRACT.md`: full port map, namespaces, message shapes, and the
       constraints (PD 32-bit float precision; longs-as-strings rule)
+- [ ] Framework/patch namespace split + patch parameter discoverability (above)
+- [ ] `/echo` resolution (above); port-map rationalisation decision recorded
 - [ ] Namespace rename `/helper/*` → `/os/*` (keep `/helper` aliased for one transition
       release; plantsOS README already planned this)
 - [ ] **Move the heartbeat from PD into helper.py** and give it identity:

@@ -18,7 +18,7 @@ point back to.
 |---|---|---|
 | **Kite Choir spool v2** | `kite-choir-brains` (docs/bopos.md, loom `bopos-uptodate`) | Pi Zero 2 W + DigiAmp+ + LIS3DH/button/OLED; the current driver of bopOS work; RSSI first-class decision made there |
 | **The Plants** | `plantsos` (fork, migrating back) | Garden installation lineage; source of the patch system + io bridge |
-| **belief** (reference) | Happy Brackets + Pi Zeros, not bopOS | Prior art for synced start + moving-point/radius spatial gain |
+| **Belief System** (reference) | Happy Brackets + Pi Zeros, not bopOS (zeal.co) | Prior art for synced start + moving-point/radius spatial gain. Sequenced via Ableton + Max for Live — unstable and complicated; the lesson is that bopOS needs its own sequencing story (§10) |
 
 Note: the bopOS planning items were **not in the HQ loom** (searched — nothing there). The
 live ones are in **kite-choir-brains' loom** (`bopos-uptodate` → `osc-contract-pd-agnostic`,
@@ -31,6 +31,13 @@ each is now covered by local threads here, cross-referenced both ways.
 1. **CPU overhead** — PD is single-threaded; Pi Zero 2 W is the constrained target.
 2. **Engine agnosticism** — keep bopOS working whether or not the sound engine is PD.
 3. **OSC schema tidy-up** — `/helper` → `/os`, consistent namespaces, written contract.
+   Round 2 additions: **`/gain` `/gain2` `/backing` are patch-specific**, not framework —
+   the contract must separate the framework namespace from per-patch parameter
+   namespaces; **`/echo` just echoes an OSC message back** — either move it into
+   helper.py as a proper liveness/debug probe or replace it with deliberate
+   discoverability/debug design; and there's a **general smell around the ports**
+   (quantity, arbitrary numbers, protocol design). Address ahead of dashboard build —
+   schema decisions steer the dashboard design.
 4. **Forward-synchronised clock** — WiFi latency breaks tight cue triggering today.
 5. **Spatialised sound** — synced simultaneous start + moving point/radius controlling per-device gain (the belief technique).
 6. **Non-technical musicians** — PD → GitHub → headless-Pi-over-OSC is a steep path.
@@ -133,13 +140,65 @@ A→B is a clean evolution; the OSC shape of B should be sketched in the contrac
 - `osc-schema-contract` — `/helper`→`/os`, heartbeat-with-identity in Python, written OSC contract; generalised patch entrypoint. (Overlaps kite-choir `osc-contract-pd-agnostic` — coordinate, don't duplicate.)
 - `patch-workflow-friction` — musician-friendly patch path (dashboard-first: add/switch/update patches without git/terminal).
 - `audio-input` — capture support: jackd flags + soundcard/capture in `bopos.config`; hardware guidance (which HATs have line/mic in).
-- `pi-zero-performance` — CPU headroom on Zero 2 W: measure first (xruns, top), then tune jackd/-p/-r, patch cost, poll rates; survey alternative engines (SuperCollider et al.) only if PD can't hold.
+- `pi-zero-performance` — CPU headroom on Zero 2 W: measure first (xruns, top), then tune jackd/-p/-r, patch cost, poll rates; plus the engine question (§11).
+- `scene-sequencing` — scene scripting language + trigger-slot UI + agent-assisted composition; `video-mask` child idea (§10).
+- `sample-distribution` — mass-update audio on all Pis over the local network (§10).
 
 ## 9. Open questions for Bob
 
-- zil.co appears to be a parked/for-sale domain now — where does belief's documentation
-  actually live? (Not blocking; the technique is captured above.)
 - Dashboard-as-leader for the clock: acceptable that tight-sync features require the
   dashboard backend running? (Pis stay autonomous for everything else.)
 - Musicians' path: is "musician uses only the dashboard, Bob handles patch authoring in
   PD" the target, or do we also want a patch-template/starter-kit story?
+- Video-mask sequencing: dashboard feature, separate app, or something else? (§10)
+
+## 10. Round 2 (2026-07-05, after Bob reviewed the above)
+
+**Sequencing / scenes.** Belief System was sequenced from Ableton via Max for Live —
+unstable and complicated. bopOS needs its own sequencing approach: a standalone app or
+built into the dashboard. Direction:
+
+- A **simple scene-scripting language**: scenes can be triggered, mixed, or crossfaded;
+  features: loops (looping sequences), one-shot lines, LFOs, "note"/random-number
+  generation, rhythm notation.
+- **Seeds already exist**: bop's text sequencing (`.bopseq`: `param [loop] v1 t1 v2 t2 …`
+  breakpoint automation, `- <ms>` waits, `===` sections, midi-note lines — see
+  `pd/bop/sequences/help.bopseq`) and Bob's **intermals notation**
+  (https://zeal.co/notebook/intermals/): semisteps chord voicing (`0.43` = root+maj3+min3),
+  bitplucking envelope digits (`7965`), symbolic ops (`@` root, `=` tuning, `>` fret,
+  `p` pluck, `b` bow, uppercase = signals), rhythm as `1?004` (quarter note).
+- **Trigger-slot UI** (Ableton session-view pattern) for launching scenes across time —
+  known, useful pattern; natural fit for the dashboard + the facilitator view.
+- **Agent-coded composition is a first-class workflow**: scripting is much easier for
+  composers now AI agents exist. Target: an artist prompts a sketch *and* the patterns
+  controlling it across many instances into place. A text scripting language is exactly
+  the right substrate for that.
+
+**Video-as-mask sequencing (idea, unresolved home).** Use video luminance (or any
+channel) sampled at each device's (x, y) as a parameter source — visual gradients and
+video textures become sweeps/effects across the space. Generalises the moving-point
+spatial model (§6): the point/radius is just one "mask"; video is another. Open where it
+lives (dashboard layer, separate app, …).
+
+**Sample management.** Mass-updating audio across all Pis is a pain point. The gdrive
+`getsamples` path is per-patch and manual. Want: flexible fleet-wide sample sync over the
+**local network** (dashboard/laptop as source of truth — push or Pi-pull, e.g.
+rsync-over-ssh or HTTP from the dashboard backend) rather than each Pi fetching from the
+cloud.
+
+## 11. Engine strategy (supersedes the §8 'only if PD can't hold' framing)
+
+SuperCollider is worth **serious consideration on its own merits**, not just as a CPU
+fallback: **scsynth is more agent-friendly than PD** (text code, OSC-native server) —
+and agent-coded composition is now a target workflow. The framing:
+
+- **bop (→ the instigator of bopOS) is a UI comfort/convenience layer over PD** aimed at
+  artist-friendly *hand-patched* workflows. That remains its job.
+- Distinct workflows to serve: **hand-patched** (PD + bop), **hand-coded**,
+  **agent-coded**, **collaborative**. Different engines suit different workflows.
+- **Kite Choir** (efficiency + agential workflows, 50–100 devices) will probably prefer
+  **SuperCollider**.
+- **RNBO** noted as a future consideration — its runner competes with bopOS process
+  management on the Pi; more complicated; not now.
+- The `osc-schema-contract` entrypoint generalisation is the enabler: engine becomes a
+  per-patch choice, and PD/bop and SC patches coexist in one fleet.

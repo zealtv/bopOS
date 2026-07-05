@@ -14,11 +14,15 @@ Measure first, then tune:
       io poll rate (10 Hz default) vs patch needs
 - [ ] Process split: check helper.py / io bridge nice levels; they should never steal
       from the audio thread
-- [ ] Engine survey (only if PD can't hold real-time for target patch complexity):
-      SuperCollider (scsynth headless is the obvious candidate — multi-core-friendlier,
-      OSC-native so it fits the contract), plus a quick look at alternatives
-      (Faust-compiled natives, Csound). The `osc-schema-contract` entrypoint
-      generalisation is what makes an engine swap a patch-level choice, not a fork.
+- [ ] Engine track — **SuperCollider is under serious consideration on its own merits**
+      (review §11), not just as a CPU fallback: scsynth is OSC-native, headless,
+      multi-core-friendlier, and **more agent-friendly than PD** — and agent-coded
+      composition is a target workflow. bop/PD remains the hand-patched artist layer;
+      Kite Choir-scale work will probably prefer SC. Deliverable: a proof-of-concept SC
+      patch running as a bopOS patch (entrypoint via its own start.sh) on the Zero,
+      with a CPU comparison vs an equivalent PD patch. RNBO noted as future-only
+      (its runner competes with bopOS process management). Also glance at
+      Faust-compiled natives / Csound for completeness.
 
 Done when: documented Zero 2 W defaults committed, with the measurement showing the
 headroom gained, and a short written verdict on whether a non-PD engine is warranted.
