@@ -146,8 +146,9 @@ A→B is a clean evolution; the OSC shape of B should be sketched in the contrac
 
 ## 9. Open questions for Bob
 
-- Dashboard-as-leader for the clock: acceptable that tight-sync features require the
-  dashboard backend running? (Pis stay autonomous for everything else.)
+- ~~Dashboard-as-leader for the clock~~ — **RESOLVED (Bob, 2026-07-05): acceptable.**
+  The dashboard backend is the clock leader; tight-sync features may assume it's
+  running. (Pis stay autonomous for everything else.)
 - Musicians' path: is "musician uses only the dashboard, Bob handles patch authoring in
   PD" the target, or do we also want a patch-template/starter-kit story?
 - Video-mask sequencing: dashboard feature, separate app, or something else? (§10)

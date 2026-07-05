@@ -24,10 +24,12 @@ Hard constraints (learned from HB + PD):
   never step.
 - Randomise ping intervals slightly to avoid lockstep network bursts (HB does 500±100 ms).
 
-Decisions to make en route:
-- Leader = dashboard backend (recommended; it already exists) vs leaderless MAC-election
-  (HB gen-1) for dashboard-less operation. Open question §9 in the review.
-- Where the offset math lives (leader-side vs device-side).
+Decisions:
+- **RESOLVED (Bob, 2026-07-05): the dashboard backend is the clock leader.** Tight-sync
+  features may assume the dashboard is running; Pis stay autonomous for everything
+  else. No leaderless MAC-election needed.
+- Still open (implementer's call, record it): where the offset math lives
+  (leader-side vs device-side).
 - Expected accuracy target: HB achieved musically-usable sync on WiFi with this; measure
   actual jitter on our network before over-engineering (a test harness that flashes a
   GPIO/click on N Pis and records them together is the honest measurement).
