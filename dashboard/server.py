@@ -94,6 +94,8 @@ class Dashboard:
         await ws.accept()
         self.clients.add(ws)
         await ws.send_json({"type": "state", "data": self.state.public()})
+        await ws.send_json({"type": "venues", "data": {"venues": self.state.list_venues(),
+                                                       "current": self.state.data.get("name")}})
         try:
             while True:
                 message = await ws.receive_json()
@@ -128,6 +130,20 @@ class Dashboard:
             # unassigned box at once (they all sit at -1)
             if uid in self.state.devices:
                 self.osc.os_command("all", "identify", [str(uid)])
+        elif kind == "switch_patch":
+            selector = "all" if uid == "all" else self.selector(uid)
+            name = str(data.get("patch", "")).strip()
+            if selector is not None and re.fullmatch(r"[\w.-]+", name):
+                self.osc.os_command(selector, "patch", [name])
+        elif kind == "add_patch":
+            user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
+            selector = "all" if uid in (None, "all") else self.selector(uid)
+            if selector is not None and re.fullmatch(r"[\w-]+", user) and re.fullmatch(r"[\w.-]+", repo):
+                self.osc.os_command(selector, "addpatch", [user, repo])
+        elif kind == "pull_patch":
+            selector = "all" if uid == "all" else self.selector(uid)
+            if selector is not None:
+                self.osc.os_command(selector, "pullpatch")
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -188,6 +204,21 @@ class Dashboard:
             self.osc.assign(uid, new_id, name, device.get("pos1"), device.get("pos2"))
             self.state.save_debounced()
             await self.broadcast("device_update", device)
+        elif kind == "save_venue":
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
+            if name:
+                self.state.save_venue(name)
+                await self.broadcast("venues", {"venues": self.state.list_venues(),
+                                                "current": self.state.data.get("name")})
+        elif kind == "load_venue":
+            name = str(data.get("name", "")).strip()
+            if name and self.state.load_venue(name):
+                await self.broadcast("state", self.state.public())
+                await self.broadcast("venues", {"venues": self.state.list_venues(),
+                                                "current": self.state.data.get("name")})
+        elif kind == "list_venues":
+            await self.broadcast("venues", {"venues": self.state.list_venues(),
+                                            "current": self.state.data.get("name")})
         elif kind == "request_params":
             self.osc.request(uid, "params")
         elif kind == "request_report":

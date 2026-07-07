@@ -14,6 +14,18 @@ ws.on("device_offline", data => { if (installation.devices[data.uid]) installati
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
 ws.on("error", data => alert(data.message));
+let venues = {venues: [], current: null};
+ws.on("venues", data => { venues = data; renderVenues(); });
+function renderVenues() {
+  const select = $("#venue-select"); if (!select) return;
+  const options = venues.venues.map(name => `<option ${name===venues.current?'selected':''}>${esc(name)}</option>`).join("");
+  select.innerHTML = options || '<option disabled>none saved</option>';
+}
+(function bindVenues() {
+  const save = $("#venue-save"), load = $("#venue-load");
+  if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
+  if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
+})();
 
 function render() {
   const devices = Object.values(installation.devices || {});
@@ -63,6 +75,7 @@ function renderDetail() {
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):'')}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:nextFreeId()}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
+    <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d);
@@ -90,6 +103,12 @@ function bindControls(d) {
   document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown"].includes(verb)&&!confirm(`${verb} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
   document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
   const assign=$("#assign-send"); if(assign) assign.onclick=()=>ws.send("assign_device",{uid:d.uid,name:$("#assign-name").value,id:Number($("#assign-id").value)});
+  const bcast=()=>$("#broadcast")?.checked; const target=()=>bcast()?"all":d.uid;
+  const patchSwitch=$("#patch-switch"); if(patchSwitch){
+    patchSwitch.onclick=()=>{const p=$("#patch-name").value.trim(); if(p&&confirm(`Switch ${bcast()?'ALL devices':d.name||d.uid} to patch "${p}"? The device reboots.`))ws.send("switch_patch",{uid:target(),patch:p});};
+    $("#patch-pull").onclick=()=>{if(confirm(`Pull latest patch on ${bcast()?'ALL devices':d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:target()});};
+    $("#patch-add").onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:target(),user:u,repo:r});};
+  }
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
 }
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};

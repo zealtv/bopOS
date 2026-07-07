@@ -116,6 +116,56 @@ class InstallationState:
         except asyncio.CancelledError:
             pass
 
+    def venues_dir(self):
+        directory = os.path.join(os.path.dirname(os.path.abspath(self.path)), "installations")
+        os.makedirs(directory, exist_ok=True)
+        return directory
+
+    def list_venues(self):
+        try:
+            return sorted(name[:-5] for name in os.listdir(self.venues_dir())
+                          if name.endswith(".json"))
+        except OSError:
+            return []
+
+    def save_venue(self, name):
+        # snapshot the durable state (name, room, devices) under a venue name;
+        # runtime liveness is not part of a venue (presets land here once the
+        # facilitator stitch adds them to durable())
+        path = os.path.join(self.venues_dir(), name + ".json")
+        with open(path, "w", encoding="utf-8") as target:
+            json.dump(self.durable(), target, indent=2, sort_keys=True)
+            target.write("\n")
+
+    def load_venue(self, name):
+        # replace the current installation with a saved venue; keeps live
+        # runtime fields (online/ip/…) only for devices the venue also knows
+        path = os.path.join(self.venues_dir(), name + ".json")
+        try:
+            with open(path, encoding="utf-8") as source:
+                loaded = json.load(source)
+        except (OSError, ValueError):
+            return False
+        if not isinstance(loaded, dict) or not isinstance(loaded.get("devices"), dict):
+            return False
+        live = self.data["devices"]
+        rebuilt = {}
+        for uid, durable in loaded["devices"].items():
+            device = self._runtime_device(uid, durable)
+            for key in ("online", "last_seen", "ip", "version", "engine_alive",
+                        "rssi", "report", "declared", "undeclared", "rev"):
+                if uid in live:
+                    device[key] = live[uid][key]
+            rebuilt[uid] = device
+        self.data["name"] = loaded.get("name", name)
+        room = loaded.get("room")
+        if isinstance(room, dict) and room.get("width") and room.get("depth"):
+            self.data["room"] = {"width": float(room["width"]),
+                                 "depth": float(room["depth"]), "units": "m"}
+        self.data["devices"] = rebuilt
+        self.save()
+        return True
+
     async def close(self):
         if self._save_task and not self._save_task.done():
             self._save_task.cancel()
