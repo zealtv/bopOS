@@ -60,6 +60,19 @@ coordinate, don't duplicate.
   sequence are documented in `kite-choir-brains/.claude/skills/bopos-dev/SKILL.md`.
   Hardware verification ultimately needs Bob or a live rig — say so in the stitch
   rather than claiming it verified.
+- **Dashboard browser tests:** every dashboard stitch ships a `verify_*.py` that
+  launches the real `dashboard/server.py` + `tools/simfleet.py` on non-default
+  ports and drives headless Chromium (Playwright). Copy the newest tied one
+  (`.loom/tied/*/verify_*.py`) as the template — repo-by-marker root, sim ports,
+  teardown. Deps: `pip install pyOSC3 python-osc websockets playwright
+  -r dashboard/requirements.txt && playwright install chromium --only-shell`.
+  Three Playwright gotchas these scripts learned the hard way: (1) `inner_text`
+  applies CSS `text-transform`, so lowercase before matching a `capitalize`d
+  row; (2) clicking a button auto-scrolls the page — `window.scrollTo(0,0)` and
+  re-read bounding boxes before a spatial drag, and clamp drag targets on-screen
+  (the room can extend above the viewport); (3) one type-aware `page.on("dialog")`
+  handler (prompt→text, else accept) — two handlers race and one eats the other's
+  prompt.
 
 ## Records
 
