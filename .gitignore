@@ -6,3 +6,5 @@ run/
 /bopos.config
 /state/
 /dashboard/installation.json
+/assets/
+/dashboard/assets/

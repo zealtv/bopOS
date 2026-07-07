@@ -37,6 +37,29 @@ echo "ENGINE: $ENGINE"
 echo "PATCH ENTRYPOINT: $PATCH_PATH/$ENTRYPOINT"
 echo "====================="
 
+# Keep the legacy PD sample path attached to the framework asset slot.
+ASSETS_DIR="$BOPOS_DIR/assets"
+SAMPLEPACKS_DIR="$PATCH_PATH/bop/samplepacks"
+SAMPLEPACKS_SLOT="$ASSETS_DIR/samplepacks"
+mkdir -p "$SAMPLEPACKS_SLOT"
+if [ -L "$SAMPLEPACKS_DIR" ] && [ "$(readlink -f "$SAMPLEPACKS_DIR")" = "$SAMPLEPACKS_SLOT" ]; then
+    :
+elif [ -d "$SAMPLEPACKS_DIR" ] && [ -z "$(find "$SAMPLEPACKS_SLOT" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    find "$SAMPLEPACKS_DIR" -mindepth 1 -maxdepth 1 -exec mv -t "$SAMPLEPACKS_SLOT" -- {} +
+    rmdir "$SAMPLEPACKS_DIR"
+    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
+elif [ -d "$SAMPLEPACKS_DIR" ] && [ -n "$(find "$SAMPLEPACKS_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    echo "WARNING: BOTH LEGACY AND ASSET SAMPLEPACK DIRECTORIES HAVE CONTENT; LEAVING LEGACY DIRECTORY ALONE" >&2
+elif [ -d "$SAMPLEPACKS_DIR" ]; then
+    rmdir "$SAMPLEPACKS_DIR"
+    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
+elif [ ! -e "$SAMPLEPACKS_DIR" ] && [ ! -L "$SAMPLEPACKS_DIR" ]; then
+    mkdir -p "$(dirname "$SAMPLEPACKS_DIR")"
+    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
+else
+    echo "WARNING: LEGACY SAMPLEPACK PATH CANNOT BE ADOPTED: $SAMPLEPACKS_DIR" >&2
+fi
+
 #Start Jack
 echo "------------------- Starting Jack..."
 jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 2 -r 44100 -s -P& #44.1khz
@@ -61,10 +84,11 @@ else
     echo "Wait for Jack complete."
 fi
 
+export BOPOS_ASSETS="$BOPOS_DIR/assets"
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."
     # PUREDATA
-    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH" &
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH; ASSETS $BOPOS_DIR/assets" &
     ENGINE_PID=$!
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else

@@ -453,6 +453,21 @@ class SimFleet:
                 if DEFAULT_MANIFEST_TEXT is not None:
                     builder.add_arg(DEFAULT_MANIFEST_TEXT, arg_type="s")
                 self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            elif member == "fetch":
+                uri = str(args[0]) if args else ""
+                slot = str(args[1]) if len(args) > 1 else ""
+                scheme = uri.split(":", 1)[0].lower() if ":" in uri else ""
+                ok = (scheme in ("http", "https", "gdrive", "file")
+                      and re.fullmatch(r"[A-Za-z0-9_-]+", slot) is not None)
+                self.log(device, f"fetch {uri} {slot}")
+                builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
+                builder.add_arg(slot, arg_type="s")
+                builder.add_arg("ok" if ok else "err", arg_type="s")
+                target = (source[0], self.args.report_port)
+                if ok:
+                    self.schedule(1.0, self.sock.sendto, builder.build().dgram, target)
+                else:
+                    self.sock.sendto(builder.build().dgram, target)
             elif member == "report":
                 report = {
                     "uid": device.mac,

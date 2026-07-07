@@ -11,7 +11,14 @@ import time
 import websockets
 
 
-REPO = os.path.realpath(os.path.join(os.path.dirname(__file__), "../../../.."))
+# locate the repo by marker, not by depth — the loom moves this file
+# from threads/<t>/<stitch>.stitching/ to tied/<stitch>/ when tied
+REPO = os.path.realpath(os.path.dirname(__file__))
+while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
+    parent = os.path.dirname(REPO)
+    if parent == REPO:
+        raise SystemExit("cannot locate the bopOS repo root")
+    REPO = parent
 FAILURES = []
 
 

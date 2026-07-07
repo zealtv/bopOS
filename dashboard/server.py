@@ -2,16 +2,51 @@
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import logging
 import os
+import re
 import time
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from osc_bridge import OSCBridge
 from state import InstallationState
+
+
+_asset_hashes = {}
+
+
+def asset_manifest(assets_dir, slot):
+    if re.fullmatch(r"[A-Za-z0-9_-]+", slot) is None:
+        raise HTTPException(status_code=404)
+    root = os.path.join(assets_dir, slot)
+    if not os.path.isdir(root):
+        raise HTTPException(status_code=404)
+    files = []
+    for directory, dirs, names in os.walk(root):
+        dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+        for name in sorted(names):
+            if name.startswith(".") or name.endswith(".part"):
+                continue
+            path = os.path.join(directory, name)
+            stat = os.stat(path)
+            key = (path, stat.st_mtime_ns, stat.st_size)
+            digest = _asset_hashes.get(key)
+            if digest is None:
+                hasher = hashlib.sha256()
+                with open(path, "rb") as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        hasher.update(chunk)
+                digest = hasher.hexdigest()
+                _asset_hashes[key] = digest
+            files.append({"path": os.path.relpath(path, root).replace(os.sep, "/"),
+                          "size": stat.st_size, "sha256": digest})
+    files.sort(key=lambda item: item["path"])
+    return {"files": files}
 
 
 class Dashboard:
@@ -121,6 +156,15 @@ def create_app(args):
     async def websocket_endpoint(ws: WebSocket):
         await dashboard.websocket(ws)
 
+    assets = os.path.realpath(getattr(args, "assets_dir",
+                                      os.path.join(os.path.dirname(__file__), "assets")))
+    os.makedirs(assets, exist_ok=True)
+
+    @app.get("/assets/{slot}/.manifest.json")
+    async def assets_manifest(slot: str):
+        return JSONResponse(asset_manifest(assets, slot))
+
+    app.mount("/assets", StaticFiles(directory=assets), name="assets")
     static = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app
@@ -134,6 +178,7 @@ def parse_args():
     parser.add_argument("--osc-target", default="255.255.255.255")
     parser.add_argument("--state-file", default=os.path.join(os.path.dirname(__file__), "installation.json"))
     parser.add_argument("--devices-file")
+    parser.add_argument("--assets-dir", default=os.path.join(os.path.dirname(__file__), "assets"))
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()

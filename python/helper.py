@@ -14,9 +14,11 @@ import glob
 import socket
 import threading
 import uuid
+import queue
 
 from store import Store
 import manifest
+import fetcher
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
@@ -256,6 +258,51 @@ def build_heartbeat(state=None):
 
 hb_wake = threading.Event()  # set() to force an immediate beat (assign ack)
 
+fetch_queue = queue.Queue()
+fetch_jobs = {}
+fetch_lock = threading.Lock()
+fetch_worker = None
+
+
+def _fetched_reply(reply_socket, requester, slot, status):
+    msg = OSCMessage("/os/fetched")
+    msg.append(str(slot), 's')
+    msg.append(str(status), 's')
+    try:
+        reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    except Exception as error:
+        print("WARNING: fetch reply failed:", error)
+
+
+def _fetch_worker_loop():
+    while True:
+        key = fetch_queue.get()
+        uri, slot = key
+        try:
+            ok, detail = fetcher.fetch(uri, slot, os.path.join(BOPOS_DIR, "assets"))
+        except Exception as error:
+            ok, detail = False, str(error)
+        with fetch_lock:
+            requesters = fetch_jobs.pop(key, [])
+        print("FETCH {} {}: {} ({})".format(uri, slot, "ok" if ok else "err", detail))
+        for reply_socket, requester in requesters:
+            _fetched_reply(reply_socket, requester, slot, "ok" if ok else "err")
+        fetch_queue.task_done()
+
+
+def queue_fetch(uri, slot, requester, reply_socket):
+    global fetch_worker
+    key = (uri, slot)
+    with fetch_lock:
+        if key in fetch_jobs:
+            fetch_jobs[key].append((reply_socket, requester))
+            return
+        fetch_jobs[key] = [(reply_socket, requester)]
+        fetch_queue.put(key)
+        if fetch_worker is None or not fetch_worker.is_alive():
+            fetch_worker = threading.Thread(target=_fetch_worker_loop, daemon=True)
+            fetch_worker.start()
+
 
 def heartbeat_loop(state=None):
     state = state or node_state
@@ -454,6 +501,16 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         if text is not None:
             msg.append(text, 's')
         reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
+    if parts[2] == "fetch":
+        if len(args) < 2:
+            _fetched_reply(reply_socket, source[0], str(args[1]) if len(args) > 1 else "", "err")
+            return True
+        uri, slot = str(args[0]), str(args[1])
+        if re.fullmatch(r"[A-Za-z0-9_-]+", slot) is None:
+            _fetched_reply(reply_socket, source[0], slot, "err")
+            return True
+        queue_fetch(uri, slot, source[0], reply_socket)
         return True
     if parts[2] == "report":
         patch_path = active_patch_path()
