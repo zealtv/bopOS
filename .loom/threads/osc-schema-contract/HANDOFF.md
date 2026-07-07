@@ -3,6 +3,14 @@
 *Written 2026-07-07 at the close of the council session. You are (probably) a fresh
 session inside `~/repos/bopOS`, about to execute with Codex delegation.*
 
+> **STATUS 2026-07-08:** run items 1–7 all tied (sim-fleet,
+> node-contract-fixes, hb-identity, assign-persistence, patch-manifest,
+> dashboard-1-core, fetch-landing). One gap surfaced at the end: the §7
+> admin-verb rename never lived in any child — now split as
+> `os-admin-verbs` (see its instructions). Tie that, flip the dashboard's
+> admin row off legacy, and the parent goal stitch ties with it. Session
+> handoff: `.notes/handoff-2026-07-08.md`.
+
 ## Where things stand
 
 `docs/OSC-CONTRACT.md` v1.0 is **ratified** — it is the spec; don't re-litigate it.

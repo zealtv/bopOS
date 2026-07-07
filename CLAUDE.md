@@ -69,4 +69,7 @@ coordinate, don't duplicate.
 - `.notes/` holds current working reference (revisable); `docs/` (once created) holds
   durable specs like `OSC-CONTRACT.md`.
 - Put working artifacts (measurements, logs, decision notes) inside the stitch
-  directory — they travel with it into `tied/`.
+  directory — they travel with it into `tied/`. Because tie **moves** the
+  directory (different depth), stitch test scripts must locate the repo by
+  marker (walk up until `tools/simfleet.py` exists) or via an imported
+  module's path — never by a fixed number of `..` hops.
