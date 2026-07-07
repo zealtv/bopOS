@@ -1,5 +1,8 @@
 # patch-manifest — session handoff (2026-07-07, paused mid-stitch)
 
+**RESOLVED 2026-07-08:** every remaining item below landed; see
+`verification.md` for the proof. Kept as the record of the pause point.
+
 Bob asked for a pause. This stitch is **~30% done, parked at a clean seam**:
 groundwork files exist and are committed; no existing file has been touched
 for this stitch yet, so nothing is half-edited.

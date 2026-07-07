@@ -32,6 +32,17 @@ import time
 from pythonosc import osc_message, osc_message_builder
 
 
+REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+try:
+    with open(os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")) as source:
+        DEFAULT_MANIFEST_TEXT = source.read()
+    DEFAULT_MANIFEST = json.loads(DEFAULT_MANIFEST_TEXT)
+    DECLARED_PARAMS = {param["name"] for param in DEFAULT_MANIFEST.get("params", [])}
+except (OSError, ValueError, TypeError, KeyError):
+    DEFAULT_MANIFEST_TEXT = None
+    DECLARED_PARAMS = set()
+
+
 class LegacyProtocol:
     """The OSC byte boundary for bopOS's pre-v1 wire protocol."""
 
@@ -122,6 +133,7 @@ class Device:
         self.gain2 = 0.0
         self.backing = 0.0
         self.echo = False
+        self.params = {}
         self.active_patch = ""
         self.last_hb = None
         self.last_command = "-"
@@ -188,6 +200,7 @@ class SimFleet:
         self.events = []
         self.sequence = itertools.count()
         self.running = True
+        self.start_monotonic = time.monotonic()
         self.tty = sys.stdout.isatty()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -374,15 +387,34 @@ class SimFleet:
         except Exception:
             return
         parts = [part for part in address.split("/") if part]
-        if len(parts) != 3 or parts[1] != "os":
+        if len(parts) != 3 or parts[1] not in ("os", "p"):
             return
-        selector, member = parts[0], parts[2]
+        selector, plane, member = parts
         for device in self.devices:
             # helper.py answers these, so the box must be up (booting counts:
             # helper starts before the engine) and its radio listening
             if device.unresponsive or device.state not in ("booting", "running"):
                 continue
             if random.random() < self.args.drop or not self.protocol.matches(selector, device.device_id):
+                continue
+            if plane == "p":
+                # the patch plane goes straight to PD — a dead engine applies nothing
+                if not args or not device.engine_alive():
+                    continue
+                if member not in DECLARED_PARAMS and member not in ("gain", "gain2", "backing", "echo"):
+                    self.log(device, f"p/{member} undeclared, dropped")
+                    continue
+                device.params[member] = args[0]
+                if member in ("gain", "gain2", "backing"):
+                    try:
+                        setattr(device, member, float(args[0]))
+                    except (TypeError, ValueError):
+                        pass
+                elif member == "echo":
+                    try:
+                        device.echo = bool(float(args[0]))
+                    except (TypeError, ValueError):
+                        pass
                 continue
             if member == "ping" and args:
                 try:
@@ -416,6 +448,28 @@ class SimFleet:
                 if value in (0, 1):
                     device.muted = bool(value)
                     self.log(device, f"muted={value}")
+            elif member == "params":
+                builder = osc_message_builder.OscMessageBuilder(address="/os/params")
+                if DEFAULT_MANIFEST_TEXT is not None:
+                    builder.add_arg(DEFAULT_MANIFEST_TEXT, arg_type="s")
+                self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            elif member == "report":
+                report = {
+                    "uid": device.mac,
+                    "engine": "pd",
+                    "has_i2c": False,
+                    "has_wifi": not device.wired,
+                    "audio_channels": 2,
+                    "screen": False,
+                    "patch": device.active_patch or "default",
+                    "uptime": int(time.monotonic() - self.start_monotonic),
+                    "git_rev": device.version,
+                    "update_model": "ephemeral" if device.ephemeral else "persistent",
+                    "contract_version": "1.0",
+                }
+                builder = osc_message_builder.OscMessageBuilder(address="/os/report")
+                builder.add_arg(json.dumps(report), arg_type="s")
+                self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
 
     def display(self):
         now = time.monotonic()

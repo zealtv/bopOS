@@ -94,3 +94,37 @@ use).
 
 Test after editing: on 5550 expect `/hb …` every 10 s per box and **no more**
 `/rpt <id> hb` / `/rpt <id> version` / boot `aloha`.
+
+### 4. Route the patch plane: `route p` (from patch-manifest)
+
+Contract §8: param values now flow as `/<sel>/p/<name> <value…>` (dashboard-1
+speaks only this form). Because `oscparse` → `list trim` flattens address and
+args into one list, `/5/p/gain 0.5` arrives at the routing as `5 p gain 0.5` —
+after `route all` / `route-by-id` match the selector, the remainder is
+`p gain 0.5`. Wanted in `pd/bopos.osc.pd`:
+
+- Insert a `route p` on the post-selector remainder. Its **matched** outlet
+  re-enters exactly the path today's bare commands take into the patch (the
+  osc-in send patches already consume), so the patch still sees `gain 0.5` —
+  the `p` prefix is stripped at the OS layer and **existing patches need no
+  param-side edit**.
+- The **unmatched** outlet keeps feeding the existing command routes
+  (`helper …`, `io …`, `id`, `echo`, …) so everything else works as today.
+- Nothing else: an undeclared param name is naturally dropped by the patch's
+  own `route` (contract §8 wants drop-don't-guess on the node; the badge is
+  the dashboard's job).
+
+Test after editing: `/5/p/gain 0.5` broadcast to 6660 → device 5's gain
+changes exactly as a bare `gain 0.5` did; `/5/p/nonsense 1` → silence, no
+crash; `helper reboot` etc. unaffected.
+
+**§13 revision proposal (contract edit is yours to ratify, not made here):**
+strike the bare-name transition alias — the bullet item
+"bare `/gain` (and `gain2`/`backing`/`echo`) → `/p/*`" — from §13's alias
+list, per your 2026-07-07 relaxation: patches update in lockstep with bopOS,
+so patch-facing wire compatibility is a non-goal. (With the strip-`p` design
+above, bare spellings happen to keep working until you remove the old
+routes — that's an implementation accident, not a contract promise, and old
+DASHBOARD.pd keeps working through the migration because of it.) The
+node/fleet-level aliases stay: `/helper/*` → `/os/*`, seed via
+`bopos.devices`, and the samplepacks symlink (fetch-landing's concern).

@@ -14,7 +14,16 @@ STARTTIME=$(date -d "$now" +%H%M%S)
 # Determine active patch
 ACTIVE_PATCH=$(cat "$BOPOS_DIR/patches/active_patch.txt")
 PATCH_PATH="$BOPOS_DIR/patches/$ACTIVE_PATCH"
-PATCH_ENTRYPOINT="$PATCH_PATH/main.pd"
+
+MANIFEST_OUTPUT=$(python3 "$BOPOS_DIR/python/manifest.py" "$PATCH_PATH")
+MANIFEST_STATUS=$?
+eval "$MANIFEST_OUTPUT"
+# even a failed python3 must not silence the node: fall back to legacy pd
+ENGINE="${ENGINE:-pd}"
+ENTRYPOINT="${ENTRYPOINT:-main.pd}"
+if [ "$MANIFEST_STATUS" -eq 1 ]; then
+    echo "WARNING: INVALID PATCH MANIFEST; USING LEGACY LAUNCH"
+fi
 
 echo "RANDOM: $RND"
 echo "STARTDATE: $STARTDATE"
@@ -24,7 +33,8 @@ echo "STARTTIME: $STARTTIME"
 echo "====================="
 echo "ACTIVE PATCH: $ACTIVE_PATCH"
 echo "PATCH PATH: $PATCH_PATH"
-echo "PATCH ENTRYPOINT: $PATCH_ENTRYPOINT"
+echo "ENGINE: $ENGINE"
+echo "PATCH ENTRYPOINT: $PATCH_PATH/$ENTRYPOINT"
 echo "====================="
 
 #Start Jack
@@ -51,10 +61,19 @@ else
     echo "Wait for Jack complete."
 fi
 
-echo "------------------- Starting Pure Data..."
-# PUREDATA
-pd -nogui -jack -open "$PATCH_ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH" &
-echo $! > "$RUN_DIR/pd.pid"
+if [ "$ENGINE" = "pd" ]; then
+    echo "------------------- Starting Pure Data..."
+    # PUREDATA
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH" &
+    ENGINE_PID=$!
+    echo $ENGINE_PID > "$RUN_DIR/pd.pid"
+else
+    echo "------------------- Starting $ENGINE..."
+    BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_RANDOM=$RND BOPOS_STARTDATE=$STARTDATE BOPOS_STARTTIME=$STARTTIME "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
+    ENGINE_PID=$!
+fi
+echo $ENGINE_PID > "$RUN_DIR/engine.pid"
+basename "$ENGINE" > "$RUN_DIR/engine.name"
 
 # run active patch start script if it exists
 if [ -f "$PATCH_PATH/start.sh" ]; then

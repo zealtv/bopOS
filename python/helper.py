@@ -2,6 +2,7 @@
 import shutil
 import subprocess
 import re
+import json
 
 
 import os, sys
@@ -15,6 +16,7 @@ import threading
 import uuid
 
 from store import Store
+import manifest
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
@@ -28,6 +30,10 @@ try:
     import sys_wireless
 except Exception:
     sys_wireless = None
+try:
+    import sys_i2c
+except Exception:
+    sys_i2c = None
 
 server = OSCServer( ('', 7770) )
 client = OSCClient()
@@ -36,7 +42,7 @@ client.connect( ('127.0.0.1', 6661) )
 
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
-              "UPDATE_MODEL": "persistent"}
+              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -54,6 +60,15 @@ def read_node_config(path=None):
     except OSError:
         pass
     return config
+
+
+def active_patch_path():
+    try:
+        with open(os.path.join(BOPOS_DIR, "patches", "active_patch.txt")) as source:
+            name = source.read().strip()
+        return os.path.join(BOPOS_DIR, "patches", name) if name else None
+    except OSError:
+        return None
 
 
 def discover_primary_mac():
@@ -162,26 +177,53 @@ class NodeState:
 node_state = NodeState()
 
 
-def process_is_pd(pid):
-    # exact match, same contract as stop-engine.sh's `pkill -x pd`
+def process_is(pid, name):
     try:
         with open(os.path.join(PROC_DIR, str(pid), "comm")) as source:
-            return source.read().strip() == "pd"
+            return source.read().strip() == name
     except OSError:
         return False
 
 
-def engine_alive():
+def process_is_pd(pid):
+    return process_is(pid, "pd")
+
+
+def expected_engine_name():
     try:
-        with open(os.path.join(BOPOS_DIR, "run", "pd.pid")) as source:
-            if process_is_pd(int(source.read().strip())):
+        with open(os.path.join(BOPOS_DIR, "run", "engine.name")) as source:
+            name = source.read().strip()
+        if name:
+            return name
+    except OSError:
+        pass
+    patch_path = active_patch_path()
+    if patch_path:
+        patch_manifest, _error = manifest.load(patch_path)
+        if patch_manifest is not None:
+            return os.path.basename(patch_manifest["engine"])
+    return "pd"
+
+
+def engine_alive():
+    name = expected_engine_name()
+    try:
+        with open(os.path.join(BOPOS_DIR, "run", "engine.pid")) as source:
+            if process_is(int(source.read().strip()), name):
                 return 1
     except (OSError, ValueError):
         pass
+    if name == "pd":
+        try:
+            with open(os.path.join(BOPOS_DIR, "run", "pd.pid")) as source:
+                if process_is_pd(int(source.read().strip())):
+                    return 1
+        except (OSError, ValueError):
+            pass
     for path in glob.glob(os.path.join(PROC_DIR, "[0-9]*", "comm")):
         try:
             with open(path) as source:
-                if source.read().strip() == "pd":
+                if source.read().strip() == name:
                     return 1
         except OSError:
             pass
@@ -405,6 +447,63 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             typed_append(msg, value)
         reply_socket.sendto(msg.getBinary(), (source[0], 5550))
         return True
+    if parts[2] == "params":
+        msg = OSCMessage("/os/params")
+        patch_path = active_patch_path()
+        text = manifest.raw(patch_path) if patch_path else None
+        if text is not None:
+            msg.append(text, 's')
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
+    if parts[2] == "report":
+        patch_path = active_patch_path()
+        patch_name = os.path.basename(patch_path) if patch_path else "none"
+        patch_manifest = None
+        if patch_path:
+            patch_manifest, _error = manifest.load(patch_path)
+        engine = None
+        try:
+            with open(os.path.join(BOPOS_DIR, "run", "engine.name")) as source_file:
+                engine = source_file.read().strip() or None
+        except OSError:
+            pass
+        if engine is None and patch_manifest is not None:
+            engine = patch_manifest["engine"]
+        try:
+            has_i2c = bool(sys_i2c.have_bus()) if sys_i2c is not None else False
+        except Exception:
+            has_i2c = False
+        try:
+            with open(os.path.join(PROC_DIR, "net", "wireless")) as source_file:
+                has_wifi = len(source_file.readlines()) > 2
+        except OSError:
+            has_wifi = False
+        try:
+            audio_channels = int(state.config.get("AUDIO_CHANNELS"))
+        except Exception:
+            audio_channels = 2
+        try:
+            with open(os.path.join(PROC_DIR, "uptime")) as source_file:
+                uptime = int(float(source_file.read().split()[0]))
+        except Exception:
+            uptime = 0
+        report = {
+            "uid": state.uid,
+            "engine": engine or "pd",
+            "has_i2c": has_i2c,
+            "has_wifi": has_wifi,
+            "audio_channels": audio_channels,
+            "screen": patch_manifest is not None and "screen" in patch_manifest.get("caps", []),
+            "patch": patch_name,
+            "uptime": uptime,
+            "git_rev": state.version,
+            "update_model": state.update_model,
+            "contract_version": "1.0",
+        }
+        msg = OSCMessage("/os/report")
+        msg.append(json.dumps(report), 's')
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
     if parts[2] == "ping" and args:
         msg = OSCMessage("/os/pong")
         tag = decoded[1][1:2] if str(decoded[1]).startswith(",") else str(decoded[1])[:1]
@@ -523,8 +622,10 @@ def switch_patch_callback(path='', tags='', args='', source=''):
         return
     patch_name = args[0].strip()
     patch_path = os.path.join(patches_dir, patch_name)
-    if not os.path.isdir(patch_path) or not os.path.isfile(os.path.join(patch_path, 'main.pd')):
-        print(f"Patch '{patch_name}' not found or has no main.pd")
+    patch_manifest, _error = manifest.load(patch_path)
+    if (not os.path.isdir(patch_path)
+            or (patch_manifest is None and not os.path.isfile(os.path.join(patch_path, 'main.pd')))):
+        print(f"Patch '{patch_name}' not found or has no valid manifest/main.pd")
         return
     current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else 'None'
     print(f"Switching patch: {current} -> {patch_name}")
