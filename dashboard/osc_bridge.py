@@ -99,6 +99,16 @@ class OSCBridge:
     def os_command(self, selector, member, args=()):
         self.send(f"/{selector}/os/{member}", args)
 
+    def assign(self, uid, device_id, name, pos1=None, pos2=None):
+        # idempotent full-state; only the node whose uid matches applies it,
+        # and it persists the lot for standalone operation (contract sec 5)
+        args = [str(uid), int(device_id), str(name)]
+        if pos1 is not None:
+            args += [float(pos1[0]), float(pos1[1])]
+            if pos2 is not None:
+                args += [float(pos2[0]), float(pos2[1])]
+        self.send("/all/os/assign", args)
+
     def _device_for_reply(self, kind, ip, payload=None):
         if kind == "report" and isinstance(payload, dict) and payload.get("uid") in self.state.devices:
             uid = payload["uid"]

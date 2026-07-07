@@ -13,6 +13,7 @@ ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("r
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
+ws.on("error", data => alert(data.message));
 
 function render() {
   const devices = Object.values(installation.devices || {});
@@ -48,7 +49,7 @@ function renderDetail() {
   const d = installation.devices[selected]; if (!d) return;
   // never rebuild the panel out from under a drag or mid-typing
   const active = document.activeElement;
-  if (interacting || ($("#detail").contains(active) && active.matches('input[type="text"]'))) return;
+  if (interacting || ($("#detail").contains(active) && active.matches('input[type="text"],input[type="number"]'))) return;
   const declarations = d.declared || [];
   let previousGroup = null;
   const controls = declarations.map(p => {
@@ -58,12 +59,15 @@ function renderDetail() {
     if (p.type === "i" && p.min===0 && p.max===1) return `${label}<label class="toggle">${esc(p.name)}<input data-param="${esc(p.name)}" type="checkbox" ${value?'checked':''}></label>`;
     return `${label}<label>${esc(p.name)} <output>${esc(value)}</output><input data-param="${esc(p.name)}" type="range" min="${p.min??0}" max="${p.max??1}" step="${p.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
   }).join("");
+  const assigned = Number(d.id) >= 0;
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
-    <section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
-    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>
+    <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):'')}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:nextFreeId()}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
+    ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
+    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d);
 }
+function nextFreeId() { const used = new Set(Object.values(installation.devices||{}).map(d=>Number(d.id)).filter(id=>id>=0)); let id=1; while (used.has(id)) id++; return id; }
 function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
@@ -84,7 +88,8 @@ function bindControls(d) {
     input.onpointerup=send;
   });
   document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown"].includes(verb)&&!confirm(`${verb} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
-  $("[data-identify]").onclick=()=>ws.send("identify",{uid:d.uid});
+  document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
+  const assign=$("#assign-send"); if(assign) assign.onclick=()=>ws.send("assign_device",{uid:d.uid,name:$("#assign-name").value,id:Number($("#assign-id").value)});
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
 }
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};

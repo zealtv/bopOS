@@ -10,7 +10,7 @@ import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from osc_bridge import OSCBridge
@@ -97,13 +97,13 @@ class Dashboard:
         try:
             while True:
                 message = await ws.receive_json()
-                await self.handle_ws(message)
+                await self.handle_ws(message, ws)
         except WebSocketDisconnect:
             pass
         finally:
             self.clients.discard(ws)
 
-    async def handle_ws(self, message):
+    async def handle_ws(self, message, ws=None):
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         if kind == "set_param":
@@ -124,9 +124,10 @@ class Dashboard:
             if selector is not None:
                 self.osc.action(selector, data["verb"])
         elif kind == "identify":
-            selector = self.selector(uid)
-            if selector is not None:
-                self.osc.os_command(selector, "identify")
+            # uid-targeted broadcast: an id selector would flash every
+            # unassigned box at once (they all sit at -1)
+            if uid in self.state.devices:
+                self.osc.os_command("all", "identify", [str(uid)])
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -146,6 +147,10 @@ class Dashboard:
                 except (TypeError, ValueError, IndexError):
                     return
             self.state.save_debounced()
+            if int(device["id"]) >= 0 and device.get("name"):
+                # positions ride /os/assign so the node persists them too
+                self.osc.assign(uid, device["id"], device["name"],
+                                device.get("pos1"), device.get("pos2"))
             await self.broadcast("device_update", device)
         elif kind == "set_room":
             try:
@@ -156,6 +161,33 @@ class Dashboard:
                 self.state.data["room"] = {"width": width, "depth": depth, "units": "m"}
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
+        elif kind == "assign_device":
+            device = self.state.devices.get(uid)
+            error = None
+            try:
+                new_id = int(data.get("id"))
+            except (TypeError, ValueError):
+                new_id = -1
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:32]
+            if device is None:
+                error = "unknown device"
+            elif new_id < 0:
+                error = "ID must be a non-negative integer"
+            elif not name:
+                error = "name required (letters, digits, - or _)"
+            else:
+                taken = next((other for other_uid, other in self.state.devices.items()
+                              if other_uid != uid and int(other["id"]) == new_id), None)
+                if taken:
+                    error = f"ID {new_id} is already {taken.get('name') or taken['uid']}"
+            if error:
+                if ws is not None:
+                    await ws.send_json({"type": "error", "data": {"message": error}})
+                return
+            device["id"], device["name"] = new_id, name
+            self.osc.assign(uid, new_id, name, device.get("pos1"), device.get("pos2"))
+            self.state.save_debounced()
+            await self.broadcast("device_update", device)
         elif kind == "request_params":
             self.osc.request(uid, "params")
         elif kind == "request_report":
@@ -184,6 +216,21 @@ def create_app(args):
     assets = os.path.realpath(getattr(args, "assets_dir",
                                       os.path.join(os.path.dirname(__file__), "assets")))
     os.makedirs(assets, exist_ok=True)
+
+    @app.get("/bopos.devices")
+    async def devices_export():
+        # bopos.devices is a seed/export format now, not the source of truth
+        lines = ["uid, name, id, pos1, pos2"]
+        assigned = (device for device in dashboard.state.devices.values()
+                    if int(device["id"]) >= 0)
+        for device in sorted(assigned, key=lambda item: int(item["id"])):
+            row = [device["uid"], device.get("name") or "", str(int(device["id"]))]
+            if device.get("pos1"):
+                row.append(" ".join(format(value, "g") for value in device["pos1"]))
+                if device.get("pos2"):
+                    row.append(" ".join(format(value, "g") for value in device["pos2"]))
+            lines.append(", ".join(row))
+        return PlainTextResponse("\n".join(lines) + "\n")
 
     @app.get("/assets/{slot}/.manifest.json")
     async def assets_manifest(slot: str):
