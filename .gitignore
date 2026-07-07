@@ -5,3 +5,4 @@ __pycache__/
 run/
 /bopos.config
 /state/
+/dashboard/installation.json

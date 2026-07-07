@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "step": 1,
+      "passed": true,
+      "observation": "header='5 / 5 online', WS='connected', assigned rows=4, unassigned rows=1 (02:53:49:4d:00:05\nID -1 \u00b7 A1b2c3d)"
+    },
+    {
+      "step": 2,
+      "passed": true,
+      "observation": "UID/ID present; params=['backing', 'echo', 'gain']; echo type=checkbox; actions=['aloha', 'get samples', 'identify', 'reboot', 'shutdown', 'update']; UNDECLARED=absent"
+    },
+    {
+      "step": 3,
+      "passed": true,
+      "observation": "report contains engine=pd, contract_version=1.0, update_model=persistent, and formatted uptime"
+    },
+    {
+      "step": 4,
+      "passed": true,
+      "observation": "gain after drag=0.24; after reload=0.24"
+    },
+    {
+      "step": 5,
+      "passed": true,
+      "observation": "button='MUTED \u2014 UNMUTE', class='danger active'"
+    },
+    {
+      "step": 6,
+      "passed": true,
+      "observation": "sim1: dot online, rgb(69, 212, 131); sim5: dot crashed, rgb(242, 184, 75)"
+    },
+    {
+      "step": 7,
+      "passed": true,
+      "observation": "console errors=[]; page errors=[]"
+    }
+  ],
+  "console_errors": [],
+  "page_errors": []
+}

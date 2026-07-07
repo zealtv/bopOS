@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bopOS</title><link rel="stylesheet" href="/css/style.css"></head>
+<body>
+  <header><h1>bopOS</h1><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
+  <div class="layout">
+    <aside><h2>Devices</h2><div id="assigned"></div><h3>UNASSIGNED</h3><div id="unassigned"></div>
+      <footer><button data-all="reboot">Reboot All</button><button data-all="update">Update All</button><button data-all="aloha">Aloha All</button></footer>
+    </aside>
+    <main id="detail"><p class="empty">Select a device.</p></main>
+  </div>
+  <script src="/js/ws.js"></script><script src="/js/dashboard.js"></script>
+</body></html>
