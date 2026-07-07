@@ -45,7 +45,7 @@ class InstallationState:
             "patch": values.get("patch", "default"), "params": dict(params),
             "online": False, "last_seen": None, "ip": None, "version": None,
             "engine_alive": None, "rssi": None, "report": None,
-            "declared": None, "undeclared": False,
+            "declared": None, "undeclared": False, "rev": None,
         }
 
     def _import_seed(self, path):

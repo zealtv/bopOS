@@ -471,6 +471,37 @@ def apply_assign(args, state=None):
     return True
 
 
+admin_lock = threading.Lock()
+
+
+def rev_reply(reply_socket, requester, state=None):
+    # /os/rev <sha> <model> [<uid>] -- the convergence receipt (contract sec 7).
+    # uid is a proposed additive extension: unicast source ip identifies a real
+    # node, but simfleet devices share one ip, so attribution needs the uid.
+    state = state or node_state
+    state.version = resolve_version()
+    msg = OSCMessage("/os/rev")
+    msg.append(str(state.version), 's')
+    msg.append(str(state.update_model), 's')
+    msg.append(str(state.uid), 's')
+    try:
+        reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    except Exception as error:
+        print("WARNING: rev reply failed:", error)
+
+
+def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
+    # serialized so two provisioning verbs can't interleave in one git tree
+    with admin_lock:
+        try:
+            callback('', '', [str(value) for value in args], '')
+        except Exception as error:
+            print("WARNING: admin verb failed:", error)
+        if reply_socket is not None:
+            # after convergence, so the sha is the post-action one
+            rev_reply(reply_socket, requester, state)
+
+
 def handle_lan_datagram(datagram, source, reply_socket, state=None):
     state = state or node_state
     try:
@@ -578,6 +609,23 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                 return True
         except (TypeError, ValueError):
             pass
+    if parts[2] in LIFECYCLE_VERBS:
+        # lifecycle can't reply after executing -- reply first (contract sec 7)
+        rev_reply(reply_socket, source[0], state)
+        threading.Thread(target=run_admin_verb,
+                         args=(LIFECYCLE_VERBS[parts[2]], args, state),
+                         daemon=True).start()
+        return True
+    if parts[2] in PROVISION_VERBS:
+        if state.update_model != "persistent":
+            # ephemeral: the convergence assertion is an honest no-op (sec 7)
+            rev_reply(reply_socket, source[0], state)
+            return True
+        threading.Thread(target=run_admin_verb,
+                         args=(PROVISION_VERBS[parts[2]], args, state,
+                               reply_socket, source[0]),
+                         daemon=True).start()
+        return True
     return False
 
 
@@ -794,6 +842,23 @@ def load_callback(path='', tags='', args='', source=''):
         client.send(msg)
     except Exception as error:
         print(f"load: could not reply to engine: {error}")
+
+
+# /os/* admin verbs on the 6660 LAN listener delegate to the 7770 callbacks;
+# both spellings stay live so the deployed fleet migrates on aliases (sec 13)
+LIFECYCLE_VERBS = {
+    "reboot": reboot_callback,
+    "shutdown": shutdown_callback,
+    "restart-engine": restart_engine_callback,
+}
+PROVISION_VERBS = {
+    "update": update_callback,
+    "checkout": checkout_callback,
+    "patch": switch_patch_callback,
+    "addpatch": add_patch_callback,
+    "pullpatch": pull_active_patch_callback,
+    "getsamples": getsamples_callback,
+}
 
 
 def exit_handler():

@@ -118,7 +118,8 @@ class Dashboard:
             self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
-        elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "update", "get_samples", "aloha"}:
+        elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
+                                                       "update", "get_samples", "aloha"}:
             selector = "all" if uid == "all" else self.selector(uid)
             if selector is not None:
                 self.osc.action(selector, data["verb"])

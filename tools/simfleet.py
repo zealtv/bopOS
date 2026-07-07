@@ -274,14 +274,17 @@ class SimFleet:
             if self.args.protocol == "legacy" or (self.args.legacy_reports and device.engine_alive()):
                 self.report(device, ["aloha", 1])
 
+    def bump(self, device):
+        if self.args.protocol == "legacy":
+            device.version += 1
+            device.legacy_version = device.version
+        else:
+            device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
+            device.legacy_version += 1
+
     def finish_boot(self, device, bump_version=False):
         if bump_version:
-            if self.args.protocol == "legacy":
-                device.version += 1
-                device.legacy_version = device.version
-            else:
-                device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
-                device.legacy_version += 1
+            self.bump(device)
         device.echo = False
         self.set_state(device, "booting")
         self.schedule(1.0, self.promote_running, device)
@@ -323,6 +326,55 @@ class SimFleet:
                           ["helper-reply", "restart-engine"])
             if self.args.protocol == "v1":
                 device.engine_restart_until = time.monotonic() + 3.0
+
+    def send_rev(self, device, source):
+        # /os/rev <sha> <model> <uid> -- the convergence receipt (contract sec 7;
+        # trailing uid is the proposed additive extension, see the stitch notes)
+        builder = osc_message_builder.OscMessageBuilder(address="/os/rev")
+        builder.add_arg(str(device.version), arg_type="s")
+        builder.add_arg("ephemeral" if device.ephemeral else "persistent", arg_type="s")
+        builder.add_arg(device.mac, arg_type="s")
+        try:
+            self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+        except OSError as error:
+            print(f"simfleet: rev reply failed: {error}", file=sys.stderr)
+
+    def admin_verb(self, device, member, args, source):
+        # helper.py owns these, so a dead engine still answers
+        self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
+        provisioning = member in ("update", "checkout", "patch",
+                                  "addpatch", "pullpatch", "getsamples")
+        if provisioning and device.ephemeral:
+            # ephemeral: honest no-op, receipt still sent (contract sec 7)
+            self.send_rev(device, source)
+            return
+        if member == "reboot":
+            self.send_rev(device, source)  # lifecycle replies before executing
+            self.schedule(0.5, self.reboot_after_silence, device)
+        elif member == "shutdown":
+            self.send_rev(device, source)
+            self.schedule(0.5, self.set_state, device, "off")
+        elif member == "restart-engine":
+            self.send_rev(device, source)
+            device.engine_restart_until = time.monotonic() + 3.0
+        elif member == "update" or (member == "checkout" and args):
+            # the pull lands (sha bumps), the receipt goes out, then the reboot
+            self.set_state(device, "updating")
+            self.bump(device)
+            self.schedule(2.0, self.send_rev, device, source)
+            self.schedule(5.0, self.reboot_after_silence, device, False)
+        elif member == "patch" and args:
+            device.active_patch = str(args[0])
+            self.set_state(device, "updating")
+            self.schedule(2.0, self.send_rev, device, source)
+            self.schedule(5.0, self.reboot_after_silence, device, False)
+        elif member == "addpatch" and len(args) >= 2:
+            self.schedule(1.0, self.send_rev, device, source)
+        elif member in ("pullpatch", "getsamples"):
+            self.schedule(1.0, self.send_rev, device, source)
+        else:
+            # malformed args change nothing; the receipt is still the honest state
+            self.send_rev(device, source)
 
     def command(self, device, payload):
         device.last_command = " ".join(format_token(item) for item in payload) or "-"
@@ -468,6 +520,10 @@ class SimFleet:
                     self.schedule(1.0, self.sock.sendto, builder.build().dgram, target)
                 else:
                     self.sock.sendto(builder.build().dgram, target)
+            elif member in ("reboot", "shutdown", "restart-engine", "update",
+                            "checkout", "patch", "addpatch", "pullpatch",
+                            "getsamples"):
+                self.admin_verb(device, member, list(args), source)
             elif member == "report":
                 report = {
                     "uid": device.mac,

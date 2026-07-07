@@ -9,6 +9,12 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.osc_message_builder import OscMessageBuilder
 
 
+# Wire-compat matrix, in one place. Params are idempotent full-state, so the
+# legacy spelling is double-sent while LEGACY_COMPAT is on. Admin verbs are
+# NOT idempotent (update runs a pull, reboot reboots): they go out only as
+# /<sel>/os/<verb>, answered by helper.py's 6660 listener -- nodes that
+# predate the contract keep working from old dashboards via the PD-routed
+# 7770 aliases (contract sec 13), but this dashboard needs contract nodes.
 LEGACY_COMPAT = True
 LEGACY_PARAMS = {"gain", "gain2", "backing", "echo"}
 LEGACY_DECLARATIONS = [
@@ -81,7 +87,7 @@ class OSCBridge:
         if wire_verb == "aloha":
             self.send(f"/{selector}/aloha", [1])
         else:
-            self.send(f"/{selector}/helper/{wire_verb}")
+            self.send(f"/{selector}/os/{wire_verb}")
 
     def request(self, uid, member):
         device = self.state.devices.get(uid)
@@ -155,6 +161,19 @@ class OSCBridge:
             if device:
                 device["report"] = report
                 self.broadcast("report", device)
+            return
+        if address == "/os/rev" and len(args) >= 2:
+            device = None
+            if len(args) >= 3 and str(args[2]) in self.state.devices:
+                device = self.state.devices[str(args[2])]  # proposed uid extension
+            else:
+                matches = [item for item in self.state.devices.values() if item.get("ip") == ip]
+                device = matches[0] if len(matches) == 1 else None
+            if not device:
+                log.warning("unattributable /os/rev from %s: %r", ip, args)
+                return
+            device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
+            self.broadcast("rev", device)
             return
         if address in ("/os/pong", "/os/load") or address == "/rpt":
             log.debug("ignored %s %r", address, args)
