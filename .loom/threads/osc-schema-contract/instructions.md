@@ -3,6 +3,16 @@
 **Goal:** tidy the OSC schema and write the contract down as a first-class spec, so any
 engine or controller can sit on either end of bopOS.
 
+> **STATUS 2026-07-07: the design phase is done.** `docs/OSC-CONTRACT.md` v1.0 is
+> ratified (council record: tied stitch `schema-design-draft`, lore
+> `2026-07-07-osc-schema-council`). What remains is implementation, split into the
+> child stitches — **read `HANDOFF.md` in this directory for the run order.**
+> Checklist below maps to children: heartbeat/rename/echo → `hb-identity`;
+> persistence store + identity → `assign-persistence`; entrypoint/params →
+> `patch-manifest`; stop.sh → `node-contract-fixes`; distribution → `fetch-landing`.
+> Ports ruling: keep all six, documented (contract §4). The original brief follows
+> for context.
+
 Context: `.notes/architecture-review-2026-07-05.md` §4, §7. **Overlaps kite-choir-brains
 loom thread `bopos-uptodate/osc-contract-pd-agnostic`** — coordinate/absorb, don't
 duplicate. That thread stays spool-scoped; the generic work lands here.

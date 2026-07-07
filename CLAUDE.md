@@ -6,11 +6,14 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.0, 2026-07-07): grammar,
+   planes, identity/persistence, ports, constraints. Don't re-litigate it; the
+   reasoning lives in lore item `2026-07-07-osc-schema-council`.
+3. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
    forward plan; the shared context every loom thread points back to.
-3. `./.loom/loom status` — live task state. The loom (`.loom/`) is the task tracker;
+4. `./.loom/loom status` — live task state. The loom (`.loom/`) is the task tracker;
    read `.loom/README.md` for the protocol (claim → work → tie; split when too big).
-4. `.notes/dashboard-development-context.md` — full dashboard design (stack, protocol,
+5. `.notes/dashboard-development-context.md` — full dashboard design (stack, protocol,
    UI) if working on dashboard threads.
 
 ## House rules
@@ -28,7 +31,10 @@ installations. This file is the orientation for any agent working here.
 
 ## Thread ordering (critical path)
 
-`osc-schema-contract` (design draft first — it steers everything)
+The OSC contract is **ratified** (design draft tied 2026-07-07). Execution order is in
+`.loom/threads/osc-schema-contract/HANDOFF.md` — in short: `dashboard-0-sim-fleet`
+→ `osc-schema-contract` children (`node-contract-fixes`, `hb-identity`,
+`assign-persistence`, `patch-manifest`, `fetch-landing`)
 → `dashboard` phases 1–4 → `clock-sync` → `spatial-audio` / `scene-sequencing`.
 
 Free-floating, any time: `sample-distribution`, `audio-input`, `pi-zero-performance`

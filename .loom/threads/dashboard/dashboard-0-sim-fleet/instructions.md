@@ -21,5 +21,13 @@ Contract-tracking rule: when any stitch adds or changes an OSC message (heartbea
 identity, `/sync/*`, `/cue`, samples namespace), extending simfleet is part of that
 stitch's deliverable — the simulator must never drift from the contract.
 
+**2026-07-07 note:** `docs/OSC-CONTRACT.md` v1.0 is ratified. Build simfleet against
+*today's deployed wire protocol* (the shapes above — that's what real Pis speak until
+the `osc-schema-contract` children land), but structure device state/handlers so
+message shapes are cheap to swap: `hb-identity`, `assign-persistence`, and
+`patch-manifest` will each migrate simfleet to the v1 messages (`/hb` with uid,
+`/os/assign`, `/os/params`) as they land, per the tracking rule. Contract §13 lists
+the transition aliases a mixed fleet needs.
+
 Done when: dashboard-1-core development can run against `simfleet.py --devices 5` and
 an unmodified real Pi appears in the same dashboard indistinguishably.

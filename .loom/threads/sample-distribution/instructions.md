@@ -16,10 +16,13 @@ Direction:
       per-device progress + version/hash display so a half-synced fleet is visible
 - [ ] Keep the cloud path (`getsamples`) as the way the *laptop* acquires packs;
       the LAN path is laptop → Pis
-- [ ] Contract: an `/os/samples/...` namespace (sync, report hash/version) — register in
-      `osc-schema-contract`
-- [ ] Where samples land on the Pi: keep the current per-patch convention
-      (`patches/<patch>/…`), documented
+- [ ] Contract (**settled 2026-07-07** — `docs/OSC-CONTRACT.md` §9, implemented by
+      `osc-schema-contract/fetch-landing`; absorb, don't duplicate): the verb is
+      `/os/fetch <source-uri> <slot>` → `/os/fetched <slot> <ok|err>`, scheme-dispatched
+      (`http:` = dashboard-served LAN manifest+hash with resume; `gdrive:` legacy)
+- [ ] Landing (**changed from per-patch**): framework-owned engine-neutral root
+      `~/bopOS/assets/<slot>/`, handed to engines via `ASSETS` at launch; legacy
+      `patches/<active>/bop/samplepacks` symlinked one release
 
 Done when: a changed sample pack reaches every Pi in one dashboard action, verifiably,
 without touching the internet.
