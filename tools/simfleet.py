@@ -21,6 +21,7 @@ import csv
 import heapq
 import itertools
 import random
+import re
 import select
 import socket
 import sys
@@ -63,16 +64,55 @@ class LegacyProtocol:
     def heartbeat(self, device):
         return (
             self.report(device.wire_id(), ["hb"]),
-            self.report(device.wire_id(), ["version", device.version]),
+            self.report(device.wire_id(), ["version", device.legacy_version]),
         )
 
 
+class ContractProtocol:
+    """The OSC byte boundary for contract-v1 framework messages."""
+
+    @staticmethod
+    def decode(datagram):
+        message = osc_message.OscMessage(datagram)
+        return message.address, list(message.params)
+
+    @staticmethod
+    def matches(selector, device_id):
+        if selector == "all":
+            return True
+        try:
+            return int(selector) == int(device_id) and str(selector) == str(int(selector))
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def heartbeat(device):
+        builder = osc_message_builder.OscMessageBuilder(address="/hb")
+        builder.add_arg(device.mac, arg_type="s")
+        builder.add_arg(int(device.device_id), arg_type="i")
+        builder.add_arg(device.version, arg_type="s")
+        builder.add_arg(device.engine_alive(), arg_type="i")
+        if not device.wired:
+            device.rssi = max(-80, min(-35, device.rssi + random.randint(-2, 2)))
+            builder.add_arg(device.rssi, arg_type="i")
+        return builder.build().dgram
+
+    @staticmethod
+    def pong(token, uid):
+        builder = osc_message_builder.OscMessageBuilder(address="/os/pong")
+        builder.add_arg(token)
+        builder.add_arg(uid, arg_type="s")
+        return builder.build().dgram
+
+
 class Device:
-    def __init__(self, mac, hostname, device_id, version, unresponsive=False):
+    def __init__(self, mac, hostname, device_id, version, unresponsive=False,
+                 wired=False, engine_dead=False):
         self.mac = mac
         self.hostname = hostname
         self.device_id = device_id
         self.version = version
+        self.legacy_version = float(version) if isinstance(version, (int, float)) else 0.0
         self.unresponsive = unresponsive
         self.state = "booting"
         self.gain = 0.0
@@ -82,6 +122,17 @@ class Device:
         self.active_patch = ""
         self.last_hb = None
         self.last_command = "-"
+        self.wired = wired
+        self.engine_dead = engine_dead
+        self.engine_restart_until = 0.0
+        self.rssi = random.randint(-70, -45)
+        self.muted = False
+        self.ident_until = 0.0
+
+    def engine_alive(self):
+        return int(not self.engine_dead
+                   and self.state in ("booting", "running")
+                   and time.monotonic() >= self.engine_restart_until)
 
     def wire_id(self):
         # list prepend 0 in bopos.osc.pd: reports carry id 0 until helper config lands
@@ -99,7 +150,8 @@ class SimFleet:
     def __init__(self, args, devices):
         self.args = args
         self.devices = devices
-        self.protocol = LegacyProtocol()
+        self.protocol = LegacyProtocol() if args.protocol == "legacy" else ContractProtocol()
+        self.legacy_protocol = LegacyProtocol()
         self.events = []
         self.sequence = itertools.count()
         self.running = True
@@ -147,28 +199,43 @@ class SimFleet:
             print(f"simfleet: send failed: {error}", file=sys.stderr)
 
     def report(self, device, payload):
-        self.queue_datagram(self.protocol.report(device.wire_id(), payload))
+        self.queue_datagram(self.legacy_protocol.report(device.wire_id(), payload))
 
     def heartbeat(self, device, reschedule=True):
         if device.state in ("booting", "running"):
-            hb, version = self.protocol.heartbeat(device)
-            self.queue_datagram(hb, device)
-            self.queue_datagram(version)
+            if self.args.protocol == "legacy":
+                hb, version = self.protocol.heartbeat(device)
+                self.queue_datagram(hb, device)
+                self.queue_datagram(version)
+            else:
+                self.queue_datagram(self.protocol.heartbeat(device), device)
+                # legacy hb/version come from PD itself — a dead engine can't send them
+                if self.args.legacy_reports and device.engine_alive():
+                    hb, version = self.legacy_protocol.heartbeat(device)
+                    self.queue_datagram(hb)
+                    self.queue_datagram(version)
         if reschedule:
-            self.schedule(self.args.hb_interval, self.heartbeat, device)
+            interval = 2.0 if self.args.protocol == "v1" and device.device_id == -1 else self.args.hb_interval
+            self.schedule(interval, self.heartbeat, device)
 
     def promote_running(self, device):
         if device.state == "booting":
             self.set_state(device, "running")
 
     def announce(self, device):
-        # loadbang -> delay 1000 -> aloha in bopos.osc.pd
+        # loadbang -> delay 1000 -> aloha in bopos.osc.pd (PD-side, needs the engine)
         if device.state in ("booting", "running"):
-            self.report(device, ["aloha", 1])
+            if self.args.protocol == "legacy" or (self.args.legacy_reports and device.engine_alive()):
+                self.report(device, ["aloha", 1])
 
     def finish_boot(self, device, bump_version=False):
         if bump_version:
-            device.version += 1
+            if self.args.protocol == "legacy":
+                device.version += 1
+                device.legacy_version = device.version
+            else:
+                device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
+                device.legacy_version += 1
         device.echo = False
         self.set_state(device, "booting")
         self.schedule(1.0, self.promote_running, device)
@@ -208,6 +275,8 @@ class SimFleet:
         elif verb == "restart-engine":
             self.schedule(0.5, self.report, device,
                           ["helper-reply", "restart-engine"])
+            if self.args.protocol == "v1":
+                device.engine_restart_until = time.monotonic() + 3.0
 
     def command(self, device, payload):
         device.last_command = " ".join(format_token(item) for item in payload) or "-"
@@ -246,11 +315,11 @@ class SimFleet:
     def receive(self):
         while True:
             try:
-                datagram, _source = self.sock.recvfrom(65535)
+                datagram, source = self.sock.recvfrom(65535)
             except BlockingIOError:
                 return
             try:
-                tokens = self.protocol.decode(datagram)
+                tokens = self.legacy_protocol.decode(datagram)
             except Exception:
                 continue
             if not tokens:
@@ -261,20 +330,57 @@ class SimFleet:
                 # so an /all command can reach some devices and miss others
                 if random.random() < self.args.drop:
                     continue
-                if self.protocol.matches(selector, device.match_id()):
+                if self.legacy_protocol.matches(selector, device.match_id()):
                     self.command(device, payload)
+            if self.args.protocol == "v1":
+                self.receive_contract(datagram, source)
+
+    def receive_contract(self, datagram, source):
+        try:
+            address, args = self.protocol.decode(datagram)
+        except Exception:
+            return
+        parts = [part for part in address.split("/") if part]
+        if len(parts) != 3 or parts[1] != "os":
+            return
+        selector, member = parts[0], parts[2]
+        for device in self.devices:
+            # helper.py answers these, so the box must be up (booting counts:
+            # helper starts before the engine) and its radio listening
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if random.random() < self.args.drop or not self.protocol.matches(selector, device.device_id):
+                continue
+            if member == "ping" and args:
+                try:
+                    self.sock.sendto(self.protocol.pong(args[0], device.mac),
+                                     (source[0], self.args.report_port))
+                except OSError as error:
+                    print(f"simfleet: pong failed: {error}", file=sys.stderr)
+            elif member == "identify" and (not args or str(args[0]) == device.mac):
+                device.ident_until = time.monotonic() + 3.0
+                self.log(device, "identify")
+            elif member == "mute" and args:
+                try:
+                    value = int(args[0])
+                except (TypeError, ValueError):
+                    continue
+                if value in (0, 1):
+                    device.muted = bool(value)
+                    self.log(device, f"muted={value}")
 
     def display(self):
         now = time.monotonic()
         print("\033[H\033[2J", end="")
-        print("ID   HOSTNAME       MAC                STATE          VER  GAIN   GAIN2  BACK   ECHO  HB AGE  LAST COMMAND")
+        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   ECHO  MUTE IDENT HB AGE  LAST COMMAND")
         for device in self.devices:
             age = "-" if device.last_hb is None else f"{now - device.last_hb:.1f}s"
             print(
                 f"{device.device_id:4g} {device.hostname:14.14} {device.mac:17} "
-                f"{device.display_state():14.14} {device.version:4g} "
+                f"{device.display_state():14.14} {str(device.version):7.7} "
                 f"{device.gain:6g} {device.gain2:6g} {device.backing:6g} "
-                f"{'on' if device.echo else 'off':5} {age:7} {device.last_command}"
+                f"{'on' if device.echo else 'off':5} {'yes' if device.muted else 'no':4} "
+                f"{'IDENT' if device.ident_until > now else '-':5} {age:7} {device.last_command}"
             )
         sys.stdout.flush()
         self.schedule(0.5, self.display)
@@ -330,7 +436,13 @@ def load_devices(args):
                                f"sim{index}", float(index)))
 
     first_unresponsive = len(identities) - args.unresponsive
-    return [Device(mac, hostname, device_id, float(args.version), index >= first_unresponsive)
+    first_unassigned = len(identities) - args.unassigned
+    first_wired = len(identities) - args.wired
+    first_engine_dead = len(identities) - args.engine_dead
+    version = float(args.version) if args.protocol == "legacy" else args.version
+    return [Device(mac, hostname, -1 if index >= first_unassigned else device_id,
+                   version, index >= first_unresponsive, index >= first_wired,
+                   index >= first_engine_dead)
             for index, (mac, hostname, device_id) in enumerate(identities)]
 
 
@@ -340,21 +452,41 @@ def parse_args():
     parser.add_argument("--drop", type=float, default=0.0)
     parser.add_argument("--jitter-ms", type=float, default=0.0)
     parser.add_argument("--unresponsive", type=int, default=0)
+    parser.add_argument("--unassigned", type=int, default=0)
+    parser.add_argument("--wired", type=int, default=0)
+    parser.add_argument("--engine-dead", type=int, default=0)
     parser.add_argument("--devices-file")
     parser.add_argument("--hb-interval", type=float, default=10.0)
     parser.add_argument("--boot-secs", type=float, default=15.0)
     parser.add_argument("--target", default="255.255.255.255")
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)
-    # deployed PD never sets `value version`, so real devices report version 0
-    parser.add_argument("--version", type=float, default=0.0)
+    parser.add_argument("--protocol", choices=("legacy", "v1"), default="v1")
+    reports = parser.add_mutually_exclusive_group()
+    reports.add_argument("--legacy-reports", dest="legacy_reports", action="store_true")
+    reports.add_argument("--no-legacy-reports", dest="legacy_reports", action="store_false")
+    parser.set_defaults(legacy_reports=True)
+    # legacy defaults to deployed version 0; v1 normalizes this to a fake SHA below
+    parser.add_argument("--version", default=None)
     args = parser.parse_args()
-    if args.devices < 0 or args.unresponsive < 0 or args.unresponsive > args.devices:
-        parser.error("device counts must satisfy 0 <= unresponsive <= devices")
+    counts = (args.unresponsive, args.unassigned, args.wired, args.engine_dead)
+    if args.devices < 0 or any(value < 0 or value > args.devices for value in counts):
+        parser.error("device counts must satisfy 0 <= count <= devices")
     if not 0.0 <= args.drop <= 1.0:
         parser.error("--drop must be between 0 and 1")
     if args.jitter_ms < 0 or args.hb_interval <= 0 or args.boot_secs < 0:
         parser.error("timing values must be non-negative (heartbeat interval must be positive)")
+    if args.version is None:
+        args.version = "0.0" if args.protocol == "legacy" else "a1b2c3d"
+    if args.protocol == "v1":
+        if not re.fullmatch(r"[0-9a-fA-F]{1,7}", args.version):
+            parser.error("v1 --version must be a hexadecimal short-SHA-looking value")
+        args.version = args.version.lower().zfill(7)
+    else:
+        try:
+            float(args.version)
+        except ValueError:
+            parser.error("legacy --version must be numeric")
     return args
 
 

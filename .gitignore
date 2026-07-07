@@ -3,3 +3,5 @@ samples.zip
 __pycache__/
 *.pyc
 run/
+/bopos.config
+/state/
