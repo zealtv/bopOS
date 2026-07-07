@@ -18,3 +18,9 @@ hardcoded gain/gain2/backing — so "volume card" needs a defined mapping
 (which declared param is "the volume"? manifest `group: "mix"`? a designated
 `primary` flag?). That mapping is exactly the kind of user-facing call the
 gate exists for.
+
+---
+**2026-07-08: proposal written, waiting on Bob.** The design proposal is
+lore item `2026-07-08-facilitator-view-proposal` (six questions, each with
+a recommendation). Blocker: Bob's ratification. Build per the ratified
+answers; the verification plan is in the proposal.
