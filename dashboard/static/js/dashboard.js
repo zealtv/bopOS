@@ -12,6 +12,7 @@ ws.on("device_update", data => { if (data && data.devices) installation = data; 
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
+ws.on("room", data => { installation.room = data; render(); });
 
 function render() {
   const devices = Object.values(installation.devices || {});
@@ -20,12 +21,19 @@ function render() {
   $("#assigned").innerHTML = assigned.map(row).join("");
   $("#unassigned").innerHTML = unassigned.map(row).join("") || '<p class="dim">None</p>';
   document.querySelectorAll(".device-row").forEach(el => el.onclick = () => select(el.dataset.uid));
+  Spatial.render(installation, selected, select, ws); renderRoom();
   renderHeader(); renderDetail();
 }
 function row(d) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
   return `<button class="device-row ${d.uid===selected?'selected':''}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><span><strong>${esc(d.name || d.uid)}</strong><small>ID ${esc(d.id)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span></button>`;
 }
+function renderRoom() {
+  const room = installation.room || {}; const w = $("#room-w"), d = $("#room-d");
+  if (!w || document.activeElement === w || document.activeElement === d) return;
+  w.value = room.width ?? 10; d.value = room.depth ?? 8;
+}
+["room-w", "room-d"].forEach(id => { const input = document.getElementById(id); if (input) input.onchange = () => ws.send("set_room", {width: Number($("#room-w").value), depth: Number($("#room-d").value)}); });
 function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;

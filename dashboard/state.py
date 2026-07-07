@@ -8,9 +8,14 @@ DURABLE = ("id", "name", "pos1", "pos2", "patch")
 
 
 class InstallationState:
+    # top-down floor plan in metres: origin top-left, x right, y down —
+    # the spatial-audio work consumes these coordinates, keep them explicit
+    DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m"}
+
     def __init__(self, path, devices_file=None):
         self.path = path
-        self.data = {"name": "bopOS", "devices": {}, "muted": False}
+        self.data = {"name": "bopOS", "devices": {}, "muted": False,
+                     "room": dict(self.DEFAULT_ROOM)}
         self._save_task = None
         self._load()
         if not self.data["devices"] and devices_file and os.path.exists(devices_file):
@@ -27,6 +32,10 @@ class InstallationState:
                 loaded = json.load(source)
             if isinstance(loaded, dict) and isinstance(loaded.get("devices"), dict):
                 self.data["name"] = loaded.get("name", "bopOS")
+                room = loaded.get("room")
+                if isinstance(room, dict) and room.get("width") and room.get("depth"):
+                    self.data["room"] = {"width": float(room["width"]),
+                                         "depth": float(room["depth"]), "units": "m"}
                 for uid, durable in loaded["devices"].items():
                     self.devices[uid] = self._runtime_device(uid, durable)
         except (OSError, ValueError, TypeError):
@@ -83,7 +92,8 @@ class InstallationState:
             item = {key: device.get(key) for key in DURABLE if device.get(key) is not None}
             item["params"] = dict(device.get("params", {}))
             devices[uid] = item
-        return {"name": self.data.get("name", "bopOS"), "devices": devices}
+        return {"name": self.data.get("name", "bopOS"),
+                "room": self.data.get("room", dict(self.DEFAULT_ROOM)), "devices": devices}
 
     def save(self):
         directory = os.path.dirname(os.path.abspath(self.path))

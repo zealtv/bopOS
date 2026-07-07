@@ -7,7 +7,10 @@
     <aside><h2>Devices</h2><div id="assigned"></div><h3>UNASSIGNED</h3><div id="unassigned"></div>
       <footer><button data-all="reboot">Reboot All</button><button data-all="update">Update All</button><button data-all="aloha">Aloha All</button></footer>
     </aside>
-    <main id="detail"><p class="empty">Select a device.</p></main>
+    <main>
+      <section id="spatial-section"><div class="section-head"><h2>Spatial</h2><span class="dim">room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div><svg id="spatial"></svg></section>
+      <div id="detail"><p class="empty">Select a device.</p></div>
+    </main>
   </div>
-  <script src="/js/ws.js"></script><script src="/js/dashboard.js"></script>
+  <script src="/js/ws.js"></script><script src="/js/spatial.js"></script><script src="/js/dashboard.js"></script>
 </body></html>

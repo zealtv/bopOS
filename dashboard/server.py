@@ -132,6 +132,30 @@ class Dashboard:
             self.state.data["muted"] = bool(value)
             self.osc.os_command("all", "mute", [value])
             await self.broadcast("mute_all", {"value": value})
+        elif kind == "set_position":
+            device = self.state.devices.get(uid)
+            if not device:
+                return
+            for key in ("pos1", "pos2"):
+                if key not in data:
+                    continue
+                value = data[key]
+                try:
+                    device[key] = ([float(value[0]), float(value[1])]
+                                   if value is not None else None)
+                except (TypeError, ValueError, IndexError):
+                    return
+            self.state.save_debounced()
+            await self.broadcast("device_update", device)
+        elif kind == "set_room":
+            try:
+                width, depth = float(data.get("width")), float(data.get("depth"))
+            except (TypeError, ValueError):
+                return
+            if 0 < width <= 1000 and 0 < depth <= 1000:
+                self.state.data["room"] = {"width": width, "depth": depth, "units": "m"}
+                self.state.save_debounced()
+                await self.broadcast("room", self.state.data["room"])
         elif kind == "request_params":
             self.osc.request(uid, "params")
         elif kind == "request_report":
