@@ -22,3 +22,9 @@ Blocker / prerequisite (design decision, likely Bob's):
 Do first: write a short proposal (A vs B, rate, which values), mark `.waiting`
 for Bob — this is engine-strategy/contract-adjacent. Build only after a ruling.
 Coordinate with `osc-schema-contract` (now tied) and `audio-input`.
+
+---
+**2026-07-08: proposal written (`proposal.md` in this stitch), waiting on Bob.**
+Recommends Option A (patch/helper republish values as read-only `/p/*`, dashboard
+renders meters) over Option B (new `/io/report` stream). Note the shared
+`role` field question with the facilitator proposal. Build after Bob rules.
