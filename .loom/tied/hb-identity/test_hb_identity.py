@@ -76,12 +76,12 @@ with tempfile.TemporaryDirectory() as root:
     helper.discover_primary_mac = old_discover
 
     absent = helper.read_node_config(os.path.join(root, "missing"))
-    check("node config absent defaults", absent == {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None}, repr(absent))
+    check("node config absent defaults", absent == {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None, "UPDATE_MODEL": "persistent"}, repr(absent))
     config_path = os.path.join(root, "bopos.config")
     with open(config_path, "w") as target:
         target.write("# comment\nHB_TARGET='127.0.0.1'\n\nHB_RSSI=\"0\"\nMIXER_CONTROL=Digital\n")
     parsed = helper.read_node_config(config_path)
-    check("node config comments and quotes", parsed == {"HB_TARGET": "127.0.0.1", "HB_RSSI": "0", "MIXER_CONTROL": "Digital"}, repr(parsed))
+    check("node config comments and quotes", parsed == {"HB_TARGET": "127.0.0.1", "HB_RSSI": "0", "MIXER_CONTROL": "Digital", "UPDATE_MODEL": "persistent"}, repr(parsed))
 
     devices = os.path.join(root, "bopos.devices")
     with open(devices, "w") as target:

@@ -14,6 +14,8 @@ import socket
 import threading
 import uuid
 
+from store import Store
+
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
 PROC_DIR = "/proc"
@@ -33,7 +35,8 @@ client.connect( ('127.0.0.1', 6661) )
 
 
 def read_node_config(path=None):
-    config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None}
+    config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
+              "UPDATE_MODEL": "persistent"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -104,7 +107,16 @@ def resolve_uid(argv=None):
     return discover_primary_mac() or str(uuid.uuid4())
 
 
-def resolve_id(uid, path=None):
+def resolve_id(uid, path=None, store=None):
+    # boot resolution order (contract section 5):
+    # persisted assignment -> bopos.devices seed -> unassigned
+    if store is not None:
+        assignment = store.get("assignment")
+        if assignment:
+            try:
+                return int(float(assignment[0]))
+            except (TypeError, ValueError):
+                pass
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.devices")
     try:
@@ -136,8 +148,12 @@ def resolve_version():
 class NodeState:
     def __init__(self, argv=None):
         self.config = read_node_config()
+        self.update_model = ("ephemeral" if self.config.get("UPDATE_MODEL") == "ephemeral"
+                             else "persistent")
+        self.store = Store(os.path.join(BOPOS_DIR, "state", "store"),
+                           persistent=(self.update_model == "persistent"))
         self.uid = resolve_uid(argv)
-        self.id = resolve_id(self.uid)
+        self.id = resolve_id(self.uid, store=self.store)
         self.version = resolve_version()
         self.mixer_control = None
         self.muted_via_stop = False
@@ -196,6 +212,9 @@ def build_heartbeat(state=None):
     return msg
 
 
+hb_wake = threading.Event()  # set() to force an immediate beat (assign ack)
+
+
 def heartbeat_loop(state=None):
     state = state or node_state
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -206,7 +225,8 @@ def heartbeat_loop(state=None):
                         (state.config.get("HB_TARGET") or "255.255.255.255", 5550))
         except Exception as error:
             print("WARNING: heartbeat send failed:", error)
-        sleep(2.0 if state.id == -1 else 10.0)
+        hb_wake.wait(2.0 if state.id == -1 else 10.0)
+        hb_wake.clear()
 
 
 def selector_matches(selector, device_id):
@@ -308,6 +328,60 @@ def identify(uid=None, state=None):
     return True
 
 
+def set_hostname(hostname):
+    current_hostname = socket.gethostname()
+    if current_hostname == hostname:
+        return
+    print(f"Hostname change: {current_hostname} -> {hostname}")
+    os.system(f'sudo hostnamectl set-hostname {hostname}')
+    os.system(f"sudo sed -i 's/^127.0.1.1.*/127.0.1.1   {hostname}/' /etc/hosts")
+    os.system('sudo systemctl restart avahi-daemon')
+
+
+def typed_append(msg, value):
+    if isinstance(value, bool):
+        msg.append(int(value), 'i')
+    elif isinstance(value, int):
+        msg.append(value, 'i')
+    elif isinstance(value, float):
+        msg.append(value, 'f')
+    else:
+        msg.append(str(value), 's')
+
+
+def apply_assign(args, state=None):
+    # /all/os/assign <uid> <id> <name> [posx posy pos2x pos2y]
+    # idempotent full-state; only the node whose uid matches applies it
+    state = state or node_state
+    if len(args) < 3 or str(args[0]) != state.uid:
+        return False
+    try:
+        new_id = int(float(args[1]))
+    except (TypeError, ValueError):
+        print(f"assign: bad id {args[1]!r}")
+        return False
+    name = str(args[2])
+    positions = []
+    for value in args[3:7]:
+        try:
+            positions.append(float(value))
+        except (TypeError, ValueError):
+            positions = []
+            break
+    state.id = new_id
+    set_hostname(name)
+    msg = OSCMessage("/id")
+    msg.append(new_id, 'f')
+    try:
+        client.send(msg)
+    except Exception:
+        pass
+    state.store.put("assignment", [new_id, name] + positions)
+    hb_wake.set()
+    print(f"ASSIGNED: id {new_id} name {name}" + (f" pos {positions}" if positions else ""))
+    return True
+
+
 def handle_lan_datagram(datagram, source, reply_socket, state=None):
     state = state or node_state
     try:
@@ -320,6 +394,17 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if len(parts) != 3 or parts[1] != "os" or not selector_matches(parts[0], state.id):
         return False
     args = decoded[2:]
+    if parts[2] == "assign":
+        return apply_assign(args, state)
+    if parts[2] == "store" and args:
+        return state.store.put(str(args[0]), list(args[1:]))
+    if parts[2] == "load" and args:
+        msg = OSCMessage("/os/load")
+        msg.append(str(args[0]), 's')
+        for value in state.store.get(str(args[0])):
+            typed_append(msg, value)
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
     if parts[2] == "ping" and args:
         msg = OSCMessage("/os/pong")
         tag = decoded[1][1:2] if str(decoded[1]).startswith(",") else str(decoded[1])[:1]
@@ -371,7 +456,6 @@ def lan_listener_loop(state=None):
 def config_callback(path='', tags='', args='', source=''):
     config_file = os.path.join(BOPOS_DIR, "bopos.devices")
     print("loading: ", config_file)
-    current_hostname = socket.gethostname()
     try:
         read_obj = open(config_file, 'r')
     except OSError:
@@ -384,12 +468,7 @@ def config_callback(path='', tags='', args='', source=''):
             if len(row) >= 3 and row[0].strip() == node_state.uid:
                 print('MAC address found in bopos.devices')
                 macfound = True
-                hostname = row[1].strip()
-                if current_hostname != hostname:
-                    print(f"Hostname change: {current_hostname} -> {hostname}")
-                    os.system(f'sudo hostnamectl set-hostname {hostname}')
-                    os.system(f"sudo sed -i 's/^127.0.1.1.*/127.0.1.1   {hostname}/' /etc/hosts")
-                    os.system('sudo systemctl restart avahi-daemon')
+                set_hostname(row[1].strip())
                 try:
                     node_state.id = int(float(row[2]))
                 except ValueError:
@@ -539,6 +618,26 @@ def restart_engine_callback(path='', tags='', args='', source=''):
                      start_new_session=True)
 
 
+def store_callback(path='', tags='', args='', source=''):
+    # engine-side persistence: PD routes `store <key> <values...>` here
+    if args:
+        node_state.store.put(str(args[0]), list(args[1:]))
+
+
+def load_callback(path='', tags='', args='', source=''):
+    # reply goes to PD on 6661 as /load <key> <values...>
+    if not args:
+        return
+    msg = OSCMessage("/load")
+    msg.append(str(args[0]), 's')
+    for value in node_state.store.get(str(args[0])):
+        typed_append(msg, value)
+    try:
+        client.send(msg)
+    except Exception as error:
+        print(f"load: could not reply to engine: {error}")
+
+
 def exit_handler():
     print("exiting.  closing server...")
     server.close()
@@ -554,6 +653,8 @@ server.addMsgHandler( "/patch", switch_patch_callback )
 server.addMsgHandler( "/addpatch", add_patch_callback )
 server.addMsgHandler( "/pullpatch", pull_active_patch_callback )
 server.addMsgHandler( "/restart-engine", restart_engine_callback )
+server.addMsgHandler( "/store", store_callback )
+server.addMsgHandler( "/load", load_callback )
 
 atexit.register(exit_handler)
 

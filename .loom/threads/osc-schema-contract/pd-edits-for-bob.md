@@ -22,6 +22,17 @@ waits on these — aliases keep both spellings working.
   never reaches helper.py from the LAN. Contract §7 keeps `/os/checkout`, so
   either the route gains it there or the `/os/*` migration obsoletes the whole
   route list — flagging so it isn't copied forward as-is.
+- **2026-07-07, from assign-persistence:** the engine side of the persistence
+  store (contract §10) is plumbed and waiting in helper.py: `/store <key>
+  <values…>` and `/load <key>` handlers on 7770, `/load <key> <values…>`
+  replies to 6661. For patches to use it, PD needs (a) `store`/`load` routed
+  from the patch to helper's 7770, and (b) a **local** delivery for the
+  `/load` reply — today everything arriving on 6661 is forwarded to the wire
+  as `/rpt …`, which would broadcast a patch's persisted state to the LAN.
+  How to keep load replies local is your PD design call; no edit requested
+  until a patch actually wants engine-side persistence. (PD-side state that
+  persists today should migrate to this store when its patch is next
+  touched — §10.)
 
 ## Requested edits
 

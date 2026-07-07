@@ -20,6 +20,8 @@ import argparse
 import csv
 import heapq
 import itertools
+import json
+import os
 import random
 import re
 import select
@@ -107,9 +109,10 @@ class ContractProtocol:
 
 class Device:
     def __init__(self, mac, hostname, device_id, version, unresponsive=False,
-                 wired=False, engine_dead=False):
+                 wired=False, engine_dead=False, ephemeral=False):
         self.mac = mac
         self.hostname = hostname
+        self.ephemeral = ephemeral
         self.device_id = device_id
         self.version = version
         self.legacy_version = float(version) if isinstance(version, (int, float)) else 0.0
@@ -144,6 +147,36 @@ class Device:
 
     def display_state(self):
         return "unresponsive" if self.unresponsive and self.state != "off" else self.state
+
+    def state_file(self, state_dir):
+        return os.path.join(state_dir, self.mac.replace(":", "-") + ".json")
+
+    def load_assignment(self, state_dir):
+        # boot resolution, node-side: persisted assignment wins over the seed;
+        # ephemeral devices sacrifice persistence and re-hello each boot
+        if self.ephemeral:
+            self.device_id = -1
+            return
+        try:
+            with open(self.state_file(state_dir)) as source:
+                assignment = json.load(source)
+            self.device_id = int(assignment["id"])
+            self.hostname = str(assignment.get("name", self.hostname))
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+    def save_assignment(self, state_dir, positions):
+        if self.ephemeral or state_dir is None:
+            return
+        try:
+            os.makedirs(state_dir, exist_ok=True)
+            tmp = self.state_file(state_dir) + ".tmp"
+            with open(tmp, "w") as target:
+                json.dump({"id": self.device_id, "name": self.hostname,
+                           "positions": positions}, target)
+            os.replace(tmp, self.state_file(state_dir))
+        except OSError as error:
+            print(f"simfleet: could not persist assignment: {error}", file=sys.stderr)
 
 
 class SimFleet:
@@ -357,6 +390,21 @@ class SimFleet:
                                      (source[0], self.args.report_port))
                 except OSError as error:
                     print(f"simfleet: pong failed: {error}", file=sys.stderr)
+            elif member == "assign" and len(args) >= 3:
+                if str(args[0]) != device.mac:
+                    continue
+                try:
+                    device.device_id = int(float(args[1]))
+                except (TypeError, ValueError):
+                    continue
+                device.hostname = str(args[2])
+                positions = [float(value) for value in args[3:7]
+                             if isinstance(value, (int, float))]
+                device.save_assignment(self.args.state_dir, positions)
+                self.log(device, f"assigned id={device.device_id:g} name={device.hostname}")
+                # the ack is an immediate heartbeat at the new id; the running
+                # schedule picks up the new cadence on its own
+                self.heartbeat(device, reschedule=False)
             elif member == "identify" and (not args or str(args[0]) == device.mac):
                 device.ident_until = time.monotonic() + 3.0
                 self.log(device, "identify")
@@ -439,11 +487,16 @@ def load_devices(args):
     first_unassigned = len(identities) - args.unassigned
     first_wired = len(identities) - args.wired
     first_engine_dead = len(identities) - args.engine_dead
+    first_ephemeral = len(identities) - args.ephemeral
     version = float(args.version) if args.protocol == "legacy" else args.version
-    return [Device(mac, hostname, -1 if index >= first_unassigned else device_id,
-                   version, index >= first_unresponsive, index >= first_wired,
-                   index >= first_engine_dead)
-            for index, (mac, hostname, device_id) in enumerate(identities)]
+    devices = [Device(mac, hostname, -1 if index >= first_unassigned else device_id,
+                      version, index >= first_unresponsive, index >= first_wired,
+                      index >= first_engine_dead, index >= first_ephemeral)
+               for index, (mac, hostname, device_id) in enumerate(identities)]
+    if args.protocol == "v1" and args.state_dir:
+        for device in devices:
+            device.load_assignment(args.state_dir)
+    return devices
 
 
 def parse_args():
@@ -455,6 +508,8 @@ def parse_args():
     parser.add_argument("--unassigned", type=int, default=0)
     parser.add_argument("--wired", type=int, default=0)
     parser.add_argument("--engine-dead", type=int, default=0)
+    parser.add_argument("--ephemeral", type=int, default=0)
+    parser.add_argument("--state-dir")
     parser.add_argument("--devices-file")
     parser.add_argument("--hb-interval", type=float, default=10.0)
     parser.add_argument("--boot-secs", type=float, default=15.0)
@@ -469,7 +524,7 @@ def parse_args():
     # legacy defaults to deployed version 0; v1 normalizes this to a fake SHA below
     parser.add_argument("--version", default=None)
     args = parser.parse_args()
-    counts = (args.unresponsive, args.unassigned, args.wired, args.engine_dead)
+    counts = (args.unresponsive, args.unassigned, args.wired, args.engine_dead, args.ephemeral)
     if args.devices < 0 or any(value < 0 or value > args.devices for value in counts):
         parser.error("device counts must satisfy 0 <= count <= devices")
     if not 0.0 <= args.drop <= 1.0:
