@@ -205,6 +205,9 @@ class SimFleet:
                           ["helper-reply", "addpatch", rest[1]])
         elif verb == "getsamples":
             self.report(device, ["helper-reply", "getsamples"])
+        elif verb == "restart-engine":
+            self.schedule(0.5, self.report, device,
+                          ["helper-reply", "restart-engine"])
 
     def command(self, device, payload):
         device.last_command = " ".join(format_token(item) for item in payload) or "-"

@@ -11,7 +11,7 @@ import signal
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
 
 from sys_wireless import read_wireless
-from sys_i2c import scan_bus
+from sys_i2c import have_bus, scan_bus
 from sys_info import (get_hostname, get_ip, get_uptime,
                       get_git_rev, get_active_patch)
 
@@ -156,9 +156,13 @@ class IOManager:
         # /io/create <name> <type> <address>
         if verb == 'create' and len(args) >= 3:
             name = str(args[0])
+            if not have_bus():
+                self._send("/io/error", name, "no-bus")
+                return
             device_type = str(args[1])
             i2c_addr = int(args[2], 16) if isinstance(args[2], str) else int(args[2])
-            self.create_peripheral(name, device_type, i2c_addr)
+            if not self.create_peripheral(name, device_type, i2c_addr):
+                self._send("/io/error", name, "create-failed")
 
         # /io/poll <rate>
         elif verb == 'poll' and len(args) > 0:

@@ -11,6 +11,8 @@ PYTHON_BIN="python3"     # Python with blinka/adafruit deps installed
 # --- Auto-detect paths ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
+RUN_DIR="$BOPOS_DIR/run"
+mkdir -p "$RUN_DIR"
 
 # --- Environment for MCP2221A USB I2C ---
 export BLINKA_MCP2221=1
@@ -37,8 +39,8 @@ echo "===================="
 
 # --- Start io/main.py ---
 echo "--- Starting io/main.py..."
-cd "$BOPOS_DIR/python/io"
-$PYTHON_BIN main.py &
+( cd "$BOPOS_DIR/python/io" && exec "$PYTHON_BIN" "$BOPOS_DIR/python/io/main.py" ) &
+echo $! > "$RUN_DIR/io.pid"
 
 sleep 1
 
@@ -46,6 +48,7 @@ sleep 1
 echo "--- Starting Pure Data..."
 $PD_BIN -path "$BOPOS_DIR/pd" -open "$PATCH_ENTRYPOINT" \
   -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVEPATCH" &
+echo $! > "$RUN_DIR/pd.pid"
 
 # --- Run patch start script if exists ---
 if [ -f "$PATCH_PATH/start.sh" ]; then

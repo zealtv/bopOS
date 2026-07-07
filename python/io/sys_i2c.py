@@ -9,7 +9,17 @@ ranges, quick-write elsewhere). EBUSY means a kernel driver owns the address
 (i2cdetect's "UU", e.g. a bound DAC) -- still reported as present.
 """
 
-from smbus2 import SMBus, i2c_msg
+import os
+
+try:
+    from smbus2 import SMBus, i2c_msg
+    HAVE_SMBUS = True
+except ImportError:
+    HAVE_SMBUS = False
+
+
+def have_bus(bus=1):
+    return os.path.exists("/dev/i2c-{}".format(bus)) or bool(os.environ.get("BLINKA_MCP2221"))
 
 
 def scan_bus(bus=1, skip=()):
@@ -19,9 +29,15 @@ def scan_bus(bus=1, skip=()):
     -- pass the addresses of live peripherals so we don't poke a chip the
     poll loop is already reading.
     """
+    if not HAVE_SMBUS:
+        return []
+    try:
+        b = SMBus(bus)
+    except OSError:
+        return []
     skip = set(skip)
     found = []
-    with SMBus(bus) as b:
+    with b:
         for addr in range(0x03, 0x78):
             if addr in skip:
                 found.append(addr)

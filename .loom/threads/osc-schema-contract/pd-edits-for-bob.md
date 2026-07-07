@@ -25,5 +25,22 @@ waits on these — aliases keep both spellings working.
 
 ## Requested edits
 
-(none yet — hb-identity and assign-persistence will add the `/hb`/`/aloha`
-emitter removals and alias specs here)
+### 1. Forward `restart-engine` to helper.py (from node-contract-fixes)
+
+In `pd/bopos.osc.pd`, subpatch `process-helper-messages`:
+
+- Add `restart-engine` to the route list:
+  `route reboot shutdown update getsamples addpatch patch pullpatch config`
+  → `route reboot shutdown update getsamples addpatch patch pullpatch config restart-engine`
+- Give the new outlet the same treatment as `reboot`: `t b b` → left bang into
+  `delay 500` → `msg 1` → `oscformat restart-engine` → the subpatch outlet
+  (netsend to helper on 7770). The right bang of `t b b` can `s restart-engine`
+  internally if patches want a fadeout hook, mirroring `s reboot`.
+
+helper.py already has the `/restart-engine` handler (stops pd+jackd via
+pidfiles, re-runs `bash/start-engine.sh`); until this edit lands, the verb is
+simply unreachable from the LAN — nothing breaks.
+
+Test after editing: `helper restart-engine` to a device on the laptop rig →
+expect `/rpt <id> helper-reply restart-engine` on 5550, engine restarts,
+helper/io processes untouched.

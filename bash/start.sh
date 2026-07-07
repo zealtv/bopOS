@@ -8,12 +8,32 @@
 # SOUNDCARD="IQaudIODAC"
 SOUNDCARD="DigiAMP"
 
-RND=$RANDOM
-MACADDRESS=$(cat /sys/class/net/wlan0/address)
-# MACADDRESS=$(cat /sys/class/net/eth0/address) # for wired connection, use eth0 instead of wlan0
-now=$(date --iso-8601=seconds)
-STARTDATE=$(date -d "$now" +%Y%m%d)
-STARTTIME=$(date -d "$now" +%H%M%S)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
+RUN_DIR="$BOPOS_DIR/run"
+mkdir -p "$RUN_DIR"
+
+PRIMARY_INTERFACE=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}')
+if [ -z "$PRIMARY_INTERFACE" ]; then
+    for interface in /sys/class/net/*; do
+        [ "$(basename "$interface")" = "lo" ] && continue
+        [ "$(cat "$interface/operstate" 2>/dev/null)" = "up" ] && PRIMARY_INTERFACE=$(basename "$interface") && break
+    done
+fi
+if [ -z "$PRIMARY_INTERFACE" ]; then
+    for interface in /sys/class/net/*; do
+        [ "$(basename "$interface")" = "lo" ] && continue
+        PRIMARY_INTERFACE=$(basename "$interface")
+        break
+    done
+fi
+MACADDRESS=$(cat "/sys/class/net/$PRIMARY_INTERFACE/address" 2>/dev/null || echo unknown)
+
+if [ -x "$HOME/venv/bin/python" ]; then
+    PYTHON_BIN="$HOME/venv/bin/python"
+else
+    PYTHON_BIN="python3"
+fi
 
 
 # sleep 15
@@ -23,13 +43,13 @@ echo "------------------- Waiting..."
 WAIT_TIME=15
 SKIP=0
 printf "Waiting %ds (press any key to skip)...\n" "$WAIT_TIME"
-stty -echo -icanon time 0 min 0
+if [ -t 0 ]; then stty -echo -icanon time 0 min 0; fi
 for ((i=0; i<$WAIT_TIME; i++)); do
-    read -t 1 -n 1 key && SKIP=1 && break
+    [ -t 0 ] && read -t 1 -n 1 key && SKIP=1 && break
     printf "."
     sleep 1
 done
-stty sane
+if [ -t 0 ]; then stty sane; fi
 echo ""
 if [ $SKIP -eq 1 ]; then
     echo "Wait skipped by key press."
@@ -40,76 +60,24 @@ fi
 echo "------------------- Starting bopOS..."
 echo "SOUNDCARD: $SOUNDCARD"
 echo "MAC ADDRESS: $MACADDRESS"
-echo "RANDOM: $RND"
-echo "STARTDATE: $STARTDATE"
-echo "STARTTIME: $STARTTIME"
-
-# Determine active patch
-ACTIVE_PATCH=$(cat /home/pi/bopOS/patches/active_patch.txt)
-PATCH_PATH="/home/pi/bopOS/patches/$ACTIVE_PATCH"
-PATCH_ENTRYPOINT="$PATCH_PATH/main.pd" 
-
-# Print the current active patch clearly
-echo "====================="
-echo "ACTIVE PATCH: $ACTIVE_PATCH"
-echo "PATCH PATH: $PATCH_PATH"
-echo "PATCH ENTRYPOINT: $PATCH_ENTRYPOINT"
-echo "====================="
-
-
 
 # Start helper.py to manage system functions
 # NB: no sudo — start.sh runs as user `pi` (rc.local: `su pi -c`), and the `pi`
 # user is in the i2c/gpio/audio groups, so these need no root. On images without
 # passwordless sudo (e.g. Pi OS Trixie) a `sudo` here silently fails at boot.
 echo "------------------- Starting helper.py..."
-/home/pi/venv/bin/python /home/pi/bopOS/python/helper.py $MACADDRESS &
+"$PYTHON_BIN" "$BOPOS_DIR/python/helper.py" "$MACADDRESS" &
+echo $! > "$RUN_DIR/helper.pid"
 
 # Start io/main.py to access sensors and peripherals
 echo "------------------- Starting io/main.py..."
-( cd /home/pi/bopOS/python/io && /home/pi/venv/bin/python main.py ) &
+( cd "$BOPOS_DIR/python/io" && exec "$PYTHON_BIN" "$BOPOS_DIR/python/io/main.py" ) &
+echo $! > "$RUN_DIR/io.pid"
 
 sleep 1
 
 
 
-#Start Jack 
-echo "------------------- Starting Jack..."
-jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 2 -r 44100 -s -P& #44.1khz        
-# jackd -P80 -t2000 -d alsa -dhw:$SOUNDCARD -p 1024 -n 2 -r 22050 -s -P& #22khz
-
-
-
-# Wait up to 15 seconds for Jack, allow skip by key press
-WAIT_TIME=5
-SKIP=0
-printf "Waiting %ds for Jack (press any key to skip)...\n" "$WAIT_TIME"
-stty -echo -icanon time 0 min 0
-for ((i=0; i<$WAIT_TIME; i++)); do
-    read -t 1 -n 1 key && SKIP=1 && break
-    printf "."
-    sleep 1
-done
-stty sane
-echo ""
-if [ $SKIP -eq 1 ]; then
-    echo "Wait for Jack skipped by key press."
-else
-    echo "Wait for Jack complete."
-fi
-
-
-echo "------------------- Starting Pure Data..."
-# PUREDATA
-pd -nogui -jack -open "$PATCH_ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH" &
-
-
-# run active patch start script if it exists
-if [ -f "$PATCH_PATH/start.sh" ]; then
-    echo "------------------- Running patch start script..."
-    bash "$PATCH_PATH/start.sh"
-else
-    echo "------------------- No patch start script found, skipping..."
-fi  
+SOUNDCARD="$SOUNDCARD" "$SCRIPT_DIR/start-engine.sh"
 
 exit

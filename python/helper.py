@@ -124,7 +124,8 @@ def switch_patch_callback(path='', tags='', args='', source=''):
         return
 
     # Stop the running patch
-    os.system("pkill pd; pkill jackd")
+    stop_script = os.path.join(directory, "../bash/stop-engine.sh")
+    os.system(stop_script)
 
     # Pull latest for the new patch repo if it has a git repo
     if os.path.isdir(os.path.join(patch_path, '.git')):
@@ -219,6 +220,19 @@ def pull_active_patch_callback(path='', tags='', args='', source=''):
         print(f"[pull_active_patch_callback] Exception: {e}")
 
 
+def restart_engine_callback(path='', tags='', args='', source=''):
+    directory = os.path.dirname(os.path.realpath(__file__))
+    stop_script = os.path.join(directory, "../bash/stop-engine.sh")
+    start_script = os.path.join(directory, "../bash/start-engine.sh")
+    msg = OSCMessage("/restart-engine")
+    client.send(msg)
+    print("RESTARTING ENGINE")
+    subprocess.Popen(
+        ["bash", "-c", '"$1" && exec "$2"', "restart-engine", stop_script, start_script],
+        start_new_session=True
+    )
+
+
 def exit_handler():
     print("exiting.  closing server...")
     server.close()
@@ -233,6 +247,7 @@ server.addMsgHandler( "/checkout", checkout_callback )
 server.addMsgHandler( "/patch", switch_patch_callback )
 server.addMsgHandler( "/addpatch", add_patch_callback )  # expects two arguments: user, repo
 server.addMsgHandler( "/pullpatch", pull_active_patch_callback )  # pulls the current active patch repo
+server.addMsgHandler( "/restart-engine", restart_engine_callback )
 
 atexit.register(exit_handler)
 

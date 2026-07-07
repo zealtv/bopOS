@@ -52,4 +52,11 @@ orchestration, contract fidelity, and review yourself.
 - Every capability query has a legal empty answer; nodes never fall silent for
   lacking hardware.
 - Deployed fleets (Kite Choir, The Plants) migrate on aliases — no port changes,
-  no flag days (contract §13).
+  no flag days (contract §13). **Relaxed 2026-07-07 by Bob:** backwards
+  compatibility with old *patches* is not a concern — he'll update existing PD
+  patches to the new protocol, and old patches won't run on updated bopOS. So
+  the patch-facing aliases (bare `/gain` etc. → `/p/*`) and other
+  patch-compat shims in §13 may be skipped when their stitch comes up; propose
+  the §13 revision then. Node/fleet-level guarantees (no port changes, uid==MAC
+  heartbeat correlation) still stand — the relaxation is about patches, not the
+  deployed fleet's OS migration.
