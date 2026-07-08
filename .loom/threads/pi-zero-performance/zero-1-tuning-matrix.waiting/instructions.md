@@ -10,5 +10,8 @@ Zero-safe defaults.
 - [ ] Confirm nice-level/-rt observations from zero-0 on target; apply what
       measures well.
 
-Bob (or a supervised live session) runs the kit; an agent can drive it over
-ssh if a Zero is reachable — ask via the gremlin before assuming one is.
+**Bob confirmed (2026-07-08): a dev Pi is ssh-reachable during development** —
+an agent may drive the kit over ssh once zero-0 is tied. Confirm the host
+in-session (check `~/.ssh/config`; the kite-choir-brains bopos-dev skill
+documents the Pi tmux workflow) — never flash/reimage/apt-upgrade without
+asking. This stitch waits only on zero-0 existing, not on Bob.

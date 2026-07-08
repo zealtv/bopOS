@@ -12,5 +12,9 @@ When a rig is available:
       mechanism on WiFi.
 - [ ] Fold measured reality back into the contract note / parent instructions.
 
-Agent prep is done when sync-0..3 are tied; everything after that is Bob or a
-supervised live session.
+Agent prep is done when sync-0..3 are tied. Bob confirmed (2026-07-08) a dev
+Pi is ssh-reachable during development — an agent may run a reduced hardware
+pass itself (even 2–3 reachable Pis gives real WiFi numbers; confirm hosts
+in-session). The full ≥3-Pi installation-WiFi measurement with audible/GPIO
+evidence stays Bob-coordinated; don't tie the parent on loopback or
+single-Pi numbers.

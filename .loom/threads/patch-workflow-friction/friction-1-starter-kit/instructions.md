@@ -11,8 +11,7 @@ Patch starter-kit / template repo a musician can clone and go.
       skeleton must do (receive bopos.osc conventions, declare the manifest's
       params), then mark this stitch `.waiting` on Bob's skeleton and ping via
       gremlin.
-- [ ] Where does the template live? A separate GitHub repo Bob creates vs a
-      `templates/` dir in bopOS cloned out by a script — small DECISION (Bob);
-      propose one in the ping, default to in-repo `templates/` if he shrugs.
+- [ ] **RESOLVED (Bob, 2026-07-08): the template lives in `templates/` in this
+      repo**, copied out by a script or the dashboard.
 - [ ] Verify: run the template (minus PD specifics) through the dashboard
       add-patch flow on simfleet; record here.

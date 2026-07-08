@@ -1,5 +1,8 @@
 # input-0-config-plumbing
 
+**.waiting — thread deferred by Bob (2026-07-08)** alongside the run-order
+confirmation; unpause is his call.
+
 The bopOS half of audio input: config plumbing (parent has context; hardware
 recipe is input-1).
 

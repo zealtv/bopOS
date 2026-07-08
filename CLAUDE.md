@@ -45,8 +45,16 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
 3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
    port-sharing spike passed on Linux (broadcast+selector addressing only),
    `.waiting` on the macOS run. Can interleave with 1–2 (independent).
-4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`,
-   `input-0-config-plumbing`.
+4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`.
+
+Bob's rulings (2026-07-08): order above confirmed; **`audio-input` deferred**
+(both children `.waiting`); `/sync/*` wire shaping is delegated (record
+additively, flag in handoff); starter-kit template lives in `templates/` in
+this repo; a dev Pi is ssh-reachable during development for hardware stitches
+(confirm the host in-session — don't bake "ask via gremlin" steps into loom
+instructions); audition rig is Linux-first now, but **macOS is the likely
+installation/performance platform** — the macOS spike/relay question stays
+strategically live.
 
 **Paused by Bob (2026-07-08): `scene-sequencing`** — the whole thread (language,
 clip grid, video-mask) waits until the foundation above lands; the language is
