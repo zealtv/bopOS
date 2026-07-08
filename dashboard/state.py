@@ -15,7 +15,7 @@ class InstallationState:
     def __init__(self, path, devices_file=None):
         self.path = path
         self.data = {"name": "bopOS", "devices": {}, "muted": False,
-                     "room": dict(self.DEFAULT_ROOM)}
+                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {}}
         self._save_task = None
         self._load()
         if not self.data["devices"] and devices_file and os.path.exists(devices_file):
@@ -36,6 +36,9 @@ class InstallationState:
                 if isinstance(room, dict) and room.get("width") and room.get("depth"):
                     self.data["room"] = {"width": float(room["width"]),
                                          "depth": float(room["depth"]), "units": "m"}
+                self.data["master"] = self.clean_master(loaded.get("master"))
+                if isinstance(loaded.get("presets"), dict):
+                    self.data["presets"] = loaded["presets"]
                 for uid, durable in loaded["devices"].items():
                     self.devices[uid] = self._runtime_device(uid, durable)
         except (OSError, ValueError, TypeError):
@@ -93,7 +96,16 @@ class InstallationState:
             item["params"] = dict(device.get("params", {}))
             devices[uid] = item
         return {"name": self.data.get("name", "bopOS"),
-                "room": self.data.get("room", dict(self.DEFAULT_ROOM)), "devices": devices}
+                "room": self.data.get("room", dict(self.DEFAULT_ROOM)),
+                "master": self.data.get("master", 1.0),
+                "presets": self.data.get("presets", {}), "devices": devices}
+
+    @staticmethod
+    def clean_master(value):
+        try:
+            return min(max(float(value), 0.0), 1.0)
+        except (TypeError, ValueError):
+            return 1.0
 
     def save(self):
         directory = os.path.dirname(os.path.abspath(self.path))
@@ -162,6 +174,8 @@ class InstallationState:
         if isinstance(room, dict) and room.get("width") and room.get("depth"):
             self.data["room"] = {"width": float(room["width"]),
                                  "depth": float(room["depth"]), "units": "m"}
+        self.data["master"] = self.clean_master(loaded.get("master"))
+        self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
         self.data["devices"] = rebuilt
         self.save()
         return True

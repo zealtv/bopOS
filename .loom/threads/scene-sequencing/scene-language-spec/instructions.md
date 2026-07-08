@@ -24,3 +24,13 @@ Method:
 Deliverable: a spec doc with the example scenes + a **DECISION** list for Bob (core
 syntax, what's v1 vs later). Mark `.waiting`, get Bob's ruling, keep the ratified
 record in `.lore/`, then tie. Interpreter/UI work stays in the parent thread.
+
+---
+**2026-07-08: Bob's design brief captured** — see
+`bob-design-notes-2026-07-08.md` in this stitch. Headline: deferred until after
+the dashboard, then a dedicated co-design session with Bob (do NOT spec solo).
+Key inputs: Ableton session-view clip grid (tracks, master scene column,
+codebox inspector, oneshot/loop + follow actions), musical + clock time, OSC
+address ergonomics, high throughput, node-side spatial primitives (gradients /
+noise / scatter) sent as compact messages — which, if they land, mostly
+dissolve `video-mask`.

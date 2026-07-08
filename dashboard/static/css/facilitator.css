@@ -1,0 +1,29 @@
+/* Facilitator: dark, touch-first, iPad portrait & landscape. */
+:root{color-scheme:dark;--bg:#101316;--panel:#191e23;--line:#303942;--text:#e8edf1;--dim:#8f9ba5;--green:#45d483;--red:#ff4e5d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
+header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:#14191d;padding-top:max(14px,env(safe-area-inset-top))}
+h1{font-size:22px;margin:0;margin-right:auto}
+#ws-status.offline{color:var(--red);font-size:14px}
+#ws-status.online{color:var(--dim);font-size:14px}
+main{flex:1;overflow-y:auto;padding:18px 22px;display:grid;gap:14px;align-content:start}
+.empty{color:var(--dim);text-align:center;margin-top:20vh}
+.card{display:flex;align-items:center;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.card .name{font-size:19px;font-weight:600;min-width:120px;max-width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:13px;height:13px;border-radius:50%;background:#69737b;flex:none}
+.dot.ok{background:var(--green);box-shadow:0 0 10px var(--green)}
+.badge{margin-left:auto;color:var(--dim);font-size:14px;border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+input[type=range]{flex:1;height:44px;accent-color:var(--green);cursor:pointer}
+footer{border-top:1px solid var(--line);background:#14191d;padding:16px 22px;display:grid;gap:14px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+#master-row{display:flex;align-items:center;gap:16px}
+#master-row .label{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+#master-row output{width:56px;text-align:right;font-variant-numeric:tabular-nums}
+#buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{border:1px solid #45515b;background:#273039;color:var(--text);border-radius:10px;padding:16px;font-size:17px;cursor:pointer}
+.danger{border-color:#87343c}
+.danger.active{background:var(--red);border-color:var(--red);color:#130507;font-weight:800;box-shadow:0 0 18px #ff4e5d88}
+#presets{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px}
+#presets:empty{display:none}
+.chip{flex:none;border-radius:999px;padding:12px 20px;font-size:15px}
+@media(orientation:landscape) and (min-width:900px){main{grid-template-columns:1fr 1fr}}

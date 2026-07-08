@@ -24,3 +24,10 @@ gate exists for.
 lore item `2026-07-08-facilitator-view-proposal` (six questions, each with
 a recommendation). Blocker: Bob's ratification. Build per the ratified
 answers; the verification plan is in the proposal.
+
+---
+**2026-07-08: RATIFIED by Bob** — "re facilitator view / role: volume /
+works." The `role: "volume"` manifest marker (Q1) is approved; no objection
+raised to Q2–Q6, so the proposal's recommendations stand as written (VCA
+master, mute-based Silence All, aloha "Sound check", partial-state presets,
+scope guard). Build now.

@@ -26,6 +26,18 @@ LEGACY_DECLARATIONS = [
 log = logging.getLogger("bopos.osc")
 
 
+def volume_param(device):
+    """The declared param a volume card drives: role 'volume', else literal
+    'gain', else None (contract sec 8 / facilitator proposal Q1)."""
+    declared = device.get("declared") or []
+    for declaration in declared:
+        if declaration.get("role") == "volume":
+            return declaration.get("name")
+    if any(declaration.get("name") == "gain" for declaration in declared):
+        return "gain"
+    return None
+
+
 class OSCProtocol(asyncio.DatagramProtocol):
     def __init__(self, bridge):
         self.bridge = bridge
@@ -81,6 +93,26 @@ class OSCBridge:
         self.send(f"/{selector}/p/{name}", [value])
         if LEGACY_COMPAT and name in LEGACY_PARAMS:
             self.send(f"/{selector}/{name}", [value])
+
+    def send_device_param(self, device, name, value):
+        # VCA-style master (facilitator proposal Q2): the stored value is the
+        # mix; the wire gets mix x master for the device's volume param.
+        # Broadcast /all sends bypass this — they're a tech power tool.
+        if name == volume_param(device):
+            try:
+                value = float(value) * float(self.state.data.get("master", 1.0))
+            except (TypeError, ValueError):
+                pass
+        self.set_param(int(device["id"]), name, value)
+
+    def resend_volumes(self):
+        # master moved: re-send every assigned device's volume at the new scale
+        for device in self.state.devices.values():
+            if int(device["id"]) < 0:
+                continue
+            name = volume_param(device)
+            if name and name in device["params"]:
+                self.send_device_param(device, name, device["params"][name])
 
     def action(self, selector, verb):
         wire_verb = "getsamples" if verb == "get_samples" else verb
@@ -160,6 +192,14 @@ class OSCBridge:
                 name = declaration.get("name")
                 if name and name not in device["params"] and "default" in declaration:
                     device["params"][name] = declaration["default"]
+            # catch-up push: the dashboard's stored params are the mix of
+            # record, so a (re)declaring device gets them back (this is how a
+            # device offline during a preset load converges on reconnect)
+            if int(device["id"]) >= 0:
+                for declaration in declarations:
+                    name = declaration.get("name")
+                    if name and name in device["params"] and declaration.get("role") != "meter":
+                        self.send_device_param(device, name, device["params"][name])
             self.broadcast("params_declaration", device)
             return
         if address == "/os/report" and args:

@@ -1,0 +1,9 @@
+{
+  "name": "bopOS facilitator",
+  "short_name": "bopOS",
+  "start_url": "/facilitator",
+  "display": "fullscreen",
+  "background_color": "#101316",
+  "theme_color": "#101316",
+  "icons": [{"src": "/icon-180.png", "sizes": "180x180", "type": "image/png"}]
+}

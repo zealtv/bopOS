@@ -7,7 +7,7 @@ const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp
 
 function mergeDevice(device) { if (device && device.uid) installation.devices[device.uid] = device; render(); }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; render(); });
+ws.on("state", data => { installation = data; muted = !!data.muted; presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
@@ -25,6 +25,20 @@ function renderVenues() {
   const save = $("#venue-save"), load = $("#venue-load");
   if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
+})();
+let presetNames = [];
+ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
+function renderPresets() {
+  const select = $("#preset-select"); if (!select) return;
+  select.innerHTML = presetNames.map(name => `<option>${esc(name)}</option>`).join("") || '<option disabled>none saved</option>';
+}
+(function bindPresets() {
+  const save = $("#preset-save"), load = $("#preset-load");
+  if (save) save.onclick = () => {
+    const name = prompt("Save current params + master as preset:", "");
+    if (name && (!presetNames.includes(name) || confirm(`Overwrite preset "${name}"?`))) ws.send("save_preset", {name});
+  };
+  if (load) load.onclick = () => { const name = $("#preset-select").value; if (name) ws.send("load_preset", {name}); };
 })();
 
 function render() {

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>bopOS facilitator</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#101316">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="stylesheet" href="/css/facilitator.css">
+</head>
+<body>
+  <header><h1 id="venue-name">bopOS</h1><span id="ws-status" class="offline">connecting…</span></header>
+  <main id="cards"><p class="empty">Waiting for devices…</p></main>
+  <footer id="controls">
+    <div id="master-row"><span class="label">Master</span><input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out"></output></div>
+    <div id="buttons">
+      <button id="silence" class="danger">SILENCE ALL</button>
+      <button id="soundcheck">Sound check</button>
+    </div>
+    <div id="presets"></div>
+  </footer>
+  <script src="/js/ws.js"></script><script src="/js/facilitator.js"></script>
+</body></html>

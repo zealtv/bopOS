@@ -10,7 +10,7 @@ import time
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from osc_bridge import OSCBridge
@@ -116,7 +116,10 @@ class Dashboard:
             targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
             for device in targets:
                 device["params"][name] = value
-            self.osc.set_param(selector, name, value)
+            if selector == "all":
+                self.osc.set_param("all", name, value)
+            else:
+                self.osc.send_device_param(self.state.devices[uid], name, value)
             self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
@@ -144,6 +147,43 @@ class Dashboard:
             selector = "all" if uid == "all" else self.selector(uid)
             if selector is not None:
                 self.osc.os_command(selector, "pullpatch")
+        elif kind == "set_master":
+            master = self.state.clean_master(data.get("value"))
+            self.state.data["master"] = master
+            self.state.save_debounced()
+            self.osc.resend_volumes()
+            await self.broadcast("master", {"value": master})
+        elif kind == "save_preset":
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
+            if not name:
+                return
+            # partial state by construction: params + master only, never
+            # positions or assignments (facilitator proposal Q5)
+            devices = {uid: dict(device["params"])
+                       for uid, device in self.state.devices.items()
+                       if int(device["id"]) >= 0}
+            self.state.data["presets"][name] = {"master": self.state.data.get("master", 1.0),
+                                                "devices": devices}
+            self.state.save_debounced()
+            await self.broadcast("presets", {"names": sorted(self.state.data["presets"])})
+        elif kind == "load_preset":
+            preset = self.state.data["presets"].get(str(data.get("name", "")))
+            if not isinstance(preset, dict):
+                return
+            master = self.state.clean_master(preset.get("master"))
+            self.state.data["master"] = master
+            await self.broadcast("master", {"value": master})
+            values = preset.get("devices") if isinstance(preset.get("devices"), dict) else {}
+            for preset_uid, params in values.items():
+                device = self.state.devices.get(preset_uid)
+                if device is None or int(device["id"]) < 0 or not isinstance(params, dict):
+                    continue
+                for name, value in params.items():
+                    device["params"][str(name)] = value
+                    self.osc.send_device_param(device, str(name), value)
+                await self.broadcast("device_update", device)
+            self.osc.resend_volumes()
+            self.state.save_debounced()
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -269,6 +309,11 @@ def create_app(args):
 
     app.mount("/assets", StaticFiles(directory=assets), name="assets")
     static = os.path.join(os.path.dirname(__file__), "static")
+
+    @app.get("/facilitator")
+    async def facilitator_page():
+        return FileResponse(os.path.join(static, "facilitator.html"))
+
     app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app
 

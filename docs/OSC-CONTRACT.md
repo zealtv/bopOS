@@ -214,6 +214,14 @@ A patch ships **`bopos.patch.json`** in its repo root:
   a `/p/*` value hitting an undeclared name gets a badge, not a guess. The
   launcher validates declared params before start so the manifest can't silently
   drift.
+- **`role` (optional; additive, ratified by Bob 2026-07-08):** a param
+  declaration may carry a `role` string naming what the param *is* to generic
+  UIs. Defined roles: `"volume"` — the one param a facilitator volume card
+  drives (at most one per manifest; fallback when absent: the param literally
+  named `gain`; neither → the device card is status-only). `"meter"` — a
+  read-only value the patch republishes outward as `/<id>/p/<name>` (§11);
+  dashboards render it as a live meter, never a control, and never send it.
+  Consumers ignore roles they don't recognise.
 
 ## 9. Distribution and landing
 

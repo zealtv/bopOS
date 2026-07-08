@@ -72,6 +72,13 @@ def load(patch_path):
                 return None, f"param {name}: default {default} below min {low}"
             if high is not None and default > high:
                 return None, f"param {name}: default {default} above max {high}"
+        role = param.get("role")
+        if role is not None and (not isinstance(role, str) or not role.strip()):
+            return None, f"param {name}: role must be a non-empty string"
+
+    volumes = [param["name"] for param in params if param.get("role") == "volume"]
+    if len(volumes) > 1:
+        return None, f"at most one param may have role 'volume' (got: {', '.join(volumes)})"
 
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])
@@ -79,6 +86,17 @@ def load(patch_path):
             return None, f"{kind} must be a list of strings"
 
     return manifest, None
+
+
+def warnings(manifest):
+    """Non-fatal advisories for a manifest that load() accepted."""
+    notes = []
+    params = manifest.get("params", [])
+    if params and not any(param.get("role") == "volume" or param.get("name") == "gain"
+                          for param in params):
+        notes.append("no param with role 'volume' (or named 'gain'): "
+                     "the facilitator volume card will be status-only")
+    return notes
 
 
 def main():
@@ -94,6 +112,8 @@ def main():
     if manifest is not None:
         print(f"ENGINE='{manifest['engine']}'")
         print(f"ENTRYPOINT='{manifest['entrypoint']}'")
+        for note in warnings(manifest):
+            print(f"manifest: warning: {note}", file=sys.stderr)
         return 0
     legacy = os.path.isfile(os.path.join(patch_path, "main.pd"))
     print("ENGINE='pd'")

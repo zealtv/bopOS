@@ -28,3 +28,9 @@ Coordinate with `osc-schema-contract` (now tied) and `audio-input`.
 Recommends Option A (patch/helper republish values as read-only `/p/*`, dashboard
 renders meters) over Option B (new `/io/report` stream). Note the shared
 `role` field question with the facilitator proposal. Build after Bob rules.
+
+---
+**2026-07-08: RATIFIED by Bob** — "re sensor data view / role: meter / is
+consistent with the above." Option A with the `role: "meter"` spelling
+(matching the facilitator view's `role: "volume"` — one `role` field, two
+values so far). Build now.

@@ -33,14 +33,18 @@ from pythonosc import osc_message, osc_message_builder
 
 
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-try:
-    with open(os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")) as source:
-        DEFAULT_MANIFEST_TEXT = source.read()
-    DEFAULT_MANIFEST = json.loads(DEFAULT_MANIFEST_TEXT)
-    DECLARED_PARAMS = {param["name"] for param in DEFAULT_MANIFEST.get("params", [])}
-except (OSError, ValueError, TypeError, KeyError):
-    DEFAULT_MANIFEST_TEXT = None
-    DECLARED_PARAMS = set()
+DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
+
+
+def load_manifest(path):
+    """(verbatim text, declared param names) for the manifest all devices serve."""
+    try:
+        with open(path) as source:
+            text = source.read()
+        manifest = json.loads(text)
+        return text, {param["name"] for param in manifest.get("params", [])}
+    except (OSError, ValueError, TypeError, KeyError):
+        return None, set()
 
 
 class LegacyProtocol:
@@ -197,6 +201,8 @@ class SimFleet:
         self.devices = devices
         self.protocol = LegacyProtocol() if args.protocol == "legacy" else ContractProtocol()
         self.legacy_protocol = LegacyProtocol()
+        self.manifest_text, self.declared_params = load_manifest(
+            args.manifest or DEFAULT_MANIFEST_PATH)
         self.events = []
         self.sequence = itertools.count()
         self.running = True
@@ -453,7 +459,7 @@ class SimFleet:
                 # the patch plane goes straight to PD — a dead engine applies nothing
                 if not args or not device.engine_alive():
                     continue
-                if member not in DECLARED_PARAMS and member not in ("gain", "gain2", "backing", "echo"):
+                if member not in self.declared_params and member not in ("gain", "gain2", "backing", "echo"):
                     self.log(device, f"p/{member} undeclared, dropped")
                     continue
                 device.params[member] = args[0]
@@ -502,8 +508,8 @@ class SimFleet:
                     self.log(device, f"muted={value}")
             elif member == "params":
                 builder = osc_message_builder.OscMessageBuilder(address="/os/params")
-                if DEFAULT_MANIFEST_TEXT is not None:
-                    builder.add_arg(DEFAULT_MANIFEST_TEXT, arg_type="s")
+                if self.manifest_text is not None:
+                    builder.add_arg(self.manifest_text, arg_type="s")
                 self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
             elif member == "fetch":
                 uri = str(args[0]) if args else ""
@@ -642,6 +648,8 @@ def parse_args():
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)
     parser.add_argument("--protocol", choices=("legacy", "v1"), default="v1")
+    parser.add_argument("--manifest",
+                        help="bopos.patch.json served on /os/params (default: patches/default)")
     reports = parser.add_mutually_exclusive_group()
     reports.add_argument("--legacy-reports", dest="legacy_reports", action="store_true")
     reports.add_argument("--no-legacy-reports", dest="legacy_reports", action="store_false")

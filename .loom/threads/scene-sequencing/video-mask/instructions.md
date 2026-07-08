@@ -21,3 +21,10 @@ Notes:
 
 Do not start until `spatial-audio` Stage A works and the scene language exists in some
 form; then decide the home.
+
+---
+**2026-07-08 (Bob):** if the scene language grows node-side spatial primitives
+(compact gradient/noise messages expanded on the node — see
+`../scene-language-spec/bob-design-notes-2026-07-08.md`), that *mostly
+dissolves* this approach. Keep only if it turns out to be an easy win — video
+as a mask would still be an extremely ergonomic authoring workflow.

@@ -1,4 +1,9 @@
-# Facilitator view — design proposal (awaiting ratification)
+# Facilitator view — design proposal (RATIFIED 2026-07-08)
+
+**Bob's ruling (2026-07-08): "role: volume — works."** Q1's `role` marker
+approved (jointly with sensor-data-view's `role: "meter"`); Q2–Q6 stood
+unopposed as recommended. Built the same day — build record in the tied
+stitch's `design-decisions.md`.
 
 Stitch: `dashboard/dashboard-2-spatial-facilitator/facilitator-view`.
 Source design: `.notes/dashboard-development-context.md` §9 (pre-contract).
