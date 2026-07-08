@@ -22,3 +22,10 @@ Fallbacks if PD can't share the port (pick cheapest that works, note in parent):
 - per-instance network namespaces (Linux-only) or containers (both OSes, heavier).
 
 Tie with a clear verdict: "shared-port works on {linux,mac} / needs fan-out because X".
+
+---
+**2026-07-08: Linux half done — shared-port WORKS on Linux** (stock PD
+netreceive, SO_REUSEADDR; one broadcast → every instance replies; unicast to
+a shared port reaches exactly one process, so audible instances must stay on
+broadcast+selector addressing). Full data in `results.md`. `.waiting` on the
+macOS run — one command for Bob at the bottom of `results.md`.
