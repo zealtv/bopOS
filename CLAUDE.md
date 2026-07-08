@@ -34,17 +34,25 @@ installations. This file is the orientation for any agent working here.
 The OSC contract is **ratified** and fully implemented; the **dashboard's four phases
 are all tied** (2026-07-08, incl. `/facilitator` and the meters surface — the manifest
 `role` field is ratified in contract §8/§11). The `dashboard` goal stitch waits only on
-Bob adopting it on a real rig. Critical path now: `clock-sync` → `spatial-audio` /
-`scene-sequencing`.
+Bob adopting it on a real rig.
 
-Free-floating, any time: `sample-distribution`, `audio-input`, `pi-zero-performance`
-(measurement half), `patch-workflow-friction` (its dashboard checkbox is done).
-`audition-rig`: the port-sharing spike's Linux half passed (shared 6660 works;
-broadcast+selector addressing only) — `.waiting` on the macOS run, but Stage A can
-proceed for Linux hosts.
-Gated by instruction: `video-mask`, the SC proof-of-concept, spatial-audio Stage B,
-and `scene-language-spec` — **co-design with Bob, never solo**; his brief is in that
-stitch's `bob-design-notes-2026-07-08.md`.
+Every active thread is decomposed into numbered children (2026-07-08 loom audit);
+in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
+
+1. **`clock-sync`** (`sync-0` → `sync-3`; `sync-4` is the hardware run, waiting) —
+   head of the critical path.
+2. **`spatial-audio`** (`spatial-0` → `spatial-2`; `spatial-2` needs sync-2 tied).
+3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
+   port-sharing spike passed on Linux (broadcast+selector addressing only),
+   `.waiting` on the macOS run. Can interleave with 1–2 (independent).
+4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`,
+   `input-0-config-plumbing`.
+
+**Paused by Bob (2026-07-08): `scene-sequencing`** — the whole thread (language,
+clip grid, video-mask) waits until the foundation above lands; the language is
+co-design with Bob, never solo (brief in the stitch). Also gated: the SC
+proof-of-concept (`zero-2`), spatial-audio Stage B, and all hardware `.waiting`
+children (`sync-4`, `zero-1`, `input-1`).
 Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom` (`bopos-uptodate`) —
 coordinate, don't duplicate.
 

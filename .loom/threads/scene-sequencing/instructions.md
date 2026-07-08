@@ -35,3 +35,10 @@ Suggested path: (1) spec the language on paper against 2–3 real scenes from pa
 (3) trigger-slot UI; (4) crossfade/mix semantics between scenes.
 
 Child `video-mask` holds the video-as-parameter-mask idea (unresolved home).
+
+---
+**2026-07-08 (Bob): thread PAUSED until the rest of the foundation is in place**
+(clock-sync, spatial-audio Stage A, audition rig). Both children are `.waiting`:
+`scene-language-spec` on the co-design session with Bob (his brief is in the
+stitch — never spec solo), `video-mask` on spatial Stage A + the language
+existing. Autonomous sessions: do not claim anything here; unpause is Bob's call.
