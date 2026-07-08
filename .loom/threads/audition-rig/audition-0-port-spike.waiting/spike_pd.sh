@@ -61,6 +61,13 @@ EOF
 sleep 4
 kill "$PD_A" "$PD_B" 2>/dev/null
 wait "$LISTENER" 2>/dev/null
+sleep 1
+# killing the wrapper PID can leave the real pd running (watchdog/fork);
+# don't blanket-pkill -- Bob may have a live PD session on this machine
+if pgrep -x pd >/dev/null 2>&1; then
+  echo "--- WARNING: pd processes still alive (pgrep -x pd); if they are this"
+  echo "    spike's instances, clean up with: pkill -x pd; pkill -x pd-watchdog"
+fi
 
 echo "--- pd-a bind errors (empty = clean):"
 grep -i "bind\|already in use\|error" "$OUT/pd-a.log" || true

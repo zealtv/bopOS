@@ -31,17 +31,20 @@ installations. This file is the orientation for any agent working here.
 
 ## Thread ordering (critical path)
 
-The OSC contract is **ratified** (design draft tied 2026-07-07). Execution order is in
-`.loom/threads/osc-schema-contract/HANDOFF.md` — in short: `dashboard-0-sim-fleet`
-→ `osc-schema-contract` children (`node-contract-fixes`, `hb-identity`,
-`assign-persistence`, `patch-manifest`, `fetch-landing`)
-→ `dashboard` phases 1–4 → `clock-sync` → `spatial-audio` / `scene-sequencing`.
+The OSC contract is **ratified** and fully implemented; the **dashboard's four phases
+are all tied** (2026-07-08, incl. `/facilitator` and the meters surface — the manifest
+`role` field is ratified in contract §8/§11). The `dashboard` goal stitch waits only on
+Bob adopting it on a real rig. Critical path now: `clock-sync` → `spatial-audio` /
+`scene-sequencing`.
 
 Free-floating, any time: `sample-distribution`, `audio-input`, `pi-zero-performance`
-(measurement half), `patch-workflow-friction` (mostly falls out of dashboard-4),
-`audition-rig` (spike its port-sharing child first; Stage A wants the dashboard
-spatial map).
-Gated by instruction: `video-mask`, the SC proof-of-concept, spatial-audio Stage B.
+(measurement half), `patch-workflow-friction` (its dashboard checkbox is done).
+`audition-rig`: the port-sharing spike's Linux half passed (shared 6660 works;
+broadcast+selector addressing only) — `.waiting` on the macOS run, but Stage A can
+proceed for Linux hosts.
+Gated by instruction: `video-mask`, the SC proof-of-concept, spatial-audio Stage B,
+and `scene-language-spec` — **co-design with Bob, never solo**; his brief is in that
+stitch's `bob-design-notes-2026-07-08.md`.
 Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom` (`bopos-uptodate`) —
 coordinate, don't duplicate.
 
