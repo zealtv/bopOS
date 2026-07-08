@@ -10,6 +10,26 @@ ws.on("connection", connected => { $("#ws-status").textContent = connected ? "co
 ws.on("state", data => { installation = data; muted = !!data.muted; presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
+ws.on("meter", data => {
+  const d = installation.devices[data.uid]; if (!d) return;
+  (d.meters ||= {})[data.name] = data;
+  if (data.uid !== selected) return;
+  const row = document.querySelector(`[data-meter="${CSS.escape(data.name)}"]`);
+  if (!row) { renderDetail(); return; }   // first value of an undeclared meter
+  row.querySelector("output").value = fmtMeter(data.value);
+  const fill = row.querySelector(".meter-fill");
+  if (fill) {
+    const min = Number(fill.dataset.min), max = Number(fill.dataset.max);
+    if (max > min) fill.style.width = `${Math.min(100, Math.max(0, (Number(data.value) - min) / (max - min) * 100))}%`;
+  }
+});
+const fmtMeter = v => typeof v === "number" ? String(Math.round(v * 1000) / 1000) : String(v);
+function meterRow(name, m, declaration, badge) {
+  const min = declaration?.min ?? null, max = declaration?.max ?? null;
+  const bar = (min !== null && max !== null && max > min)
+    ? `<div class="meter-bar"><div class="meter-fill" data-min="${min}" data-max="${max}" style="width:${m ? Math.min(100, Math.max(0, (Number(m.value) - min) / (max - min) * 100)) : 0}%"></div></div>` : "";
+  return `<div class="meter" data-meter="${esc(name)}"><span>${esc(name)}${badge ? ' <b class="badge">UNDECLARED</b>' : ''}</span>${bar}<output>${m ? fmtMeter(m.value) : '—'}</output></div>`;
+}
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
@@ -80,15 +100,20 @@ function renderDetail() {
   let previousGroup = null;
   const controls = declarations.map(p => {
     const group = p.group || "parameters", label = group !== previousGroup ? `<h3>${esc(group)}</h3>` : ""; previousGroup=group;
+    if (p.role === "meter") return `${label}${meterRow(p.name, d.meters?.[p.name], p, false)}`;
     const value = d.params?.[p.name] ?? p.default ?? "";
     if (p.type === "s") return `${label}<label>${esc(p.name)}<input data-param="${esc(p.name)}" type="text" value="${esc(value)}"></label>`;
     if (p.type === "i" && p.min===0 && p.max===1) return `${label}<label class="toggle">${esc(p.name)}<input data-param="${esc(p.name)}" type="checkbox" ${value?'checked':''}></label>`;
     return `${label}<label>${esc(p.name)} <output>${esc(value)}</output><input data-param="${esc(p.name)}" type="range" min="${p.min??0}" max="${p.max??1}" step="${p.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
   }).join("");
+  const declaredNames = new Set(declarations.map(p => p.name));
+  const stray = Object.entries(d.meters || {}).filter(([n]) => !declaredNames.has(n));
+  const strayRows = stray.length
+    ? `<h3>undeclared meters</h3>${stray.map(([n, m]) => meterRow(n, m, null, true)).join("")}` : "";
   const assigned = Number(d.id) >= 0;
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):'')}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:nextFreeId()}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
-    ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
+    ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${(controls + strayRows) || '<p class="dim">Loading declaration…</p>'}</div></section>
     <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;

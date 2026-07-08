@@ -258,6 +258,13 @@ Unchanged verbs, sharpened boundary:
   or not at all; that is the entire justification.
 - **Engine owns its native media IO** — audio, MIDI, HID, display. If engine-side
   input must reach the fleet or dashboard, it surfaces as `/p/*`.
+- **Live values reach the fleet as `/<id>/p/<name>` outbound** (ratified
+  2026-07-08 with §8's `role: "meter"`): a patch republishes the values it
+  wants seen; framework-owned values a node is configured to expose
+  (`bopos.config` `METERS`, throttled by `METER_INTERVAL`) are republished by
+  helper.py on the same surface. Dashboards render declared meters read-only;
+  a value hitting an undeclared name gets the §8 badge, not a control. No
+  subscription stream, no new verbs.
 - No-bus is a declared legal state: `io_buses: []`, `/io/scan` → empty,
   `/io/create` → `/io/error <name> no-bus`. (`sys_i2c` must degrade the way
   `sys_wireless` already does.)

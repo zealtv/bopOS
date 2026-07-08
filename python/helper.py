@@ -44,7 +44,8 @@ client.connect( ('127.0.0.1', 6661) )
 
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
-              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
+              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2",
+              "METERS": "", "METER_INTERVAL": "5"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -316,6 +317,53 @@ def heartbeat_loop(state=None):
             print("WARNING: heartbeat send failed:", error)
         hb_wake.wait(2.0 if state.id == -1 else 10.0)
         hb_wake.clear()
+
+
+def read_cpu_temp(state=None):
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as source:
+            return round(int(source.read().strip()) / 1000.0, 1)
+    except (OSError, ValueError):
+        return None
+
+
+# framework-owned meter sources (contract sec 11): bopos.config METERS names
+# the ones to expose; each goes out as /<id>/p/<name> every METER_INTERVAL
+# seconds -- the same read-only surface a patch's role:"meter" params use.
+# I2C sources join this registry when a hardware story needs them.
+METER_SOURCES = {"rssi": read_rssi, "cpu_temp": read_cpu_temp}
+
+
+def meter_loop(state=None):
+    state = state or node_state
+    names = [name.strip() for name in (state.config.get("METERS") or "").split(",")
+             if name.strip()]
+    for name in names:
+        if name not in METER_SOURCES:
+            print("WARNING: unknown METERS source:", name)
+    sources = [(name, METER_SOURCES[name]) for name in names if name in METER_SOURCES]
+    if not sources:
+        return
+    try:
+        interval = max(1.0, float(state.config.get("METER_INTERVAL")))
+    except (TypeError, ValueError):
+        interval = 5.0
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    target = (state.config.get("HB_TARGET") or "255.255.255.255", 5550)
+    while True:
+        if state.id >= 0:
+            for name, read in sources:
+                value = read(state)
+                if value is None:
+                    continue
+                msg = OSCMessage("/{}/p/{}".format(int(state.id), name))
+                msg.append(float(value), 'f')
+                try:
+                    sock.sendto(msg.getBinary(), target)
+                except Exception as error:
+                    print("WARNING: meter send failed:", error)
+        sleep(interval)
 
 
 def selector_matches(selector, device_id):
@@ -885,5 +933,6 @@ if __name__ == "__main__":
     server.timeout = 1.0
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
+    threading.Thread(target=meter_loop, daemon=True).start()
     while True:
         server.handle_request()

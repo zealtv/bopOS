@@ -15,7 +15,7 @@ function volumeParam(device) {
   const declared = device.declared || [];
   const byRole = declared.find(p => p.role === "volume");
   if (byRole) return byRole;
-  return declared.find(p => p.name === "gain") || null;
+  return declared.find(p => p.name === "gain" && p.role !== "meter") || null;
 }
 
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "" : "reconnecting…"; $("#ws-status").className = connected ? "online" : "offline"; });

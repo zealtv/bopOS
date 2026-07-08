@@ -37,14 +37,17 @@ DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "default", "bopos.patc
 
 
 def load_manifest(path):
-    """(verbatim text, declared param names) for the manifest all devices serve."""
+    """(verbatim text, declared names, meter declarations) for the manifest
+    all devices serve."""
     try:
         with open(path) as source:
             text = source.read()
         manifest = json.loads(text)
-        return text, {param["name"] for param in manifest.get("params", [])}
+        params = manifest.get("params", [])
+        meters = [param for param in params if param.get("role") == "meter"]
+        return text, {param["name"] for param in params}, meters
     except (OSError, ValueError, TypeError, KeyError):
-        return None, set()
+        return None, set(), []
 
 
 class LegacyProtocol:
@@ -147,6 +150,7 @@ class Device:
         self.rssi = random.randint(-70, -45)
         self.muted = False
         self.ident_until = 0.0
+        self.meter_values = {}
 
     def engine_alive(self):
         return int(not self.engine_dead
@@ -201,7 +205,7 @@ class SimFleet:
         self.devices = devices
         self.protocol = LegacyProtocol() if args.protocol == "legacy" else ContractProtocol()
         self.legacy_protocol = LegacyProtocol()
-        self.manifest_text, self.declared_params = load_manifest(
+        self.manifest_text, self.declared_params, self.meter_params = load_manifest(
             args.manifest or DEFAULT_MANIFEST_PATH)
         self.events = []
         self.sequence = itertools.count()
@@ -273,6 +277,30 @@ class SimFleet:
     def promote_running(self, device):
         if device.state == "booting":
             self.set_state(device, "running")
+
+    def emit_meters(self):
+        # a patch republishing role:"meter" values as /<id>/p/<name>
+        # (contract sec 11) -- engine-owned, so a dead engine sends nothing
+        for device in self.devices:
+            if device.state != "running" or not device.engine_alive() or device.device_id < 0:
+                continue
+            for declaration in self.meter_params:
+                low = float(declaration.get("min", 0) or 0)
+                high = float(declaration.get("max", 1) or 1)
+                previous = device.meter_values.get(declaration["name"])
+                if previous is None:
+                    previous = random.uniform(low, high)
+                step = random.uniform(0.02, 0.08) * (high - low) * random.choice((-1, 1))
+                value = previous + step
+                if value > high or value < low:
+                    value = previous - step  # reflect at the bounds
+                device.meter_values[declaration["name"]] = value
+                builder = osc_message_builder.OscMessageBuilder(
+                    address=f"/{int(device.device_id)}/p/{declaration['name']}")
+                builder.add_arg(value, arg_type="f")
+                self.queue_datagram(builder.build().dgram)
+        if self.args.meter_interval > 0:
+            self.schedule(self.args.meter_interval, self.emit_meters)
 
     def announce(self, device):
         # loadbang -> delay 1000 -> aloha in bopos.osc.pd (PD-side, needs the engine)
@@ -571,6 +599,8 @@ class SimFleet:
             self.schedule(1.0, self.promote_running, device)
             self.schedule(1.2, self.announce, device)
             self.log(device, f"state={device.display_state()}")
+        if self.args.protocol == "v1" and self.meter_params and self.args.meter_interval > 0:
+            self.schedule(1.5, self.emit_meters)
         if self.tty:
             print("\033[?25l", end="", flush=True)
             self.schedule(0.0, self.display)
@@ -650,6 +680,8 @@ def parse_args():
     parser.add_argument("--protocol", choices=("legacy", "v1"), default="v1")
     parser.add_argument("--manifest",
                         help="bopos.patch.json served on /os/params (default: patches/default)")
+    parser.add_argument("--meter-interval", type=float, default=0.5,
+                        help="seconds between role:meter emissions (0 disables)")
     reports = parser.add_mutually_exclusive_group()
     reports.add_argument("--legacy-reports", dest="legacy_reports", action="store_true")
     reports.add_argument("--no-legacy-reports", dest="legacy_reports", action="store_false")

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import socket
 import time
 from collections import deque
@@ -33,7 +34,8 @@ def volume_param(device):
     for declaration in declared:
         if declaration.get("role") == "volume":
             return declaration.get("name")
-    if any(declaration.get("name") == "gain" for declaration in declared):
+    if any(declaration.get("name") == "gain" and declaration.get("role") != "meter"
+           for declaration in declared):
         return "gain"
     return None
 
@@ -59,6 +61,7 @@ class OSCBridge:
         self.transport = None
         self.sender = None
         self.pending = {"params": deque(), "report": deque()}
+        self._meter_sent = {}
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -190,7 +193,8 @@ class OSCBridge:
             device["declared"] = declarations
             for declaration in declarations:
                 name = declaration.get("name")
-                if name and name not in device["params"] and "default" in declaration:
+                if (name and name not in device["params"] and "default" in declaration
+                        and declaration.get("role") != "meter"):
                     device["params"][name] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
@@ -225,5 +229,44 @@ class OSCBridge:
             device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
             self.broadcast("rev", device)
             return
+        parts = [part for part in address.split("/") if part]
+        if len(parts) == 3 and parts[1] == "p" and args:
+            self.handle_meter(parts[0], parts[2], args[0])
+            return
         if address in ("/os/pong", "/os/load") or address == "/rpt":
             log.debug("ignored %s %r", address, args)
+
+    def handle_meter(self, selector, name, value):
+        # inbound /<id>/p/<name>: a live value republished by the patch or
+        # helper (contract sec 11). Declared role:"meter" renders as a meter;
+        # an undeclared name gets the sec 8 badge; a declared *control* name
+        # inbound is not the meter surface and is ignored.
+        try:
+            device_id = int(selector)
+        except ValueError:
+            return
+        if device_id < 0 or re.fullmatch(r"[A-Za-z0-9_-]+", name) is None:
+            return
+        matches = [item for item in self.state.devices.values()
+                   if int(item["id"]) == device_id]
+        if len(matches) != 1:
+            return
+        device = matches[0]
+        declaration = next((item for item in (device.get("declared") or [])
+                            if item.get("name") == name), None)
+        declared_meter = declaration is not None and declaration.get("role") == "meter"
+        if declaration is not None and not declared_meter:
+            return
+        meters = device.setdefault("meters", {})
+        if name not in meters and len(meters) >= 32:
+            return  # cap junk from a misbehaving sender
+        if not isinstance(value, (int, float)):
+            value = str(value)
+        now = time.time()
+        meters[name] = {"value": value, "at": now, "declared": declared_meter}
+        key = (device["uid"], name)
+        if now - self._meter_sent.get(key, 0) >= 0.2:
+            self._meter_sent[key] = now
+            self.broadcast("meter", {"uid": device["uid"], "name": name,
+                                     "value": value, "at": now,
+                                     "declared": declared_meter})
