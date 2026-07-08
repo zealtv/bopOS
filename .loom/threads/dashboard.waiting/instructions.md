@@ -14,6 +14,13 @@ SVG spatial map, `installation.json` state file. No build step, no framework, no
 Children are the four phases in order (1 → 4). Tie this goal when the PD dashboard is
 retired and the web dashboard is the daily driver on a real installation.
 
+---
+**2026-07-08: all four phases tied** (core, spatial+facilitator, discovery/assign,
+patch-mgmt+sensor-data). `.waiting` on the goal's own tie condition: Bob running it
+as the daily driver on a real installation and retiring DASHBOARD.pd. Quickstart for
+playing with it: `dashboard/README.md`. Real-rig checks outstanding: every tied
+stitch's hardware pass, the PD edits list, and an iPad touch pass on /facilitator.
+
 Constraints:
 - Phase 1 requires **no Pi-side changes** (coexists with DASHBOARD.pd during migration).
 - Later phases coordinate with `osc-schema-contract` (heartbeat identity) — the dashboard
