@@ -3,6 +3,8 @@ import csv
 import json
 import os
 
+import spatial
+
 
 DURABLE = ("id", "name", "pos1", "pos2", "patch")
 
@@ -14,8 +16,11 @@ class InstallationState:
 
     def __init__(self, path, devices_file=None):
         self.path = path
+        # "spatial" is runtime-only (never in durable()): the live automation
+        # layer, seeded inactive at room centre so public() always carries it.
         self.data = {"name": "bopOS", "devices": {}, "muted": False,
-                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {}}
+                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
+                     "spatial": spatial.default_config(self.DEFAULT_ROOM)}
         self._save_task = None
         self._load()
         if not self.data["devices"] and devices_file and os.path.exists(devices_file):

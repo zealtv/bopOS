@@ -611,6 +611,9 @@ class SimFleet:
                         device.echo = bool(float(args[0]))
                     except (TypeError, ValueError):
                         pass
+                # log the applied patch value so spatial/gain automation is
+                # observable off the wire (spatial-0 verify reads /p/gain here)
+                self.log(device, f"p/{member}={format_token(args[0])}")
                 continue
             if member == "ping" and args:
                 try:

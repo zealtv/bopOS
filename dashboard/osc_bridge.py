@@ -11,6 +11,8 @@ from collections import deque
 from pythonosc.osc_message import OscMessage
 from pythonosc.osc_message_builder import OscMessageBuilder
 
+import spatial
+
 
 # Wire-compat matrix, in one place. Params are idempotent full-state, so the
 # legacy spelling is double-sent while LEGACY_COMPAT is on. Admin verbs are
@@ -39,6 +41,13 @@ SYNC_WINDOW = 16                   # rolling samples kept per device
 SYNC_RTT_CEILING_NS = 200_000_000  # discard a pong slower than this outright
 SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-min RTT
 SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
+
+# Spatial automation (spatial-audio Stage A, contract sec 4). The dashboard
+# computes each device's falloff gain from its installation position and folds
+# it into the volume param it already sends -- stored mix x master x spatial,
+# runtime-only, never persisted. A moving point re-sends at SPATIAL_RATE_HZ;
+# a change smaller than SPATIAL_EPS is skipped so a still point applies once.
+SPATIAL_EPS = 0.001
 
 
 def volume_param(device):
@@ -80,6 +89,9 @@ class OSCBridge:
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
         self._ping_task = None
+        self._spatial_started = None   # monotonic clock zero for the current motion
+        self._spatial_last = {}        # uid -> last spatial factor sent (change-gate)
+        self._spatial_task = None
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -96,10 +108,13 @@ class OSCBridge:
         self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sender.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self._ping_task = asyncio.create_task(self.sync_ping_loop())
+        self._spatial_task = asyncio.create_task(self.spatial_loop())
 
     def close(self):
         if self._ping_task:
             self._ping_task.cancel()
+        if self._spatial_task:
+            self._spatial_task.cancel()
         if self.transport:
             self.transport.close()
         if self.sender:
@@ -133,15 +148,27 @@ class OSCBridge:
             self.send(f"/{selector}/{name}", [value])
 
     def send_device_param(self, device, name, value):
-        # VCA-style master (facilitator proposal Q2): the stored value is the
-        # mix; the wire gets mix x master for the device's volume param.
+        # The single gain-resolution point (spatial-0 decision): the volume
+        # param's wire value is stored mix x master x spatial. Stored value is
+        # the mix (VCA master, facilitator proposal Q2); spatial multiplies the
+        # runtime falloff on top (spatial-audio Stage A). Every path that emits a
+        # volume -- manual set, preset load, master move, spatial tick -- goes
+        # through here, so the three factors compose in exactly one place.
         # Broadcast /all sends bypass this — they're a tech power tool.
         if name == volume_param(device):
             try:
-                value = float(value) * float(self.state.data.get("master", 1.0))
+                value = (float(value) * float(self.state.data.get("master", 1.0))
+                         * self._spatial_factor(device))
             except (TypeError, ValueError):
                 pass
         self.set_param(int(device["id"]), name, value)
+
+    def _spatial_factor(self, device):
+        elapsed = 0.0
+        if self._spatial_started is not None:
+            elapsed = time.monotonic() - self._spatial_started
+        return spatial.device_factor(self.state.data.get("spatial"),
+                                     device.get("pos1"), elapsed)
 
     def resend_volumes(self):
         # master moved: re-send every assigned device's volume at the new scale
@@ -151,6 +178,47 @@ class OSCBridge:
             name = volume_param(device)
             if name and name in device["params"]:
                 self.send_device_param(device, name, device["params"][name])
+
+    def set_spatial(self, config):
+        # Store the (already-sanitized) config, reset the motion clock, and
+        # apply immediately: activating pushes the first frame; deactivating
+        # restores plain stored x master. The tick loop carries a moving point.
+        was_active = (self.state.data.get("spatial") or {}).get("active")
+        self.state.data["spatial"] = config
+        self._spatial_started = time.monotonic()
+        self._spatial_last.clear()
+        if config.get("active"):
+            self._spatial_tick()
+        elif was_active:
+            self.resend_volumes()
+
+    async def spatial_loop(self):
+        # Re-send the volume param for a moving point at the config's rate. A
+        # still point settles after one frame (change-gated), so this idles
+        # cheaply until a path/orbit is running.
+        try:
+            while True:
+                config = self.state.data.get("spatial")
+                rate = (config or {}).get("rate", spatial.DEFAULT_RATE)
+                await asyncio.sleep(1.0 / min(max(rate, spatial.MIN_RATE), spatial.MAX_RATE))
+                if config and config.get("active") and spatial.is_dynamic(config):
+                    self._spatial_tick()
+        except asyncio.CancelledError:
+            pass
+
+    def _spatial_tick(self):
+        for device in self.state.devices.values():
+            if int(device["id"]) < 0 or device.get("pos1") is None:
+                continue
+            name = volume_param(device)
+            if not name or name not in device["params"]:
+                continue
+            factor = self._spatial_factor(device)
+            uid = device["uid"]
+            if abs(factor - self._spatial_last.get(uid, -1.0)) < SPATIAL_EPS:
+                continue
+            self._spatial_last[uid] = factor
+            self.send_device_param(device, name, device["params"][name])
 
     def action(self, selector, verb):
         wire_verb = "getsamples" if verb == "get_samples" else verb
