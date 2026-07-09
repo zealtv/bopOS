@@ -6,9 +6,10 @@ import json
 
 
 import os, sys
-from time import sleep
+from time import sleep, monotonic_ns
 from csv import reader
 from pyOSC3 import OSCServer, OSCClient, OSCMessage, decodeOSC
+from sync_node import SyncState, CueScheduler
 import atexit
 import glob
 import socket
@@ -559,9 +560,34 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if len(decoded) < 2:
         return False
     parts = [part for part in str(decoded[0]).split("/") if part]
+    args = decoded[2:]
+    # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
+    # fleet-wide), offset is per-device. Handled before the /os gate below.
+    if parts == ["sync", "ping"] and len(args) >= 2:
+        # pong unicast to the leader, echoing seq+leaderTime; deviceTime is our
+        # own monotonic clock -- never wall clock (NTP steps must not glitch cues)
+        msg = OSCMessage("/sync/pong")
+        msg.append(int(args[0]), 'i')
+        msg.append(str(args[1]), 's')
+        msg.append(str(state.uid), 's')
+        msg.append(str(monotonic_ns()), 's')
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
+    if parts == ["cue"] and len(args) >= 2:
+        try:
+            cue_scheduler.schedule(int(str(args[1])), str(args[0]))
+        except (TypeError, ValueError):
+            pass
+        return True
+    if (len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset"
+            and args and selector_matches(parts[0], state.id)):
+        try:
+            sync_state.push(int(str(args[0])))
+        except (TypeError, ValueError):
+            pass
+        return True
     if len(parts) != 3 or parts[1] != "os" or not selector_matches(parts[0], state.id):
         return False
-    args = decoded[2:]
     if parts[2] == "assign":
         return apply_assign(args, state)
     if parts[2] == "store" and args:
@@ -909,6 +935,21 @@ PROVISION_VERBS = {
 }
 
 
+def fire_cue_to_engine(cue_id):
+    # at the local deadline, the engine sees only the bare cue -- absolute time
+    # never enters PD (contract sec 12). PD's patch owns the /cue receiver.
+    msg = OSCMessage("/cue")
+    typed_append(msg, cue_id)
+    try:
+        client.send(msg)
+    except Exception as error:
+        print(f"cue: could not fire to engine: {error}")
+
+
+sync_state = SyncState()
+cue_scheduler = CueScheduler(sync_state, fire_cue_to_engine)
+
+
 def exit_handler():
     print("exiting.  closing server...")
     server.close()
@@ -931,6 +972,7 @@ atexit.register(exit_handler)
 
 if __name__ == "__main__":
     server.timeout = 1.0
+    cue_scheduler.start()
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
     threading.Thread(target=meter_loop, daemon=True).start()
