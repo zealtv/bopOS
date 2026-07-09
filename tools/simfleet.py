@@ -151,6 +151,10 @@ class Device:
         self.muted = False
         self.ident_until = 0.0
         self.meter_values = {}
+        # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
+        # clock, plus the offset the leader has pushed for cue conversion
+        self.sync_skew_ns = 0
+        self.sync_offset_ns = 0
 
     def engine_alive(self):
         return int(not self.engine_dead
@@ -223,6 +227,11 @@ class SimFleet:
         self.sock.bind(("", args.cmd_port))
         self.sock.setblocking(False)
         self.target = (args.target, args.report_port)
+        # each device gets a fixed clock skew in [-skew, +skew] so a correct
+        # leader-pushed offset (contract sec 3.1) has something to cancel
+        skew_ns = int(self.args.sync_skew_ms * 1e6)
+        for device in self.devices:
+            device.sync_skew_ns = random.randint(-skew_ns, skew_ns) if skew_ns else 0
 
     def schedule(self, delay, callback, *values):
         heapq.heappush(
@@ -444,6 +453,87 @@ class SimFleet:
         if echo_before:
             self.report(device, payload)
 
+    def device_now_ns(self, device, jitter=False):
+        # the device's own monotonic clock = leader's clock + its fixed skew;
+        # a pong may add per-reply measurement noise
+        value = time.monotonic_ns() + device.sync_skew_ns
+        if jitter and self.args.sync_jitter_ms > 0:
+            span = int(self.args.sync_jitter_ms * 1e6)
+            value += random.randint(-span, span)
+        return value
+
+    def handle_ping(self, args, source):
+        # helper.py answers /sync/ping unicast, echoing seq+leaderTime so the
+        # leader stays stateless (contract sec 3.1)
+        if len(args) < 2:
+            return
+        try:
+            seq = int(args[0])
+        except (TypeError, ValueError):
+            return
+        leader_time = str(args[1])
+        for device in self.devices:
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if random.random() < self.args.drop:
+                continue
+            builder = osc_message_builder.OscMessageBuilder(address="/sync/pong")
+            builder.add_arg(seq, arg_type="i")
+            builder.add_arg(leader_time, arg_type="s")
+            builder.add_arg(device.mac, arg_type="s")
+            builder.add_arg(str(self.device_now_ns(device, jitter=True)), arg_type="s")
+            try:
+                self.sock.sendto(builder.build().dgram,
+                                 (source[0], self.args.report_port))
+            except OSError as error:
+                print(f"simfleet: pong failed: {error}", file=sys.stderr)
+
+    def handle_offset(self, selector, args):
+        # /<id>/sync/offset: absolute best-estimate offset, idempotent. A real
+        # node slews toward it; the sim stores the target directly.
+        if not args:
+            return
+        try:
+            offset = int(str(args[0]))
+        except (TypeError, ValueError):
+            return
+        for device in self.devices:
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if not self.protocol.matches(selector, device.device_id):
+                continue
+            device.sync_offset_ns = offset
+            self.log(device, f"sync offset={offset}ns")
+
+    def handle_cue(self, args):
+        # /cue <cueId> <sharedTimeNs>: broadcast leader-clock instant. Each node
+        # converts with its stored offset and fires at its local deadline.
+        if len(args) < 2:
+            return
+        cue_id = str(args[0])
+        try:
+            shared = int(str(args[1]))
+        except (TypeError, ValueError):
+            return
+        for device in self.devices:
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if random.random() < self.args.drop:
+                continue
+            deadline_dev = shared + device.sync_offset_ns  # device-clock ns
+            # device fires when device_now (= monotonic_ns()+skew) reaches the
+            # deadline, i.e. at real monotonic == deadline_dev - skew
+            delay = (deadline_dev - device.sync_skew_ns - time.monotonic_ns()) / 1e9
+            self.schedule(max(0.0, delay), self.fire_cue, device, cue_id,
+                          deadline_dev, delay < 0)
+
+    def fire_cue(self, device, cue_id, deadline_dev, late):
+        # a real node fires the bare /cue <cueId> to its engine on localhost; the
+        # sim has no engine, so it logs the fire with the real monotonic instant
+        # (fire_mono) so a test can prove cross-device coherence
+        self.log(device, f"cue {cue_id} fired dev_deadline={deadline_dev} "
+                         f"fire_mono={time.monotonic_ns()}" + (" LATE" if late else ""))
+
     def receive(self):
         while True:
             try:
@@ -457,13 +547,20 @@ class SimFleet:
             if not tokens:
                 continue
             selector, payload = tokens[0], tokens[1:]
-            for device in self.devices:
-                # each device has its own radio: drop inbound independently,
-                # so an /all command can reach some devices and miss others
-                if random.random() < self.args.drop:
-                    continue
-                if self.legacy_protocol.matches(selector, device.match_id()):
-                    self.command(device, payload)
+            # /sync/ping, /cue and /<id>/sync/offset are v1 framework messages,
+            # never legacy patch commands -- keep them out of the command loop
+            # (float(selector) rejects "sync"/"cue" anyway, but /<id>/sync/offset
+            # would otherwise log a bogus command= on the addressed device)
+            framework_sync = (selector in ("sync", "cue")
+                              or (payload and payload[0] == "sync"))
+            if not framework_sync:
+                for device in self.devices:
+                    # each device has its own radio: drop inbound independently,
+                    # so an /all command can reach some devices and miss others
+                    if random.random() < self.args.drop:
+                        continue
+                    if self.legacy_protocol.matches(selector, device.match_id()):
+                        self.command(device, payload)
             if self.args.protocol == "v1":
                 self.receive_contract(datagram, source)
 
@@ -473,6 +570,17 @@ class SimFleet:
         except Exception:
             return
         parts = [part for part in address.split("/") if part]
+        # clock-sync plane (contract sec 3.1): ping/cue omit the selector
+        # (always fleet-wide); offset is per-device 3-part /<id>/sync/offset
+        if parts == ["sync", "ping"]:
+            self.handle_ping(args, source)
+            return
+        if parts == ["cue"]:
+            self.handle_cue(args)
+            return
+        if len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset":
+            self.handle_offset(parts[0], args)
+            return
         if len(parts) != 3 or parts[1] not in ("os", "p"):
             return
         selector, plane, member = parts
@@ -682,6 +790,10 @@ def parse_args():
                         help="bopos.patch.json served on /os/params (default: patches/default)")
     parser.add_argument("--meter-interval", type=float, default=0.5,
                         help="seconds between role:meter emissions (0 disables)")
+    parser.add_argument("--sync-skew-ms", type=float, default=0.0,
+                        help="max abs fake clock skew vs leader, random +/- per device")
+    parser.add_argument("--sync-jitter-ms", type=float, default=0.0,
+                        help="per-pong measurement noise added to deviceTime")
     reports = parser.add_mutually_exclusive_group()
     reports.add_argument("--legacy-reports", dest="legacy_reports", action="store_true")
     reports.add_argument("--no-legacy-reports", dest="legacy_reports", action="store_false")
@@ -694,7 +806,8 @@ def parse_args():
         parser.error("device counts must satisfy 0 <= count <= devices")
     if not 0.0 <= args.drop <= 1.0:
         parser.error("--drop must be between 0 and 1")
-    if args.jitter_ms < 0 or args.hb_interval <= 0 or args.boot_secs < 0:
+    if (args.jitter_ms < 0 or args.hb_interval <= 0 or args.boot_secs < 0
+            or args.sync_skew_ms < 0 or args.sync_jitter_ms < 0):
         parser.error("timing values must be non-negative (heartbeat interval must be positive)")
     if args.version is None:
         args.version = "0.0" if args.protocol == "legacy" else "a1b2c3d"

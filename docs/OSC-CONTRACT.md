@@ -67,8 +67,8 @@ log is self-describing.
 |---|---|---|
 | `/os/*` | framework | identity, liveness, admin, discovery, persistence, distribution (absorbs `/helper/*` and `/system/*`) |
 | `/io/*` | framework | offboard bus peripherals (I2C today; verbs are bus-agnostic) |
-| `/sync/*` | framework (Python) | clock offset — reserved; shaped by the clock-sync thread |
-| `/cue` | framework (Python) | discrete scheduled fires; engines only ever see relative ms |
+| `/sync/*` | framework (Python) | forward clock sync — shape pinned in §3.1 (clock-sync thread) |
+| `/cue` | framework (Python) | discrete scheduled fires; engines only ever see relative ms (§3.1) |
 | `/pt` (canonical `/point`) | framework/dashboard | dumb spatial geometry `<x> <y> <radius>` — reserved |
 | `/p/*` | **patch** | patch-declared parameters — the only place output semantics live |
 
@@ -90,6 +90,46 @@ always valid:
 Shorthands are minted **only** where measured traffic justifies them (this table is
 the registry; additions require a contract revision). Patch parameter names under
 `/p/*` are the patch's own to keep short.
+
+### 3.1 Sync and cue plane (clock-sync)
+
+Forward clock sync so cues fire sample-tight(ish) over WiFi, engine-agnostically.
+The mechanism (HB-style) and design reasoning live in the `clock-sync` thread;
+this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
+
+| address | direction | transport | args |
+|---|---|---|---|
+| `/sync/ping` | leader → fleet | broadcast, 6660 | `<seq:int32> <leaderTimeNs:string>` |
+| `/sync/pong` | node → leader | unicast, 5550 | `<seq:int32> <leaderTimeNs:string> <uid:string> <deviceTimeNs:string>` |
+| `/<id>/sync/offset` | leader → node | unicast | `<offsetNs:string>` |
+| `/cue` | leader → fleet | broadcast, 6660 | `<cueId:string> <sharedTimeNs:string>` |
+
+- **The dashboard backend is the clock leader** (resolved 2026-07-05). It
+  broadcasts `/sync/ping` every ~500±100 ms (jittered to avoid lockstep
+  bursts). helper.py answers `/sync/pong` unicast, **echoing** `seq` and
+  `leaderTimeNs` so the leader stays stateless and a lone packet is
+  self-describing. `deviceTimeNs` is the node's `time.monotonic_ns()` at reply.
+- **The leader computes the offset, the node applies it.** Only the leader sees
+  the round trip, so it owns `oneWay = RTT/2`,
+  `offset = (deviceTime + oneWay) − leaderNow` and its smoothing. It pushes the
+  current best estimate per device as `/<id>/sync/offset`. `offset ≡
+  deviceClock − leaderClock`.
+- **`/<id>/sync/offset` is full-state and idempotent** (§4 law): an absolute
+  value, never a delta. The node **slews** its working offset toward it while
+  audio runs (never steps); slew is node-internal, not wire state.
+- **`/cue` carries one leader-clock instant for the whole fleet.** Each node
+  converts locally, `deadlineNs = sharedTimeNs + offsetNs`, waits on its own
+  `monotonic_ns()`, then fires the bare `/cue <cueId>` to its engine on
+  localhost. The engine never sees absolute time (§12).
+- **Encoding:** every time-valued arg is the decimal string of an integer
+  nanosecond count from `time.monotonic_ns()` — never a single 32-bit OSC float
+  (§12), exact across the two Python endpoints, human-readable in a log, and
+  full-resolution. `seq` is a plain int32; `cueId` is a string label (named cues
+  allowed). Monotonic, not wall clock: NTP steps must never glitch a cue.
+- **Grammar:** `/sync/ping` and `/cue` are the two framework addresses that omit
+  the selector — broadcast-only and always fleet-wide. `/sync/pong` is a 2-part
+  node→controller reply like `/hb`; `/<id>/sync/offset` is the normal 3-part
+  `/<selector>/<plane>/<member>` (selector always a concrete `<id>`).
 
 ## 4. Ports and transport
 
