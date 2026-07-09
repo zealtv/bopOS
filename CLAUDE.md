@@ -88,8 +88,13 @@ coordinate, don't duplicate.
   launches the real `dashboard/server.py` + `tools/simfleet.py` on non-default
   ports and drives headless Chromium (Playwright). Copy the newest tied one
   (`.loom/tied/*/verify_*.py`) as the template — repo-by-marker root, sim ports,
-  teardown. Deps: `pip install pyOSC3 python-osc websockets playwright
-  -r dashboard/requirements.txt && playwright install chromium --only-shell`.
+  teardown. **Verifies run from the `~/.venvs/bopos` venv** (the path
+  `dashboard/README.md` uses); system `pip` is PEP-668 externally-managed, so if
+  that venv is missing, create it: `python3 -m venv ~/.venvs/bopos && ~/.venvs/
+  bopos/bin/pip install -r dashboard/requirements.txt pyOSC3`. Browser-free
+  verifies (sync/spatial planes — LAN/engine only) need just those deps; the
+  Playwright dashboard suites add: `~/.venvs/bopos/bin/pip install playwright &&
+  ~/.venvs/bopos/bin/playwright install chromium --only-shell`.
   Three Playwright gotchas these scripts learned the hard way: (1) `inner_text`
   applies CSS `text-transform`, so lowercase before matching a `capitalize`d
   row; (2) clicking a button auto-scrolls the page — `window.scrollTo(0,0)` and
