@@ -120,7 +120,10 @@ class CueScheduler:
             for cue_id, late in due:
                 if late <= self._grace:
                     self._fire(cue_id)
-                    self._log("cue {} fired (late {:.1f}ms)".format(cue_id, late / 1e6))
+                    # fire_mono is machine-parseable for the sync-3 measure tool
+                    # (same token as simfleet); late is human context
+                    self._log("cue {} fired fire_mono={} (late {:.1f}ms)".format(
+                        cue_id, now, late / 1e6))
                 else:
                     self._log("cue {} DROPPED (late {:.1f}ms > grace)".format(
                         cue_id, late / 1e6))

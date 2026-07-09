@@ -46,6 +46,27 @@ network; real nodes appear as they heartbeat:
 ~/.venvs/bopos/bin/python dashboard/server.py --host 0.0.0.0
 ```
 
+## Clock sync & cue timing
+
+The dashboard is the clock leader: while it runs it broadcasts `/sync/ping`,
+estimates each node's clock offset, and pushes `/<id>/sync/offset` so a broadcast
+`/cue <cueId> <sharedTimeNs>` fires sample-tight(ish) across the fleet (contract
+§3.1). Nothing to enable — it's on whenever the server is up.
+
+To measure how tight cues actually land, `tools/sync_measure.py` fires a cue
+burst and reports the cross-device spread:
+
+```sh
+# software floor (launches simfleet itself, writes a Markdown report):
+~/.venvs/bopos/bin/python tools/sync_measure.py --devices 5 --sync-skew-ms 40
+
+# real fleet (Pis running helper.py already on the LAN; align an external
+# GPIO/click recording to the printed fire schedule -- this is the sync-4 run):
+~/.venvs/bopos/bin/python tools/sync_measure.py --mode hardware --cues 8
+```
+
+Sim spread is a single-machine floor; the honest number is the hardware run.
+
 ## Flags
 
 `--port` HTTP port (8080) · `--listen-port` OSC in (5550) · `--send-port` OSC
