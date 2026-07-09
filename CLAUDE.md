@@ -39,9 +39,14 @@ Bob adopting it on a real rig.
 Every active thread is decomposed into numbered children (2026-07-08 loom audit);
 in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
 
-1. **`clock-sync`** (`sync-0` → `sync-3`; `sync-4` is the hardware run, waiting) —
-   head of the critical path.
-2. **`spatial-audio`** (`spatial-0` → `spatial-2`; `spatial-2` needs sync-2 tied).
+1. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
+   wire shape in contract §3.1; dashboard is the leader (offset estimate + push);
+   helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
+   harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
+   `/cue` PD receiver is a pending pd-edit (see handoff).
+2. **`spatial-audio`** — **now the active head.** (`spatial-0`→`spatial-2`;
+   `spatial-2`'s dependency on `sync-2` is satisfied.) `spatial-0` (Stage-A
+   backend engine) is the recommended next stitch.
 3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
    port-sharing spike passed on Linux (broadcast+selector addressing only),
    `.waiting` on the macOS run. Can interleave with 1–2 (independent).
