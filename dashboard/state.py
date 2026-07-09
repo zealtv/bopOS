@@ -58,6 +58,7 @@ class InstallationState:
             "online": False, "last_seen": None, "ip": None, "version": None,
             "engine_alive": None, "rssi": None, "report": None,
             "declared": None, "undeclared": False, "rev": None, "meters": {},
+            "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
         }
 
     def _import_seed(self, path):
@@ -165,7 +166,7 @@ class InstallationState:
         for uid, durable in loaded["devices"].items():
             device = self._runtime_device(uid, durable)
             for key in ("online", "last_seen", "ip", "version", "engine_alive",
-                        "rssi", "report", "declared", "undeclared", "rev", "meters"):
+                        "rssi", "report", "declared", "undeclared", "rev", "meters", "sync"):
                 if uid in live:
                     device[key] = live[uid][key]
             rebuilt[uid] = device

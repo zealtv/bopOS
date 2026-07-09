@@ -232,6 +232,8 @@ class SimFleet:
         skew_ns = int(self.args.sync_skew_ms * 1e6)
         for device in self.devices:
             device.sync_skew_ns = random.randint(-skew_ns, skew_ns) if skew_ns else 0
+            if skew_ns:
+                self.log(device, f"sync_skew={device.sync_skew_ns}ns")
 
     def schedule(self, delay, callback, *values):
         heapq.heappush(
