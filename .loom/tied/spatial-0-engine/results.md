@@ -1,5 +1,18 @@
 # spatial-0-engine — results
 
+> **SUPERSEDED (2026-07-10).** Bob flagged the model here as wrong: spatial
+> should be **node-side decomposition of broadcast points into a flexible patch
+> parameter**, not dashboard-computed per-device gain hijacking the volume
+> slider, and it must support an **arbitrary number of points**. The dashboard
+> implementation below was **reverted from the working tree** (kept: the
+> `CLAUDE.md` venv heal and simfleet's p-plane logging). This directory remains
+> as the historical record. The redesign plan and what replaces it:
+> `.notes/spatial-redesign-plan-2026-07-10.md`. Salvage: the falloff curves
+> move node-side in the redesign.
+
+---
+
+
 Stage-A spatial automation engine, dashboard-computed. Point (x, y) + radius +
 falloff → per-device `/p/gain` at ~25 Hz, composed as **stored × master ×
 spatial**, runtime-only (never persisted). Contract §4 already ratifies

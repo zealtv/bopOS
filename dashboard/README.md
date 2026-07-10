@@ -67,32 +67,6 @@ burst and reports the cross-device spread:
 
 Sim spread is a single-machine floor; the honest number is the hardware run.
 
-## Spatial automation (Stage A)
-
-A moving point places sound across the fleet: each device's gain is
-`falloff(distance from the point, radius)`, computed by the dashboard from the
-device positions and folded into the volume param it already sends — composed as
-**stored mix × master × spatial**, runtime-only (never persisted). This is the
-dashboard-computed per-device `/p/gain` first implementation (contract §4, fine
-≤ ~12 nodes / on the audition rig); node-side `/pt` falloff for larger fleets is
-Stage B.
-
-Drive it over `/ws` with a full-state `set_spatial` message (the surface
-spatial-1's map UI will author):
-
-```jsonc
-{"type": "set_spatial", "data": {
-  "active": true, "radius": 4.0, "falloff": "smooth",   // linear | smooth | gauss
-  "motion": {"type": "static", "point": [5, 4]}          // or path / orbit
-}}
-```
-
-`motion` is `static` (a fixed/drag point), `path` (`points`, `duration`, `loop`
-— a polyline sweep), or `orbit` (`center`, `radius`, `period` — a circular LFO).
-A still point applies once; a moving one re-sends at ~25 Hz. `active: false`
-restores plain stored × master. The math lives in `spatial.py`; the engine and
-its tick loop in `osc_bridge.py`.
-
 ## Flags
 
 `--port` HTTP port (8080) · `--listen-port` OSC in (5550) · `--send-port` OSC

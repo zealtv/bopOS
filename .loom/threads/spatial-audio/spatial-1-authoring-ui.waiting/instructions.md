@@ -1,6 +1,14 @@
 # spatial-1-authoring-ui
 
-Authoring surface for spatial-0's engine on the dashboard spatial map.
+> **NEEDS RE-SCOPING (`.waiting` 2026-07-10).** Written against the reverted
+> spatial-0 model (a single dashboard-computed gain point). The new model is
+> node-side decomposition of an **arbitrary number of points** into a flexible
+> patch parameter — so this becomes "author/move the point *set*," and there are
+> no dashboard-computed per-device gains to visualise (the value is node-side).
+> Re-scope after `spatial-0b-redesign-review`; see the checklist below only as a
+> rough prior. Draft: `.lore/items/2026-07-10-spatial-points-node-side/`.
+
+Authoring surface for the spatial point set on the dashboard spatial map.
 
 - [ ] A draggable automation point on the SVG map: position, radius ring,
       falloff curve picker, on/off.

@@ -1,8 +1,18 @@
 # spatial-audio
 
+> **STAGE A/B FRAMING UNDER REVISION (2026-07-10).** The first `spatial-0` build
+> (dashboard-computed per-device gain) was the wrong model and was reverted; Bob
+> ratified going **node-side** — the dashboard broadcasts an arbitrary set of
+> point sources (position+radius+falloff) and each device decomposes them locally
+> into a flexible **patch parameter** (not the volume slider). This overturns the
+> "Stage A dashboard-computed first" language below. Gate: `spatial-0b-redesign-
+> review` (`.waiting`). Plan: `.notes/spatial-redesign-plan-2026-07-10.md`;
+> draft: `.lore/items/2026-07-10-spatial-points-node-side/`. Read those before
+> the Stage A/B text below.
+
 **Goal:** spatialise sound across the device fleet the way belief did on Happy Brackets:
-start a sound simultaneously on all devices (synced clock), then move a point through the
-space; each device's gain = falloff(distance from point, radius).
+start a sound simultaneously on all devices (synced clock), then move points through the
+space; each device decomposes each point → a patch parameter = falloff(distance, radius).
 
 Design: `.notes/architecture-review-2026-07-05.md` §6.
 

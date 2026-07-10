@@ -13,7 +13,6 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-import spatial
 from osc_bridge import OSCBridge
 from state import InstallationState
 
@@ -209,13 +208,6 @@ class Dashboard:
                 self.osc.assign(uid, device["id"], device["name"],
                                 device.get("pos1"), device.get("pos2"))
             await self.broadcast("device_update", device)
-        elif kind == "set_spatial":
-            # full-state, idempotent (contract sec 4): the payload replaces the
-            # whole spatial layer. spatial-1's drag sends a static point; a path
-            # or orbit animates. Runtime-only -- never persisted, so no save.
-            config = spatial.sanitize(data, self.state.data.get("room"))
-            self.osc.set_spatial(config)
-            await self.broadcast("spatial", config)
         elif kind == "set_room":
             try:
                 width, depth = float(data.get("width")), float(data.get("depth"))
