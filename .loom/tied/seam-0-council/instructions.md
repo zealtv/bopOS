@@ -24,7 +24,9 @@ Checklist:
 - [x] Roster recorded (`session.md`)
 - [x] Experts launched independently, artifacts collected (`expert-*.md`)
 - [x] Judge ruling (`judgment.md`)
-- [ ] Bob ratifies (then: lore keep, contract amendments, spawn implementation
-      stitches, reconcile `spatial-audio` thread)
+- [x] Bob ratifies — with amendments, recorded in `ratification.md`
+      (2026-07-10). Implementation queued as `seam-1..5` (seam-1 is the
+      amendment gate, `.waiting` on Bob's review of the draft text);
+      `spatial-audio` reconciled; PD edits in `pd-edits-for-bob.waiting`.
 
 Artifacts live in this stitch directory.

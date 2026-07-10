@@ -44,9 +44,16 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
    harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
    `/cue` PD receiver is a pending pd-edit (see handoff).
-2. **`spatial-audio`** — **now the active head.** (`spatial-0`→`spatial-2`;
-   `spatial-2`'s dependency on `sync-2` is satisfied.) `spatial-0` (Stage-A
-   backend engine) is the recommended next stitch.
+2. **`patch-seam`** — **now the active head.** The 2026-07-10 seam council
+   (tied `seam-0-council`; judgment + Bob's ratification are the authority)
+   re-drew the bopOS↔patch boundary: bopOS provides terms, never composes
+   them into patch params; no backwards compat (patches rewrite in
+   lockstep); one engine instance clones N positioned elements. Everything
+   is gated behind `seam-1-contract-amendment` (`.waiting` on Bob reviewing
+   the draft in the stitch) — tying it un-waits `seam-2..5` in numeric
+   order. `spatial-audio`'s implementation moved here (`seam-3`);
+   `spatial-1/2` follow it. PD edits live in the top-level
+   `pd-edits-for-bob.waiting` stitch (`.notes/pd-edits-for-bob.md`).
 3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
    port-sharing spike passed on Linux (broadcast+selector addressing only),
    `.waiting` on the macOS run. Can interleave with 1–2 (independent).
@@ -64,8 +71,9 @@ strategically live.
 **Paused by Bob (2026-07-08): `scene-sequencing`** — the whole thread (language,
 clip grid, video-mask) waits until the foundation above lands; the language is
 co-design with Bob, never solo (brief in the stitch). Also gated: the SC
-proof-of-concept (`zero-2`), spatial-audio Stage B, and all hardware `.waiting`
-children (`sync-4`, `zero-1`, `input-1`).
+proof-of-concept (`zero-2`) and all hardware `.waiting` children (`sync-4`,
+`zero-1`, `input-1`). (Spatial "Stage B" no longer exists — node-side is the
+ratified primary model, implemented via `patch-seam/seam-3`.)
 Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom` (`bopos-uptodate`) —
 coordinate, don't duplicate.
 

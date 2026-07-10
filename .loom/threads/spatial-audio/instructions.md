@@ -1,36 +1,26 @@
 # spatial-audio
 
-> **STAGE A/B FRAMING UNDER REVISION (2026-07-10).** The first `spatial-0` build
-> (dashboard-computed per-device gain) was the wrong model and was reverted; Bob
-> ratified going **node-side** — the dashboard broadcasts an arbitrary set of
-> point sources (position+radius+falloff) and each device decomposes them locally
-> into a flexible **patch parameter** (not the volume slider). This overturns the
-> "Stage A dashboard-computed first" language below. Gate: `spatial-0b-redesign-
-> review` (`.waiting`). Plan: `.notes/spatial-redesign-plan-2026-07-10.md`;
-> draft: `.lore/items/2026-07-10-spatial-points-node-side/`. Read those before
-> the Stage A/B text below.
+**Goal:** spatialise sound across the device fleet the way Belief did on Happy
+Brackets: start a sound simultaneously on all devices (synced clock — done,
+`clock-sync`), then move points through the space; each device decomposes each
+point → a patch parameter = falloff(distance, radius).
 
-**Goal:** spatialise sound across the device fleet the way belief did on Happy Brackets:
-start a sound simultaneously on all devices (synced clock), then move points through the
-space; each device decomposes each point → a patch parameter = falloff(distance, radius).
+**Model ratified 2026-07-10 by the patch-seam council** (authority:
+`.loom/tied/seam-0-council/judgment.md` + `ratification.md`; the old Stage A/B
+framing is dead — Stage A was built as `spatial-0`, reverted, and overturned):
+the dashboard broadcasts point geometry (`/pt`, arbitrary count); each device
+decomposes all points locally into per-element proximity scalars 0→1; the
+patch maps them wherever it likes, upstream of its own volume. bopOS never
+composes into a patch param (§1 seam law once seam-1 lands).
 
-Design: `.notes/architecture-review-2026-07-05.md` §6.
+**Implementation lives in the `patch-seam` thread:** `seam-1` (contract
+amendment gate, Bob) → `seam-3-points-node-side` (helper + simfleet + wire) →
+then here:
 
-Depends on: `clock-sync` (synchronised start) and `dashboard-2-spatial-facilitator`
-(positions + authoring surface). Sequenced here by instruction, not nesting — check those
-before starting.
+- `spatial-1-authoring-ui` (`.waiting`) — author/move the point set on the
+  dashboard map; re-scoped 2026-07-10; requires `seam-3` tied.
+- `spatial-2-synced-start` — synced sample start via `/cue`; still valid,
+  independent of the points work.
 
-Stage A — dashboard-computed (do this first):
-- [ ] Spatial automation layer in the dashboard backend: a point (x, y) + radius +
-      falloff curve, animated by drag/path/LFO on the spatial map
-- [ ] Backend computes per-device gains from `installation.json` positions and sends
-      `/gain` (or a dedicated `/sgain` to leave manual gain independent) at ~20–30 Hz
-- [ ] Synced start of a named sample on all devices via `/cue`
-- Zero Pi-side changes; works with existing patches.
-
-Stage B — Pi-computed (later, for 50–100 devices / dashboard independence):
-- broadcast `/point <x> <y> <radius>` per frame; each Pi computes its own gain from its
-  own position. Sketch the OSC shape in `osc-schema-contract` now; implement later.
-
-Done (Stage A) when: a sound sweeps across a real multi-Pi installation, authored from
-the dashboard map.
+Done when: a sound sweeps across a real multi-Pi installation, authored from
+the dashboard map, decomposed on the nodes.

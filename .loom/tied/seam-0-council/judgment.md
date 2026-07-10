@@ -4,6 +4,13 @@ Judge: fable, inline, 2026-07-10. Five expert designs read in full; load-bearing
 claims re-verified against the repo. This is a proposal for Bob's ratification,
 not a ratified design.
 
+> **Ratified with amendments, 2026-07-10 — see `ratification.md`; where the
+> two differ, the ratification wins.** Headline deltas: backwards compat
+> disregarded (master ships unconditionally, no `subscribes` gate);
+> multi-element = one instance cloning N elements internally, true-N position
+> list; SC starter kit is first-class and agent-built; PD edits collected in
+> the `pd-edits-for-bob.waiting` loom stitch.
+
 ## 1. The decision, up front
 
 The seam is ruled as one sentence, adopted into the contract: **bopOS provides

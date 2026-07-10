@@ -1,12 +1,16 @@
 # spatial-1-authoring-ui
 
-> **NEEDS RE-SCOPING (`.waiting` 2026-07-10).** Written against the reverted
-> spatial-0 model (a single dashboard-computed gain point). The new model is
-> node-side decomposition of an **arbitrary number of points** into a flexible
-> patch parameter — so this becomes "author/move the point *set*," and there are
-> no dashboard-computed per-device gains to visualise (the value is node-side).
-> Re-scope after `spatial-0b-redesign-review`; see the checklist below only as a
-> rough prior. Draft: `.lore/items/2026-07-10-spatial-points-node-side/`.
+> **RE-SCOPED 2026-07-10 (seam council). `.waiting` on
+> `patch-seam/seam-3-points-node-side` tying** — the wire and node-side
+> decomposition this UI drives. Authority: `.loom/tied/seam-0-council/`.
+> Scope is now "author/move the point *set*" (arbitrary count, each point =
+> x,y + radius + falloff enum). There are no dashboard-computed per-device
+> gains — to visualise the sweep, mirror the node math (shared falloff module)
+> for display only, or read simfleet's logged values; never send the result.
+> The motion drivers (`path`/`orbit` from the reverted `dashboard/spatial.py`,
+> commit `0ce8821`) are the salvage for procedural movement. Checklist below
+> re-read through that lens (per-device-gain visualisation bullet → mirrored
+> display math).
 
 Authoring surface for the spatial point set on the dashboard spatial map.
 
