@@ -9,7 +9,7 @@ const requested = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
-// mirror of the server's volume resolution (osc_bridge.volume_param):
+// volume resolution (contract sec 8 / facilitator proposal Q1):
 // role "volume", else the param literally named gain, else no slider
 function volumeParam(device) {
   const declared = device.declared || [];

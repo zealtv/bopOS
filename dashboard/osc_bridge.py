@@ -41,19 +41,6 @@ SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-mi
 SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
 
 
-def volume_param(device):
-    """The declared param a volume card drives: role 'volume', else literal
-    'gain', else None (contract sec 8 / facilitator proposal Q1)."""
-    declared = device.get("declared") or []
-    for declaration in declared:
-        if declaration.get("role") == "volume":
-            return declaration.get("name")
-    if any(declaration.get("name") == "gain" and declaration.get("role") != "meter"
-           for declaration in declared):
-        return "gain"
-    return None
-
-
 class OSCProtocol(asyncio.DatagramProtocol):
     def __init__(self, bridge):
         self.bridge = bridge
@@ -132,25 +119,12 @@ class OSCBridge:
         if LEGACY_COMPAT and name in LEGACY_PARAMS:
             self.send(f"/{selector}/{name}", [value])
 
-    def send_device_param(self, device, name, value):
-        # VCA-style master (facilitator proposal Q2): the stored value is the
-        # mix; the wire gets mix x master for the device's volume param.
-        # Broadcast /all sends bypass this — they're a tech power tool.
-        if name == volume_param(device):
-            try:
-                value = float(value) * float(self.state.data.get("master", 1.0))
-            except (TypeError, ValueError):
-                pass
-        self.set_param(int(device["id"]), name, value)
-
-    def resend_volumes(self):
-        # master moved: re-send every assigned device's volume at the new scale
-        for device in self.state.devices.values():
-            if int(device["id"]) < 0:
-                continue
-            name = volume_param(device)
-            if name and name in device["params"]:
-                self.send_device_param(device, name, device["params"][name])
+    def send_master(self, selector="all"):
+        # provided term (contract sec 4.1): idempotent full-state; the engine
+        # multiplies it into its own output stage, so the wire carries raw
+        # mixes only — no dashboard-side composition (seam ruling R1)
+        self.send(f"/{selector}/os/master",
+                  [float(self.state.data.get("master", 1.0))])
 
     def action(self, selector, verb):
         wire_verb = "getsamples" if verb == "get_samples" else verb
@@ -233,12 +207,14 @@ class OSCBridge:
                     device["params"][name] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
-            # device offline during a preset load converges on reconnect)
+            # device offline during a preset load converges on reconnect);
+            # master rides along per the contract sec 4.1 catch-up rule
             if int(device["id"]) >= 0:
                 for declaration in declarations:
                     name = declaration.get("name")
                     if name and name in device["params"] and declaration.get("role") != "meter":
-                        self.send_device_param(device, name, device["params"][name])
+                        self.set_param(int(device["id"]), name, device["params"][name])
+                self.send_master(int(device["id"]))
             self.broadcast("params_declaration", device)
             return
         if address == "/os/report" and args:

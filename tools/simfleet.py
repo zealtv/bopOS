@@ -647,6 +647,14 @@ class SimFleet:
                 if value in (0, 1):
                     device.muted = bool(value)
                     self.log(device, f"muted={value}")
+            elif member == "master" and args:
+                # provided term (contract sec 4.1): a real node's OS layer
+                # routes this to the engine's named receive; the fake device
+                # has no engine, so delivery is just logged
+                try:
+                    self.log(device, f"os/master {float(args[0]):g}")
+                except (TypeError, ValueError):
+                    pass
             elif member == "params":
                 builder = osc_message_builder.OscMessageBuilder(address="/os/params")
                 if self.manifest_text is not None:

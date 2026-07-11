@@ -116,10 +116,7 @@ class Dashboard:
             targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
             for device in targets:
                 device["params"][name] = value
-            if selector == "all":
-                self.osc.set_param("all", name, value)
-            else:
-                self.osc.send_device_param(self.state.devices[uid], name, value)
+            self.osc.set_param(selector, name, value)
             self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
@@ -151,7 +148,7 @@ class Dashboard:
             master = self.state.clean_master(data.get("value"))
             self.state.data["master"] = master
             self.state.save_debounced()
-            self.osc.resend_volumes()
+            self.osc.send_master()
             await self.broadcast("master", {"value": master})
         elif kind == "save_preset":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
@@ -180,9 +177,9 @@ class Dashboard:
                     continue
                 for name, value in params.items():
                     device["params"][str(name)] = value
-                    self.osc.send_device_param(device, str(name), value)
+                    self.osc.set_param(int(device["id"]), str(name), value)
                 await self.broadcast("device_update", device)
-            self.osc.resend_volumes()
+            self.osc.send_master()
             self.state.save_debounced()
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
