@@ -1,8 +1,10 @@
 # spatial-1-authoring-ui
 
-> **RE-SCOPED 2026-07-10 (seam council). `.waiting` on
-> `patch-seam/seam-3-points-node-side` tying** — the wire and node-side
-> decomposition this UI drives. Authority: `.loom/tied/seam-0-council/`.
+> **RE-SCOPED 2026-07-10 (seam council). Gate OPEN since 2026-07-11:
+> `patch-seam/seam-3-points-node-side` is tied** — the wire, node-side
+> decomposition, and the ws surface (`set_points`/`set_point`/`clear_point`
+> on `dashboard/server.py`, sanitize + motion in `dashboard/points.py`) all
+> exist; this UI drives them. Authority: `.loom/tied/seam-0-council/`.
 > Scope is now "author/move the point *set*" (arbitrary count, each point =
 > x,y + radius + falloff enum). There are no dashboard-computed per-device
 > gains — to visualise the sweep, mirror the node math (shared falloff module)

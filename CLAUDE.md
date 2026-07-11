@@ -34,8 +34,8 @@ installations. This file is the orientation for any agent working here.
 ## Thread ordering (critical path)
 
 The OSC contract is **ratified** (v1.1 — the seam amendment landed 2026-07-11;
-§4.1 provided terms await implementation via `seam-2/3`); the **dashboard's four
-phases are all tied** (2026-07-08, incl. `/facilitator` and the meters surface —
+§4.1 provided terms are **implemented**: master via `seam-2`, `/pt` via
+`seam-3`, both tied 2026-07-11); the **dashboard's four phases are all tied** (2026-07-08, incl. `/facilitator` and the meters surface —
 the manifest `role` field is ratified in contract §8/§11). The `dashboard` goal
 now waits via its blocker child `dashboard-6-rig-adoption.waiting` (Bob adopting
 it on a real rig).
@@ -48,23 +48,25 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
    harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
    `/cue` PD receiver is a pending pd-edit (see handoff).
-2. **`patch-seam`** — **now the active head; the gate is open.** The
-   2026-07-10 seam council (tied `seam-0-council`) re-drew the bopOS↔patch
-   boundary: bopOS provides terms, never composes them into patch params; no
-   backwards compat (patches rewrite in lockstep); one engine instance clones
-   N positioned elements. Bob ratified the contract amendment 2026-07-11
-   (`seam-1` tied — v1.1 is live, review record in the tied stitch);
-   `seam-2..5` are claimable **in numeric order**. `spatial-audio`'s
-   implementation moved here (`seam-3`); `spatial-1/2` follow it — leave
-   `spatial-2` alone until `seam-3` ties even though it shows as a loose end.
-   Bob's element-dot UI direction (colour = element index, number = device)
-   is recorded in `seam-3`'s instructions. PD edits live in the top-level
-   `pd-edits-for-bob.waiting` stitch (`.notes/pd-edits-for-bob.md`).
+2. **`patch-seam`** — **the active head.** The 2026-07-10 seam council (tied
+   `seam-0-council`) re-drew the bopOS↔patch boundary: bopOS provides terms,
+   never composes them into patch params; no backwards compat (patches
+   rewrite in lockstep); one engine instance clones N positioned elements.
+   Bob ratified the amendment 2026-07-11 (`seam-1` tied — v1.1 live).
+   **`seam-2` (master term) and `seam-3` (node-side `/pt`) tied 2026-07-11**:
+   `python/pointfield.py` is the shared decomposition module, helper/simfleet
+   both consume it, ws surface is `set_points`/`set_point`/`clear_point`.
+   Remaining: `seam-4` then `seam-5`, in numeric order. `spatial-1`
+   (authoring UI, gate now open) and `spatial-2` (synced start) are claimable
+   after them. Bob's element-dot UI direction (colour = element index,
+   number = device) is recorded in `seam-3`'s instructions (tied). PD edits
+   live in the top-level `pd-edits-for-bob.waiting` stitch
+   (`.notes/pd-edits-for-bob.md` — A5/A6 now carry the live spellings).
 3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
    port-sharing spike passed on Linux (broadcast+selector addressing only),
    `.waiting` on the macOS run. Can interleave with 1–2 (independent).
-4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`,
-   `hw-onboarding-doc` (audio-board/mute onboarding procedure, Bob 2026-07-11),
+4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`
+   (`hw-onboarding-doc` tied 2026-07-11 → `docs/HARDWARE.md`),
    `dashboard-5-position-precision` (numeric position entry + space origin,
    Bob 2026-07-11 — deliberately last).
 
