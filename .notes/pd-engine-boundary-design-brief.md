@@ -63,6 +63,8 @@ and future engines.
 
 ### 6. What are meters?
 
+- **Ruling (Bob, 2026-07-11): meters are not mission-critical — dropping them
+  entirely is a valid solve.** See "Bob's rulings and taste" below.
 - Decide whether a meter is measured audio telemetry, arbitrary patch-authored
   feedback, or both as explicitly different declaration types.
 - Specify scope: whole device, output channel, or 0-based element.
@@ -79,6 +81,9 @@ and future engines.
 
 ### 7. What debugging surface replaces cruft?
 
+- **Known real use (Bob, 2026-07-11):** capacitive touch data forwarded from
+  `io/main.py` through PD to the PD dashboard via `/rpt` — useful but messy;
+  consider a report-on-request model. See "Bob's rulings and taste" below.
 - Audit legacy echo/report behavior against OSC contract v1.1.
 - Preserve useful inspection of sensor and OSC values through an intentional
   diagnostic facility rather than permanent broadcast chatter.
@@ -92,6 +97,23 @@ and future engines.
 - Document ports as ownership boundaries and performance choices, not historical
   accidents.
 
+## Bob's rulings and taste (2026-07-11, pre-council)
+
+These are inputs from Bob, recorded before the council session. Treat them as
+constraints and priors, not open questions.
+
+- **Meters are not mission-critical.** If ditching meters entirely is a solve,
+  that is a valid design outcome. Do not contort the boundary to preserve them.
+- **The real echo use-case:** in the plant installations, the stream of
+  capacitive touch data was forwarded from `io/main.py` through PD and back out
+  to the PD dashboard for debugging. That worked but is messy as implemented —
+  the `/rpt` address and the circuitous OSC path. Bob suspects this points at a
+  broader **report-on-request model** rather than the current permanent
+  forwarding chain; the council should evaluate that framing.
+- **Taste criterion for the ruling:** simple, clean, understandable, and
+  performant. Prefer the design that a patch author can hold in their head over
+  one that preserves every existing capability.
+
 ## Evidence to bring to the design session
 
 - OSC contract v1.1 and the patch-seam council record.
@@ -99,3 +121,6 @@ and future engines.
 - Packet-rate estimates for device/element meters and I2C streams.
 - The current PD rewrite and SC starter side by side.
 - A list of which legacy echo/print paths are still used in real debugging.
+  (Answered 2026-07-11: the capacitive-touch `/rpt` chain described in "Bob's
+  rulings and taste" is the known real use; treat other echo/print paths as
+  presumed-unused unless the repo shows otherwise.)
