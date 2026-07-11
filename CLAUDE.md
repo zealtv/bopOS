@@ -66,8 +66,10 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    **`seam-4` and `seam-5` tied 2026-07-11; the patch-seam implementation
    thread is complete.** The SC starter lives in `templates/supercollider-bopos`;
    helper relays selector-stripped master/params to non-PD engines on 6661
-   because SC cannot share its 6660 socket. `spatial-1` (authoring UI) and
-   `spatial-2` (synced start) are now claimable. Bob's element-dot UI direction
+   because SC cannot share its 6660 socket. `spatial-1` (point authoring,
+   display-only proximity, and two-axis wall bounce) tied 2026-07-11;
+   `spatial-2` (synced start) is the remaining spatial implementation stitch.
+   Bob's element-dot UI direction
    (colour = element index,
    number = device) is recorded in `seam-3`'s instructions (tied). PD edits
    live in the top-level `pd-edits-for-bob.waiting` stitch
