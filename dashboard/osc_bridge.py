@@ -133,6 +133,13 @@ class OSCBridge:
         self.send(f"/{selector}/os/master",
                   [float(self.state.data.get("master", 1.0))])
 
+    def fire_cue(self, cue_id, lead_ms=500):
+        """Schedule one named fleet cue in leader monotonic time."""
+        lead_ms = min(max(int(lead_ms), 100), 10000)
+        shared_time_ns = time.monotonic_ns() + lead_ms * 1_000_000
+        self.send("/cue", [str(cue_id), str(shared_time_ns)])
+        return shared_time_ns, lead_ms
+
     def _points_elapsed(self):
         return time.monotonic() - self._points_started
 

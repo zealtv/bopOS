@@ -68,7 +68,8 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    helper relays selector-stripped master/params to non-PD engines on 6661
    because SC cannot share its 6660 socket. `spatial-1` (point authoring,
    display-only proximity, and two-axis wall bounce) tied 2026-07-11;
-   `spatial-2` (synced start) is the remaining spatial implementation stitch.
+   `spatial-2` (synced named cue start) tied 2026-07-11; spatial software is
+   complete and the thread now waits on a real-installation sweep.
    Bob's element-dot UI direction
    (colour = element index,
    number = device) is recorded in `seam-3`'s instructions (tied). PD edits

@@ -25,6 +25,13 @@
             <button id="point-delete" class="danger">Delete</button>
           </div>
         </div>
+        <div id="cue-panel">
+          <strong>Synced cue</strong>
+          <label>cue / sample name <input id="cue-id" type="text" maxlength="64" value="start"></label>
+          <label>lead <input id="cue-lead" type="number" min="100" max="10000" step="50" value="500"> ms</label>
+          <button id="cue-fire">Fire on all devices</button>
+          <output id="cue-status" class="dim">scheduled against the shared clock</output>
+        </div>
         <p class="dim spatial-help">Drag a point to stream its position. Dot colour is element index; number is device ID; brightness shows proximity.</p>
         <svg id="spatial"></svg>
       </section>

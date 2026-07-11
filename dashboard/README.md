@@ -27,8 +27,8 @@ Run a simulated fleet to play against (terminal 2):
 Then open:
 
 - **<http://localhost:8080/>** — tech dashboard: device list, spatial map,
-  point authoring (drag/radius/falloff/two-axis wall bounce), params, patch
-  management, discovery/assignment, venues, presets.
+point authoring (drag/radius/falloff/two-axis wall bounce), params, patch
+  management, discovery/assignment, synced named cues, venues, presets.
 - **<http://localhost:8080/facilitator>** — facilitator view: volume cards,
   master, Silence All, Sound check, preset picker. On an iPad, "Add to Home
   Screen" launches it fullscreen.

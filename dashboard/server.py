@@ -151,6 +151,21 @@ class Dashboard:
             self.state.save_debounced()
             self.osc.send_master()
             await self.broadcast("master", {"value": master})
+        elif kind == "fire_cue":
+            cue_id = str(data.get("cue_id", "")).strip()
+            if re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", cue_id) is None:
+                if ws is not None:
+                    await ws.send_json({"type": "error", "data": {
+                        "message": "cue name: use 1–64 letters, digits, dot, colon, _ or -"}})
+                return
+            try:
+                lead_ms = int(data.get("lead_ms", 500))
+            except (TypeError, ValueError):
+                lead_ms = 500
+            shared_time_ns, lead_ms = self.osc.fire_cue(cue_id, lead_ms)
+            await self.broadcast("cue_scheduled", {"cue_id": cue_id,
+                                                    "shared_time_ns": str(shared_time_ns),
+                                                    "lead_ms": lead_ms})
         elif kind == "save_preset":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if not name:

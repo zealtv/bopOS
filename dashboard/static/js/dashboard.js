@@ -35,6 +35,10 @@ ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
 ws.on("points", data => { installation.points = data.points || {}; render(); });
 ws.on("point_frame", data => Spatial.frame(data.points || {}));
+ws.on("cue_scheduled", data => {
+  const status = $("#cue-status"); if (!status) return;
+  status.value = `${data.cue_id} fires in ${data.lead_ms} ms`;
+});
 ws.on("error", data => alert(data.message));
 let venues = {venues: [], current: null};
 ws.on("venues", data => { venues = data; renderVenues(); });
@@ -83,6 +87,17 @@ function renderRoom() {
   w.value = room.width ?? 10; d.value = room.depth ?? 8;
 }
 ["room-w", "room-d"].forEach(id => { const input = document.getElementById(id); if (input) input.onchange = () => ws.send("set_room", {width: Number($("#room-w").value), depth: Number($("#room-d").value)}); });
+(function bindCue() {
+  const button = $("#cue-fire"); if (!button) return;
+  button.onclick = () => {
+    const cueId = $("#cue-id").value.trim();
+    const leadMs = Math.min(10000, Math.max(100, Number($("#cue-lead").value) || 500));
+    if (!cueId) return;
+    ws.send("fire_cue", {cue_id: cueId, lead_ms: leadMs});
+    button.disabled = true;
+    setTimeout(() => { button.disabled = false; }, leadMs + 250);
+  };
+})();
 function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
