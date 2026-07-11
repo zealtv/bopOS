@@ -1,0 +1,29 @@
+macOS verification run 2026-07-11
+
+Host
+  sw_vers: macOS 14.6.1 (23G93)
+  uname -m: arm64
+  Python: 3.14.4
+  Pure Data: 0.55.2
+  PD binary: /Applications/Pd-0.55-2.app/Contents/Resources/bin/pd
+
+Python socket matrix
+  Command:
+    python3 .loom/threads/audition-rig/audition-0-port-spike.stitching/spike_port_sharing.py
+  Result: exit 0; broadcast ALL SEE ALL only with
+    SO_REUSEADDR+SO_REUSEPORT. Full output: mac-python-output.txt.
+
+Pure Data shared-port harness
+  Command:
+    PD='/Applications/Pd-0.55-2.app/Contents/Resources/bin/pd' bash .loom/threads/audition-rig/audition-0-port-spike.stitching/spike_pd.sh /tmp
+  Result: exit 0; second instance reported three Address already in use
+    errors. Full evidence: mac-pd-a.log, mac-pd-b.log, mac-replies.log.
+
+Cleanup check
+  Command:
+    pgrep -alf '(^|/)pd($| )|pd-watchdog|Pd-0.55-2'
+  Result: exit 1 with no output; no matching process remained.
+
+Not verified
+  Audio output and dashboard control are outside this socket spike and remain
+  Stage 0 work. No Pure Data patch was edited.

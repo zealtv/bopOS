@@ -29,3 +29,10 @@ netreceive, SO_REUSEADDR; one broadcast → every instance replies; unicast to
 a shared port reaches exactly one process, so audible instances must stay on
 broadcast+selector addressing). Full data in `results.md`. `.waiting` on the
 macOS run — one command for Bob at the bottom of `results.md`.
+
+**2026-07-11: macOS half done — stock PD shared-port FAILS on macOS.** Python
+sockets need SO_REUSEPORT there, which stock PD 0.55.2 does not set for these
+listeners. Stage 0 must use the documented relay on macOS, generalized from
+the existing helper-to-SuperCollider local-engine affordance so N PD or SC
+instances receive on distinct local ports. Full environment, commands, raw
+logs, cleanup evidence, and the boundary analysis are retained here.
