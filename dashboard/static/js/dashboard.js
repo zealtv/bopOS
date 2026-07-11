@@ -33,6 +33,8 @@ function meterRow(name, m, declaration, badge) {
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
+ws.on("points", data => { installation.points = data.points || {}; render(); });
+ws.on("point_frame", data => Spatial.frame(data.points || {}));
 ws.on("error", data => alert(data.message));
 let venues = {venues: [], current: null};
 ws.on("venues", data => { venues = data; renderVenues(); });

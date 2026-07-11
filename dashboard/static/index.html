@@ -11,7 +11,23 @@
       </footer>
     </aside>
     <main>
-      <section id="spatial-section"><div class="section-head"><h2>Spatial</h2><span class="dim">room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div><svg id="spatial"></svg></section>
+      <section id="spatial-section">
+        <div class="section-head"><h2>Spatial</h2><span class="dim">room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div>
+        <div id="point-toolbar">
+          <button id="point-add">Add point</button>
+          <div id="point-editor" hidden>
+            <strong id="point-title">Point</strong>
+            <label><input id="point-enabled" type="checkbox" checked> on</label>
+            <label>radius <input id="point-radius" type="number" min="0.01" max="1000" step="0.1"> m</label>
+            <label>falloff <select id="point-falloff"><option value="0">linear</option><option value="1">smooth</option><option value="2">gauss</option></select></label>
+            <label>movement <select id="point-motion"><option value="static">still</option><option value="bounce">bounce</option></select></label>
+            <span id="bounce-fields"><label>x speed <input id="point-vx" type="number" step="0.1"> m/s</label><label>y speed <input id="point-vy" type="number" step="0.1"> m/s</label></span>
+            <button id="point-delete" class="danger">Delete</button>
+          </div>
+        </div>
+        <p class="dim spatial-help">Drag a point to stream its position. Dot colour is element index; number is device ID; brightness shows proximity.</p>
+        <svg id="spatial"></svg>
+      </section>
       <div id="detail"><p class="empty">Select a device.</p></div>
     </main>
   </div>

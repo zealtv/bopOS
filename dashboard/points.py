@@ -5,7 +5,7 @@ decomposes it locally (python/pointfield.py is the canonical consumer — the
 falloff enum values here mirror it). This module is pure: sanitize untrusted
 ws payloads into well-formed points, evaluate motion, build wire args.
 
-Motion (static point / swept path / orbit) is the test driver salvaged from
+Motion (static point / swept path / orbit / wall bounce) is the test driver salvaged from
 the reverted spatial-0 engine; spatial-1's authoring UI replaces the static
 point with a drag.
 
@@ -44,7 +44,7 @@ def sanitize_point(raw, room=None):
         "r": _clamp_float(raw.get("r"), DEFAULT_RADIUS, 0.01, 1000.0),
         "falloff": _falloff_enum(raw.get("falloff")),
     }
-    motion = _sanitize_motion(raw.get("motion"))
+    motion = _sanitize_motion(raw.get("motion"), room, (point["x"], point["y"]))
     if motion is not None:
         point["motion"] = motion
     return point
@@ -65,10 +65,15 @@ def current_xy(point, elapsed):
     motion = point.get("motion")
     if not motion:
         return (point["x"], point["y"])
+    elapsed = max(0.0, elapsed - float(motion.get("started", 0.0)))
     if motion["type"] == "orbit":
         angle = 2.0 * math.pi * (elapsed / motion["period"])
         return (motion["center"][0] + motion["radius"] * math.cos(angle),
                 motion["center"][1] + motion["radius"] * math.sin(angle))
+    if motion["type"] == "bounce":
+        origin, velocity, bounds = motion["origin"], motion["velocity"], motion["bounds"]
+        return (_reflect(origin[0] + velocity[0] * elapsed, bounds[0]),
+                _reflect(origin[1] + velocity[1] * elapsed, bounds[1]))
     # path: polyline swept over a duration, equal time per segment
     points = motion["points"]
     if len(points) == 1:
@@ -89,7 +94,7 @@ def is_dynamic(point):
     motion = point.get("motion")
     if not motion:
         return False
-    return motion["type"] == "orbit" or len(motion["points"]) > 1
+    return motion["type"] in ("orbit", "bounce") or len(motion["points"]) > 1
 
 
 def frame_args(points, elapsed):
@@ -120,7 +125,7 @@ def _falloff_enum(value):
     return enum if enum in FALLOFF_ENUMS.values() else DEFAULT_FALLOFF
 
 
-def _sanitize_motion(motion, room=None):
+def _sanitize_motion(motion, room=None, origin=None):
     if not isinstance(motion, dict):
         return None
     kind = motion.get("type")
@@ -131,6 +136,22 @@ def _sanitize_motion(motion, room=None):
         return {"type": "orbit", "center": center,
                 "radius": _clamp_float(motion.get("radius"), 2.0, 0.0, 1000.0),
                 "period": _clamp_float(motion.get("period"), 8.0, 0.1, 3600.0)}
+    if kind == "bounce":
+        room_width, room_depth = _room_bounds(room)
+        start = _coerce_point(motion.get("origin")) or list(origin or _center(room))
+        velocity = _coerce_point(motion.get("velocity")) or [0.7, 0.45]
+        # A stationary axis defeats the purpose of this deliberately two-axis
+        # first mover; replace only the zero component with the default.
+        if abs(velocity[0]) < 0.001:
+            velocity[0] = 0.7
+        if abs(velocity[1]) < 0.001:
+            velocity[1] = 0.45
+        return {"type": "bounce",
+                "origin": [min(max(start[0], 0.0), room_width),
+                           min(max(start[1], 0.0), room_depth)],
+                "velocity": [_clamp_float(velocity[0], 0.7, -100.0, 100.0),
+                             _clamp_float(velocity[1], 0.45, -100.0, 100.0)],
+                "bounds": [room_width, room_depth]}
     if kind == "path":
         points = [p for p in (_coerce_point(item) for item in
                               (motion.get("points") or [])) if p]
@@ -146,6 +167,21 @@ def _center(room):
     if isinstance(room, dict) and room.get("width") and room.get("depth"):
         return (float(room["width"]) / 2.0, float(room["depth"]) / 2.0)
     return (5.0, 4.0)
+
+
+def _room_bounds(room):
+    if isinstance(room, dict):
+        return (_clamp_float(room.get("width"), 10.0, 0.01, 1000.0),
+                _clamp_float(room.get("depth"), 8.0, 0.01, 1000.0))
+    return (10.0, 8.0)
+
+
+def _reflect(value, limit):
+    """Triangle-wave reflection into [0, limit], including negative travel."""
+    if limit <= 0:
+        return 0.0
+    wrapped = value % (2.0 * limit)
+    return limit - abs(wrapped - limit)
 
 
 def _coerce_point(value):

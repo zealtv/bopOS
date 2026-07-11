@@ -234,6 +234,16 @@ class Dashboard:
                 return
             if 0 < width <= 1000 and 0 < depth <= 1000:
                 self.state.data["room"] = {"width": width, "depth": depth, "units": "m"}
+                for point in self.state.data.get("points", {}).values():
+                    motion = point.get("motion") or {}
+                    if motion.get("type") == "bounce":
+                        motion["bounds"] = [width, depth]
+                        origin = motion.get("origin") or [point["x"], point["y"]]
+                        motion["origin"] = [min(max(float(origin[0]), 0.0), width),
+                                            min(max(float(origin[1]), 0.0), depth)]
+                if self.state.data.get("points"):
+                    self.osc.send_points_frame()
+                    await self.broadcast("points", {"points": self.state.data["points"]})
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
         elif kind == "assign_device":

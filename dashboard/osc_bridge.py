@@ -152,6 +152,8 @@ class OSCBridge:
 
     def upsert_point(self, point):
         # sparse authoring edit: one point on the wire, the rest hold
+        if point.get("motion"):
+            point["motion"]["started"] = self._points_elapsed()
         self.state.data.setdefault("points", {})[point["id"]] = point
         self.send("/pt", points.sparse_args(point, self._points_elapsed()))
 
@@ -168,6 +170,10 @@ class OSCBridge:
                 current = self.state.data.get("points") or {}
                 if any(points.is_dynamic(point) for point in current.values()):
                     self.send_points_frame()
+                    elapsed = time.monotonic() - self._points_started
+                    evaluated = {str(point_id): list(points.current_xy(point, elapsed))
+                                 for point_id, point in current.items()}
+                    self.broadcast("point_frame", {"points": evaluated})
         except asyncio.CancelledError:
             pass
 
