@@ -14,10 +14,16 @@ cloning, true-N position list (pos2 label retired), routed single receiver /
 flat args, install-level facilitator command allowlist (default empty), mute
 multi-board note.
 
-- [ ] Bob reviews `contract-amendment-draft.md` (flag any spelling changes)
-- [ ] Apply the edits to `docs/OSC-CONTRACT.md`; bump the version line and
+- [x] Bob reviews `contract-amendment-draft.md` (flag any spelling changes)
+      — reviewed 2026-07-11, **no spelling changes**; three follow-on notes
+      routed per `bob-review-2026-07-11.md` in this dir
+- [x] Apply the edits to `docs/OSC-CONTRACT.md`; bump the version line and
       add the provenance (seam council, `.loom/tied/.../seam-0-council`)
-- [ ] Reconcile `README.md`'s port/plane blurb if it repeats amended text
-- [ ] On tying, **un-wait the gated siblings** so autopilot can take them in
+      — applied verbatim (v1.0 → v1.1) plus one flagged editorial
+      reconciliation (§3 bare-`/gain` parenthetical vs Edit 8's lockstep
+      ruling; see the review record)
+- [x] Reconcile `README.md`'s port/plane blurb if it repeats amended text
+      — checked: it doesn't repeat any amended text; no change
+- [x] On tying, **un-wait the gated siblings** so autopilot can take them in
       numeric order: rename `seam-2..5`'s `.waiting` suffixes away (they are
-      `.waiting` solely on this gate)
+      `.waiting` solely on this gate) — done

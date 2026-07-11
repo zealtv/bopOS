@@ -1,9 +1,11 @@
 # bopOS OSC Contract
 
-Version 1.0 — ratified 2026-07-07. Provenance: five-expert council + judgment +
-Bob's ratification, recorded in `.lore/` (`osc-schema-council`). This document is
-the durable spec; the council record holds the reasoning and the rejected
-alternatives.
+Version 1.1 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
+(seam council 2026-07-10 + Bob's ratification; record in
+`.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`).
+Provenance of v1.0: five-expert council + judgment + Bob's ratification,
+recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
+the council records hold the reasoning and the rejected alternatives.
 
 ## 1. Purpose and scope
 
@@ -12,12 +14,21 @@ autonomous nodes. It guarantees each node can say **who it is, whether it's aliv
 what it can do, and that it has converged to the intended revision** — always as
 *declared facts*, never as hardware or disk assumptions.
 
-The framework owns: identity/liveness, the OSC transport and namespace, convergence
-(update/checkout/fetch), the offboard peripheral-bus IO layer, and the
-sync/cue/spatial control plane. Everything that comes out of the speakers, LEDs,
-printer, or monitor is the **patch's**; engine launch is **patch-declared**; media
-IO (MIDI/HID/audio-in) is the **engine's**; control-plane state, spatial math, and
-scene authoring are the **dashboard's**.
+The framework owns: identity/liveness, the OSC transport and namespace,
+convergence (update/checkout/fetch), the offboard peripheral-bus IO layer, the
+sync/cue plane, and the machinery that produces provided terms (clock offset
+estimation, point-proximity math). Everything that comes out of the speakers,
+LEDs, printer, or monitor is the **patch's**; engine launch is
+**patch-declared**; media IO (MIDI/HID/audio-in) is the **engine's**;
+control-plane state, point geometry and authoring, and scene authoring are the
+**dashboard's**.
+
+**The seam law (ratified 2026-07-10):** bopOS **provides** named, full-state
+*terms* the patch subscribes to and enacts; bopOS **owns** the machinery that
+produces them; bopOS **enforces** exactly one output control — mute. **bopOS
+never composes a provided term into a patch parameter.** A patch that doesn't
+consume a term simply isn't controllable by it — unconsumed is a legal no-op,
+never an error.
 
 **Scope note:** this contract governs what bopOS *nodes* speak. The dashboard's
 sequenced scenes may emit arbitrary OSC to arbitrary hosts — non-bopOS devices are
@@ -69,12 +80,12 @@ log is self-describing.
 | `/io/*` | framework | offboard bus peripherals (I2C today; verbs are bus-agnostic) |
 | `/sync/*` | framework (Python) | forward clock sync — shape pinned in §3.1 (clock-sync thread) |
 | `/cue` | framework (Python) | discrete scheduled fires; engines only ever see relative ms (§3.1) |
-| `/pt` (canonical `/point`) | framework/dashboard | dumb spatial geometry `<x> <y> <radius>` — reserved |
+| `/pt` (canonical `/point`) | framework/dashboard | point geometry broadcast — moving sound sources, arbitrary count; each device decomposes locally (§4.1) |
 | `/p/*` | **patch** | patch-declared parameters — the only place output semantics live |
 
 The framework planes are a **closed set**; `/p/*` is open and entirely
 patch-owned. `gain` `gain2` `backing` `echo` are patch parameters and live under
-`/p/*` (bare `/gain` aliased one transition release).
+`/p/*` (no bare aliases — patches rewrite in lockstep, §13).
 
 ### Shorthand addresses
 
@@ -149,7 +160,7 @@ they stop being magic numbers.
 **Transport discipline:**
 
 - **Broadcast** only for low-rate, idempotent, genuinely one-to-many messages:
-  `/hb`, `/os/assign`, `/all/*` admin, `/cue`, `/pt`, `/os/mute`.
+  `/hb`, `/os/assign`, `/all/*` admin, `/cue`, `/pt`, `/os/mute`, `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
   `/os/report`, `/os/params`, `/os/rev`, `/os/fetched`. (WiFi broadcast has no
   MAC-layer ACK and rides the lowest basic rate — it is scarce and lossy; replies
@@ -159,9 +170,31 @@ they stop being magic numbers.
   spamming `/os/mute` a valid safety procedure.
 - The heartbeat is sent by **helper.py directly to 5550** (not through PD's
   netsend), so engine death ≠ device death.
-- Spatial at fleet scale is the broadcast `/pt` with node-side falloff — never
-  N× per-device gain streams. Dashboard-computed per-device `/p/gain` is the
-  correct first implementation and remains fine ≤ ~12 nodes and on the audition rig.
+- Spatial is the broadcast `/pt` with **node-side decomposition, at every
+  scale** — never per-device gain streams. (The dashboard-computed `/p/gain`
+  model was built and reverted 2026-07-10: it is O(N) streams on a lossy
+  broadcast channel, and it composed a product into a patch parameter,
+  violating the §1 seam law. See lore `2026-07-10-patch-seam-council`.)
+
+### 4.1 Provided terms
+
+The registry of values bopOS provides for patches to enact. Like the shorthand
+registry (§3), it grows **only by contract revision.** Terms are full-state,
+idempotent, and optional to consume; the starter-kit abstractions (PD and SC
+both first-class) are the reference consumers.
+
+| term | wire | delivery to the engine | patch obligation (if consumed) |
+|---|---|---|---|
+| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | direct: the engine's OS layer routes it to a named receive | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
+| **point** | `/pt <n> <id x y r f>×n` — one frame, all points, atomic; ~20–30 Hz while moving; **silence = hold**; sparse per-point form `/pt <id> <x> <y> <r> <f>` and `/pt/clear <id>` for authoring edits; `f` is a falloff enum (0 linear, 1 smooth, 2 gauss) | helper computes proximity 0→1 per point **per element position** and sends flat-args on 6661 (proposed: `/pt <pointId> <element> <v>`) | map wherever it likes (gain, cutoff, …), upstream of its own volume |
+
+- The **catch-up rule**: a device (re)appearing gets the current `/pt` frame
+  and master unicast (piggybacked on the params catch-up) — silence = hold
+  only holds for devices that were present.
+- Point values are **shaped scalars**, not geometry (raw distance may be added
+  later as an option, by revision).
+- `/cue` (§3.1) is a provided term avant la lettre: helper owns the clock
+  math, the engine receives the bare relative fire.
 
 ## 5. Identity, assignment, persistence
 
@@ -171,12 +204,20 @@ they stop being magic numbers.
 - **Assignment** (`id`, `name`, positions) is set from the dashboard:
 
   ```
-  /all/os/assign <uid> <id> <name> [posx posy pos2x pos2y]
+  /all/os/assign <uid> <id> <name> [x y]×N
   ```
 
-  Idempotent full-state; positions ride in it (no separate verb). The matching
-  node applies it, sets its hostname, tells the engine its id, and acks by
-  heartbeating with the new id.
+  Idempotent full-state; **element positions** ride in it, one `x y` pair per
+  element, element index = pair order (no separate verb; the old
+  `posx posy pos2x pos2y` spelling is retired — it was two unlabelled
+  elements). **device** = the computer (one uid, one heartbeat, one engine
+  instance); **element** = a positioned output the patch drives. A patch
+  renders N elements by cloning internally (PD `[clone]`, SC synth instances)
+  and mapping each element to its output channel; helper computes per-element
+  point proximity from this list. Usually N is 1 or 2, but a many-output
+  computer IDs as many elements as it drives. The matching node applies it,
+  sets its hostname, tells the engine its id, and acks by heartbeating with
+  the new id.
 - **Persistence is required on persistent hosts.** The node stores its assignment
   via the framework persistence store, so a fleet configured over the network runs
   **standalone** after the network is taken down — dashboard-less, network-less
@@ -212,7 +253,14 @@ they stop being magic numbers.
 - **`/os/mute` is safety-critical.** It is the one framework-owned output control:
   a transport-level kill enforced below patch logic (amixer on Pi; degrades to
   engine-stop where no mixer exists). Broadcast, idempotent, spam-safe — repeated
-  sends must always converge on silence.
+  sends must always converge on silence. Honest boundary: mute is independent
+  of the **engine** (amixer acts below patch logic), not of **helper** —
+  helper is the actor, and a dead helper also stops heartbeating, so the
+  failure is visible, never silent. Where no mixer control accepts a mute,
+  the fallback is engine-stop: silencing but engine-lethal — a degraded mode,
+  not the design centre. The mixer path must be verified per audio board on
+  real hardware (DigiAMP, Pimoroni Audio SHIM, class-compliant USB — the
+  candidate-control list in `set_mute` grows as boards are benched).
 
 ## 7. Admin and convergence (`/os/*` verbs)
 
@@ -262,6 +310,16 @@ A patch ships **`bopos.patch.json`** in its repo root:
   read-only value the patch republishes outward as `/<id>/p/<name>` (§11);
   dashboards render it as a live meter, never a control, and never send it.
   Consumers ignore roles they don't recognise.
+- **`facilitator` (optional; additive, ratified 2026-07-10):** a param
+  declaration may carry `"facilitator": true` to promote it onto the
+  `/facilitator` surface as a control (rendered beside the volume card;
+  values flow as ordinary `/<sel>/p/<name>`). Promotion of **framework
+  verbs** is *never* a manifest concern: an install-level allowlist in
+  `installation.json` (`"facilitator_commands": […]`, **default empty**)
+  opts specific verbs onto the surface, confirm-gated, with destructive
+  convergence verbs (update/checkout/reboot/shutdown) at minimum
+  hold-to-confirm. The patch promotes its params; the venue promotes its
+  verbs.
 
 ## 9. Distribution and landing
 
@@ -323,9 +381,12 @@ Unchanged verbs, sharpened boundary:
 
 - **Zero port changes. No reflash. No flag day.**
 - `uid == MAC` on Pis, so heartbeat correlation carries over.
-- Transition aliases, kept exactly one release then deleted: `/helper/*` → `/os/*`;
-  bare `/gain` (and `gain2`/`backing`/`echo`) → `/p/*`; old samplepacks path →
-  symlink to the assets root.
+- Patches are **rewritten in lockstep** with this contract version (ratified
+  2026-07-10: patch-facing wire compatibility is a non-goal — no bare
+  `/gain`-style aliases, no dashboard-side master composition for legacy
+  patches). Fleet-level guarantees stand: `/helper/*` → `/os/*` alias one
+  release, `bopos.devices` seed, samplepacks symlink, zero port changes,
+  `uid == MAC`.
 - `bopos.devices` keeps working as the seed. A patch without a manifest still gets
   the legacy sliders.
 
@@ -337,4 +398,8 @@ params-announce protocols; telemetry/log streaming (heartbeat absence is the
 alarm); envelope-carrying cues (crossfades are dashboard param automation);
 a separate hello/handshake family (the fast heartbeat is discovery); per-device
 spatial gain broadcast at fleet scale; per-host branching in message semantics
-(differences are declared facts, never special cases).
+(differences are declared facts, never special cases); dashboard-side
+composition of provided terms into patch parameters (the spatial-0 /
+master-multiply defect — see §1 seam law); a runtime parameter-dump/query verb
+(a patch may implement its own dump; a framework `/os/dump` arrives, if ever,
+as a deliberate revision when evidence demands).

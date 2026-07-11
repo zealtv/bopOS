@@ -28,5 +28,13 @@ ruling (supersedes the reverted `spatial-0`; salvage from commit `0ce8821`).
 - PD receiver + `bopos.point` abstraction are Bob's (`.notes/pd-edits-for-bob.md`
   A6/B2) — do not block on them; simfleet is the test surface.
 
+**UI direction from Bob (2026-07-11, seam-1 review):** when the dashboard
+grows multi-element positioning (defining N elements per device and placing
+them), render each element as a coloured dot carrying the device's number,
+with colour keyed to **element index** fleet-wide (element 1 one colour on
+every device, element 2 another, etc. — exact colours are a UX choice). Fold
+this in during the multi-element implementation, not as a separate pass. See
+`seam-1-contract-amendment/bob-review-2026-07-11.md` (tied).
+
 After tying: re-scoped `spatial-audio/spatial-1` (author/move points UI) can
 build on this.

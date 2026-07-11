@@ -14,6 +14,11 @@
 
 Authoring surface for the spatial point set on the dashboard spatial map.
 
+> Bob's multi-element UI direction (2026-07-11): element dots coloured by
+> element index, numbered by device — see the note in
+> `patch-seam/seam-3-points-node-side/instructions.md`. If this stitch touches
+> how devices/elements render on the map, follow it.
+
 - [ ] A draggable automation point on the SVG map: position, radius ring,
       falloff curve picker, on/off.
 - [ ] Simple motion authoring: drag records/streams live; plus at least one

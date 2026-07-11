@@ -6,9 +6,11 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.0, 2026-07-07): grammar,
-   planes, identity/persistence, ports, constraints. Don't re-litigate it; the
-   reasoning lives in lore item `2026-07-07-osc-schema-council`.
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.1: 2026-07-07 base +
+   the 2026-07-11 seam amendment): grammar, planes, provided terms (§4.1),
+   identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
+   lives in lore items `2026-07-07-osc-schema-council` and
+   `2026-07-10-patch-seam-council`.
 3. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
    forward plan; the shared context every loom thread points back to.
 4. `./.loom/loom status` — live task state. The loom (`.loom/`) is the task tracker;
@@ -31,10 +33,12 @@ installations. This file is the orientation for any agent working here.
 
 ## Thread ordering (critical path)
 
-The OSC contract is **ratified** and fully implemented; the **dashboard's four phases
-are all tied** (2026-07-08, incl. `/facilitator` and the meters surface — the manifest
-`role` field is ratified in contract §8/§11). The `dashboard` goal stitch waits only on
-Bob adopting it on a real rig.
+The OSC contract is **ratified** (v1.1 — the seam amendment landed 2026-07-11;
+§4.1 provided terms await implementation via `seam-2/3`); the **dashboard's four
+phases are all tied** (2026-07-08, incl. `/facilitator` and the meters surface —
+the manifest `role` field is ratified in contract §8/§11). The `dashboard` goal
+now waits via its blocker child `dashboard-6-rig-adoption.waiting` (Bob adopting
+it on a real rig).
 
 Every active thread is decomposed into numbered children (2026-07-08 loom audit);
 in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
@@ -44,20 +48,25 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
    harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
    `/cue` PD receiver is a pending pd-edit (see handoff).
-2. **`patch-seam`** — **now the active head.** The 2026-07-10 seam council
-   (tied `seam-0-council`; judgment + Bob's ratification are the authority)
-   re-drew the bopOS↔patch boundary: bopOS provides terms, never composes
-   them into patch params; no backwards compat (patches rewrite in
-   lockstep); one engine instance clones N positioned elements. Everything
-   is gated behind `seam-1-contract-amendment` (`.waiting` on Bob reviewing
-   the draft in the stitch) — tying it un-waits `seam-2..5` in numeric
-   order. `spatial-audio`'s implementation moved here (`seam-3`);
-   `spatial-1/2` follow it. PD edits live in the top-level
+2. **`patch-seam`** — **now the active head; the gate is open.** The
+   2026-07-10 seam council (tied `seam-0-council`) re-drew the bopOS↔patch
+   boundary: bopOS provides terms, never composes them into patch params; no
+   backwards compat (patches rewrite in lockstep); one engine instance clones
+   N positioned elements. Bob ratified the contract amendment 2026-07-11
+   (`seam-1` tied — v1.1 is live, review record in the tied stitch);
+   `seam-2..5` are claimable **in numeric order**. `spatial-audio`'s
+   implementation moved here (`seam-3`); `spatial-1/2` follow it — leave
+   `spatial-2` alone until `seam-3` ties even though it shows as a loose end.
+   Bob's element-dot UI direction (colour = element index, number = device)
+   is recorded in `seam-3`'s instructions. PD edits live in the top-level
    `pd-edits-for-bob.waiting` stitch (`.notes/pd-edits-for-bob.md`).
 3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
    port-sharing spike passed on Linux (broadcast+selector addressing only),
    `.waiting` on the macOS run. Can interleave with 1–2 (independent).
-4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`.
+4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`,
+   `hw-onboarding-doc` (audio-board/mute onboarding procedure, Bob 2026-07-11),
+   `dashboard-5-position-precision` (numeric position entry + space origin,
+   Bob 2026-07-11 — deliberately last).
 
 Bob's rulings (2026-07-08): order above confirmed; **`audio-input` deferred**
 (both children `.waiting`); `/sync/*` wire shaping is delegated (record
