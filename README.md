@@ -51,7 +51,8 @@ Python venv, clones bopOS (with the `bop` submodule), installs the Python deps, 
 `helper.py` running.
 
 - You may need to edit **`bash/start.sh`** to set your `SOUNDCARD` (default `DigiAMP`). List cards
-  with `cat /proc/asound/cards`.
+  with `cat /proc/asound/cards`. Bringing up a **new audio board** (and verifying mute against it)
+  has its own procedure: see [`docs/HARDWARE.md`](docs/HARDWARE.md).
 - Run `i2cdetect -y 1` to check for connected I2C devices.
 
 ## Device identity
