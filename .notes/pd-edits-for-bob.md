@@ -44,6 +44,15 @@ starter kit.
    point that is cleared or vanishes from a frame is released with one
    final `v=0`. The OS layer routes it to a patch-visible receive (feeds
    `bopos.point`, item B2).
+7. **Audition-rig local port** — macOS stock PD cannot share UDP 6660 across
+   instances (tied `audition-0-port-spike`). Add an audition startup control,
+   recommended `BOPOS_ENGINE_PORT <port>`, which sends `listen <port>` to an
+   initially unbound UDP binary `netreceive` feeding a **selector-free** local
+   engine surface. With no startup value, normal node behavior stays
+   unchanged. The audition relay has already matched the virtual-node selector;
+   this inlet must carry the rewrite-wave `/p/*`, `/os/master`, `/pt`, `/cue`,
+   and `/id` routes without selecting again. Exact Mac acceptance steps live
+   in `audition-1b-pd-mac-gate.waiting` under the audition-rig thread.
 
 ## B. Reference patch / starter kit (PD **and SuperCollider** — SC is
 first-class; agents write the SC side, `.pd` is yours)
