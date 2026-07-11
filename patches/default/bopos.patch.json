@@ -3,7 +3,7 @@
   "entrypoint": "main.pd",
   "params": [
     {"name": "gain",    "type": "f", "min": 0, "max": 1, "default": 0.75, "group": "mix", "role": "volume"},
-    {"name": "backing", "type": "f", "min": 0, "max": 1, "default": 0.8,  "group": "mix"},
+    {"name": "backing", "type": "f", "min": 0, "max": 1, "default": 0.8,  "group": "mix", "facilitator": true},
     {"name": "echo",    "type": "i", "min": 0, "max": 1, "default": 0,    "group": "fx"},
     {"name": "level",   "type": "f", "min": 0, "max": 1, "role": "meter", "group": "meter"}
   ],

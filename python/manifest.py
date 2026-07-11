@@ -75,6 +75,9 @@ def load(patch_path):
         role = param.get("role")
         if role is not None and (not isinstance(role, str) or not role.strip()):
             return None, f"param {name}: role must be a non-empty string"
+        facilitator = param.get("facilitator")
+        if facilitator is not None and not isinstance(facilitator, bool):
+            return None, f"param {name}: facilitator must be true or false"
 
     volumes = [param["name"] for param in params if param.get("role") == "volume"]
     if len(volumes) > 1:

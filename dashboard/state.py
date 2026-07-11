@@ -5,6 +5,8 @@ import os
 
 
 DURABLE = ("id", "name", "pos1", "pos2", "patch")
+FACILITATOR_COMMANDS = frozenset(("restart-engine", "update", "reboot", "shutdown",
+                                  "get_samples", "aloha"))
 
 
 class InstallationState:
@@ -16,6 +18,7 @@ class InstallationState:
         self.path = path
         self.data = {"name": "bopOS", "devices": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
+                     "facilitator_commands": [],
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
         self._load()
@@ -40,6 +43,8 @@ class InstallationState:
                 self.data["master"] = self.clean_master(loaded.get("master"))
                 if isinstance(loaded.get("presets"), dict):
                     self.data["presets"] = loaded["presets"]
+                self.data["facilitator_commands"] = self.clean_facilitator_commands(
+                    loaded.get("facilitator_commands"))
                 for uid, durable in loaded["devices"].items():
                     self.devices[uid] = self._runtime_device(uid, durable)
         except (OSError, ValueError, TypeError):
@@ -100,7 +105,20 @@ class InstallationState:
         return {"name": self.data.get("name", "bopOS"),
                 "room": self.data.get("room", dict(self.DEFAULT_ROOM)),
                 "master": self.data.get("master", 1.0),
-                "presets": self.data.get("presets", {}), "devices": devices}
+                "presets": self.data.get("presets", {}),
+                "facilitator_commands": self.clean_facilitator_commands(
+                    self.data.get("facilitator_commands")),
+                "devices": devices}
+
+    @staticmethod
+    def clean_facilitator_commands(value):
+        if not isinstance(value, list):
+            return []
+        cleaned = []
+        for command in value:
+            if command in FACILITATOR_COMMANDS and command not in cleaned:
+                cleaned.append(command)
+        return cleaned
 
     @staticmethod
     def clean_master(value):
@@ -178,6 +196,8 @@ class InstallationState:
                                  "depth": float(room["depth"]), "units": "m"}
         self.data["master"] = self.clean_master(loaded.get("master"))
         self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
+        self.data["facilitator_commands"] = self.clean_facilitator_commands(
+            loaded.get("facilitator_commands"))
         self.data["devices"] = rebuilt
         self.save()
         return True

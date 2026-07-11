@@ -77,3 +77,15 @@ for `/os/fetch`.
 State lives in `dashboard/installation.json` (devices, positions, room,
 master, presets); named snapshots in `dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
+
+The facilitator is fail-closed. Patch parameters appear there only when their
+manifest declaration has `"facilitator": true`. Framework commands default to
+none; a venue may opt in supported fleet-wide commands in its installation
+state, for example:
+
+```json
+{"facilitator_commands": ["restart-engine"]}
+```
+
+Command controls are confirmation-gated, and destructive commands require a
+hold. The allowlist belongs to the installation, never the patch manifest.
