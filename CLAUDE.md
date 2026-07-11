@@ -50,12 +50,18 @@ it on a real rig).
 Every active thread is decomposed into numbered children (2026-07-08 loom audit);
 in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
 
-1. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
+1. **`engine-boundary-design`** — **do this before further SC/audition work**
+   (Bob, 2026-07-11). The PD rewrite and three-instance Mac gate exposed open
+   ownership/naming/transport questions across PD, helper, IO, SC, meters, and
+   the audition relay. Run the council child, then stop at Bob's ratification
+   gate. Ground truth starts at `.notes/pd-engine-boundary-design-brief.md` and
+   lore `2026-07-11-pd-engine-boundary-brain-dump`.
+2. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
    wire shape in contract §3.1; dashboard is the leader (offset estimate + push);
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
    harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
    `/cue` PD receiver is a pending pd-edit (see handoff).
-2. **`patch-seam`** — **implementation complete.** The 2026-07-10 seam council (tied
+3. **`patch-seam`** — **implementation complete.** The 2026-07-10 seam council (tied
    `seam-0-council`) re-drew the bopOS↔patch boundary: bopOS provides terms,
    never composes them into patch params; no backwards compat (patches
    rewrite in lockstep); one engine instance clones N positioned elements.
@@ -72,16 +78,18 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    complete and the thread now waits on a real-installation sweep.
    Bob's element-dot UI direction
    (colour = element index,
-   number = device) is recorded in `seam-3`'s instructions (tied). PD edits
-   live in the top-level `pd-edits-for-bob.waiting` stitch
-   (`.notes/pd-edits-for-bob.md` — A5/A6 now carry the live spellings).
-3. **`audition-rig`** (`audition-1`, then `audition-2`) — Linux-first; the
-   port-sharing spike passed on Linux (broadcast+selector addressing only),
-   `.waiting` on the macOS run. Can interleave with 1–2 (independent).
-4. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0/1`
+   number = device) is recorded in `seam-3`'s instructions (tied). The PD
+   rewrite wave and its three-instance Mac gate tied 2026-07-11; deferred seam
+   questions moved into `engine-boundary-design`.
+4. **`audition-rig`** (`audition-1`, then `audition-2`) — the Mac shared-port
+   failure, relay, and three-PD local-port run are complete. `audition-1` now
+   waits through its engine-boundary adoption child; do not extend the SC
+   audition runtime until the design thread is ratified.
+5. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0`
    (`hw-onboarding-doc` tied 2026-07-11 → `docs/HARDWARE.md`),
    `dashboard-5-position-precision` (numeric position entry + space origin,
-   Bob 2026-07-11 — deliberately last).
+   Bob 2026-07-11 — deliberately last). `friction-1` now waits on the
+   engine-boundary ruling so the starter template teaches the accepted seam.
 
 Bob's rulings (2026-07-08): order above confirmed; **`audio-input` deferred**
 (both children `.waiting`); `/sync/*` wire shaping is delegated (record
