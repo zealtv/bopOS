@@ -28,15 +28,20 @@ starter kit.
 4. **Route the patch plane (`route p`)** — insert `route p` on the
    post-selector remainder so `/5/p/gain 0.5` reaches the patch as `gain 0.5`.
    (Spec: tied file §4.)
-5. **NEW (seam council, pending ratification details): pass `/os/master`
-   through to the patch** — the dashboard broadcasts `/all/os/master <0..1>`
-   on 6660; the OS layer routes it to a patch-visible receive (feeds
-   `bopos.out~`, item B1). Routed-single-receiver style per Bob's 7.2 ruling.
-6. **NEW (seam council): deliver point scalars to the patch** — helper
-   computes per-element proximity and sends to PD on 6661 (spelling lean:
-   `/pt <pointId> <element> <v>` flat args); the OS layer routes it to a
-   patch-visible receive (feeds `bopos.point`, item B2). Exact spelling is
-   yours at the contract-amendment step.
+5. **Pass `/os/master` through to the patch** — ratified (contract v1.1 §4.1)
+   and live since seam-2 (2026-07-11): the dashboard broadcasts
+   `/all/os/master <0..1>` on 6660 on every master change, and unicasts it
+   per-device in the params catch-up push. The OS layer routes it to a
+   patch-visible receive (feeds `bopos.out~`, item B1); the framework never
+   composes it into a patch param — the wire carries raw mixes only.
+   Routed-single-receiver style per Bob's 7.2 ruling.
+6. **Deliver point scalars to the patch** — ratified and live since seam-3
+   (2026-07-11): helper computes per-element proximity and sends flat args
+   `/pt <pointId> <element> <v>` to PD on 6661. `element` is **1-based**,
+   ordered by the assignment's position pairs (element 1 = first pair). A
+   point that is cleared or vanishes from a frame is released with one
+   final `v=0`. The OS layer routes it to a patch-visible receive (feeds
+   `bopos.point`, item B2).
 
 ## B. Reference patch / starter kit (PD **and SuperCollider** — SC is
 first-class; agents write the SC side, `.pd` is yours)

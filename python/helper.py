@@ -20,6 +20,7 @@ import queue
 from store import Store
 import manifest
 import fetcher
+import pointfield
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
@@ -151,6 +152,19 @@ def resolve_id(uid, path=None, store=None):
     return -1
 
 
+def resolve_elements(store):
+    # element positions ride the persisted assignment (contract sec 5):
+    # [id, name, x1, y1, x2, y2, ...] -- pair order is the element index
+    assignment = store.get("assignment") or []
+    values = []
+    for value in assignment[2:]:
+        try:
+            values.append(float(value))
+        except (TypeError, ValueError):
+            return []
+    return [[values[i], values[i + 1]] for i in range(0, len(values) - 1, 2)]
+
+
 def resolve_version():
     try:
         result = subprocess.run(["git", "-C", BOPOS_DIR, "rev-parse", "--short", "HEAD"],
@@ -176,6 +190,8 @@ class NodeState:
         self.version = resolve_version()
         self.mixer_control = None
         self.muted_via_stop = False
+        self.elements = resolve_elements(self.store)
+        self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
 
 
 node_state = NodeState()
@@ -499,13 +515,17 @@ def apply_assign(args, state=None):
         print(f"assign: bad id {args[1]!r}")
         return False
     name = str(args[2])
+    # element positions: one x y pair per element, pair order = element index
+    # (contract sec 5, true N -- the old fixed pos1/pos2 spelling is retired)
     positions = []
-    for value in args[3:7]:
+    for value in args[3:]:
         try:
             positions.append(float(value))
         except (TypeError, ValueError):
             positions = []
             break
+    if len(positions) % 2:
+        positions = []
     state.id = new_id
     set_hostname(name)
     msg = OSCMessage("/id")
@@ -515,8 +535,52 @@ def apply_assign(args, state=None):
     except Exception:
         pass
     state.store.put("assignment", [new_id, name] + positions)
+    state.elements = [[positions[i], positions[i + 1]]
+                      for i in range(0, len(positions) - 1, 2)]
     hb_wake.set()
     print(f"ASSIGNED: id {new_id} name {name}" + (f" pos {positions}" if positions else ""))
+    return True
+
+
+def apply_points(parts, args, state=None):
+    # /pt plane (contract sec 4.1): selector-less broadcast geometry, like
+    # /cue. Helper owns the proximity math; the engine sees only shaped
+    # scalars as /pt <pointId> <element> <v> on 6661 (element 1-based, pair
+    # order from the assignment). A removed point releases with one v=0.
+    state = state or node_state
+    parsed = pointfield.parse_wire(parts, args)
+    if parsed is None:
+        return False
+    kind, payload = parsed
+    if kind == "frame":
+        removed = set(state.points) - set(payload)
+        state.points = payload
+        changed = payload
+    elif kind == "set":
+        point_id, point = payload
+        state.points[point_id] = point
+        removed = set()
+        changed = {point_id: point}
+    else:  # clear
+        removed = {payload} if payload in state.points else set()
+        state.points.pop(payload, None)
+        changed = {}
+    if not state.elements:
+        return True
+    entries = pointfield.decompose(changed, state.elements)
+    for point_id in sorted(removed):
+        for index in range(1, len(state.elements) + 1):
+            entries.append((point_id, index, 0.0))
+    for point_id, element, value in entries:
+        msg = OSCMessage("/pt")
+        msg.append(int(point_id), 'i')
+        msg.append(int(element), 'i')
+        msg.append(float(value), 'f')
+        try:
+            client.send(msg)
+        except Exception as error:
+            print("WARNING: point send to engine failed:", error)
+            break
     return True
 
 
@@ -573,6 +637,8 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         msg.append(str(monotonic_ns()), 's')
         reply_socket.sendto(msg.getBinary(), (source[0], 5550))
         return True
+    if parts and parts[0] == "pt":
+        return apply_points(parts, args, state)
     if parts == ["cue"] and len(args) >= 2:
         try:
             cue_scheduler.schedule(int(str(args[1])), str(args[0]))

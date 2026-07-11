@@ -11,6 +11,8 @@ from collections import deque
 from pythonosc.osc_message import OscMessage
 from pythonosc.osc_message_builder import OscMessageBuilder
 
+import points
+
 
 # Wire-compat matrix, in one place. Params are idempotent full-state, so the
 # legacy spelling is double-sent while LEGACY_COMPAT is on. Admin verbs are
@@ -67,6 +69,8 @@ class OSCBridge:
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
         self._ping_task = None
+        self._points_task = None
+        self._points_started = time.monotonic()  # motion clock zero
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -83,10 +87,13 @@ class OSCBridge:
         self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sender.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self._ping_task = asyncio.create_task(self.sync_ping_loop())
+        self._points_task = asyncio.create_task(self.points_loop())
 
     def close(self):
         if self._ping_task:
             self._ping_task.cancel()
+        if self._points_task:
+            self._points_task.cancel()
         if self.transport:
             self.transport.close()
         if self.sender:
@@ -126,6 +133,44 @@ class OSCBridge:
         self.send(f"/{selector}/os/master",
                   [float(self.state.data.get("master", 1.0))])
 
+    def _points_elapsed(self):
+        return time.monotonic() - self._points_started
+
+    def send_points_frame(self):
+        # one atomic full-state frame (contract sec 4.1). /pt is selector-less,
+        # so the catch-up "unicast" to a reappearing device is a re-broadcast
+        # every other node applies idempotently.
+        self.send("/pt", points.frame_args(self.state.data.get("points") or {},
+                                           self._points_elapsed()))
+
+    def set_points(self, new_points):
+        # full-state replace mirroring the wire frame; devices release points
+        # that vanished. Resets the motion clock so paths sweep from the top.
+        self.state.data["points"] = new_points
+        self._points_started = time.monotonic()
+        self.send_points_frame()
+
+    def upsert_point(self, point):
+        # sparse authoring edit: one point on the wire, the rest hold
+        self.state.data.setdefault("points", {})[point["id"]] = point
+        self.send("/pt", points.sparse_args(point, self._points_elapsed()))
+
+    def clear_point(self, point_id):
+        if (self.state.data.get("points") or {}).pop(point_id, None) is not None:
+            self.send("/pt/clear", [int(point_id)])
+
+    async def points_loop(self):
+        # ~25 Hz only while a point moves; a static set is one frame (sent by
+        # the mutators above) then silence — silence = hold (contract sec 4.1)
+        try:
+            while True:
+                await asyncio.sleep(1.0 / points.RATE_HZ)
+                current = self.state.data.get("points") or {}
+                if any(points.is_dynamic(point) for point in current.values()):
+                    self.send_points_frame()
+        except asyncio.CancelledError:
+            pass
+
     def action(self, selector, verb):
         wire_verb = "getsamples" if verb == "get_samples" else verb
         if wire_verb == "aloha":
@@ -143,14 +188,14 @@ class OSCBridge:
     def os_command(self, selector, member, args=()):
         self.send(f"/{selector}/os/{member}", args)
 
-    def assign(self, uid, device_id, name, pos1=None, pos2=None):
+    def assign(self, uid, device_id, name, elements=()):
         # idempotent full-state; only the node whose uid matches applies it,
-        # and it persists the lot for standalone operation (contract sec 5)
+        # and it persists the lot for standalone operation (contract sec 5).
+        # Element positions ride along: one x y pair per element, pair order
+        # = element index (true N — the fixed pos1/pos2 spelling is retired).
         args = [str(uid), int(device_id), str(name)]
-        if pos1 is not None:
-            args += [float(pos1[0]), float(pos1[1])]
-            if pos2 is not None:
-                args += [float(pos2[0]), float(pos2[1])]
+        for position in elements or ():
+            args += [float(position[0]), float(position[1])]
         self.send("/all/os/assign", args)
 
     def _device_for_reply(self, kind, ip, payload=None):
@@ -215,6 +260,8 @@ class OSCBridge:
                     if name and name in device["params"] and declaration.get("role") != "meter":
                         self.set_param(int(device["id"]), name, device["params"][name])
                 self.send_master(int(device["id"]))
+                if self.state.data.get("points"):
+                    self.send_points_frame()
             self.broadcast("params_declaration", device)
             return
         if address == "/os/report" and args:

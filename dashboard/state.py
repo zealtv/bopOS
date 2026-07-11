@@ -15,7 +15,8 @@ class InstallationState:
     def __init__(self, path, devices_file=None):
         self.path = path
         self.data = {"name": "bopOS", "devices": {}, "muted": False,
-                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {}}
+                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
+                     "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
         self._load()
         if not self.data["devices"] and devices_file and os.path.exists(devices_file):

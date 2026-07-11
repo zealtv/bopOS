@@ -35,6 +35,11 @@ from pythonosc import osc_message, osc_message_builder
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
 
+# the sim decomposes /pt with the same module the real helper uses, so the
+# two can never drift (contract sec 4.1)
+sys.path.append(os.path.join(REPO_DIR, "python"))
+import pointfield  # noqa: E402
+
 
 def load_manifest(path):
     """(verbatim text, declared names, meter declarations) for the manifest
@@ -155,6 +160,10 @@ class Device:
         # clock, plus the offset the leader has pushed for cue conversion
         self.sync_skew_ns = 0
         self.sync_offset_ns = 0
+        # /pt decomposition (contract sec 4.1): element positions from the
+        # assignment (one [x, y] per element) and the held point field
+        self.elements = []
+        self.points = {}
 
     def engine_alive(self):
         return int(not self.engine_dead
@@ -186,6 +195,9 @@ class Device:
                 assignment = json.load(source)
             self.device_id = int(assignment["id"])
             self.hostname = str(assignment.get("name", self.hostname))
+            positions = assignment.get("positions") or []
+            self.elements = [[float(positions[i]), float(positions[i + 1])]
+                             for i in range(0, len(positions) - 1, 2)]
         except (OSError, ValueError, KeyError, TypeError):
             pass
 
@@ -507,6 +519,37 @@ class SimFleet:
             device.sync_offset_ns = offset
             self.log(device, f"sync offset={offset}ns")
 
+    def apply_points(self, device, parts, args):
+        # node-side decomposition (contract sec 4.1) via the shared helper
+        # module: proximity per point per element, "delivered" by logging
+        # `pt <id> el<n> v=<value>` (the fake device has no engine). The log
+        # is the verify's test surface for node-computed values.
+        parsed = pointfield.parse_wire(parts, args)
+        if parsed is None:
+            return
+        kind, payload = parsed
+        if kind == "frame":
+            removed = set(device.points) - set(payload)
+            device.points = payload
+            changed = payload
+        elif kind == "set":
+            point_id, point = payload
+            device.points[point_id] = point
+            removed = set()
+            changed = {point_id: point}
+        else:  # clear
+            removed = {payload} if payload in device.points else set()
+            device.points.pop(payload, None)
+            changed = {}
+        if not device.elements:
+            return
+        entries = pointfield.decompose(changed, device.elements)
+        for point_id in sorted(removed):
+            for index in range(1, len(device.elements) + 1):
+                entries.append((point_id, index, 0.0))
+        for point_id, element, value in entries:
+            self.log(device, f"pt {point_id} el{element} v={value:.6f}")
+
     def handle_cue(self, args):
         # /cue <cueId> <sharedTimeNs>: broadcast leader-clock instant. Each node
         # converts with its stored offset and fires at its local deadline.
@@ -583,6 +626,17 @@ class SimFleet:
         if len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset":
             self.handle_offset(parts[0], args)
             return
+        if parts and parts[0] == "pt":
+            # /pt plane: selector-less broadcast geometry; each device's own
+            # radio may drop it independently (silence = hold covers the gap
+            # until the next frame)
+            for device in self.devices:
+                if device.unresponsive or device.state not in ("booting", "running"):
+                    continue
+                if random.random() < self.args.drop:
+                    continue
+                self.apply_points(device, parts, args)
+            return
         if len(parts) != 3 or parts[1] not in ("os", "p"):
             return
         selector, plane, member = parts
@@ -629,8 +683,14 @@ class SimFleet:
                 except (TypeError, ValueError):
                     continue
                 device.hostname = str(args[2])
-                positions = [float(value) for value in args[3:7]
+                # true-N element positions: one x y pair per element, pair
+                # order = element index (contract sec 5)
+                positions = [float(value) for value in args[3:]
                              if isinstance(value, (int, float))]
+                if len(positions) % 2:
+                    positions = []
+                device.elements = [[positions[i], positions[i + 1]]
+                                   for i in range(0, len(positions) - 1, 2)]
                 device.save_assignment(self.args.state_dir, positions)
                 self.log(device, f"assigned id={device.device_id:g} name={device.hostname}")
                 # the ack is an immediate heartbeat at the new id; the running

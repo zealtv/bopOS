@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+import points
 from osc_bridge import OSCBridge
 from state import InstallationState
 
@@ -203,8 +204,29 @@ class Dashboard:
             if int(device["id"]) >= 0 and device.get("name"):
                 # positions ride /os/assign so the node persists them too
                 self.osc.assign(uid, device["id"], device["name"],
-                                device.get("pos1"), device.get("pos2"))
+                                self.device_elements(device))
             await self.broadcast("device_update", device)
+        elif kind == "set_points":
+            # full-state authoring surface (contract sec 4.1); geometry only —
+            # decomposition is the nodes' job, never composed here (sec 1)
+            sanitized = points.sanitize_points(data.get("points"),
+                                               self.state.data.get("room"))
+            self.osc.set_points(sanitized)
+            await self.broadcast("points", {"points": sanitized})
+        elif kind == "set_point":
+            point = points.sanitize_point(data.get("point"),
+                                          self.state.data.get("room"))
+            if point is None:
+                return
+            self.osc.upsert_point(point)
+            await self.broadcast("points", {"points": self.state.data["points"]})
+        elif kind == "clear_point":
+            try:
+                point_id = int(data.get("id"))
+            except (TypeError, ValueError):
+                return
+            self.osc.clear_point(point_id)
+            await self.broadcast("points", {"points": self.state.data["points"]})
         elif kind == "set_room":
             try:
                 width, depth = float(data.get("width")), float(data.get("depth"))
@@ -238,7 +260,7 @@ class Dashboard:
                     await ws.send_json({"type": "error", "data": {"message": error}})
                 return
             device["id"], device["name"] = new_id, name
-            self.osc.assign(uid, new_id, name, device.get("pos1"), device.get("pos2"))
+            self.osc.assign(uid, new_id, name, self.device_elements(device))
             self.state.save_debounced()
             await self.broadcast("device_update", device)
         elif kind == "save_venue":
@@ -264,6 +286,12 @@ class Dashboard:
     def selector(self, uid):
         device = self.state.devices.get(uid)
         return int(device["id"]) if device else None
+
+    @staticmethod
+    def device_elements(device):
+        # pos1/pos2 are the dashboard's two element slots today; the wire
+        # takes true N pairs, pair order = element index (contract sec 5)
+        return [pos for pos in (device.get("pos1"), device.get("pos2")) if pos]
 
 
 def create_app(args):
