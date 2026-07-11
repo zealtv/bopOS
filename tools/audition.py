@@ -153,13 +153,14 @@ class AuditionRig:
             return
         parts = [part for part in message.address.split("/") if part]
         if len(parts) == 3 and parts[1] == "p" and parts[2]:
-            pass
-        elif len(parts) == 3 and parts[1:] == ["os", "master"]:
-            pass
+            address = "/" + "/".join(parts[1:])
+        elif len(parts) == 3 and parts[1:] in (["os", "master"], ["os", "mute"]):
+            address = "/" + "/".join(parts[1:])
+        elif len(parts) == 3 and parts[1:] == ["os", "identify"]:
+            address = "/identify"
         else:
             return
         selector = parts[0]
-        address = "/" + "/".join(parts[1:])
         builder = osc_message_builder.OscMessageBuilder(address=address)
         for value in message.params:
             builder.add_arg(value)

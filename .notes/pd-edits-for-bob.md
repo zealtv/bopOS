@@ -15,27 +15,27 @@ starter kit.
 
 ## A. OS layer — `pd/bopos.osc.pd`
 
-1. **Forward `restart-engine` to helper** — add to the `process-helper-messages`
+✅ 1. **Forward `restart-engine` to helper** — add to the `process-helper-messages`
    route list, treated like `reboot`. helper's handler already exists; the verb
    is unreachable from the LAN until this lands. (Spec: tied file §1.)
-2. **Identify chirp** — route `identify` off the 6661 netreceive → audible
+✅ 2. **Identify chirp** — route `identify` off the 6661 netreceive → audible
    chirp (+ optional `s identify`). Proves the audio chain on install day.
    (Spec: tied file §2.)
-3. **Retire PD's own heartbeat + aloha emitters** — helper.py sends the
+✅ 3. **Retire PD's own heartbeat + aloha emitters** — helper.py sends the
    contract `/hb` now; PD's `/rpt hb`/version metro and boot `aloha` are wire
    noise. Under the rewrite ruling, simply don't carry them forward. (Spec:
    tied file §3.)
-4. **Route the patch plane (`route p`)** — insert `route p` on the
+✅ 4. **Route the patch plane (`route p`)** — insert `route p` on the
    post-selector remainder so `/5/p/gain 0.5` reaches the patch as `gain 0.5`.
    (Spec: tied file §4.)
-5. **Pass `/os/master` through to the patch** — ratified (contract v1.1 §4.1)
+✅ 5. **Pass `/os/master` through to the patch** — ratified (contract v1.1 §4.1)
    and live since seam-2 (2026-07-11): the dashboard broadcasts
    `/all/os/master <0..1>` on 6660 on every master change, and unicasts it
    per-device in the params catch-up push. The OS layer routes it to a
    patch-visible receive (feeds `bopos.out~`, item B1); the framework never
    composes it into a patch param — the wire carries raw mixes only.
    Routed-single-receiver style per Bob's 7.2 ruling.
-6. **Deliver point scalars to the patch** — ratified and live since seam-3
+✅ 6. **Deliver point scalars to the patch** — ratified and live since seam-3
    (2026-07-11): helper computes per-element proximity and sends flat args
    `/pt <pointId> <element> <v>` to PD on 6661. `element` is **0-based**
    (Bob's 2026-07-11 ruling: indices default to 0-indexing), ordered by the
@@ -44,7 +44,7 @@ starter kit.
    point that is cleared or vanishes from a frame is released with one
    final `v=0`. The OS layer routes it to a patch-visible receive (feeds
    `bopos.point`, item B2).
-7. **Audition-rig local port** — macOS stock PD cannot share UDP 6660 across
+✅ 7. **Audition-rig local port** — macOS stock PD cannot share UDP 6660 across
    instances (tied `audition-0-port-spike`). Add an audition startup control,
    recommended `BOPOS_ENGINE_PORT <port>`, which sends `listen <port>` to an
    initially unbound UDP binary `netreceive` feeding a **selector-free** local
@@ -57,25 +57,42 @@ starter kit.
 ## B. Reference patch / starter kit (PD **and SuperCollider** — SC is
 first-class; agents write the SC side, `.pd` is yours)
 
-1. **`bopos.out~`** — the sink abstraction, dropped before `dac~`: master
+✅ 1. **`bopos.out~`** — the sink abstraction, dropped before `dac~`: master
    multiply (from A5) with declick ramp, mute-honor belt-and-suspenders,
    optional post-master level echo as `role:"meter"` (`/<id>/p/level`).
-2. **`bopos.point <id>`** — outputs the 0→1 proximity scalar for one point
+✅ 2. **`bopos.point <id>`** — outputs the 0→1 proximity scalar for one point
    (internally routes the A6 receive). Clone-friendly: under the multi-element
    ruling the patch `[clone]`s its element voice and each clone reads its own
    element's values.
-3. **`/cue` receiver** — helper fires bare `/cue <cueId>` to PD on 6661 at the
+✅ 3. **`/cue` receiver** — helper fires bare `/cue <cueId>` to PD on 6661 at the
    synced deadline (clock-sync, 2026-07-09); the reference patch needs the
    receiver so cues can fire something audible.
-4. **Level meter sender** — the default-patch `role:"meter"` sender from the
+✅ 4. **Level meter sender** — the default-patch `role:"meter"` sender from the
    meters surface (2026-07-08); subsumed by B1's level echo if that ships.
 
 ## C. Observations (no edit requested — carried from the tied file)
 
-- Heartbeat `value version` is dead wiring (every device reports version 0);
+✅ - Heartbeat `value version` is dead wiring (every device reports version 0);
   superseded by helper's `/hb`.
 - `route-by-id` boot mismatch: unconfigured device reports id 0 but answers −1.
-- `process-helper-messages` route list omits `checkout`.
+✅ - `process-helper-messages` route list omits `checkout`.
 - Engine-side persistence store (§10) is plumbed in helper; PD needs
   store/load routing + a **local** `/load` reply path whenever a patch first
   wants it.
+
+## Rewrite-wave completion — 2026-07-11
+
+The requested OS-layer and reference-patch edits above have landed. The real
+Mac gate launched three PD/CoreAudio engines on distinct local ports; Bob heard
+point-controlled element-0 noise on the left and the identify notification on
+both channels. Commands, automated evidence, known fixed-port warnings, and
+the unverified macOS 5550 report transport are recorded in
+`audition-1b-pd-mac-gate`.
+
+Identity/run-context ownership, framework bus naming (`bopos-` namespace),
+PD-to-helper command ingress, IO port boundaries, echo/debug cruft, and meter
+semantics/lifecycle are deliberately deferred to a higher-capability design
+session. Source material lives in
+`.lore/items/2026-07-11-pd-engine-boundary-brain-dump/`; the question set is
+`.notes/pd-engine-boundary-design-brief.md`. Persistence store/load routing
+remains demand-driven: add it only when a real patch consumes that facility.
