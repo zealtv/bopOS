@@ -185,7 +185,7 @@ both first-class) are the reference consumers.
 
 | term | wire | delivery to the engine | patch obligation (if consumed) |
 |---|---|---|---|
-| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | direct: the engine's OS layer routes it to a named receive | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
+| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | PD's OS layer routes it directly; helper relays selector-stripped `/os/master` on 6661 to non-PD engines that cannot share 6660 | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
 | **point** | `/pt <n> <id x y r f>×n` — one frame, all points, atomic; ~20–30 Hz while moving; **silence = hold**; sparse per-point form `/pt <id> <x> <y> <r> <f>` and `/pt/clear <id>` for authoring edits; `f` is a falloff enum (0 linear, 1 smooth, 2 gauss) | helper computes proximity 0→1 per point **per element position** and sends flat-args on 6661 (proposed: `/pt <pointId> <element> <v>`) | map wherever it likes (gain, cutoff, …), upstream of its own volume |
 
 - The **catch-up rule**: a device (re)appearing gets the current `/pt` frame
@@ -193,6 +193,10 @@ both first-class) are the reference consumers.
   only holds for devices that were present.
 - Point values are **shaped scalars**, not geometry (raw distance may be added
   later as an option, by revision).
+- For non-PD engines, helper also relays matched patch-plane values as
+  `/p/<name> <value>` on 6661. This is transport/selector plumbing only: helper
+  never interprets or composes the patch value. PD retains its deployed direct
+  6660 routing path.
 - `/cue` (§3.1) is a provided term avant la lettre: helper owns the clock
   math, the engine receives the bare relative fire.
 

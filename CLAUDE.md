@@ -55,7 +55,7 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
    harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
    `/cue` PD receiver is a pending pd-edit (see handoff).
-2. **`patch-seam`** — **the active head.** The 2026-07-10 seam council (tied
+2. **`patch-seam`** — **implementation complete.** The 2026-07-10 seam council (tied
    `seam-0-council`) re-drew the bopOS↔patch boundary: bopOS provides terms,
    never composes them into patch params; no backwards compat (patches
    rewrite in lockstep); one engine instance clones N positioned elements.
@@ -63,9 +63,12 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    **`seam-2` (master term) and `seam-3` (node-side `/pt`) tied 2026-07-11**:
    `python/pointfield.py` is the shared decomposition module, helper/simfleet
    both consume it, ws surface is `set_points`/`set_point`/`clear_point`.
-   Remaining: `seam-4` then `seam-5`, in numeric order. `spatial-1`
-   (authoring UI, gate now open) and `spatial-2` (synced start) are claimable
-   after them. Bob's element-dot UI direction (colour = element index,
+   **`seam-4` and `seam-5` tied 2026-07-11; the patch-seam implementation
+   thread is complete.** The SC starter lives in `templates/supercollider-bopos`;
+   helper relays selector-stripped master/params to non-PD engines on 6661
+   because SC cannot share its 6660 socket. `spatial-1` (authoring UI) and
+   `spatial-2` (synced start) are now claimable. Bob's element-dot UI direction
+   (colour = element index,
    number = device) is recorded in `seam-3`'s instructions (tied). PD edits
    live in the top-level `pd-edits-for-bob.waiting` stitch
    (`.notes/pd-edits-for-bob.md` — A5/A6 now carry the live spellings).

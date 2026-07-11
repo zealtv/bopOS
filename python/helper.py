@@ -584,6 +584,19 @@ def apply_points(parts, args, state=None):
     return True
 
 
+def relay_provided_term(address, args):
+    """Deliver a selector-stripped full-state value to a non-PD engine."""
+    msg = OSCMessage(address)
+    for value in args:
+        typed_append(msg, value)
+    try:
+        client.send(msg)
+        return True
+    except Exception as error:
+        print("WARNING: provided-term send to engine failed:", error)
+        return False
+
+
 admin_lock = threading.Lock()
 
 
@@ -625,6 +638,16 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         return False
     parts = [part for part in str(decoded[0]).split("/") if part]
     args = decoded[2:]
+    # PD owns the deployed 6660 selector/routing layer. Other engines cannot
+    # necessarily share helper's LAN socket (SC 3.13 cannot), so helper gives
+    # them the same selector-stripped local surface on 6661. Points and cues
+    # already use this engine-neutral delivery channel below.
+    if expected_engine_name() != "pd" and len(parts) == 3:
+        if (parts[1:] == ["os", "master"] and args
+                and selector_matches(parts[0], state.id)):
+            return relay_provided_term("/os/master", args[:1])
+        if parts[1] == "p" and args and selector_matches(parts[0], state.id):
+            return relay_provided_term("/p/" + parts[2], args)
     # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
     # fleet-wide), offset is per-device. Handled before the /os gate below.
     if parts == ["sync", "ping"] and len(args) >= 2:
@@ -804,26 +827,27 @@ def config_callback(path='', tags='', args='', source=''):
         read_obj = open(config_file, 'r')
     except OSError:
         print('MAC address not found in bopos.devices.csv')
-        return
-    with read_obj:
-        csv_reader = reader(read_obj, skipinitialspace=True)
-        macfound = False
-        for row in csv_reader:
-            if len(row) >= 3 and row[0].strip() == node_state.uid:
-                print('MAC address found in bopos.devices')
-                macfound = True
-                set_hostname(row[1].strip())
-                try:
-                    node_state.id = int(float(row[2]))
-                except ValueError:
-                    node_state.id = -1
-                print('setting ID to ' + str(node_state.id))
-                msg = OSCMessage("/id")
-                msg.append(node_state.id, 'f')
-                client.send(msg)
-                break
-        if not macfound:
-            print('MAC address not found in bopos.devices.csv')
+    else:
+        with read_obj:
+            csv_reader = reader(read_obj, skipinitialspace=True)
+            macfound = False
+            for row in csv_reader:
+                if len(row) >= 3 and row[0].strip() == node_state.uid:
+                    print('MAC address found in bopos.devices')
+                    macfound = True
+                    set_hostname(row[1].strip())
+                    # NodeState already resolved persistence -> seed ->
+                    # unassigned at boot. The CSV remains a hostname seed,
+                    # never an authority that overwrites a dashboard assignment.
+                    print('resolved ID is ' + str(node_state.id))
+                    break
+            if not macfound:
+                print('MAC address not found in bopos.devices.csv')
+    # Every engine asks /config after opening port 6661. Always return the
+    # authoritative resolved identity, including when no CSV exists.
+    msg = OSCMessage("/id")
+    msg.append(node_state.id, 'i')
+    client.send(msg)
 
 
 def update_callback(path='', tags='', args='', source=''):

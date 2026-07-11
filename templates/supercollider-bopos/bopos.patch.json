@@ -1,0 +1,10 @@
+{
+  "engine": "sclang",
+  "entrypoint": "main.scd",
+  "params": [
+    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.7, "group": "mix", "role": "volume"},
+    {"name": "frequency", "type": "f", "min": 80, "max": 2000, "default": 220, "group": "sound", "facilitator": true}
+  ],
+  "caps": [],
+  "slots": []
+}
