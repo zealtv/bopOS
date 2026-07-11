@@ -114,13 +114,13 @@ def decompose(points, elements):
     """[(point_id, element_index, value)] for every point x element.
 
     `elements` is the assignment's position list, one [x, y] per element;
-    element indices are 1-based on the engine wire (pair order, contract
-    sec 5 -- "element 1" in Bob's UI direction is the first pair).
+    element indices are 0-based on the engine wire (pair order, contract
+    sec 5; 0-indexing is the project default -- Bob, 2026-07-11).
     """
     entries = []
     for point_id in sorted(points):
         x, y, r, f = points[point_id]
-        for index, position in enumerate(elements, start=1):
+        for index, position in enumerate(elements):
             distance = math.hypot(position[0] - x, position[1] - y)
             entries.append((point_id, index, falloff(f, distance, r)))
     return entries

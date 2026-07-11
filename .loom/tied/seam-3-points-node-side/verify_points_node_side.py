@@ -7,7 +7,7 @@ Two parts, browser- and hardware-free:
      sync-2 style): a true-N /os/assign lands element positions, then /pt
      frame / sparse / clear datagrams through handle_lan_datagram produce
      shaped scalars `/pt <pointId> <element> <v>` on the engine socket (6661)
-     -- per point, per element, 1-based element index, release-to-zero.
+     -- per point, per element, 0-based element index, release-to-zero.
 
   B. the full stack: real dashboard/server.py (broadcast OSC target) + real
      simfleet + a SO_REUSEPORT sniffer on the sim command port. Asserts the
@@ -106,25 +106,25 @@ def helper_checks():
           helper.resolve_elements(helper.node_state.store) == [[2.0, 2.0], [6.0, 6.0]])
     engine_messages(2)  # drain the assign's /id notification (and any noise)
 
-    deliver("/pt", [1, 1, 2.0, 2.0, 3.0, 0])   # frame: one linear point at el1
+    deliver("/pt", [1, 1, 2.0, 2.0, 3.0, 0])   # frame: one linear point at element 0
     got = engine_messages(2)
-    check("A: frame decomposes per element, 1-based, on 6661",
-          got == [("/pt", [1, 1, 1.0]), ("/pt", [1, 2, 0.0])], f"got={got}")
+    check("A: frame decomposes per element, 0-based, on 6661",
+          got == [("/pt", [1, 0, 1.0]), ("/pt", [1, 1, 0.0])], f"got={got}")
 
-    deliver("/pt", [2, 6.0, 6.0, 2.0, 1])      # sparse upsert at element 2
+    deliver("/pt", [2, 6.0, 6.0, 2.0, 1])      # sparse upsert near element 1
     got = engine_messages(2)
     check("A: sparse upsert recomputes only that point",
-          got == [("/pt", [2, 1, 0.0]), ("/pt", [2, 2, 1.0])], f"got={got}")
+          got == [("/pt", [2, 0, 0.0]), ("/pt", [2, 1, 1.0])], f"got={got}")
 
     deliver("/pt/clear", [2])
     got = engine_messages(2)
     check("A: clear releases the point to zero once",
-          got == [("/pt", [2, 1, 0.0]), ("/pt", [2, 2, 0.0])], f"got={got}")
+          got == [("/pt", [2, 0, 0.0]), ("/pt", [2, 1, 0.0])], f"got={got}")
 
     deliver("/pt", [0])                        # empty frame: full-state removal
     got = engine_messages(2)
     check("A: empty frame releases the remaining point",
-          got == [("/pt", [1, 1, 0.0]), ("/pt", [1, 2, 0.0])], f"got={got}")
+          got == [("/pt", [1, 0, 0.0]), ("/pt", [1, 1, 0.0])], f"got={got}")
     engine.close()
     reply.close()
 
@@ -268,7 +268,7 @@ async def stack_checks():
             check("B: moving point broadcasts ~25 Hz", 15 <= frame_count <= 45,
                   f"frames={frame_count}")
             expected = expected_for(moving, 2, (2.0, 2.0)) + ["0.000000"]
-            got = logged_values(read_log(fleet_log), "sim1", 2, 1)
+            got = logged_values(read_log(fleet_log), "sim1", 2, 0)
             check("B: sim proximity == falloff(distance) for every frame",
                   sorted(got) == sorted(expected) and len(set(got)) > 10,
                   f"got {len(got)} values ({len(set(got))} distinct), "
@@ -282,11 +282,11 @@ async def stack_checks():
             check("B: sparse upsert is the 5-arg form",
                   len(sparse) == 1 and sparse[0][1][0] == 3, f"wire={wire}")
             text = read_log(fleet_log)
-            check("B: sparse edit hits element 2 of sim2",
-                  logged_values(text, "sim2", 3, 2) == ["1.000000"]
-                  and logged_values(text, "sim2", 3, 1) == ["0.000000"],
-                  f"sim2 pt3: el1={logged_values(text, 'sim2', 3, 1)} "
-                  f"el2={logged_values(text, 'sim2', 3, 2)}")
+            check("B: sparse edit hits element 1 of sim2",
+                  logged_values(text, "sim2", 3, 1) == ["1.000000"]
+                  and logged_values(text, "sim2", 3, 0) == ["0.000000"],
+                  f"sim2 pt3: el0={logged_values(text, 'sim2', 3, 0)} "
+                  f"el1={logged_values(text, 'sim2', 3, 1)}")
 
             # clear: wire form + release to zero
             await ws_send(ws, "clear_point", {"id": 3})
@@ -295,7 +295,7 @@ async def stack_checks():
                   any(m[0] == "/pt/clear" and m[1] == [3] for m in wire),
                   f"wire={wire}")
             check("B: cleared point releases to zero",
-                  logged_values(read_log(fleet_log), "sim2", 3, 2)[-1] == "0.000000")
+                  logged_values(read_log(fleet_log), "sim2", 3, 1)[-1] == "0.000000")
 
             # late joiner with a persisted assignment: catch-up carries the
             # current frame (and master -- the seam-2 chain stays intact)
@@ -310,7 +310,7 @@ async def stack_checks():
                   any(m[0] == f"/{LATE_ID}/os/master" for m in wire),
                   f"late traffic={[m for m in wire if f'/{LATE_ID}/' in m[0]]}")
             check("B: late joiner decomposes from persisted elements",
-                  logged_values(read_log(late_log), "simlate", 1, 1)[-1:] == ["1.000000"],
+                  logged_values(read_log(late_log), "simlate", 1, 0)[-1:] == ["1.000000"],
                   read_log(late_log)[-300:])
     finally:
         for process in (server, fleet, late):

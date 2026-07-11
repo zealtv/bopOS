@@ -25,6 +25,9 @@ installations. This file is the orientation for any agent working here.
 - **PD float precision:** PD's OSC floats are 32-bit. Never send a value needing >6
   significant figures (epoch timestamps, fine clocks) through PD as a float — encode
   64-bit values as strings or int pairs, and keep absolute time out of PD entirely.
+- **0-indexing is the default** for elements, points, and any new index on the wire
+  or in code (Bob, 2026-07-11). Human-facing labels may render however the UI likes,
+  but the wire and the data model count from 0.
 - **Decision gates:** some choices are Bob's to ratify — the OSC port/namespace
   redesign, scene-language syntax, engine strategy calls, anything user-facing in the
   facilitator view. Produce a written proposal (see Lore below), mark the stitch

@@ -208,7 +208,8 @@ both first-class) are the reference consumers.
   ```
 
   Idempotent full-state; **element positions** ride in it, one `x y` pair per
-  element, element index = pair order (no separate verb; the old
+  element, element index = pair order, **0-based** (indices default to
+  0-indexing project-wide — Bob, 2026-07-11; no separate verb; the old
   `posx posy pos2x pos2y` spelling is retired — it was two unlabelled
   elements). **device** = the computer (one uid, one heartbeat, one engine
   instance); **element** = a positioned output the patch drives. A patch

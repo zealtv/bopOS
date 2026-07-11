@@ -545,7 +545,7 @@ def apply_assign(args, state=None):
 def apply_points(parts, args, state=None):
     # /pt plane (contract sec 4.1): selector-less broadcast geometry, like
     # /cue. Helper owns the proximity math; the engine sees only shaped
-    # scalars as /pt <pointId> <element> <v> on 6661 (element 1-based, pair
+    # scalars as /pt <pointId> <element> <v> on 6661 (element 0-based, pair
     # order from the assignment). A removed point releases with one v=0.
     state = state or node_state
     parsed = pointfield.parse_wire(parts, args)
@@ -569,7 +569,7 @@ def apply_points(parts, args, state=None):
         return True
     entries = pointfield.decompose(changed, state.elements)
     for point_id in sorted(removed):
-        for index in range(1, len(state.elements) + 1):
+        for index in range(len(state.elements)):
             entries.append((point_id, index, 0.0))
     for point_id, element, value in entries:
         msg = OSCMessage("/pt")

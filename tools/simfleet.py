@@ -545,7 +545,7 @@ class SimFleet:
             return
         entries = pointfield.decompose(changed, device.elements)
         for point_id in sorted(removed):
-            for index in range(1, len(device.elements) + 1):
+            for index in range(len(device.elements)):
                 entries.append((point_id, index, 0.0))
         for point_id, element, value in entries:
             self.log(device, f"pt {point_id} el{element} v={value:.6f}")

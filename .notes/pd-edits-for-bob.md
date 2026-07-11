@@ -37,8 +37,10 @@ starter kit.
    Routed-single-receiver style per Bob's 7.2 ruling.
 6. **Deliver point scalars to the patch** — ratified and live since seam-3
    (2026-07-11): helper computes per-element proximity and sends flat args
-   `/pt <pointId> <element> <v>` to PD on 6661. `element` is **1-based**,
-   ordered by the assignment's position pairs (element 1 = first pair). A
+   `/pt <pointId> <element> <v>` to PD on 6661. `element` is **0-based**
+   (Bob's 2026-07-11 ruling: indices default to 0-indexing), ordered by the
+   assignment's position pairs (element 0 = first pair — matches PD
+   `[clone]`'s 0-based voice `$1`). A
    point that is cleared or vanishes from a frame is released with one
    final `v=0`. The OS layer routes it to a patch-visible receive (feeds
    `bopos.point`, item B2).

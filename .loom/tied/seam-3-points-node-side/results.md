@@ -37,9 +37,11 @@ falloff curves and path/orbit motion driver from `0ce8821`).
 
 ## Decisions made here (flagged for review)
 
-- **Element index is 1-based** on the engine wire. Contract §5 pins pair
-  order but not the base; Bob's UI direction speaks of "element 1", so the
-  first pair is element 1. `.notes/pd-edits-for-bob.md` A6 records it.
+- ~~**Element index is 1-based** on the engine wire.~~ **SUPERSEDED
+  2026-07-11: Bob ruled 0-indexing is the project default** (elements,
+  points, all new indices — now a CLAUDE.md house rule). Flipped same-day
+  across pointfield/helper/simfleet/contract §5/pd-edits A6; this stitch's
+  verify re-run green (18/18) at 0-based.
 - **Release semantics:** a point removed by clear/frame-diff sends one
   `v=0` per element so the engine doesn't hold a stale proximity. The wire
   itself stays pure full-state.
