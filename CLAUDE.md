@@ -18,6 +18,10 @@ installations. This file is the orientation for any agent working here.
 5. `.notes/dashboard-development-context.md` — full dashboard design (stack, protocol,
    UI) if working on dashboard threads.
 
+Verification levels and representative commands are collected in
+`docs/VERIFICATION.md`. Stitch-local instructions and verification artifacts
+remain the authority for a particular piece of work.
+
 ## House rules
 
 - **NEVER edit Pure Data patches (`.pd` files).** PD programming is Bob's domain.
