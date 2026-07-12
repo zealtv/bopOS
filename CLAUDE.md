@@ -6,11 +6,12 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.1: 2026-07-07 base +
-   the 2026-07-11 seam amendment): grammar, planes, provided terms (§4.1),
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.2: 2026-07-07 base +
+   the 2026-07-11 seam amendment + the 2026-07-12 engine-boundary revision):
+   grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
-   lives in lore items `2026-07-07-osc-schema-council` and
-   `2026-07-10-patch-seam-council`.
+   lives in lore items `2026-07-07-osc-schema-council`,
+   `2026-07-10-patch-seam-council`, and tied `engine-boundary-ratification`.
 3. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
    forward plan; the shared context every loom thread points back to.
 4. `./.loom/loom status` — live task state. The loom (`.loom/`) is the task tracker;
