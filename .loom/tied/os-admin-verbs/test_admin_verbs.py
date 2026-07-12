@@ -78,7 +78,7 @@ class ReplySocket:
 pyOSC3.OSCServer = FakeServer
 pyOSC3.OSCClient = FakeClient
 sys.argv = ["helper.py", "unknown"]
-import helper
+import bopos as helper
 
 
 def datagram(address, *args):

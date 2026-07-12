@@ -50,7 +50,7 @@ check("/io/create unknown type -> /io/error bar create-failed",
 
 # --- C. helper.py restart_engine_callback ------------------------------------
 sys.argv = ["helper.py", "aa:bb:cc:dd:ee:ff"]
-import helper
+import bopos as helper
 
 popen_calls = []
 

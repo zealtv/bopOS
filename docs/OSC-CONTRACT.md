@@ -1,10 +1,15 @@
 # bopOS OSC Contract
 
-Version 1.1 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
+Version 1.2 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
 (seam council 2026-07-10 + Bob's ratification; record in
 `.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
 2026-07-12 by Bob's removal of the param `role` concept (§8; record in
-`.loom/tied/dashboard-7-remove-param-roles/`).
+`.loom/tied/dashboard-7-remove-param-roles/`); revised to v1.2 2026-07-12 by
+the engine-boundary ratification (record in
+`.loom/tied/engine-boundary-ratification/`): `bopos.py` is each node's sole
+LAN citizen, every engine — Pure Data included — consumes one
+selector-stripped localhost surface, and v1.1's statement that PD retains a
+direct 6660 path is **superseded** (§4).
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -70,9 +75,10 @@ One rule for every LAN message:
 /<plane>/<member>             args…    node → controller     (source identifies sender)
 ```
 
-Nodes route on the selector exactly as today (`route-by-id`; `all` = everyone;
-id −1 = unassigned). Replies carry the request's address, so a stray packet in a
-log is self-describing.
+`bopos.py` routes on the selector (`all` = everyone; id −1 = unassigned) and
+strips it before anything reaches an engine — engines never see selectors or
+identity routing (v1.2; the old in-patch `route-by-id` is retired). Replies
+carry the request's address, so a stray packet in a log is self-describing.
 
 ### Planes
 
@@ -119,7 +125,7 @@ this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
 
 - **The dashboard backend is the clock leader** (resolved 2026-07-05). It
   broadcasts `/sync/ping` every ~500±100 ms (jittered to avoid lockstep
-  bursts). helper.py answers `/sync/pong` unicast, **echoing** `seq` and
+  bursts). bopos.py answers `/sync/pong` unicast, **echoing** `seq` and
   `leaderTimeNs` so the leader stays stateless and a lone packet is
   self-describing. `deviceTimeNs` is the node's `time.monotonic_ns()` at reply.
 - **The leader computes the offset, the node applies it.** Only the leader sees
@@ -146,18 +152,26 @@ this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
 
 ## 4. Ports and transport
 
-The six ports stay exactly as deployed. The two LAN ports are the public contract;
-the four localhost ports are one device's internal plumbing, documented here so
-they stop being magic numbers.
+The six ports stay exactly as deployed. The two LAN ports are the public
+contract; the four localhost ports are one device's internal plumbing. As of
+v1.2 **`bopos.py` is the node's only LAN citizen**: it alone binds 6660 and
+sends on 5550. Engines — PD included — live entirely on the localhost ports.
+(Supersedes v1.1 §4/§4.1, which kept PD's direct 6660 path; that path was
+retained only as a migration safety net and was removed after the relay,
+helper-death, and production-macOS N=1 gates passed, 2026-07-12.)
 
 | Port | Listener | Sender | Scope |
 |---|---|---|---|
-| 5550 | dashboard | node (helper.py and PD) | LAN broadcast, fleet → dash |
-| 6660 | PD (`bopos.osc.pd`) | dashboard | LAN broadcast, dash → fleet |
-| 6661 | PD | helper.py | localhost reply |
-| 6662 | PD | io/main.py | localhost reply |
-| 7770 | helper.py | PD (`route helper` forward) | localhost |
-| 8880 | io/main.py | PD (`route io` forward) | localhost |
+| 5550 | dashboard | bopos.py | LAN broadcast, fleet → dash |
+| 6660 | bopos.py (sole binder) | dashboard | LAN broadcast, dash → fleet |
+| 6661 | engine (`[bopos]` in PD, OSCdefs in SC, …) | bopos.py | localhost: the selector-stripped engine surface (§4.2) |
+| 6662 | engine | io/main.py | localhost: peripheral streams |
+| 7770 | bopos.py | engine | localhost: engine requests only (§4.2) |
+| 8880 | io/main.py | engine | localhost: I/O commands |
+
+Production engines listen on 6661; an audition instance is assigned its own
+port via `BOPOS_ENGINE_PORT`, feeding exactly the same selector-free surface —
+the topology is identical, only the port number moves.
 
 **Transport discipline:**
 
@@ -170,8 +184,8 @@ they stop being magic numbers.
 - **Control-plane law: every fleet command is full-state and idempotent.** No
   increments. Re-sending anything is always safe — which is also what makes
   spamming `/os/mute` a valid safety procedure.
-- The heartbeat is sent by **helper.py directly to 5550** (not through PD's
-  netsend), so engine death ≠ device death.
+- The heartbeat is sent by **bopos.py directly to 5550** (engines never touch
+  the LAN), so engine death ≠ device death.
 - Spatial is the broadcast `/pt` with **node-side decomposition, at every
   scale** — never per-device gain streams. (The dashboard-computed `/p/gain`
   model was built and reverted 2026-07-10: it is O(N) streams on a lossy
@@ -187,20 +201,66 @@ both first-class) are the reference consumers.
 
 | term | wire | delivery to the engine | patch obligation (if consumed) |
 |---|---|---|---|
-| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | PD's OS layer routes it directly; helper relays selector-stripped `/os/master` on 6661 to non-PD engines that cannot share 6660 | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
-| **point** | `/pt <n> <id x y r f>×n` — one frame, all points, atomic; ~20–30 Hz while moving; **silence = hold**; sparse per-point form `/pt <id> <x> <y> <r> <f>` and `/pt/clear <id>` for authoring edits; `f` is a falloff enum (0 linear, 1 smooth, 2 gauss) | helper computes proximity 0→1 per point **per element position** and sends flat-args on 6661 (proposed: `/pt <pointId> <element> <v>`) | map wherever it likes (gain, cutoff, …), upstream of its own volume |
+| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | bopos.py relays selector-stripped `/os/master` to every engine on its engine port | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
+| **point** | `/pt <n> <id x y r f>×n` — one frame, all points, atomic; ~20–30 Hz while moving; **silence = hold**; sparse per-point form `/pt <id> <x> <y> <r> <f>` and `/pt/clear <id>` for authoring edits; `f` is a falloff enum (0 linear, 1 smooth, 2 gauss) | bopos.py computes proximity 0→1 per point **per element position** and sends `/pt <pointId> <element> <v>` flat-args on the engine port | map wherever it likes (gain, cutoff, …), upstream of its own volume |
 
 - The **catch-up rule**: a device (re)appearing gets the current `/pt` frame
   and master unicast (piggybacked on the params catch-up) — silence = hold
   only holds for devices that were present.
 - Point values are **shaped scalars**, not geometry (raw distance may be added
   later as an option, by revision).
-- For non-PD engines, helper also relays matched patch-plane values as
-  `/p/<name> <value>` on 6661. This is transport/selector plumbing only: helper
-  never interprets or composes the patch value. PD retains its deployed direct
-  6660 routing path.
-- `/cue` (§3.1) is a provided term avant la lettre: helper owns the clock
+- bopos.py relays matched patch-plane values as `/p/<name> <values…>` on the
+  engine port — for every engine (v1.2; PD's direct 6660 path is removed).
+  This is transport/selector plumbing only: bopos.py never interprets or
+  composes the patch value.
+- `/cue` (§3.1) is a provided term avant la lettre: bopos.py owns the clock
   math, the engine receives the bare relative fire.
+
+### 4.2 The engine surface
+
+The whole engine-facing contract, both directions (ratified 2026-07-12).
+Engine-received, on the assigned engine port (default 6661), always
+selector-stripped:
+
+```
+/id <n>                        resolved identity (pushed on assignment and
+                               after a /config request)
+/os/master <0..1>              the master term (§4.1)
+/p/<name> <values…>            patch-declared parameters (§8)
+/pt <point> <element> <value>  shaped point scalars (§4.1)
+/cue <id>                      scheduled relative fire (§3.1)
+/notify <event>                framework notifications (identify, update, …)
+```
+
+Engine-sent, localhost 7770, **requests only** — administrative commands
+never cross from an engine to the framework:
+
+```
+/config                        ask for identity; retry until /id arrives
+/store <key> <values…>         persistence store (§10)
+/load <key>                    → /load <key> <values…> back on the engine port
+/report <name> <values…>       retained typed values for demand inspection (§6)
+```
+
+In PD this surface is owned by the `[bopos]` abstraction (`pd/bopos.pd`),
+which exposes the buses `bopos-context`, `bopos-master`, `bopos-param`,
+`bopos-point`, `bopos-cue`, `bopos-notify`, `bopos-io` and consumes
+`to-bopos-io`, `to-bopos-report`. Other engines speak the wire directly
+(`templates/supercollider-bopos` is the reference).
+
+**Run context** is generated by a bopOS-owned step and delivered atomically
+at launch — never over OSC at boot: PD receives `bopos-context`
+`seed <int ≤6 digits>` / `run-id <string>` / `patch <name>` /
+`assets <path>` via `-send`; other engines receive `BOPOS_SEED`,
+`BOPOS_RUN_ID`, `BOPOS_ACTIVEPATCH`, `BOPOS_ASSETS`, `BOPOS_ENGINE_PORT` in
+the environment. The run id is opaque; engines must not parse civil time out
+of it. Standalone launch degrades to a useful self-generated context.
+
+**Civil time (amended 2026-07-12):** absolute wall-clock timestamps must not
+be sent as OSC floats or used by engines for synchronized cue timing; bopOS
+MAY provide civil date/time to an engine, safely encoded, for patch-level
+calendar behaviour. The request/event interface for that is deliberately
+deferred and unratified.
 
 ## 5. Identity, assignment, persistence
 
@@ -220,7 +280,7 @@ both first-class) are the reference consumers.
   elements). **device** = the computer (one uid, one heartbeat, one engine
   instance); **element** = a positioned output the patch drives. A patch
   renders N elements by cloning internally (PD `[clone]`, SC synth instances)
-  and mapping each element to its output channel; helper computes per-element
+  and mapping each element to its output channel; bopos.py computes per-element
   point proximity from this list. Usually N is 1 or 2, but a many-output
   computer IDs as many elements as it drives. The matching node applies it,
   sets its hostname, tells the engine its id, and acks by heartbeating with
@@ -247,8 +307,20 @@ both first-class) are the reference consumers.
 /all/os/ping <token>        →  /os/pong <token> <uid>          (unicast; replaces /echo)
 /<id>/os/report             →  /os/report <json>               (unicast)
 /<id>/os/identify           →  the box chirps/flashes          (locate on install day)
+/<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
 ```
+
+- **`/os/probe` is demand-driven, one-shot inspection** (added by the v1.2
+  engine-boundary ratification). It answers from values bopos.py already
+  holds: patch-authored values retained from engine `/report <name>
+  <values…>` requests, plus the small held fact set (`id`, `uid`, `version`,
+  `update_model`). An unknown `what` is silently unanswered. There is **no
+  streamed telemetry and no framework meter plane** — `meter_loop`,
+  `METERS`/`METER_INTERVAL` config, the broadcast `/rpt` echo chain, and
+  manifest `role: "meter"` were all deleted, not renamed. A *leased* probe
+  (`… <hz> <ttl>`) was proposed and is deliberately **not** part of v1.2;
+  the council text is reference material only.
 
 - Strings come from Python, so no 32-bit float limits apply to `uid`/`version`.
 - `engine-alive` distinguishes "box up, engine crashed" from "box gone" — the two
@@ -261,9 +333,11 @@ both first-class) are the reference consumers.
   a transport-level kill enforced below patch logic (amixer on Pi; degrades to
   engine-stop where no mixer exists). Broadcast, idempotent, spam-safe — repeated
   sends must always converge on silence. Honest boundary: mute is independent
-  of the **engine** (amixer acts below patch logic), not of **helper** —
-  helper is the actor, and a dead helper also stops heartbeating, so the
-  failure is visible, never silent. Where no mixer control accepts a mute,
+  of the **engine** (amixer acts below patch logic), not of **bopos.py** —
+  bopos.py is the actor, and a dead bopos.py also stops heartbeating, so the
+  failure is visible, never silent (the supervised helper-death drill on real
+  hardware restored control in ≤2.2 s, 2026-07-12; that recovery bound is a
+  standing gate on the sole-binder design). Where no mixer control accepts a mute,
   the fallback is engine-stop: silencing but engine-lethal — a degraded mode,
   not the design centre. The mixer path must be verified per audio board on
   real hardware (DigiAMP, Pimoroni Audio SHIM, class-compliant USB — the
@@ -302,7 +376,7 @@ A patch ships **`bopos.patch.json`** in its repo root:
   (engine/entrypoint — PD is the reference engine, not the required one) and
   *what can be controlled* (params). It is diffable, git-friendly, and
   agent-writable.
-- helper.py serves it verbatim: `/<id>/os/params` → `/os/params <json>` (unicast).
+- bopos.py serves it verbatim: `/<id>/os/params` → `/os/params <json>` (unicast).
 - The dashboard **renders controls from the declaration** — no more hardcoded
   sliders. Values flow as `/<id>/p/<name> <value>` or `/all/p/<name> <value>`.
 - Fail loud: no manifest → legacy three sliders with a visible "undeclared" badge;
@@ -339,10 +413,10 @@ A patch ships **`bopos.patch.json`** in its repo root:
   Range-resume; works air-gapped), `gdrive:` (legacy ingest), `file:`.
 - **Landing convention:** assets land in a framework-owned, engine-neutral root
   **outside the patch git tree** — `~/bopOS/assets/<slot>/` — handed to every
-  engine at launch (env var and an `ASSETS` startup message alongside the existing
-  `ACTIVEPATCH`/`RANDOM` sends). PD, SC, and oF patches all read the same
-  predictable root. Legacy `patches/<active>/bop/samplepacks` is symlinked for one
-  release.
+  engine at launch as part of the run context (§4.2: `bopos-context assets`
+  for PD, `BOPOS_ASSETS` for other engines). PD, SC, and oF patches all read
+  the same predictable root. Legacy `patches/<active>/bop/samplepacks` is
+  symlinked for one release.
 
 ## 10. Persistence store
 
@@ -363,13 +437,13 @@ Unchanged verbs, sharpened boundary:
   or not at all; that is the entire justification.
 - **Engine owns its native media IO** — audio, MIDI, HID, display. If engine-side
   input must reach the fleet or dashboard, it surfaces as `/p/*`.
-- **Live values reach the fleet as `/<id>/p/<name>` outbound** (ratified
-  2026-07-08 with §8's `role: "meter"`): a patch republishes the values it
-  wants seen; framework-owned values a node is configured to expose
-  (`bopos.config` `METERS`, throttled by `METER_INTERVAL`) are republished by
-  helper.py on the same surface. Dashboards render declared meters read-only;
-  a value hitting an undeclared name gets the §8 badge, not a control. No
-  subscription stream, no new verbs.
+- **Inspection is demand-driven** (v1.2; supersedes the 2026-07-08
+  `role: "meter"` republish model, which was deleted with the meter plane): a
+  patch retains values it wants inspectable via engine-side `/report <name>
+  <values…>` (§4.2), and the dashboard pulls them one-shot with `/os/probe`
+  (§6). No subscription stream, no periodic republish, no presentation
+  metadata; a future reporting UI must design explicit read-only semantics
+  from concrete needs.
 - No-bus is a declared legal state: `io_buses: []`, `/io/scan` → empty,
   `/io/create` → `/io/error <name> no-bus`. (`sys_i2c` must degrade the way
   `sys_wireless` already does.)
@@ -378,9 +452,12 @@ Unchanged verbs, sharpened boundary:
 
 - **PD OSC floats are 32-bit** (~6–7 significant figures). Any value needing more
   crosses the wire as a **string** (uids, versions, epoch/shared times). Absolute
-  time never enters an engine: the synced clock lives in Python; engines only ever
-  receive small relative values (`/cue <cueId> <sharedTime-as-string>` is converted
-  by helper to a local relative delay before the engine sees it).
+  wall-clock timestamps are never sent as OSC floats and never used by engines
+  for synchronized cue timing: the synced clock lives in Python; engines only
+  ever receive the bare relative fire (`/cue <cueId> <sharedTime-as-string>` is
+  converted by bopos.py to a local deadline before the engine sees it). Civil
+  date/time MAY reach an engine, safely encoded, for calendar behaviour — the
+  interface is deferred (§4.2).
 - Pi Zero 2 W is the constrained reference target; PD is single-threaded — no
   per-frame framework traffic on the engine's socket.
 
@@ -391,9 +468,13 @@ Unchanged verbs, sharpened boundary:
 - Patches are **rewritten in lockstep** with this contract version (ratified
   2026-07-10: patch-facing wire compatibility is a non-goal — no bare
   `/gain`-style aliases, no dashboard-side master composition for legacy
-  patches). Fleet-level guarantees stand: `/helper/*` → `/os/*` alias one
-  release, `bopos.devices` seed, samplepacks symlink, zero port changes,
-  `uid == MAC`.
+  patches). **Clean break (amended 2026-07-12):** there are no deployed
+  dashboards, so no `/helper/*` compatibility alias exists — the dashboard
+  speaks `/os/*` directly and obsolete consumers are not preserved
+  speculatively. The old 7770 admin forwarding, `/rpt` echo chain,
+  `osc-in`/`osc-out`, direct PD LAN binding, and in-patch identity routing
+  are removed, not maintained in parallel. Fleet-level guarantees stand:
+  `bopos.devices` seed, samplepacks symlink, zero port changes, `uid == MAC`.
 - `bopos.devices` keeps working as the seed. A patch without a manifest still gets
   the legacy sliders.
 
@@ -409,4 +490,8 @@ spatial gain broadcast at fleet scale; per-host branching in message semantics
 composition of provided terms into patch parameters (the spatial-0 /
 master-multiply defect — see §1 seam law); a runtime parameter-dump/query verb
 (a patch may implement its own dump; a framework `/os/dump` arrives, if ever,
-as a deliberate revision when evidence demands).
+as a deliberate revision when evidence demands); a `/helper/*` compatibility
+alias (clean break, 2026-07-12); framework meter streaming and any `role`
+manifest key; the leased probe wire shape (reference material only until a
+concrete need drives its ratification); engines issuing administrative
+commands or binding LAN ports.

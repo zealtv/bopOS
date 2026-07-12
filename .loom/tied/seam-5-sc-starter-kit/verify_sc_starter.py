@@ -129,7 +129,7 @@ def source_checks():
 
 
 def helper_identity_check():
-    source_path = os.path.join(REPO, "python", "helper.py")
+    source_path = os.path.join(REPO, "python", "bopos.py")
     source = open(source_path, encoding="utf-8").read()
     tree = ast.parse(source)
     function = next(node for node in tree.body
@@ -167,7 +167,7 @@ def helper_identity_check():
 
 
 def helper_relay_check():
-    source_path = os.path.join(REPO, "python", "helper.py")
+    source_path = os.path.join(REPO, "python", "bopos.py")
     tree = ast.parse(open(source_path, encoding="utf-8").read())
     function = next(node for node in tree.body
                     if isinstance(node, ast.FunctionDef)

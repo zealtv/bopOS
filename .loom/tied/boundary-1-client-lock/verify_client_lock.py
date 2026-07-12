@@ -15,7 +15,7 @@ while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
 sys.path.insert(0, os.path.join(REPO, "python"))
 
 from pyOSC3 import decodeOSC
-import helper
+import bopos as helper
 
 
 class SlowRecordingClient:

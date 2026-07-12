@@ -137,7 +137,7 @@ def test_relay_shape_provided_term():
 # ---------------------------------------------------------------------------
 
 def test_helper_uses_shared_relay():
-    with open(os.path.join(REPO, "python", "helper.py")) as source:
+    with open(os.path.join(REPO, "python", "bopos.py")) as source:
         text = source.read()
     check("helper.py imports relay", "import relay" in text)
     check("helper.py calls relay.shape_provided_term", "shape_provided_term" in text)
@@ -367,7 +367,7 @@ def test_main_scd():
 # ---------------------------------------------------------------------------
 
 def test_py_compile():
-    for relative in ("python/runcontext.py", "python/relay.py", "python/helper.py",
+    for relative in ("python/runcontext.py", "python/relay.py", "python/bopos.py",
                       "tools/audition.py"):
         path = os.path.join(REPO, relative)
         try:

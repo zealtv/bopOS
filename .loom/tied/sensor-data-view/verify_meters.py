@@ -60,7 +60,7 @@ assert config["METERS"] == "" and config["METER_INTERVAL"] == "5", config
 temp = namespace["read_cpu_temp"]()
 assert temp is None or isinstance(temp, float), temp
 print("helper units ok")
-""" % (os.path.join(REPO, "python"), os.path.join(REPO, "python", "helper.py"))],
+""" % (os.path.join(REPO, "python"), os.path.join(REPO, "python", "bopos.py"))],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     check("helper.py meter units", result.returncode == 0,
           result.stdout.decode(errors="replace")[-300:])

@@ -56,7 +56,7 @@ pyOSC3.OSCServer = FakeServer
 pyOSC3.OSCClient = FakeClient
 sys.argv = ["helper.py", "unknown"]
 import fetcher
-import helper
+import bopos as helper
 
 
 for bad in ("../x", "/x", "a/../x", "C:\\x"):

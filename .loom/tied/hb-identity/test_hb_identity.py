@@ -46,7 +46,7 @@ class FakeClient:
 pyOSC3.OSCServer = FakeServer
 pyOSC3.OSCClient = FakeClient
 sys.argv = ["helper.py", "unknown"]
-import helper
+import bopos as helper
 import sys_wireless
 
 

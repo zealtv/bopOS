@@ -92,7 +92,7 @@ def unit_checks():
 
 def integration_checks():
     from pyOSC3 import OSCMessage, decodeOSC
-    import helper
+    import bopos as helper
 
     helper.node_state.id = 1
     helper.node_state.uid = "testuid00"

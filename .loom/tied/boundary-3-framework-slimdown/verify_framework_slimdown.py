@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(REPO, "python"))
 
 from pyOSC3 import OSCMessage, decodeOSC
 from pythonosc import osc_message, osc_message_builder
-import helper
+import bopos as helper
 import manifest
 
 
@@ -92,7 +92,7 @@ def manifest_checks():
             target.write('{"engine":"pd","entrypoint":"main.pd","params":['
                          '{"name":"level","type":"f","role":"meter"}]}')
         loaded, error = manifest.load(directory)
-        assert loaded is None and "role 'meter' was removed" in error
+        assert loaded is None and "role was removed" in error
 
 
 def simfleet_probe_check():
@@ -130,7 +130,7 @@ def simfleet_probe_check():
 
 def removed_surface_checks():
     paths = [
-        os.path.join(REPO, "python", "helper.py"),
+        os.path.join(REPO, "python", "bopos.py"),
         os.path.join(REPO, "tools", "simfleet.py"),
         os.path.join(REPO, "dashboard", "osc_bridge.py"),
         os.path.join(REPO, "dashboard", "state.py"),

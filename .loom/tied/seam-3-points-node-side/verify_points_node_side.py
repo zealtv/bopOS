@@ -3,7 +3,7 @@
 
 Two parts, browser- and hardware-free:
 
-  A. the REAL python/helper.py, imported in-process (binds 7770 harmlessly,
+  A. the REAL python/bopos.py, imported in-process (binds 7770 harmlessly,
      sync-2 style): a true-N /os/assign lands element positions, then /pt
      frame / sparse / clear datagrams through handle_lan_datagram produce
      shaped scalars `/pt <pointId> <element> <v>` on the engine socket (6661)
@@ -72,7 +72,7 @@ def helper_checks():
     engine.bind(("127.0.0.1", 6661))
     engine.settimeout(1.0)
 
-    import helper
+    import bopos as helper
     helper.set_hostname = lambda name: None      # no hostnamectl on a laptop
     helper.node_state.store = Store("/nonexistent", persistent=False)
     helper.node_state.uid = "verify-node"
