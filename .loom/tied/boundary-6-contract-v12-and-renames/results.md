@@ -74,5 +74,11 @@ the regression suites stay runnable.
 
 ## Hardware
 
-bop000 (DigiAMP+): deployed and confirmed — see the deployment note appended
-below after the Pi run.
+bop000 (DigiAMP+), 2026-07-12: pulled the rename, copied the updated
+`bopos-helper.service` (ExecStart → `python/bopos.py`) into
+`/etc/systemd/system/`, daemon-reloaded, restarted (Bob authenticated sudo).
+`systemctl is-active` = active; `pgrep` shows
+`/home/pi/venv/bin/python /home/pi/bopOS/python/bopos.py`; LAN
+`/all/os/ping` → `/os/pong 4242 2c:cf:67:b3:0a:58` from the dev Mac. Without
+the unit update the next restart/reboot would have failed (the installed
+unit is a copy, not a symlink — worth remembering for future renames).

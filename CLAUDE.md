@@ -52,15 +52,16 @@ it on a real rig).
 Every active thread is decomposed into numbered children (2026-07-08 loom audit);
 in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
 
-1. **`engine-boundary-design`** — **ratified 2026-07-12; implement before
-   further SC/audition work.** The sole-binder end state is accepted with a
-   clean break: future `bopos.py` alone owns LAN 6660 and every engine consumes
-   the same selector-stripped localhost 6661 surface. The six migration stages
-   are a Loom dependency chain; `boundary-1-client-lock` is next. PD's direct
-   path remains until the relay, helper-death, and production-Mac N=1 gates
-   pass. The authoritative amended record is tied stitch
-   `engine-boundary-ratification`; notably, no `/helper/*` alias, leased probe,
-   or `role:meter` survives, and civil-time/plugin capability design stays open.
+1. **`engine-boundary-design`** — **complete (goal tied 2026-07-12).** All six
+   migration stages landed: `bopos.py` (renamed from `helper.py`) alone owns
+   LAN 6660/5550; every engine consumes the selector-stripped localhost 6661
+   surface (contract v1.2 §4.2); run context is launch-delivered
+   (`bopos-context` bus / `BOPOS_*` env via `python/runcontext.py`); PD's
+   direct path is gone. The authoritative record is tied stitch
+   `engine-boundary-ratification`; no `/helper/*` alias, leased probe, or
+   `role:meter` survives, and civil-time/plugin capability design stays open.
+   The three `.waiting` engine-boundary-adoption children (audition-1c,
+   audition-2a, friction-1a) are now unblocked — claim them to resume.
 2. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
    wire shape in contract §3.1; dashboard is the leader (offset estimate + push);
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
