@@ -1,4 +1,4 @@
-# helper.py and io/main.py dependencies for raspberry pi
+# bopos.py and io/main.py dependencies for raspberry pi
 
 # OSC communication
 pyOSC3

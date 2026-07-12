@@ -33,7 +33,7 @@ Two knobs belong to bopOS:
 - **`MIXER_CONTROL`** — in the node's `bopos.config` (repo root on the Pi,
   *not* the per-patch `patches/<name>/bopos.config`). Names the amixer
   simple control that mute should drive. Optional: when unset, `set_mute`
-  in `python/helper.py` walks a candidate list (`Master`, `Digital`, `PCM`,
+  in `python/bopos.py` walks a candidate list (`Master`, `Digital`, `PCM`,
   `Speaker`, `Headphone`) and remembers the first one that works.
 
 ## Bench procedure for a new board
@@ -77,7 +77,7 @@ A benched board is only benched once it's recorded. In one commit:
 
 1. **Add the row** to the table below: board, overlay, ALSA card name, the
    mixer control that accepted mute, and who/when verified it.
-2. **Grow the candidate list** in `python/helper.py` (`mixer_candidates`)
+2. **Grow the candidate list** in `python/bopos.py` (`mixer_candidates`)
    if the control is generic enough that other boards likely share it —
    that's how the next board gets mute for free. Board-specific oddballs
    stay in that node's `bopos.config` instead.

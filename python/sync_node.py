@@ -2,7 +2,7 @@
 fire cues at their local monotonic deadline.
 
 Pure timing logic, deliberately free of import-time side effects (no ports, no
-pyOSC3) so it can be unit-tested on its own -- helper.py imports it and wires the
+pyOSC3) so it can be unit-tested on its own -- bopos.py imports it and wires the
 OSC (pong reply, offset push, /cue -> engine). All times are integer nanoseconds
 from time.monotonic(); offset === deviceClock - leaderClock, so a leader-clock
 sharedTime converts to a local deadline as `sharedTime + offset`.

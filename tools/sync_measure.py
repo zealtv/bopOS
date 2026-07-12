@@ -15,9 +15,9 @@ Two evidence modes:
                  SOFTWARE FLOOR (one process, one clock) -- a floor, not the
                  deliverable. Writes a Markdown report.
 
-  hardware       Assumes real Pis running helper.py are already on the LAN
+  hardware       Assumes real Pis running bopos.py are already on the LAN
                  (each toggles a GPIO / clicks at fire time for external
-                 recording -- helper.py logs `fire_mono` too, but the honest
+                 recording -- bopos.py logs `fire_mono` too, but the honest
                  cross-device evidence is the external recording). The tool
                  syncs them, prints per-device offsets, fires the burst, and
                  prints the expected fire schedule (leader clock) so a recording
@@ -250,7 +250,7 @@ def run_sim(args):
 
 def run_hardware(args):
     # No sim launch, no stdout parsing: real Pis record fire evidence externally.
-    print("hardware mode: assuming real helper.py nodes on the LAN "
+    print("hardware mode: assuming real bopos.py nodes on the LAN "
           f"(cmd {args.cmd_port} / reports {args.report_port}).")
     leader = Leader(args.report_port, args.cmd_port, args.target)
     try:
@@ -259,7 +259,7 @@ def run_hardware(args):
         for uid, off in sorted(leader.offsets.items()):
             print(f"  {uid} (id {leader.mac_to_id.get(uid, '?')}): offset {off/1e6:.3f} ms")
         if not leader.offsets:
-            print("  no pongs -- are nodes running helper.py and synced?")
+            print("  no pongs -- are nodes running bopos.py and synced?")
         schedule = leader.fire_burst(args.cues, int(args.lead_ms * 1e6),
                                      int(args.gap_ms * 1e6))
         print("fired burst; expected fire instants (leader monotonic ns) -- align "
@@ -270,7 +270,7 @@ def run_hardware(args):
     finally:
         leader.close()
     print("Collect the external recording and compute cross-device spread by hand "
-          "(or feed helper.py stdout through parse_fires). This is the sync-4 run.")
+          "(or feed bopos.py stdout through parse_fires). This is the sync-4 run.")
     return 0
 
 

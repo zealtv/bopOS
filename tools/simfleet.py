@@ -2,7 +2,7 @@
 """Simulated bopOS fleet speaking the currently deployed OSC wire protocol.
 
 N fake devices heartbeat on 5550 and answer dashboard commands on 6660 exactly
-as a real Pi does today (PD bopos.osc.pd + helper.py together, seen from the
+as a real Pi does today (PD bopos.osc.pd + bopos.py together, seen from the
 LAN). Use it to develop the dashboard, clock-sync, and scene work with zero
 hardware:
 
@@ -276,7 +276,7 @@ class SimFleet:
             print(f"simfleet: rev reply failed: {error}", file=sys.stderr)
 
     def admin_verb(self, device, member, args, source):
-        # helper.py owns these, so a dead engine still answers
+        # bopos.py owns these, so a dead engine still answers
         self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
         provisioning = member in ("update", "checkout", "patch",
                                   "addpatch", "pullpatch", "getsamples")
@@ -322,7 +322,7 @@ class SimFleet:
         return value
 
     def handle_ping(self, args, source):
-        # helper.py answers /sync/ping unicast, echoing seq+leaderTime so the
+        # bopos.py answers /sync/ping unicast, echoing seq+leaderTime so the
         # leader stays stateless (contract sec 3.1)
         if len(args) < 2:
             return
@@ -464,7 +464,7 @@ class SimFleet:
             return
         selector, plane, member = parts
         for device in self.devices:
-            # helper.py answers these, so the box must be up (booting counts:
+            # bopos.py answers these, so the box must be up (booting counts:
             # helper starts before the engine) and its radio listening
             if device.unresponsive or device.state not in ("booting", "running"):
                 continue

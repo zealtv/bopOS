@@ -2,7 +2,7 @@
 """
 bopos.patch.json loader/validator (OSC contract section 8).
 
-One validator, three consumers: helper.py (/os/params, /os/report, /patch
+One validator, three consumers: bopos.py (/os/params, /os/report, /patch
 validation), bash/start-engine.sh (CLI mode below), and tests. The manifest
 is the single source of truth for what starts a patch and what can be
 controlled; validation exists so it can't silently drift.

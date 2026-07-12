@@ -48,7 +48,7 @@ sudo raspi-config nonint do_expand_rootfs; sudo raspi-config nonint do_i2c 0; su
 This expands the filesystem, enables I2C, installs jackd2 + Pure Data + git + i2c-tools, creates a
 Python venv, clones bopOS (with the `bop` submodule), installs the Python deps, and runs
 `update.sh` — which copies `rc.local` and reboots with jack, Pure Data, `io/main.py`, and
-`helper.py` running.
+`bopos.py` running.
 
 - You may need to edit **`bash/start.sh`** to set your `SOUNDCARD` (default `DigiAMP`). List cards
   with `cat /proc/asound/cards`. Bringing up a **new audio board** (and verifying mute against it)
@@ -57,7 +57,7 @@ Python venv, clones bopOS (with the `bop` submodule), installs the Python deps, 
 
 ## Device identity
 
-`bopos.devices` maps **MAC → hostname, ID, position**. On boot, `helper.py` reads the Pi's MAC,
+`bopos.devices` maps **MAC → hostname, ID, position**. On boot, `bopos.py` reads the Pi's MAC,
 sets its hostname, and reports its ID to Pure Data. Add each Pi here.
 
 ```
@@ -94,20 +94,23 @@ are localhost-only on each Pi.
 |------|-----------|---------|
 | 5550 | Pi → Laptop (broadcast) | device status / heartbeat |
 | 6660 | Laptop → Pi (broadcast) | commands to devices |
-| 6661 | helper.py → PD (localhost) | helper/admin responses |
+| 6661 | bopos.py → engine (localhost) | selector-stripped engine surface (`/id`, `/os/master`, `/p/*`, `/pt`, `/cue`, `/notify`) |
 | 6662 | io/main.py → PD (localhost) | sensor data bundles |
-| 7770 | PD → helper.py (localhost) | admin commands |
+| 7770 | engine → bopos.py (localhost) | requests only: `/config` `/store` `/load` `/report` |
 | 8880 | PD → io/main.py (localhost) | I/O commands |
 
 ## MAIN / patch (`patches/<active>/main.pd`)
 
-Runs on Pis. Generates audio; routes OSC via `pd/bopos.osc.pd`. Forwards `/helper/*` to
-`helper.py` (7770) and `/io/*` to `io/main.py` (8880); reports to the laptop on 5550.
+Runs on Pis. Generates audio. `[bopos]` (`pd/bopos.pd`) owns the engine-side transport: it
+consumes the selector-stripped surface on 6661 and exposes the `bopos-*` buses to the patch.
+Engines never bind LAN ports or issue admin commands.
 
-## helper.py (port 7770)
+## bopos.py (LAN 6660 + localhost 7770)
 
-Runs on Pis. OS/admin over OSC: `/update` `/reboot` `/shutdown` `/getsamples` `/checkout`
-`/config`, and patch management `/patch` `/addpatch <user> <repo>` `/pullpatch`.
+Runs on Pis; the node's only LAN citizen. Handles the `/​<selector>/os/*` admin plane from 6660
+(update, reboot, shutdown, patch management, fetch, assign, mute, probe) and relays provided
+terms to the engine on 6661. On 7770 it answers engine requests: `/config` `/store` `/load`
+`/report`. See `docs/OSC-CONTRACT.md`.
 
 ## io/main.py (port 8880)
 
@@ -134,9 +137,9 @@ on 5550.
 bopOS/
 ├── bash/          boot, start/stop, update, sample + patch management
 ├── python/
-│   ├── helper.py  admin/OS OSC service
+│   ├── bopos.py   admin/OS OSC service
 │   └── io/        I2C-to-OSC bridge + per-peripheral modules
-├── pd/            bopos.osc / feedback / gui patches + bop submodule
+├── pd/            bopos / feedback / gui patches + bop submodule
 ├── patches/       hot-swappable git-repo patches (active_patch.txt)
 ├── bopos.devices  MAC → hostname/ID/position
 ├── DASHBOARD.pd   laptop admin/control patch

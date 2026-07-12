@@ -1,6 +1,6 @@
 """Node-side point decomposition (contract sec 4.1, seam ruling S1).
 
-Shared by python/helper.py (the real node) and tools/simfleet.py (the fake
+Shared by python/bopos.py (the real node) and tools/simfleet.py (the fake
 fleet) so both compute identical proximity values; verify scripts import it
 to recompute expectations from sniffed wire frames.
 

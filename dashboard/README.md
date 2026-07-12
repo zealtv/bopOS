@@ -62,7 +62,7 @@ burst and reports the cross-device spread:
 # software floor (launches simfleet itself, writes a Markdown report):
 ~/.venvs/bopos/bin/python tools/sync_measure.py --devices 5 --sync-skew-ms 40
 
-# real fleet (Pis running helper.py already on the LAN; align an external
+# real fleet (Pis running bopos.py already on the LAN; align an external
 # GPIO/click recording to the printed fire schedule -- this is the sync-4 run):
 ~/.venvs/bopos/bin/python tools/sync_measure.py --mode hardware --cues 8
 ```

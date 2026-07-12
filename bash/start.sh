@@ -61,13 +61,13 @@ echo "------------------- Starting bopOS..."
 echo "SOUNDCARD: $SOUNDCARD"
 echo "MAC ADDRESS: $MACADDRESS"
 
-# Start helper.py to manage system functions
+# Start bopos.py to manage system functions
 # NB: no sudo — start.sh runs as user `pi` (rc.local: `su pi -c`), and the `pi`
 # user is in the i2c/gpio/audio groups, so these need no root. On images without
 # passwordless sudo (e.g. Pi OS Trixie) a `sudo` here silently fails at boot.
-echo "------------------- Starting helper.py..."
-"$PYTHON_BIN" "$BOPOS_DIR/python/helper.py" "$MACADDRESS" &
-echo $! > "$RUN_DIR/helper.pid"
+echo "------------------- Starting bopos.py..."
+"$PYTHON_BIN" "$BOPOS_DIR/python/bopos.py" "$MACADDRESS" &
+echo $! > "$RUN_DIR/bopos.pid"
 
 # Start io/main.py to access sensors and peripherals
 echo "------------------- Starting io/main.py..."

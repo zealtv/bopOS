@@ -1,5 +1,5 @@
 #!/bin/bash
-# Check out a git branch of bopOS. Called by helper.py's /checkout handler,
+# Check out a git branch of bopOS. Called by bopos.py's /checkout handler,
 # which then runs update.sh to pull + reboot. Usage: checkout.sh <branch>
 
 BRANCH="$1"

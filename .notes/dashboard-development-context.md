@@ -35,7 +35,7 @@ so no Pi-side changes are needed.
 │  │  ├─ pd/bopos.osc.pd          (OSC routing)   │   │
 │  │  └─ pd/bopos.feedback.pd     (audio feedback)│   │
 │  ├──────────────────────────────────────────────┤   │
-│  │  helper.py        │  io/main.py              │   │
+│  │  bopos.py        │  io/main.py              │   │
 │  │  (system admin)   │  (I2C sensor bridge)     │   │
 │  ├──────────────────────────────────────────────┤   │
 │  │  JACK audio server (ALSA, 44.1kHz, 512 buf)  │   │
@@ -48,7 +48,7 @@ so no Pi-side changes are needed.
 1. Read MAC address from `wlan0` (or `eth0`)
 2. Read active patch from `patches/active_patch.txt`
 3. Wait 15s for WiFi (skippable with keypress)
-4. Start `helper.py $MACADDRESS` in background (listens on localhost:7770)
+4. Start `bopos.py $MACADDRESS` in background (listens on localhost:7770)
 5. Start `io/main.py` in background (listens on localhost:8880)
 6. Start JACK audio server (`jackd -P70 -p16 -t2000 -d alsa -dhw:DigiAMP -p 512 -n 2 -r 44100 -s -P`)
 7. Wait 5s for JACK
@@ -83,7 +83,7 @@ pkill python
 │   ├── start-laptop.sh       # Laptop dev workflow
 │   └── stop-laptop.sh        # Laptop dev stop
 ├── python/
-│   ├── helper.py             # System admin OSC handler
+│   ├── bopos.py             # System admin OSC handler
 │   └── io/
 │       ├── main.py           # I2C-to-OSC bridge
 │       ├── io_ads1015.py     # 4-channel ADC peripheral
@@ -117,9 +117,9 @@ All communication between the laptop and Pis is OSC over UDP broadcast.
 |------|--------------------|--------------------|---------------------|
 | 5550 | Dashboard (laptop) | All Pis            | Pi → Dashboard      |
 | 6660 | All Pis (bopos.osc)| Dashboard (laptop) | Dashboard → Pi      |
-| 6661 | PD (bopos.osc)     | helper.py          | localhost only       |
+| 6661 | PD (bopos.osc)     | bopos.py          | localhost only       |
 | 6662 | PD (bopos.osc)     | io/main.py         | localhost only       |
-| 7770 | helper.py          | PD (bopos.osc)     | localhost only       |
+| 7770 | bopos.py          | PD (bopos.osc)     | localhost only       |
 | 8880 | io/main.py         | PD (bopos.osc)     | localhost only       |
 
 **The dashboard only needs ports 5550 (listen) and 6660 (send).** Ports 6661,
@@ -198,7 +198,7 @@ Port 6660 (incoming from dashboard)
         → match: strip ID, send to [s osc-in]
         → no match: discard
   → osc-in bus routes to:
-    → /helper/* → forward to helper.py on localhost:7770
+    → /helper/* → forward to bopos.py on localhost:7770
     → /io/*    → forward to io/main.py on localhost:8880
     → /gain, /echo, etc. → internal PD routing to patch
 ```
@@ -227,14 +227,14 @@ b8:27:eb:d3:e9:2e, spool2, 2, 100 0, 100 100
 d8:3a:dd:9b:56:41, voice1, 1, 0 0, 0 0
 ```
 
-Parsed by `helper.py` using Python's `csv.reader` with `skipinitialspace=True`.
+Parsed by `bopos.py` using Python's `csv.reader` with `skipinitialspace=True`.
 Fields: MAC address, hostname, numeric ID, position 1 (x y), position 2 (x y).
 
 **Identity flow:**
 1. `start.sh` reads MAC from `/sys/class/net/wlan0/address`
-2. Passes MAC as `sys.argv[1]` to `helper.py`
-3. On boot, bopos.osc.pd sends `/helper/config` to helper.py
-4. helper.py reads `bopos.devices`, finds matching MAC row
+2. Passes MAC as `sys.argv[1]` to `bopos.py`
+3. On boot, bopos.osc.pd sends `/helper/config` to bopos.py
+4. bopos.py reads `bopos.devices`, finds matching MAC row
 5. Sets hostname via `hostnamectl`, updates `/etc/hosts`, restarts avahi
 6. Sends `/id <float>` to PD on localhost:6661
 7. PD stores ID, uses it for routing and heartbeat identification
@@ -244,7 +244,7 @@ Fields: MAC address, hostname, numeric ID, position 1 (x y), position 2 (x y).
 - Active patch stored in `patches/active_patch.txt` (single line, just the folder name)
 - Each patch is a folder under `patches/` with at minimum a `main.pd` file
 - Patches can optionally include `bopos.config` (shell variables) and `start.sh`
-- Patch switching: helper.py writes new name to `active_patch.txt`, then runs
+- Patch switching: bopos.py writes new name to `active_patch.txt`, then runs
   `setsid bash -c 'stop.sh; sleep 2; start.sh'` (detached, survives pkill python)
 - Patches are git repos, added via `git clone --recursive` from GitHub
 

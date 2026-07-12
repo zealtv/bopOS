@@ -9,7 +9,7 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/bopOS
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/pi/venv/bin/python /home/pi/bopOS/python/helper.py
+ExecStart=/home/pi/venv/bin/python /home/pi/bopOS/python/bopos.py
 Restart=always
 RestartSec=250ms
 

@@ -47,7 +47,7 @@ engine_client_lock = threading.Lock()
 
 
 def send_to_engine(message):
-    """Serialize access to pyOSC3's shared helper-to-engine client."""
+    """Serialize access to pyOSC3's shared bopos-to-engine client."""
     with engine_client_lock:
         client.send(message)
 

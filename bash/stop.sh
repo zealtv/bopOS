@@ -17,5 +17,5 @@ stop_process() {
     fi
 }
 
-stop_process "$RUN_DIR/helper.pid" "$BOPOS_DIR/python/helper.py"
+stop_process "$RUN_DIR/bopos.pid" "$BOPOS_DIR/python/bopos.py"
 stop_process "$RUN_DIR/io.pid" "$BOPOS_DIR/python/io/main.py"
