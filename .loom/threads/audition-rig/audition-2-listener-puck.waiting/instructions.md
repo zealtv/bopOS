@@ -22,12 +22,18 @@ perspective. Stage 0 and engine-boundary v1.2 are tied.
 
 ## Transport decision gate
 
+**Bob's direction (2026-07-12):** pursue the parent-PD `[pd~]` design in the
+`pd-audition-host` loom thread. It keeps capture and listener math in one PD
+graph, enables manual rerouting, and is consistent across macOS and Linux.
+This listener-puck stitch remains waiting on that thread's three-child spike
+and host/matrix implementation rather than on JACK or Core Audio tap selection.
+
 The verified macOS/CoreAudio Stage 0 path lets several PD processes share the
 hardware stereo output, but the OS mixes them before an external monitor can
 recover per-device stems. The old "small Python JACK client" instruction is
 therefore not an accepted cross-platform implementation.
 
-Before implementation, Bob chooses one stem transport with an audible spike:
+Rejected as default paths (retain only as future specialist fallbacks):
 
 1. JACK per-instance ports (strong isolation, proven Linux shape; adds a Mac
    runtime dependency and replaces the verified CoreAudio path while active).
@@ -37,8 +43,8 @@ Before implementation, Bob chooses one stem transport with an audible spike:
    but cannot become the only path because Stage 0 runs the actual declared
    engine, including PD).
 
-Record the choice and fallback before building. This is an engine-strategy and
-user-facing composition-tool decision, so agents do not select it alone.
+The parent-PD direction is now the accepted default. Revisit these fallbacks
+only if the `[pd~]` spike produces concrete contrary evidence.
 
 ## Implementation after the gate
 
