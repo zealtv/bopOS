@@ -152,7 +152,7 @@ class AuditionRig:
         for node, packet in packet_by_id:
             self.sock.sendto(packet, (self.local_target, node.engine_port))
 
-    def relay(self, datagram):
+    def relay(self, datagram, source=None):
         # Engines see only the ratified selector-stripped surface. Framework
         # mute stays below the engines (production mutes the hardware mixer),
         # so /os/mute is deliberately not relayed here.
@@ -164,6 +164,17 @@ class AuditionRig:
         if len(parts) != 3:
             return
         selector = parts[0]
+        if parts[1:] == ["os", "params"]:
+            patch_dir, _loaded = self._load_patch()
+            manifest_text = patch_manifest.raw(patch_dir)
+            if manifest_text is None:
+                return
+            packet = osc_datagram("/os/params", manifest_text)
+            reply_host = source[0] if source is not None else self.args.target
+            for node in self.nodes:
+                if matches(selector, node.device_id):
+                    self.sock.sendto(packet, (reply_host, self.args.report_port))
+            return
         if parts[1:] == ["os", "identify"]:
             uid = str(message.params[0]) if message.params else None
             packet = osc_datagram("/notify", "identify")
@@ -221,8 +232,8 @@ class AuditionRig:
                     self.send_ids()
                     ids_sent = True
                 try:
-                    datagram, _source = self.sock.recvfrom(65535)
-                    self.relay(datagram)
+                    datagram, source = self.sock.recvfrom(65535)
+                    self.relay(datagram, source)
                 except socket.timeout:
                     pass
         finally:
