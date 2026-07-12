@@ -3,15 +3,15 @@
 Stage A of `../instructions.md`: spatial monitoring from a listener
 perspective. Stage 0 and engine-boundary v1.2 are tied.
 
-**Chosen strategy (Bob, 2026-07-12):** every real audition engine keeps its
-normal CoreAudio/Linux output path. A private `bopos.mix~` stage passes
-audio unchanged in production and applies a listener matrix only in audition
-mode. The OS sums the already-spatialized device outputs to stereo. The SC
-starter gets an equivalent final-output adapter.
+**Chosen strategy (Bob, 2026-07-13):** every real audition engine keeps its
+normal CoreAudio/Linux output path. The existing `bopos.out~` passes audio
+unchanged in production and applies a listener matrix internally only in
+audition mode. The OS sums the already-spatialized device outputs to stereo.
+The SC starter gets equivalent behavior in its existing final-output adapter.
 
-Agents never edit `.pd`; Bob owns `bopos.mix~.pd` and its integration in
-`bopos.out~.pd`. Agents implement/test controller, dashboard, simulator, SC,
-docs, and exact PD edit recipes.
+Agents never edit `.pd`; Bob owns the `bopos.out~.pd` audition branch. Agents
+implement/test controller, dashboard, simulator, SC, docs, and exact PD edit
+recipes. Do not introduce or rename to `bopos.mix~` / `bopos.audition~`.
 
 ## Boundary
 
@@ -25,34 +25,25 @@ docs, and exact PD edit recipes.
 - Default/bypass operation is bit-for-shape pass-through. Missing or malformed
   preview state must never silence or remap production audio.
 
-## Derived channel model
+## Fixed stereo model
 
-The `bopos.mix~` creation argument is authoritative for channel count:
-`[bopos.mix~ 2]` in Wave 1. Dashboard position count is not: one position may
-describe a stereo pair, while two positions describe two mono elements. Do not
-add a second hand-maintained `channels` field to installation state or infer
-channels from signal energy. The adapter validates every matrix against its
-creation argument.
-
-Wave 1 uses the current `bopos.out~` two-channel ABI. Its interpretation is:
+Wave 1 keeps the current `bopos.out~` two-input/two-output ABI with no channel
+argument or discovery. Those channels are interpreted from dashboard positions:
 
 - zero positions: unpositioned/bypass; preserve current L→L, R→R output;
-- one position: one co-located stereo element; preserve stereo content while
-  applying shared distance and directional stereo balance;
+- one position: one co-located stereo or dual-mono element; preserve stereo
+  content while applying shared distance and directional stereo balance;
 - two positions: two mono elements; apply one L/R gain row per input channel
   and sum them to preview stereo.
 
-The matrix update is one atomic indexed frame, not per-element messages. The
-controller and adapters must reject a frame whose count/arity disagrees with
-the adapter's channel-count argument and retain the last valid frame or bypass safely.
-Gains are smoothed in the engine adapter.
+The matrix update is one atomic fixed-stereo frame, not per-element messages.
+Adapters reject bad arity/values and retain the last valid frame or bypass
+safely. Gains are smoothed in the engine adapter.
 
-For later N-channel support, `[bopos.mix~ N]` should accept a PD multichannel
-signal or an indexed wrapper whose width is built from the same `N` argument.
-Matrix frames remain indexed/count-prefixed; no wire redesign. Changing `N`
-may require rebuilding DSP, which is acceptable; it must not require changing
-dashboard storage or the controller grammar. Higher counts are not implemented
-in this wave.
+A mono patch using this ABI duplicates mono to both inputs. A signal present
+only on the left is intentionally treated as hard-left stereo, never inferred
+as mono from energy or correlation. Higher channel counts are fully deferred:
+do not design an N-channel argument or grammar until a real patch requires it.
 
 ## Position and listener convergence
 
@@ -73,9 +64,9 @@ in this wave.
 
 ## Planned sequence
 
-1. **`preview-0-channel-model-spike`** — Bob proves bypass, one-position stereo,
-   and two-position mono behavior in a small `[bopos.mix~ 2]` jig; agents ship
-   matrix math/fixtures and record the N-channel construction seam.
+1. **`preview-0-channel-model-spike`** — Bob proves bypass, one-position
+   stereo/dual-mono, and two-position mono behavior inside `bopos.out~`; agents
+   ship fixed-stereo matrix math/fixtures.
 2. **Relay state and matrix model** — virtual-node ordered positions,
    `/os/assign` convergence, listener state, atomic frame shaping, catch-up,
    and simfleet regression coverage.
@@ -93,6 +84,5 @@ loose end at a time. Binaural/HRTF remains deferred.
 
 The same real patch instances used by Stage 0 produce a stable listener-relative
 stereo preview on macOS and Linux without JACK/taps/aggregate devices; normal
-output is unchanged; channel count comes from the adapter creation argument;
-position/element edits and listener motion converge immediately; and the model
-extends to indexed N-channel audio without changing its matrix frame.
+output is unchanged; position/element edits and listener motion converge
+immediately; and no new abstraction or channel-count configuration is required.

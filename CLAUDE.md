@@ -89,10 +89,11 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    rewrite wave and its three-instance Mac gate tied 2026-07-11; deferred seam
    questions moved into `engine-boundary-design`.
 4. **`audition-rig`** — Stage 0 and both engine-boundary adoption children are
-   tied. Bob chose in-engine preview via a bypass-safe `[bopos.mix~ 2]`
-   upstream of master; work `preview-0-channel-model-spike` next. Channel count
-   comes from engine audio topology, while dashboard positions select
-   zero-position bypass / one-position stereo / two-position mono semantics.
+   tied. Bob chose in-engine preview via a bypass-safe audition branch inside
+   existing `bopos.out~`, upstream of master; work
+   `preview-0-channel-model-spike` next. The ABI stays fixed stereo, while
+   dashboard positions select zero-position bypass / one-position stereo or
+   dual-mono / two-position mono semantics.
    `pd-audition-host` is deferred as the multichannel/DAW integration strategy.
    Never edit either PD jig.
 5. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0`
