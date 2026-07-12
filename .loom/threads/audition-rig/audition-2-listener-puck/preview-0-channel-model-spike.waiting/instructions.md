@@ -1,8 +1,8 @@
 # preview-0-channel-model-spike
 
-Current blocker: waiting for Bob's fixed-stereo audition branch inside the
-existing `bopos.out~` jig. The obsolete standalone abstraction experiments are
-not part of this plan.
+Current blocker: Bob has wired a pass-through `bopos.audition~` placeholder
+inside existing `bopos.out~`; the next session should hand-hold the matrix math
+and verification. `bopos.out~` remains the only public patch abstraction.
 
 Prove the chosen `bopos.out~` audition semantics before controller or UI
 implementation. Bob owns all `.pd` work; agents provide a pure matrix model,
@@ -10,9 +10,9 @@ OSC/message fixtures, measurement scripts, and retained results.
 
 ## Bob jig
 
-- Add a temporary audition branch inside the existing two-channel `bopos.out~`
-  jig, upstream of master. Production/bypass must preserve L→L and R→R exactly
-  in shape and gain.
+- Extend the private `bopos.audition~` helper already wired after the production
+  master/notification mix and before `dac~`. Production/bypass must preserve
+  L→L and R→R exactly in shape and gain.
 - Exercise **zero positions** (bypass), **one position** (co-located stereo and
   duplicated dual-mono), and **two positions** (two mono elements) with
   distinguishable input signals.
@@ -36,5 +36,5 @@ OSC/message fixtures, measurement scripts, and retained results.
 
 Automated capture distinguishes bypass, stereo and dual-mono at one position,
 and two mono positions; rapid matrix movement is click-free at the chosen
-smoothing time; master remains downstream; malformed state is safe; and Bob
+smoothing time; production master behavior is unchanged; malformed state is safe; and Bob
 confirms the one-position stereo image before the control grammar freezes.

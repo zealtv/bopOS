@@ -9,14 +9,17 @@ unchanged in production and applies a listener matrix internally only in
 audition mode. The OS sums the already-spatialized device outputs to stereo.
 The SC starter gets equivalent behavior in its existing final-output adapter.
 
-Agents never edit `.pd`; Bob owns the `bopos.out~.pd` audition branch. Agents
-implement/test controller, dashboard, simulator, SC, docs, and exact PD edit
-recipes. Do not introduce or rename to `bopos.mix~` / `bopos.audition~`.
+Agents never edit `.pd`; Bob owns the `bopos.out~.pd` audition branch and may
+factor its private DSP into `bopos.audition~.pd`. Agents implement/test
+controller, dashboard, simulator, SC, docs, and exact PD edit recipes.
+`bopos.out~` remains the only public patch abstraction; do not rename it.
 
 ## Boundary
 
-- The adapter sits upstream of the existing final master stage. Master remains
-  the last production gain and is never composed into a patch parameter.
+- The internal helper sits after the existing production master/notification
+  mix and immediately before `dac~`. It is conceptually an external audition
+  monitor embedded at the output boundary: bypass is identical, and it never
+  changes, stores, or composes the master term or a patch parameter.
 - Listener rendering is audition-tool behavior, not `/pt`, a meter, a report,
   patch semantics, or a production engine capability.
 - The local audition matrix uses a private `/audition/*` namespace accepted by
@@ -70,8 +73,9 @@ do not design an N-channel argument or grammar until a real patch requires it.
 2. **Relay state and matrix model** — virtual-node ordered positions,
    `/os/assign` convergence, listener state, atomic frame shaping, catch-up,
    and simfleet regression coverage.
-3. **PD + SC adapter integration** — Bob integrates PD upstream of master;
-   agents build the equivalent SC output adapter and static/behavioral gates.
+3. **PD + SC adapter integration** — Bob integrates the private helper at the
+   final output boundary; agents build the equivalent SC output adapter and
+   static/behavioral gates.
 4. **Dashboard listener puck** — position + heading on the spatial map and a
    local audition channel; position-count edits update relay state immediately.
 5. **Mac/Linux audible gate** — three real engines, live element-count/position
