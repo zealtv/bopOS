@@ -72,18 +72,13 @@ def load(patch_path):
                 return None, f"param {name}: default {default} below min {low}"
             if high is not None and default > high:
                 return None, f"param {name}: default {default} above max {high}"
-        role = param.get("role")
-        if role is not None and (not isinstance(role, str) or not role.strip()):
-            return None, f"param {name}: role must be a non-empty string"
-        if role == "meter":
-            return None, f"param {name}: role 'meter' was removed; use /report for inspection"
+        if "role" in param:
+            return None, (f"param {name}: role was removed (2026-07-12); "
+                          "facilitator controls come from facilitator:true, "
+                          "inspection from /report")
         facilitator = param.get("facilitator")
         if facilitator is not None and not isinstance(facilitator, bool):
             return None, f"param {name}: facilitator must be true or false"
-
-    volumes = [param["name"] for param in params if param.get("role") == "volume"]
-    if len(volumes) > 1:
-        return None, f"at most one param may have role 'volume' (got: {', '.join(volumes)})"
 
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])
@@ -97,10 +92,9 @@ def warnings(manifest):
     """Non-fatal advisories for a manifest that load() accepted."""
     notes = []
     params = manifest.get("params", [])
-    if params and not any(param.get("role") == "volume" or param.get("name") == "gain"
-                          for param in params):
-        notes.append("no param with role 'volume' (or named 'gain'): "
-                     "the facilitator volume card will be status-only")
+    if params and not any(param.get("facilitator") is True for param in params):
+        notes.append("no param with facilitator:true: "
+                     "the facilitator device card will be status-only")
     return notes
 
 

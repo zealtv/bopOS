@@ -2,7 +2,9 @@
 
 Version 1.1 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
 (seam council 2026-07-10 + Bob's ratification; record in
-`.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`).
+`.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
+2026-07-12 by Bob's removal of the param `role` concept (§8; record in
+`.loom/tied/dashboard-7-remove-param-roles/`).
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -290,7 +292,7 @@ A patch ships **`bopos.patch.json`** in its repo root:
 ```json
 { "engine": "pd", "entrypoint": "main.pd",
   "params": [
-    {"name":"gain",    "type":"f", "min":0, "max":1, "default":0.75, "group":"mix"},
+    {"name":"gain",    "type":"f", "min":0, "max":1, "default":0.75, "group":"mix", "facilitator":true},
     {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8,  "group":"mix"},
     {"name":"echo",    "type":"i", "min":0, "max":1, "default":0,    "group":"fx"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
@@ -307,18 +309,18 @@ A patch ships **`bopos.patch.json`** in its repo root:
   a `/p/*` value hitting an undeclared name gets a badge, not a guess. The
   launcher validates declared params before start so the manifest can't silently
   drift.
-- **`role` (optional; additive, ratified by Bob 2026-07-08):** a param
-  declaration may carry a `role` string naming what the param *is* to generic
-  UIs. Defined roles: `"volume"` — the one param a facilitator volume card
-  drives (at most one per manifest; fallback when absent: the param literally
-  named `gain`; neither → the device card is status-only). `"meter"` — a
-  read-only value the patch republishes outward as `/<id>/p/<name>` (§11);
-  dashboards render it as a live meter, never a control, and never send it.
-  Consumers ignore roles they don't recognise.
+- **`role` — removed (Bob, 2026-07-12):** the param `role` concept is gone
+  entirely. `role: "meter"` fell with the 2026-07-12 engine-boundary
+  ratification; `role: "volume"` (ratified 2026-07-08) is superseded by
+  `facilitator` promotion below — there is no anointed volume param and no
+  `gain`-name fallback. Gain staging is purely the patch's business; the
+  framework only provides the `master` term (§4.1). Per-element volumes are
+  just N promoted params. Validation rejects any `role` key, loudly.
 - **`facilitator` (optional; additive, ratified 2026-07-10):** a param
   declaration may carry `"facilitator": true` to promote it onto the
-  `/facilitator` surface as a control (rendered beside the volume card;
-  values flow as ordinary `/<sel>/p/<name>`). Promotion of **framework
+  `/facilitator` surface as a control (rendered as a labelled control on the
+  device card; values flow as ordinary `/<sel>/p/<name>`; a card with no
+  promoted params is status-only). Promotion of **framework
   verbs** is *never* a manifest concern: an install-level allowlist in
   `installation.json` (`"facilitator_commands": […]`, **default empty**)
   opts specific verbs onto the surface, confirm-gated, with destructive

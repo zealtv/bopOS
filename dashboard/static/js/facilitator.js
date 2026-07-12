@@ -1,4 +1,4 @@
-// Facilitator view: volumes, master, silence/resume, sound check, presets.
+// Facilitator view: promoted params, master, silence/resume, sound check, presets.
 // Everything technical stays in / (proposal Q6 scope guard).
 const ws = new BopSocket("/ws");
 let installation = {devices: {}};
@@ -9,19 +9,10 @@ const requested = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
-// volume resolution (contract sec 8 / facilitator proposal Q1):
-// role "volume", else the param literally named gain, else no slider
-function volumeParam(device) {
-  const declared = device.declared || [];
-  const byRole = declared.find(p => p.role === "volume");
-  if (byRole) return byRole;
-  return declared.find(p => p.name === "gain") || null;
-}
-
+// contract sec 8: every facilitator:true param gets a labelled control on
+// the device card; no role concept, no anointed volume, no gain fallback
 function promotedParams(device) {
-  const volume = volumeParam(device);
-  return (device.declared || []).filter(p =>
-    p.facilitator === true && p.name !== volume?.name);
+  return (device.declared || []).filter(p => p.facilitator === true);
 }
 
 function paramControl(d, param) {
@@ -68,14 +59,10 @@ function renderCards() {
 function card(d) {
   // green = sounding-capable, gray = not; no technical detail (proposal Q1/Q6)
   const ok = d.online && Number(d.engine_alive) !== 0;
-  const volume = volumeParam(d);
-  const control = volume
-    ? `<input type="range" data-uid="${esc(d.uid)}" data-param="${esc(volume.name)}"
-         min="${volume.min ?? 0}" max="${volume.max ?? 1}" step="0.01"
-         value="${esc(d.params?.[volume.name] ?? volume.default ?? 0)}">`
-    : (d.declared ? '<span class="badge">no volume param</span>' : '<span class="badge dim">…</span>');
-  const promoted = promotedParams(d).map(param => paramControl(d, param)).join("");
-  return `<div class="card"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name">${esc(d.name || d.uid)}</span>${control}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}</div>`;
+  const pending = d.declared ? "" : '<span class="badge dim">…</span>';
+  const promoted = d.declared
+    ? promotedParams(d).map(param => paramControl(d, param)).join("") : "";
+  return `<div class="card"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name">${esc(d.name || d.uid)}</span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}</div>`;
 }
 
 function bindCards() {

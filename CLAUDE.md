@@ -43,7 +43,9 @@ remain the authority for a particular piece of work.
 The OSC contract is **ratified** (v1.1 — the seam amendment landed 2026-07-11;
 §4.1 provided terms are **implemented**: master via `seam-2`, `/pt` via
 `seam-3`, both tied 2026-07-11); the **dashboard's four phases are all tied** (2026-07-08, incl. `/facilitator` and the meters surface —
-the manifest `role` field is ratified in contract §8/§11). The `dashboard` goal
+the manifest `role` field was **removed entirely** by Bob 2026-07-12
+(`dashboard-7-remove-param-roles`): facilitator controls come only from
+`facilitator: true`, one labelled control per promoted param). The `dashboard` goal
 now waits via its blocker child `dashboard-6-rig-adoption.waiting` (Bob adopting
 it on a real rig).
 
