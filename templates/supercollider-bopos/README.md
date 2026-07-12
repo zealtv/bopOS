@@ -16,21 +16,33 @@ default synthesis server, installs OSC responders, and stays alive. A bare
 
 The framework provides values; this patch decides what they mean:
 
-| Receive port | Message | Template behavior |
-|---|---|---|
-| 6661 | `/os/master <0..1>` | Smooths and multiplies the final mix in `boposOut`, immediately before hardware output. |
-| 6661 | `/p/<name> <value>` | Updates the manifest-declared patch parameter. |
-| 6661 | `/id <id>` | Reports the resolved device identity to the patch. The template requests it from helper after opening its socket. |
-| 6661 | `/pt <pointId> <element> <value>` | Stores the shaped scalar by point and 0-based element. The example maps point 0 to element amplitude. |
-| 6661 | `/cue <cueId>` | Runs a named action after helper has handled absolute clock synchronization. |
+The engine listens on its assigned port: `BOPOS_ENGINE_PORT` from the
+environment, defaulting to 6661 (the production value). Audition instances
+each get their own port, so no instance attempts a fixed shared bind.
 
-Port 6660 remains the LAN control port, owned by helper and the PD routing layer.
-SuperCollider cannot reliably join an already-bound 6660 socket, so helper
-matches the fleet selector and relays master and patch values to non-PD engines
-on localhost port 6661. Points, cues, and identity already use that channel.
-This keeps selector/transport mechanics out of the patch and works without a
-second LAN listener. The macOS multi-instance port question remains explicitly
-gated by the audition-rig spike.
+| Message | Template behavior |
+|---|---|
+| `/os/master <0..1>` | Smooths and multiplies the final mix in `boposOut`, immediately before hardware output. |
+| `/p/<name> <value>` | Updates the manifest-declared patch parameter. |
+| `/id <id>` | Reports the resolved device identity to the patch. The template retries `/config` on 7770 every two seconds until this lands. |
+| `/pt <pointId> <element> <value>` | Stores the shaped scalar by point and 0-based element. The example maps point 0 to element amplitude. |
+| `/cue <cueId>` | Runs a named action after the framework has handled absolute clock synchronization. |
+| `/notify <event>` | Framework notifications (e.g. `identify`); the template logs them. |
+
+Port 6660 is the LAN control port, owned solely by the framework process.
+It matches the fleet selector and relays the selector-stripped engine surface
+to every engine on the assigned localhost port. This keeps selector/transport
+mechanics out of the patch and works without a second LAN listener.
+
+## Run context
+
+bopOS generates run context in a bopOS-owned step and delivers it atomically
+at launch through the environment: `BOPOS_SEED` (an integer, at most six
+digits), `BOPOS_RUN_ID` (an opaque launch identifier — never parse civil time
+out of it), `BOPOS_ACTIVEPATCH`, and `BOPOS_ASSETS`. A standalone
+`sclang main.scd` run degrades to a self-generated seed and a
+`standalone-*` run id rather than silence. The template seeds sclang's
+thread RNG from `BOPOS_SEED` so a fleet launch can be reproduced.
 
 `main.scd` runs one engine instance per device. It creates element Synths lazily
 from the 0-based element index in `/pt` and maps each element to the matching

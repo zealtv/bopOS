@@ -6,10 +6,6 @@ RUN_DIR="$BOPOS_DIR/run"
 mkdir -p "$RUN_DIR"
 
 SOUNDCARD="${SOUNDCARD:-DigiAMP}"
-RND=$RANDOM
-now=$(date --iso-8601=seconds)
-STARTDATE=$(date -d "$now" +%Y%m%d)
-STARTTIME=$(date -d "$now" +%H%M%S)
 
 # Determine active patch
 ACTIVE_PATCH=$(cat "$BOPOS_DIR/patches/active_patch.txt")
@@ -25,9 +21,13 @@ if [ "$MANIFEST_STATUS" -eq 1 ]; then
     echo "WARNING: INVALID PATCH MANIFEST; USING LEGACY LAUNCH"
 fi
 
-echo "RANDOM: $RND"
-echo "STARTDATE: $STARTDATE"
-echo "STARTTIME: $STARTTIME"
+# bopOS-owned run context, delivered atomically at launch (never over OSC)
+eval "$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")"
+BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
+BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
+
+echo "SEED: $BOPOS_SEED"
+echo "RUN ID: $BOPOS_RUN_ID"
 
 # Print the current active patch clearly
 echo "====================="
@@ -87,13 +87,13 @@ fi
 export BOPOS_ASSETS="$BOPOS_DIR/assets"
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."
-    # PUREDATA
-    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVE_PATCH; ASSETS $BOPOS_DIR/assets" &
+    # PUREDATA — run context lands on the bopos-context bus in the same launch
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_DIR/assets" &
     ENGINE_PID=$!
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else
     echo "------------------- Starting $ENGINE..."
-    BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_RANDOM=$RND BOPOS_STARTDATE=$STARTDATE BOPOS_STARTTIME=$STARTTIME "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
+    BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_SEED=$BOPOS_SEED BOPOS_RUN_ID=$BOPOS_RUN_ID BOPOS_ENGINE_PORT="${BOPOS_ENGINE_PORT:-6661}" "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
     ENGINE_PID=$!
 fi
 echo $ENGINE_PID > "$RUN_DIR/engine.pid"

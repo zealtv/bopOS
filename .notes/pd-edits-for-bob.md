@@ -53,6 +53,12 @@ leave a compatibility copy named `bopos.osc.pd`.
 - In this wave, `/id` is the required runtime context item. Stage 5 will add
   atomic launch-delivered seed/run-id/patch/assets context; leave a clear bus
   landing point, but do not invent that later wire or launch mechanism here.
+  - **Stage 5 landed (2026-07-12, no PD edit needed):** the launcher's `-send`
+    now targets the `bopos-context` receive symbol directly with
+    `seed <n>`, `run-id <s>`, `patch <name>`, `assets <path>` (alongside
+    `[bopos]`'s own `id <n>`). Patches opt in with `[r bopos-context]` +
+    `[route seed run-id patch assets id]`. The run id is an opaque symbol;
+    never parse civil time out of it.
 - Delete `[bopos]`'s boot-time `helper config` request. An engine that needs
   identity retries `/config` through the request surface described in A4;
   stage 5 owns the cross-engine retry implementation.

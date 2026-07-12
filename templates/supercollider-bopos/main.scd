@@ -17,8 +17,26 @@
     paramDefs: List.new
 );
 
-// helper.py strips fleet selectors and relays the SC engine surface on 6661:
-// identity, patch params, master, point scalars, and scheduled cue fires.
+// bopOS delivers run context through the environment at launch; a standalone
+// `sclang main.scd` degrades to a useful self-generated context instead.
+// The run id is opaque: never parse civil time out of it.
+~bopos.enginePort = ("BOPOS_ENGINE_PORT".getenv ? "6661").asInteger;
+~bopos.seed = ("BOPOS_SEED".getenv ?? { 1000000.rand.asString }).asInteger;
+~bopos.runId = "BOPOS_RUN_ID".getenv ?? {
+    "standalone-" ++ ~bopos.seed.asString.padLeft(6, "0")
+};
+~bopos.patch = "BOPOS_ACTIVEPATCH".getenv ? "standalone";
+~bopos.assets = "BOPOS_ASSETS".getenv ? "";
+thisThread.randSeed = ~bopos.seed;
+
+// bopos.py (or the audition rig) strips fleet selectors and relays the
+// engine surface to this instance's assigned port: identity, patch params,
+// master, point scalars, and scheduled cue fires. Production default is
+// 6661; audition instances each receive their own BOPOS_ENGINE_PORT, so no
+// instance ever attempts a fixed shared bind.
+if(thisProcess.openUDPPort(~bopos.enginePort).not) {
+    ("bopOS: could not open engine port " ++ ~bopos.enginePort).postln;
+};
 
 s.waitForBoot {
     var channels = s.options.numOutputBusChannels.max(1);
@@ -72,7 +90,7 @@ s.waitForBoot {
                 ("bopos_all_" ++ name).asSymbol,
                 receive,
                 ("/p/" ++ name).asSymbol,
-                recvPort: 6661
+                recvPort: ~bopos.enginePort
             ));
         };
     };
@@ -80,12 +98,12 @@ s.waitForBoot {
     OSCdef(\boposIdentity, { |message|
         ~bopos.id = message[1].asInteger;
         ("bopOS device id: " ++ ~bopos.id).postln;
-    }, '/id', recvPort: 6661);
+    }, '/id', recvPort: ~bopos.enginePort);
 
     OSCdef(\boposMaster, { |message|
         ~bopos.master = message[1].asFloat.clip(0, 1);
         ~bopos.out.set(\master, ~bopos.master);
-    }, '/os/master', recvPort: 6661);
+    }, '/os/master', recvPort: ~bopos.enginePort);
 
     // The bopos.point twin. State is keyed by [pointId, element]. This starter
     // voice demonstrates point 0 as amplitude; authors can read any key and
@@ -100,14 +118,18 @@ s.waitForBoot {
         if(point == 0 and: { synth.notNil }) {
             synth.set(\proximity, value);
         };
-    }, '/pt', recvPort: 6661);
+    }, '/pt', recvPort: ~bopos.enginePort);
 
     OSCdef(\boposCue, { |message|
         var cueId = message[1].asString;
         var action = ~bopos.cues[cueId];
         if(action.notNil) { action.value };
         ("bopOS cue: " ++ cueId).postln;
-    }, '/cue', recvPort: 6661);
+    }, '/cue', recvPort: ~bopos.enginePort);
+
+    OSCdef(\boposNotify, { |message|
+        ("bopOS notify: " ++ message[1]).postln;
+    }, '/notify', recvPort: ~bopos.enginePort);
 
     ~bopos[\installParamRoutes].();
     ~bopos.cues["ping"] = {
@@ -116,8 +138,19 @@ s.waitForBoot {
             ++ " frequency=" ++ ~bopos.params[\frequency]).postln;
     };
 
-    // Ask helper for the persisted/seeded selector only after 6661 is open.
-    NetAddr("127.0.0.1", 7770).sendMsg('/config');
-    "bopOS SuperCollider template ready".postln;
+    // Retrying /config acquisition: ask the framework for identity every
+    // couple of seconds until /id lands. A lost boot-time request is then
+    // just one retry away, and standalone runs simply keep the -1 identity.
+    ~bopos.configRetry = Routine {
+        var framework = NetAddr("127.0.0.1", 7770);
+        while { ~bopos.id < 0 } {
+            framework.sendMsg('/config');
+            2.wait;
+        };
+    }.play(AppClock);
+
+    ("bopOS SuperCollider template ready — run " ++ ~bopos.runId
+        ++ " seed " ++ ~bopos.seed
+        ++ " port " ++ ~bopos.enginePort).postln;
 };
 )

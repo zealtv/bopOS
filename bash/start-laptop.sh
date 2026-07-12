@@ -17,24 +17,23 @@ mkdir -p "$RUN_DIR"
 # --- Environment for MCP2221A USB I2C ---
 export BLINKA_MCP2221=1
 
-# --- Variables ---
-RND=$RANDOM
-STARTDATE=$(date +%Y%m%d)
-STARTTIME=$(date +%H%M%S)
-
 # --- Active patch ---
 ACTIVEPATCH=$(cat "$BOPOS_DIR/patches/active_patch.txt" | tr -d '[:space:]')
 PATCH_PATH="$BOPOS_DIR/patches/$ACTIVEPATCH"
 PATCH_ENTRYPOINT="$PATCH_PATH/main.pd"
+
+# --- bopOS-owned run context, delivered atomically at launch ---
+eval "$("$PYTHON_BIN" "$BOPOS_DIR/python/runcontext.py" "$ACTIVEPATCH")"
+BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
+BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
 
 echo "===================="
 echo "bopOS laptop mode"
 echo "===================="
 echo "ACTIVE PATCH: $ACTIVEPATCH"
 echo "PATCH PATH:   $PATCH_PATH"
-echo "RANDOM:       $RND"
-echo "STARTDATE:    $STARTDATE"
-echo "STARTTIME:    $STARTTIME"
+echo "SEED:         $BOPOS_SEED"
+echo "RUN ID:       $BOPOS_RUN_ID"
 echo "===================="
 
 # --- Start io/main.py ---
@@ -47,7 +46,7 @@ sleep 1
 # --- Start Pure Data (with GUI, no jack) ---
 echo "--- Starting Pure Data..."
 $PD_BIN -path "$BOPOS_DIR/pd" -open "$PATCH_ENTRYPOINT" \
-  -send "; RANDOM $RND; STARTTIME $STARTTIME; STARTDATE $STARTDATE; ACTIVEPATCH $ACTIVEPATCH" &
+  -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVEPATCH; bopos-context assets $BOPOS_DIR/assets" &
 echo $! > "$RUN_DIR/pd.pid"
 
 # --- Run patch start script if exists ---

@@ -2,7 +2,6 @@
 """Run several audible bopOS virtual nodes behind one LAN command socket."""
 
 import argparse
-import datetime
 import os
 import shlex
 import signal
@@ -18,6 +17,8 @@ from pythonosc import osc_message, osc_message_builder
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(REPO_DIR, "python"))
 import manifest as patch_manifest  # noqa: E402
+import relay  # noqa: E402
+import runcontext  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
 VERSION = "audition-1"
@@ -83,8 +84,10 @@ class AuditionRig:
             raise ValueError(error)
         return patch_dir, loaded
 
-    def engine_command(self, node, patch_dir, loaded):
+    def engine_command(self, node, patch_dir, loaded, context=None):
         entrypoint = os.path.join(patch_dir, loaded["entrypoint"])
+        if context is None:
+            context = runcontext.generate(os.path.basename(patch_dir))
         if self.args.engine_command:
             values = {
                 "entrypoint": entrypoint,
@@ -106,12 +109,12 @@ class AuditionRig:
                 backend = ["-pa"]
             elif self.args.audio_backend == "jack":
                 backend = ["-jack"]
-            now = datetime.datetime.now()
             startup = (
-                f"; BOPOS_ENGINE_PORT {node.engine_port}; ID {node.device_id}; "
-                f"RANDOM {node.index + 1}; STARTTIME {now:%H%M%S}; "
-                f"STARTDATE {now:%Y%m%d}; ACTIVEPATCH {os.path.basename(patch_dir)}; "
-                f"ASSETS {os.path.join(REPO_DIR, 'assets')}"
+                f"; BOPOS_ENGINE_PORT {node.engine_port}; "
+                f"bopos-context seed {context['seed']}; "
+                f"bopos-context run-id {context['run_id']}; "
+                f"bopos-context patch {os.path.basename(patch_dir)}; "
+                f"bopos-context assets {os.path.join(REPO_DIR, 'assets')}"
             )
             return [self.args.pd_bin, "-nogui", *backend, "-path",
                     os.path.join(REPO_DIR, "pd"), "-open", entrypoint,
@@ -123,13 +126,16 @@ class AuditionRig:
             return
         patch_dir, loaded = self._load_patch()
         for node in self.nodes:
-            command = self.engine_command(node, patch_dir, loaded)
+            context = runcontext.generate(os.path.basename(patch_dir))
+            command = self.engine_command(node, patch_dir, loaded, context)
             env = os.environ.copy()
             env.update({
                 "BOPOS_ENGINE_PORT": str(node.engine_port),
                 "BOPOS_ACTIVEPATCH": os.path.basename(patch_dir),
                 "BOPOS_ASSETS": os.path.join(REPO_DIR, "assets"),
                 "BOPOS_AUDITION_ID": str(node.device_id),
+                "BOPOS_SEED": str(context["seed"]),
+                "BOPOS_RUN_ID": context["run_id"],
             })
             node.process = subprocess.Popen(command, env=env, start_new_session=True)
             print(f"audition: id={node.device_id} port={node.engine_port} "
@@ -147,22 +153,30 @@ class AuditionRig:
             self.sock.sendto(packet, (self.local_target, node.engine_port))
 
     def relay(self, datagram):
+        # Engines see only the ratified selector-stripped surface. Framework
+        # mute stays below the engines (production mutes the hardware mixer),
+        # so /os/mute is deliberately not relayed here.
         try:
             message = osc_message.OscMessage(datagram)
         except (osc_message.ParseError, ValueError, IndexError):
             return
         parts = [part for part in message.address.split("/") if part]
-        if len(parts) == 3 and parts[1] == "p" and parts[2]:
-            address = "/" + "/".join(parts[1:])
-        elif len(parts) == 3 and parts[1:] in (["os", "master"], ["os", "mute"]):
-            address = "/" + "/".join(parts[1:])
-        elif len(parts) == 3 and parts[1:] == ["os", "identify"]:
-            address = "/identify"
-        else:
+        if len(parts) != 3:
             return
         selector = parts[0]
+        if parts[1:] == ["os", "identify"]:
+            uid = str(message.params[0]) if message.params else None
+            packet = osc_datagram("/notify", "identify")
+            for node in self.nodes:
+                if matches(selector, node.device_id) and uid in (None, node.uid):
+                    self.sock.sendto(packet, (self.local_target, node.engine_port))
+            return
+        shaped = relay.shape_provided_term(parts, message.params)
+        if shaped is None:
+            return
+        address, args = shaped
         builder = osc_message_builder.OscMessageBuilder(address=address)
-        for value in message.params:
+        for value in args:
             builder.add_arg(value)
         forwarded = builder.build().dgram
         for node in self.nodes:

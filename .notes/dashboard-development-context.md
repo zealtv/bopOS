@@ -55,7 +55,10 @@ so no Pi-side changes are needed.
 8. Start Pure Data (`pd -nogui -jack -open "$PATCH_ENTRYPOINT" -send "..."`)
 9. Run patch-specific `start.sh` if it exists
 
-Startup messages sent to PD: `RANDOM`, `STARTTIME` (HHMMSS), `STARTDATE` (YYYYMMDD), `ACTIVEPATCH`
+Startup context sent to PD on the `bopos-context` bus (boundary-5, 2026-07-12):
+`seed` (int ≤6 digits), `run-id` (opaque string), `patch`, `assets`. Non-PD
+engines get the same context as `BOPOS_SEED`/`BOPOS_RUN_ID`/`BOPOS_ACTIVEPATCH`/
+`BOPOS_ASSETS`/`BOPOS_ENGINE_PORT` environment variables.
 
 ### Shutdown (bash/stop.sh)
 

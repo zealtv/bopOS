@@ -21,6 +21,7 @@ from store import Store
 import manifest
 import fetcher
 import pointfield
+import relay
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
@@ -602,14 +603,11 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     parts = [part for part in str(decoded[0]).split("/") if part]
     args = decoded[2:]
     # Relay provided terms to every engine on the common selector-stripped
-    # localhost surface. PD temporarily retains its direct 6660 path in
-    # parallel as the migration safety net; the later PD edit wave removes it.
-    if len(parts) == 3:
-        if (parts[1:] == ["os", "master"] and args
-                and selector_matches(parts[0], state.id)):
-            return relay_provided_term("/os/master", args[:1])
-        if parts[1] == "p" and args and selector_matches(parts[0], state.id):
-            return relay_provided_term("/p/" + parts[2], args)
+    # localhost surface; the address shaping is shared with the audition rig.
+    if len(parts) == 3 and selector_matches(parts[0], state.id):
+        shaped = relay.shape_provided_term(parts, args)
+        if shaped is not None:
+            return relay_provided_term(*shaped)
     # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
     # fleet-wide), offset is per-device. Handled before the /os gate below.
     if parts == ["sync", "ping"] and len(args) >= 2:
