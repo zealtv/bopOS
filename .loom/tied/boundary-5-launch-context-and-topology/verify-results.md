@@ -120,13 +120,34 @@ remaining assertions in `pd_command_test`, plus `exclusive_bind_test`,
 catch-up, and owned teardown`). The scratch copy was deleted; the tied file
 was never modified.
 
+## Hardware run (bop000, 2026-07-12, after the local verify)
+
+Deployed commit `5dc686e` to the real DigiAMP+ node `bop000` (local bench
+edits stashed as "bop000 bench edits pre-boundary-5"; the untracked
+`systemd/` copy — byte-identical to the repo's — moved to
+`systemd.local-copy/`). Bob authenticated the `bopos-helper` restart. Then:
+
+- `bash/stop-engine.sh` + `bash/start-engine.sh` launched jackd + PD on the
+  DigiAMP with the new context step: PD's live cmdline showed
+  `-send "; bopos-context seed 367299; bopos-context run-id
+  default-20260712-215054-367299; bopos-context patch default;
+  bopos-context assets /home/pi/bopOS/assets"` — no legacy sends.
+- Ratified port topology held: helper (one python PID) owned 6660 + 7770;
+  `pd` owned 6661 + 6662 only.
+- LAN round-trip from the dev Mac: `/all/os/ping` → `/os/pong 4242
+  2c:cf:67:b3:0a:58`; `/all/os/identify` → helper journal logged
+  `IDENTIFY: 2c:cf:67:b3:0a:58 id -1` with no errors/tracebacks (the node is
+  currently unassigned, so id is -1; selector `all` matched).
+- Pre-existing, unrelated: JACK/PD real-time scheduling warnings (rtprio
+  limits on this image).
+
 ## Not tested
 
-- Real PD (`pd -nogui`) or `sclang` process launch — no PD/SC binaries
-  invoked; only source/text/-send-string assertions and the fake-UDP-engine
-  audition relay path were exercised.
-- Hardware run (real Pi, real audio backend, jackd).
+- `sclang` process launch — no SC binary invoked; the template changes are
+  covered by text assertions only.
+- Audible confirmation of the identify chirp / patch behavior on bop000 —
+  nobody was listening at the speaker; the wire and journal evidence above is
+  what was captured.
 - The `bopos-context` bus's effect inside a running PD patch (receiving
-  `-send bopos-context ...` and updating `[bopos]` state) — that is a PD-side
-  behavior and out of scope for this agent (house rule: never edit or drive
-  `.pd` internals; PD is Bob's domain).
+  `-send bopos-context ...` values a patch consumes) — PD-side behavior;
+  no shipped patch reads seed/run-id yet, and PD is Bob's domain.
