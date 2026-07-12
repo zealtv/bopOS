@@ -1,5 +1,9 @@
 # host-0-three-child-spike
 
+**Deferred:** this is now the multichannel/DAW strategy. Resume only when the
+parent thread's concrete-need conditions are met; default spatial preview is
+being built via `bopos.mix~` under `audition-rig`.
+
 Prove the load-bearing `[pd~]` assumptions before designing the launcher or
 listener UI. Bob owns the spike patch; agents may provide commands, fixtures,
 OSC drivers, capture/measurement scripts, and results, but never edit `.pd`.

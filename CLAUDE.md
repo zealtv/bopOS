@@ -88,11 +88,13 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    number = device) is recorded in `seam-3`'s instructions (tied). The PD
    rewrite wave and its three-instance Mac gate tied 2026-07-11; deferred seam
    questions moved into `engine-boundary-design`.
-4. **`audition-rig` / `pd-audition-host`** — Stage 0 and both engine-boundary
-   adoption children are tied. Listener-puck work now waits on the
-   `pd-audition-host` thread: Bob chose one parent PD graph hosting N real
-   patches via `[pd~]`, stereo-first, with raw stems and listener math in the
-   parent. Work `host-0-three-child-spike` next; never edit its `.pd` jig.
+4. **`audition-rig`** — Stage 0 and both engine-boundary adoption children are
+   tied. Bob chose in-engine preview via a bypass-safe `[bopos.mix~ 2]`
+   upstream of master; work `preview-0-channel-model-spike` next. Channel count
+   comes from engine audio topology, while dashboard positions select
+   zero-position bypass / one-position stereo / two-position mono semantics.
+   `pd-audition-host` is deferred as the multichannel/DAW integration strategy.
+   Never edit either PD jig.
 5. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0`
    (`hw-onboarding-doc` tied 2026-07-11 → `docs/HARDWARE.md`),
    `dashboard-5-position-precision` (numeric position entry + space origin,
