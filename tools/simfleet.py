@@ -42,55 +42,18 @@ import pointfield  # noqa: E402
 
 
 def load_manifest(path):
-    """(verbatim text, declared names, meter declarations) for the manifest
-    all devices serve."""
+    """Return verbatim text and declared parameter names."""
     try:
         with open(path) as source:
             text = source.read()
         manifest = json.loads(text)
         params = manifest.get("params", [])
-        meters = [param for param in params if param.get("role") == "meter"]
-        return text, {param["name"] for param in params}, meters
+        return text, {param["name"] for param in params}
     except (OSError, ValueError, TypeError, KeyError):
-        return None, set(), []
+        return None, set()
 
 
-class LegacyProtocol:
-    """The OSC byte boundary for bopOS's pre-v1 wire protocol."""
-
-    @staticmethod
-    def decode(datagram):
-        message = osc_message.OscMessage(datagram)
-        address = [part for part in message.address.split("/") if part]
-        return address + list(message.params)
-
-    @staticmethod
-    def matches(selector, device_id):
-        if selector == "all":
-            return True
-        try:
-            return float(selector) == float(device_id)
-        except (TypeError, ValueError):
-            return False
-
-    @staticmethod
-    def report(device_id, payload):
-        builder = osc_message_builder.OscMessageBuilder(address="/rpt")
-        builder.add_arg(float(device_id), arg_type="f")
-        for value in payload:
-            if isinstance(value, bool):
-                builder.add_arg(int(value), arg_type="i")
-            elif isinstance(value, (int, float)):
-                builder.add_arg(float(value), arg_type="f")
-            else:
-                builder.add_arg(str(value), arg_type="s")
-        return builder.build().dgram
-
-    def heartbeat(self, device):
-        return (
-            self.report(device.wire_id(), ["hb"]),
-            self.report(device.wire_id(), ["version", device.legacy_version]),
-        )
+DEFAULT_MANIFEST_TEXT, _DEFAULT_DECLARED_PARAMS = load_manifest(DEFAULT_MANIFEST_PATH)
 
 
 class ContractProtocol:
@@ -138,15 +101,14 @@ class Device:
         self.ephemeral = ephemeral
         self.device_id = device_id
         self.version = version
-        self.legacy_version = float(version) if isinstance(version, (int, float)) else 0.0
         self.unresponsive = unresponsive
         self.state = "booting"
         self.gain = 0.0
         self.gain2 = 0.0
         self.backing = 0.0
-        self.echo = False
         self.params = {}
         self.active_patch = ""
+        self.reports = {}
         self.last_hb = None
         self.last_command = "-"
         self.wired = wired
@@ -155,7 +117,6 @@ class Device:
         self.rssi = random.randint(-70, -45)
         self.muted = False
         self.ident_until = 0.0
-        self.meter_values = {}
         # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
         # clock, plus the offset the leader has pushed for cue conversion
         self.sync_skew_ns = 0
@@ -219,10 +180,9 @@ class SimFleet:
     def __init__(self, args, devices):
         self.args = args
         self.devices = devices
-        self.protocol = LegacyProtocol() if args.protocol == "legacy" else ContractProtocol()
-        self.legacy_protocol = LegacyProtocol()
-        self.manifest_text, self.declared_params, self.meter_params = load_manifest(
-            args.manifest or DEFAULT_MANIFEST_PATH)
+        self.protocol = ContractProtocol()
+        self.manifest_text, self.declared_params = load_manifest(
+            getattr(args, "manifest", None) or DEFAULT_MANIFEST_PATH)
         self.events = []
         self.sequence = itertools.count()
         self.running = True
@@ -241,7 +201,7 @@ class SimFleet:
         self.target = (args.target, args.report_port)
         # each device gets a fixed clock skew in [-skew, +skew] so a correct
         # leader-pushed offset (contract sec 3.1) has something to cancel
-        skew_ns = int(self.args.sync_skew_ms * 1e6)
+        skew_ns = int(getattr(self.args, "sync_skew_ms", 0.0) * 1e6)
         for device in self.devices:
             device.sync_skew_ns = random.randint(-skew_ns, skew_ns) if skew_ns else 0
             if skew_ns:
@@ -277,112 +237,31 @@ class SimFleet:
         except OSError as error:
             print(f"simfleet: send failed: {error}", file=sys.stderr)
 
-    def report(self, device, payload):
-        self.queue_datagram(self.legacy_protocol.report(device.wire_id(), payload))
-
     def heartbeat(self, device, reschedule=True):
         if device.state in ("booting", "running"):
-            if self.args.protocol == "legacy":
-                hb, version = self.protocol.heartbeat(device)
-                self.queue_datagram(hb, device)
-                self.queue_datagram(version)
-            else:
-                self.queue_datagram(self.protocol.heartbeat(device), device)
-                # legacy hb/version come from PD itself — a dead engine can't send them
-                if self.args.legacy_reports and device.engine_alive():
-                    hb, version = self.legacy_protocol.heartbeat(device)
-                    self.queue_datagram(hb)
-                    self.queue_datagram(version)
+            self.queue_datagram(self.protocol.heartbeat(device), device)
         if reschedule:
-            interval = 2.0 if self.args.protocol == "v1" and device.device_id == -1 else self.args.hb_interval
+            interval = 2.0 if device.device_id == -1 else self.args.hb_interval
             self.schedule(interval, self.heartbeat, device)
 
     def promote_running(self, device):
         if device.state == "booting":
             self.set_state(device, "running")
 
-    def emit_meters(self):
-        # a patch republishing role:"meter" values as /<id>/p/<name>
-        # (contract sec 11) -- engine-owned, so a dead engine sends nothing
-        for device in self.devices:
-            if device.state != "running" or not device.engine_alive() or device.device_id < 0:
-                continue
-            for declaration in self.meter_params:
-                low = float(declaration.get("min", 0) or 0)
-                high = float(declaration.get("max", 1) or 1)
-                previous = device.meter_values.get(declaration["name"])
-                if previous is None:
-                    previous = random.uniform(low, high)
-                step = random.uniform(0.02, 0.08) * (high - low) * random.choice((-1, 1))
-                value = previous + step
-                if value > high or value < low:
-                    value = previous - step  # reflect at the bounds
-                device.meter_values[declaration["name"]] = value
-                builder = osc_message_builder.OscMessageBuilder(
-                    address=f"/{int(device.device_id)}/p/{declaration['name']}")
-                builder.add_arg(value, arg_type="f")
-                self.queue_datagram(builder.build().dgram)
-        if self.args.meter_interval > 0:
-            self.schedule(self.args.meter_interval, self.emit_meters)
-
-    def announce(self, device):
-        # loadbang -> delay 1000 -> aloha in bopos.osc.pd (PD-side, needs the engine)
-        if device.state in ("booting", "running"):
-            if self.args.protocol == "legacy" or (self.args.legacy_reports and device.engine_alive()):
-                self.report(device, ["aloha", 1])
-
     def bump(self, device):
-        if self.args.protocol == "legacy":
-            device.version += 1
-            device.legacy_version = device.version
-        else:
-            device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
-            device.legacy_version += 1
+        device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
 
     def finish_boot(self, device, bump_version=False):
         if bump_version:
             self.bump(device)
-        device.echo = False
         self.set_state(device, "booting")
         self.schedule(1.0, self.promote_running, device)
-        self.schedule(1.2, self.announce, device)
         self.schedule(0.0, self.heartbeat, device, False)
 
     def reboot_after_silence(self, device, bump_version=False):
         duration = self.args.boot_secs * random.uniform(0.7, 1.3)
         self.set_state(device, "rebooting")
         self.schedule(duration, self.finish_boot, device, bump_version)
-
-    def helper_action(self, device, args):
-        if not args:
-            return
-        verb = str(args[0])
-        rest = args[1:]
-        if verb == "reboot":
-            self.schedule(0.5, self.report, device, ["helper-reply", "reboot"])
-            self.schedule(0.5, self.reboot_after_silence, device)
-        elif verb == "shutdown":
-            self.schedule(0.5, self.report, device, ["helper-reply", "shutdown"])
-            self.schedule(0.5, self.set_state, device, "off")
-        elif verb == "update":
-            self.schedule(0.5, self.report, device, ["helper-reply", "update"])
-            self.set_state(device, "updating")
-            self.schedule(5.0, self.reboot_after_silence, device, True)
-        elif verb == "patch" and rest:
-            device.active_patch = str(rest[0])
-            self.report(device, ["helper-reply", "update"])
-            self.set_state(device, "updating")
-            self.schedule(5.0, self.reboot_after_silence, device, False)
-        elif verb == "addpatch" and len(rest) >= 2:
-            self.schedule(1.0, self.report, device,
-                          ["helper-reply", "addpatch", rest[1]])
-        elif verb == "getsamples":
-            self.report(device, ["helper-reply", "getsamples"])
-        elif verb == "restart-engine":
-            self.schedule(0.5, self.report, device,
-                          ["helper-reply", "restart-engine"])
-            if self.args.protocol == "v1":
-                device.engine_restart_until = time.monotonic() + 3.0
 
     def send_rev(self, device, source):
         # /os/rev <sha> <model> <uid> -- the convergence receipt (contract sec 7;
@@ -432,40 +311,6 @@ class SimFleet:
         else:
             # malformed args change nothing; the receipt is still the honest state
             self.send_rev(device, source)
-
-    def command(self, device, payload):
-        device.last_command = " ".join(format_token(item) for item in payload) or "-"
-        self.log(device, f"command={device.last_command}")
-        if device.unresponsive or device.state not in ("booting", "running") or not payload:
-            return
-
-        command = str(payload[0])
-        args = payload[1:]
-        echo_before = device.echo
-        if command in ("gain", "gain2", "backing") and args:
-            try:
-                setattr(device, command, float(args[0]))
-            except (TypeError, ValueError):
-                pass
-        elif command == "echo" and args:
-            try:
-                device.echo = bool(float(args[0]))
-            except (TypeError, ValueError):
-                pass
-        elif command == "aloha":
-            self.report(device, ["aloha", 1])
-        elif command == "id" and args:
-            try:
-                device.device_id = float(args[0])
-            except (TypeError, ValueError):
-                pass
-        # NB: no `version` handler — on real devices `route version -> s version`
-        # has no receiver, so the command is a no-op on the wire today
-        elif command == "helper":
-            self.helper_action(device, args)
-
-        if echo_before:
-            self.report(device, payload)
 
     def device_now_ns(self, device, jitter=False):
         # the device's own monotonic clock = leader's clock + its fixed skew;
@@ -585,29 +430,7 @@ class SimFleet:
                 datagram, source = self.sock.recvfrom(65535)
             except BlockingIOError:
                 return
-            try:
-                tokens = self.legacy_protocol.decode(datagram)
-            except Exception:
-                continue
-            if not tokens:
-                continue
-            selector, payload = tokens[0], tokens[1:]
-            # /sync/ping, /cue and /<id>/sync/offset are v1 framework messages,
-            # never legacy patch commands -- keep them out of the command loop
-            # (float(selector) rejects "sync"/"cue" anyway, but /<id>/sync/offset
-            # would otherwise log a bogus command= on the addressed device)
-            framework_sync = (selector in ("sync", "cue")
-                              or (payload and payload[0] == "sync"))
-            if not framework_sync:
-                for device in self.devices:
-                    # each device has its own radio: drop inbound independently,
-                    # so an /all command can reach some devices and miss others
-                    if random.random() < self.args.drop:
-                        continue
-                    if self.legacy_protocol.matches(selector, device.match_id()):
-                        self.command(device, payload)
-            if self.args.protocol == "v1":
-                self.receive_contract(datagram, source)
+            self.receive_contract(datagram, source)
 
     def receive_contract(self, datagram, source):
         try:
@@ -651,18 +474,13 @@ class SimFleet:
                 # the patch plane goes straight to PD — a dead engine applies nothing
                 if not args or not device.engine_alive():
                     continue
-                if member not in self.declared_params and member not in ("gain", "gain2", "backing", "echo"):
+                if member not in self.declared_params and member not in ("gain", "gain2", "backing"):
                     self.log(device, f"p/{member} undeclared, dropped")
                     continue
                 device.params[member] = args[0]
                 if member in ("gain", "gain2", "backing"):
                     try:
                         setattr(device, member, float(args[0]))
-                    except (TypeError, ValueError):
-                        pass
-                elif member == "echo":
-                    try:
-                        device.echo = bool(float(args[0]))
                     except (TypeError, ValueError):
                         pass
                 # log the applied patch value so spatial/gain automation is
@@ -756,18 +574,36 @@ class SimFleet:
                 builder = osc_message_builder.OscMessageBuilder(address="/os/report")
                 builder.add_arg(json.dumps(report), arg_type="s")
                 self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            elif member == "probe" and args:
+                what = str(args[0])
+                values = device.reports.get(what)
+                if values is None:
+                    values = {
+                        "id": (int(device.device_id),),
+                        "uid": (str(device.mac),),
+                        "version": (str(device.version),),
+                        "update_model": ("ephemeral" if device.ephemeral else "persistent",),
+                    }.get(what)
+                if values is not None:
+                    builder = osc_message_builder.OscMessageBuilder(address="/os/probe")
+                    builder.add_arg(int(device.device_id), arg_type="i")
+                    builder.add_arg(what, arg_type="s")
+                    for value in values:
+                        builder.add_arg(value)
+                    self.sock.sendto(builder.build().dgram,
+                                     (source[0], self.args.report_port))
 
     def display(self):
         now = time.monotonic()
         print("\033[H\033[2J", end="")
-        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   ECHO  MUTE IDENT HB AGE  LAST COMMAND")
+        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   MUTE IDENT HB AGE  LAST COMMAND")
         for device in self.devices:
             age = "-" if device.last_hb is None else f"{now - device.last_hb:.1f}s"
             print(
                 f"{device.device_id:4g} {device.hostname:14.14} {device.mac:17} "
                 f"{device.display_state():14.14} {str(device.version):7.7} "
                 f"{device.gain:6g} {device.gain2:6g} {device.backing:6g} "
-                f"{'on' if device.echo else 'off':5} {'yes' if device.muted else 'no':4} "
+                f"{'yes' if device.muted else 'no':4} "
                 f"{'IDENT' if device.ident_until > now else '-':5} {age:7} {device.last_command}"
             )
         sys.stdout.flush()
@@ -778,10 +614,7 @@ class SimFleet:
             phase = 0.0 if len(self.devices) == 1 else 2.0 * index / (len(self.devices) - 1)
             self.schedule(phase, self.heartbeat, device)
             self.schedule(1.0, self.promote_running, device)
-            self.schedule(1.2, self.announce, device)
             self.log(device, f"state={device.display_state()}")
-        if self.args.protocol == "v1" and self.meter_params and self.args.meter_interval > 0:
-            self.schedule(1.5, self.emit_meters)
         if self.tty:
             print("\033[?25l", end="", flush=True)
             self.schedule(0.0, self.display)
@@ -830,7 +663,7 @@ def load_devices(args):
     first_wired = len(identities) - args.wired
     first_engine_dead = len(identities) - args.engine_dead
     first_ephemeral = len(identities) - args.ephemeral
-    version = float(args.version) if args.protocol == "legacy" else args.version
+    version = args.version
     devices = [Device(mac, hostname, -1 if index >= first_unassigned else device_id,
                       version, index >= first_unresponsive, index >= first_wired,
                       index >= first_engine_dead, index >= first_ephemeral)
@@ -858,20 +691,13 @@ def parse_args():
     parser.add_argument("--target", default="255.255.255.255")
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)
-    parser.add_argument("--protocol", choices=("legacy", "v1"), default="v1")
+    parser.add_argument("--protocol", choices=("v1",), default="v1")
     parser.add_argument("--manifest",
                         help="bopos.patch.json served on /os/params (default: patches/default)")
-    parser.add_argument("--meter-interval", type=float, default=0.5,
-                        help="seconds between role:meter emissions (0 disables)")
     parser.add_argument("--sync-skew-ms", type=float, default=0.0,
                         help="max abs fake clock skew vs leader, random +/- per device")
     parser.add_argument("--sync-jitter-ms", type=float, default=0.0,
                         help="per-pong measurement noise added to deviceTime")
-    reports = parser.add_mutually_exclusive_group()
-    reports.add_argument("--legacy-reports", dest="legacy_reports", action="store_true")
-    reports.add_argument("--no-legacy-reports", dest="legacy_reports", action="store_false")
-    parser.set_defaults(legacy_reports=True)
-    # legacy defaults to deployed version 0; v1 normalizes this to a fake SHA below
     parser.add_argument("--version", default=None)
     args = parser.parse_args()
     counts = (args.unresponsive, args.unassigned, args.wired, args.engine_dead, args.ephemeral)
@@ -883,16 +709,10 @@ def parse_args():
             or args.sync_skew_ms < 0 or args.sync_jitter_ms < 0):
         parser.error("timing values must be non-negative (heartbeat interval must be positive)")
     if args.version is None:
-        args.version = "0.0" if args.protocol == "legacy" else "a1b2c3d"
-    if args.protocol == "v1":
-        if not re.fullmatch(r"[0-9a-fA-F]{1,7}", args.version):
-            parser.error("v1 --version must be a hexadecimal short-SHA-looking value")
-        args.version = args.version.lower().zfill(7)
-    else:
-        try:
-            float(args.version)
-        except ValueError:
-            parser.error("legacy --version must be numeric")
+        args.version = "a1b2c3d"
+    if not re.fullmatch(r"[0-9a-fA-F]{1,7}", args.version):
+        parser.error("v1 --version must be a hexadecimal short-SHA-looking value")
+    args.version = args.version.lower().zfill(7)
     return args
 
 

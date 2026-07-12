@@ -42,12 +42,18 @@ except Exception:
 server = OSCServer( ('', 7770) )
 client = OSCClient()
 client.connect( ('127.0.0.1', 6661) )
+engine_client_lock = threading.Lock()
+
+
+def send_to_engine(message):
+    """Serialize access to pyOSC3's shared helper-to-engine client."""
+    with engine_client_lock:
+        client.send(message)
 
 
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
-              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2",
-              "METERS": "", "METER_INTERVAL": "5"}
+              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -192,6 +198,8 @@ class NodeState:
         self.muted_via_stop = False
         self.elements = resolve_elements(self.store)
         self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
+        self.reports = {}
+        self.reports_lock = threading.Lock()
 
 
 node_state = NodeState()
@@ -336,53 +344,6 @@ def heartbeat_loop(state=None):
         hb_wake.clear()
 
 
-def read_cpu_temp(state=None):
-    try:
-        with open("/sys/class/thermal/thermal_zone0/temp") as source:
-            return round(int(source.read().strip()) / 1000.0, 1)
-    except (OSError, ValueError):
-        return None
-
-
-# framework-owned meter sources (contract sec 11): bopos.config METERS names
-# the ones to expose; each goes out as /<id>/p/<name> every METER_INTERVAL
-# seconds -- the same read-only surface a patch's role:"meter" params use.
-# I2C sources join this registry when a hardware story needs them.
-METER_SOURCES = {"rssi": read_rssi, "cpu_temp": read_cpu_temp}
-
-
-def meter_loop(state=None):
-    state = state or node_state
-    names = [name.strip() for name in (state.config.get("METERS") or "").split(",")
-             if name.strip()]
-    for name in names:
-        if name not in METER_SOURCES:
-            print("WARNING: unknown METERS source:", name)
-    sources = [(name, METER_SOURCES[name]) for name in names if name in METER_SOURCES]
-    if not sources:
-        return
-    try:
-        interval = max(1.0, float(state.config.get("METER_INTERVAL")))
-    except (TypeError, ValueError):
-        interval = 5.0
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    target = (state.config.get("HB_TARGET") or "255.255.255.255", 5550)
-    while True:
-        if state.id >= 0:
-            for name, read in sources:
-                value = read(state)
-                if value is None:
-                    continue
-                msg = OSCMessage("/{}/p/{}".format(int(state.id), name))
-                msg.append(float(value), 'f')
-                try:
-                    sock.sendto(msg.getBinary(), target)
-                except Exception as error:
-                    print("WARNING: meter send failed:", error)
-        sleep(interval)
-
-
 def selector_matches(selector, device_id):
     if selector == "all":
         return True
@@ -474,7 +435,9 @@ def identify(uid=None, state=None):
     if uid is not None and str(uid) != state.uid:
         return False
     try:
-        client.send(OSCMessage("/identify"))
+        msg = OSCMessage("/notify")
+        msg.append("identify", 's')
+        send_to_engine(msg)
     except Exception:
         pass
     flash_led()
@@ -531,7 +494,7 @@ def apply_assign(args, state=None):
     msg = OSCMessage("/id")
     msg.append(new_id, 'f')
     try:
-        client.send(msg)
+        send_to_engine(msg)
     except Exception:
         pass
     state.store.put("assignment", [new_id, name] + positions)
@@ -577,7 +540,7 @@ def apply_points(parts, args, state=None):
         msg.append(int(element), 'i')
         msg.append(float(value), 'f')
         try:
-            client.send(msg)
+            send_to_engine(msg)
         except Exception as error:
             print("WARNING: point send to engine failed:", error)
             break
@@ -590,7 +553,7 @@ def relay_provided_term(address, args):
     for value in args:
         typed_append(msg, value)
     try:
-        client.send(msg)
+        send_to_engine(msg)
         return True
     except Exception as error:
         print("WARNING: provided-term send to engine failed:", error)
@@ -638,11 +601,10 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         return False
     parts = [part for part in str(decoded[0]).split("/") if part]
     args = decoded[2:]
-    # PD owns the deployed 6660 selector/routing layer. Other engines cannot
-    # necessarily share helper's LAN socket (SC 3.13 cannot), so helper gives
-    # them the same selector-stripped local surface on 6661. Points and cues
-    # already use this engine-neutral delivery channel below.
-    if expected_engine_name() != "pd" and len(parts) == 3:
+    # Relay provided terms to every engine on the common selector-stripped
+    # localhost surface. PD temporarily retains its direct 6660 path in
+    # parallel as the migration safety net; the later PD edit wave removes it.
+    if len(parts) == 3:
         if (parts[1:] == ["os", "master"] and args
                 and selector_matches(parts[0], state.id)):
             return relay_provided_term("/os/master", args[:1])
@@ -765,6 +727,26 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if parts[2] == "identify":
         identify(args[0] if args else None, state)
         return True
+    if parts[2] == "probe" and args:
+        what = str(args[0])
+        with state.reports_lock:
+            values = state.reports.get(what)
+        if values is None:
+            values = {
+                "id": (int(state.id),),
+                "uid": (str(state.uid),),
+                "version": (str(state.version),),
+                "update_model": (str(state.update_model),),
+            }.get(what)
+        if values is None:
+            return True
+        msg = OSCMessage("/os/probe")
+        msg.append(int(state.id), 'i')
+        msg.append(what, 's')
+        for value in values:
+            typed_append(msg, value)
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
     if parts[2] == "mute" and args:
         try:
             if int(args[0]) in (0, 1):
@@ -847,39 +829,49 @@ def config_callback(path='', tags='', args='', source=''):
     # authoritative resolved identity, including when no CSV exists.
     msg = OSCMessage("/id")
     msg.append(node_state.id, 'i')
-    client.send(msg)
+    send_to_engine(msg)
 
 
 def update_callback(path='', tags='', args='', source=''):
     update_script = os.path.join(BOPOS_DIR, "bash/update.sh")
-    msg = OSCMessage("/update")
-    client.send(msg)
+    msg = OSCMessage("/notify")
+    msg.append("update", 's')
+    send_to_engine(msg)
     print("UPDATE!")
     os.system(update_script)
 
 def getsamples_callback(path='', tags='', args='', source=''):
     update_script = os.path.join(BOPOS_DIR, "bash/getsamples.sh")
-    msg = OSCMessage("/getsamples")
-    client.send(msg)
+    msg = OSCMessage("/notify")
+    msg.append("getsamples", 's')
+    send_to_engine(msg)
     print("UPDATE SAMPLES!")
     os.system(update_script)
 
 def shutdown_callback(path='', tags='', args='', source=''):
-    client.send(OSCMessage("/shutdown"))
+    msg = OSCMessage("/notify")
+    msg.append("shutdown", 's')
+    send_to_engine(msg)
     print("SHUTDOWN!")
     os.system("systemctl poweroff")
 
 def reboot_callback(path='', tags='', args='', source=''):
-    client.send(OSCMessage("/reboot"))
+    msg = OSCMessage("/notify")
+    msg.append("reboot", 's')
+    send_to_engine(msg)
     print("REBOOTING")
     os.system("systemctl reboot")
 
 def checkout_callback(path, tags, args, source):
-    client.send(OSCMessage("/checkout"))
+    msg = OSCMessage("/notify")
+    msg.append("checkout", 's')
+    send_to_engine(msg)
     branch = args[0].lstrip('/')
     print("checking out: " + branch)
     os.system(os.path.join(BOPOS_DIR, "bash/checkout.sh ") + branch)
-    client.send(OSCMessage("/update"))
+    msg = OSCMessage("/notify")
+    msg.append("update", 's')
+    send_to_engine(msg)
     print("UPDATE!")
     os.system(os.path.join(BOPOS_DIR, "bash/update.sh"))
 
@@ -964,7 +956,7 @@ def add_patch_callback(path='', tags='', args='', source=''):
     try:
         msg = OSCMessage("/addpatch")
         msg.append(repo)
-        client.send(msg)
+        send_to_engine(msg)
     except Exception as error:
         print(f"Failed to send OSC confirmation: {error}")
 
@@ -982,7 +974,9 @@ def pull_active_patch_callback(path='', tags='', args='', source=''):
 def restart_engine_callback(path='', tags='', args='', source=''):
     stop_script = os.path.join(BOPOS_DIR, "bash/stop-engine.sh")
     start_script = os.path.join(BOPOS_DIR, "bash/start-engine.sh")
-    client.send(OSCMessage("/restart-engine"))
+    msg = OSCMessage("/notify")
+    msg.append("restart-engine", 's')
+    send_to_engine(msg)
     print("RESTARTING ENGINE")
     subprocess.Popen(["bash", "-c", '"$1" && exec "$2"', "restart-engine", stop_script, start_script],
                      start_new_session=True)
@@ -1003,13 +997,20 @@ def load_callback(path='', tags='', args='', source=''):
     for value in node_state.store.get(str(args[0])):
         typed_append(msg, value)
     try:
-        client.send(msg)
+        send_to_engine(msg)
     except Exception as error:
         print(f"load: could not reply to engine: {error}")
 
 
-# /os/* admin verbs on the 6660 LAN listener delegate to the 7770 callbacks;
-# both spellings stay live so the deployed fleet migrates on aliases (sec 13)
+def report_callback(path='', tags='', args='', source=''):
+    if len(args) < 2 or re.fullmatch(r"[A-Za-z0-9_-]+", str(args[0])) is None:
+        return
+    with node_state.reports_lock:
+        node_state.reports[str(args[0])] = tuple(args[1:])
+
+
+# /os/* admin verbs on the 6660 LAN listener call these implementation
+# functions directly. Engines cannot issue administrative commands.
 LIFECYCLE_VERBS = {
     "reboot": reboot_callback,
     "shutdown": shutdown_callback,
@@ -1031,7 +1032,7 @@ def fire_cue_to_engine(cue_id):
     msg = OSCMessage("/cue")
     typed_append(msg, cue_id)
     try:
-        client.send(msg)
+        send_to_engine(msg)
     except Exception as error:
         print(f"cue: could not fire to engine: {error}")
 
@@ -1046,17 +1047,9 @@ def exit_handler():
 
 
 server.addMsgHandler( "/config", config_callback )
-server.addMsgHandler( "/update", update_callback )
-server.addMsgHandler( "/getsamples", getsamples_callback )
-server.addMsgHandler( "/shutdown", shutdown_callback )
-server.addMsgHandler( "/reboot", reboot_callback )
-server.addMsgHandler( "/checkout", checkout_callback )
-server.addMsgHandler( "/patch", switch_patch_callback )
-server.addMsgHandler( "/addpatch", add_patch_callback )
-server.addMsgHandler( "/pullpatch", pull_active_patch_callback )
-server.addMsgHandler( "/restart-engine", restart_engine_callback )
 server.addMsgHandler( "/store", store_callback )
 server.addMsgHandler( "/load", load_callback )
+server.addMsgHandler( "/report", report_callback )
 
 atexit.register(exit_handler)
 
@@ -1065,6 +1058,5 @@ if __name__ == "__main__":
     cue_scheduler.start()
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
-    threading.Thread(target=meter_loop, daemon=True).start()
     while True:
         server.handle_request()

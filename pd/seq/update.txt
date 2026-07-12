@@ -1,5 +1,0 @@
-switch 1;
-attack 0;
-72 127;
-- 1200;
-switch 0;

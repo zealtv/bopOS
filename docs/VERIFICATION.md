@@ -5,7 +5,11 @@ command: each completed stitch retains its focused tests and evidence under
 `.loom/tied/<stitch>/`.
 
 Use `~/.venvs/bopos/bin/python` for project verifies. Dependency and Chromium
-setup is documented in `CLAUDE.md` and `dashboard/README.md`.
+setup is documented in `CLAUDE.md` and `dashboard/README.md`. Set
+`PYTHONPYCACHEPREFIX=/tmp/bopos-pycache` for compile/import checks launched from
+stitch directories so generated `__pycache__` folders do not appear to Loom as
+unresolved child stitches. Focused verifier scripts should also set
+`sys.dont_write_bytecode = True` before importing repository modules.
 
 | Change area | Minimum local verification | Stronger / integration verification | Hardware boundary |
 |---|---|---|---|
@@ -49,4 +53,3 @@ Before tying a stitch, retain inside its directory:
 
 Test scripts must locate the repository by a marker or imported module path.
 Tying moves their directory, so fixed `../..` assumptions are invalid.
-

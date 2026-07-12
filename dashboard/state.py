@@ -63,7 +63,7 @@ class InstallationState:
             "patch": values.get("patch", "default"), "params": dict(params),
             "online": False, "last_seen": None, "ip": None, "version": None,
             "engine_alive": None, "rssi": None, "report": None,
-            "declared": None, "undeclared": False, "rev": None, "meters": {},
+            "declared": None, "undeclared": False, "rev": None,
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
         }
 
@@ -185,7 +185,7 @@ class InstallationState:
         for uid, durable in loaded["devices"].items():
             device = self._runtime_device(uid, durable)
             for key in ("online", "last_seen", "ip", "version", "engine_alive",
-                        "rssi", "report", "declared", "undeclared", "rev", "meters", "sync"):
+                        "rssi", "report", "declared", "undeclared", "rev", "sync"):
                 if uid in live:
                     device[key] = live[uid][key]
             rebuilt[uid] = device

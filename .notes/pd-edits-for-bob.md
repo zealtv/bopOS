@@ -1,98 +1,172 @@
-# PD edits for Bob — the live list
+# PD edits for Bob — boundary-4 rewrite wave
 
-The one place every pending `.pd` change lives (Bob's ruling 2026-07-10: PD
-edits must be really visible). Surfaced on the loom as the top-level
-`pd-edits-for-bob.waiting` stitch. Agents append here as stitches hit new
-edits; Python-side work never waits on these. Detailed step-by-step specs for
-items 1–4 live in `.loom/tied/osc-schema-contract/pd-edits-for-bob.md` (the
-original running list, now historical); this file is the index of record.
+This is the live, Bob-owned edit list. The earlier 2026-07-11 rewrite is
+complete but is now superseded by the ratified engine boundary in
+`.loom/tied/engine-boundary-ratification/ratification.md`. Agents must not edit
+`.pd` files.
 
-**Context shift (Bob, 2026-07-10):** existing patches will be **rewritten**
-for this version of bopOS — backwards compatibility is a non-goal. So these
-are no longer incremental edits to keep old patches limping; they are the
-spec for **one rewrite wave** of `pd/bopos.osc.pd` + the reference patch /
-starter kit.
+## Gate status
 
-## A. OS layer — `pd/bopos.osc.pd`
+- Python relays the common selector-stripped 6661 surface to PD: proven.
+- The systemd helper-death/mute gate recovered control in at most 2.191 s on
+  `bop000`; audible silence and resume were confirmed without restarting PD or
+  JACK: proven 2026-07-12.
+- Therefore PD's temporary direct 6660 path may now be removed in this wave.
+- Do not add `/helper/*` compatibility, a leased probe, meter streaming, or a
+  replacement for deleted report presentation metadata.
 
-✅ 1. **Forward `restart-engine` to helper** — add to the `process-helper-messages`
-   route list, treated like `reboot`. helper's handler already exists; the verb
-   is unreachable from the LAN until this lands. (Spec: tied file §1.)
-✅ 2. **Identify chirp** — route `identify` off the 6661 netreceive → audible
-   chirp (+ optional `s identify`). Proves the audio chain on install day.
-   (Spec: tied file §2.)
-✅ 3. **Retire PD's own heartbeat + aloha emitters** — helper.py sends the
-   contract `/hb` now; PD's `/rpt hb`/version metro and boot `aloha` are wire
-   noise. Under the rewrite ruling, simply don't carry them forward. (Spec:
-   tied file §3.)
-✅ 4. **Route the patch plane (`route p`)** — insert `route p` on the
-   post-selector remainder so `/5/p/gain 0.5` reaches the patch as `gain 0.5`.
-   (Spec: tied file §4.)
-✅ 5. **Pass `/os/master` through to the patch** — ratified (contract v1.1 §4.1)
-   and live since seam-2 (2026-07-11): the dashboard broadcasts
-   `/all/os/master <0..1>` on 6660 on every master change, and unicasts it
-   per-device in the params catch-up push. The OS layer routes it to a
-   patch-visible receive (feeds `bopos.out~`, item B1); the framework never
-   composes it into a patch param — the wire carries raw mixes only.
-   Routed-single-receiver style per Bob's 7.2 ruling.
-✅ 6. **Deliver point scalars to the patch** — ratified and live since seam-3
-   (2026-07-11): helper computes per-element proximity and sends flat args
-   `/pt <pointId> <element> <v>` to PD on 6661. `element` is **0-based**
-   (Bob's 2026-07-11 ruling: indices default to 0-indexing), ordered by the
-   assignment's position pairs (element 0 = first pair — matches PD
-   `[clone]`'s 0-based voice `$1`). A
-   point that is cleared or vanishes from a frame is released with one
-   final `v=0`. The OS layer routes it to a patch-visible receive (feeds
-   `bopos.point`, item B2).
-✅ 7. **Audition-rig local port** — macOS stock PD cannot share UDP 6660 across
-   instances (tied `audition-0-port-spike`). Add an audition startup control,
-   recommended `BOPOS_ENGINE_PORT <port>`, which sends `listen <port>` to an
-   initially unbound UDP binary `netreceive` feeding a **selector-free** local
-   engine surface. With no startup value, normal node behavior stays
-   unchanged. The audition relay has already matched the virtual-node selector;
-   this inlet must carry the rewrite-wave `/p/*`, `/os/master`, `/pt`, `/cue`,
-   and `/id` routes without selecting again. Exact Mac acceptance steps live
-   in `audition-1b-pd-mac-gate.waiting` under the audition-rig thread.
+## A. Replace `pd/bopos.osc.pd` with `pd/bopos.pd`
 
-## B. Reference patch / starter kit (PD **and SuperCollider** — SC is
-first-class; agents write the SC side, `.pd` is yours)
+Build `[bopos]` as the transport-owning façade. This is a clean break; do not
+leave a compatibility copy named `bopos.osc.pd`.
 
-✅ 1. **`bopos.out~`** — the sink abstraction, dropped before `dac~`: master
-   multiply (from A5) with declick ramp, mute-honor belt-and-suspenders,
-   optional post-master level echo as `role:"meter"` (`/<id>/p/level`).
-✅ 2. **`bopos.point <id>`** — outputs the 0→1 proximity scalar for one point
-   (internally routes the A6 receive). Clone-friendly: under the multi-element
-   ruling the patch `[clone]`s its element voice and each clone reads its own
-   element's values.
-✅ 3. **`/cue` receiver** — helper fires bare `/cue <cueId>` to PD on 6661 at the
-   synced deadline (clock-sync, 2026-07-09); the reference patch needs the
-   receiver so cues can fire something audible.
-✅ 4. **Level meter sender** — the default-patch `role:"meter"` sender from the
-   meters surface (2026-07-08); subsumed by B1's level echo if that ships.
+### A1. One configurable engine ingress
 
-## C. Observations (no edit requested — carried from the tied file)
+- Delete the fixed `netreceive -u -b 6660` and all post-6660 selector logic:
+  `route all`, `route-by-id`, `r ID`, and per-selector identity routing.
+- Consolidate the current fixed 6661 and audition-only ingress into one binary
+  UDP `netreceive` whose default listen port is 6661.
+- `BOPOS_ENGINE_PORT <port>` may override that default before/at launch for
+  audition instances. Both default and override feed exactly the same
+  selector-free router; there must not be a second production ingress.
+- The common input is already selector-stripped. Route these exact messages:
 
-✅ - Heartbeat `value version` is dead wiring (every device reports version 0);
-  superseded by helper's `/hb`.
-- `route-by-id` boot mismatch: unconfigured device reports id 0 but answers −1.
-✅ - `process-helper-messages` route list omits `checkout`.
-- Engine-side persistence store (§10) is plumbed in helper; PD needs
-  store/load routing + a **local** `/load` reply path whenever a patch first
-  wants it.
+  ```text
+  /id <n>                         -> `bopos-context` as `id <n>`
+  /os/master <0..1>              -> `bopos-master` as the bare value
+  /p/<name> <values...>          -> `bopos-param` as `<name> <values...>`
+  /pt <point> <element> <value>  -> `bopos-point` as all three values
+  /cue <id>                      -> `bopos-cue` as the bare id
+  /notify <event>                -> `bopos-notify` as the bare event
+  ```
 
-## Rewrite-wave completion — 2026-07-11
+- Retire the temporary `/identify` special case. The accepted common spelling
+  is `/notify identify`; the notification chirp may continue to listen to
+  `bopos-notify`.
+- Unknown common-surface messages may be printed for diagnosis, but must not
+  be re-broadcast or forwarded as admin commands.
 
-The requested OS-layer and reference-patch edits above have landed. The real
-Mac gate launched three PD/CoreAudio engines on distinct local ports; Bob heard
-point-controlled element-0 noise on the left and the identify notification on
-both channels. Commands, automated evidence, known fixed-port warnings, and
-the unverified macOS 5550 report transport are recorded in
-`audition-1b-pd-mac-gate`.
+### A2. Context and old globals
 
-Identity/run-context ownership, framework bus naming (`bopos-` namespace),
-PD-to-helper command ingress, IO port boundaries, echo/debug cruft, and meter
-semantics/lifecycle are deliberately deferred to a higher-capability design
-session. Source material lives in
-`.lore/items/2026-07-11-pd-engine-boundary-brain-dump/`; the question set is
-`.notes/pd-engine-boundary-design-brief.md`. Persistence store/load routing
-remains demand-driven: add it only when a real patch consumes that facility.
+- Replace patch-facing `ID`, `PX`, `PY`, `RANDOM`, `STARTDATE`, `STARTTIME`,
+  and `ACTIVEPATCH` transport assumptions with the single `bopos-context` bus.
+- In this wave, `/id` is the required runtime context item. Stage 5 will add
+  atomic launch-delivered seed/run-id/patch/assets context; leave a clear bus
+  landing point, but do not invent that later wire or launch mechanism here.
+- Delete `[bopos]`'s boot-time `helper config` request. An engine that needs
+  identity retries `/config` through the request surface described in A4;
+  stage 5 owns the cross-engine retry implementation.
+
+### A3. Keep IO transport separate
+
+- Keep binary UDP input on localhost 6662, but publish decoded messages on
+  `bopos-io` (rename `from-bopos-io`).
+- Keep `to-bopos-io` -> OSC binary -> localhost 8880.
+- Keep the existing dynamic IO message formatter (`report`, `create`, `poll`,
+  and arbitrary device commands). Do not fold IO traffic into port 6661.
+
+### A4. Engine-to-framework requests and reports
+
+- Delete the entire `osc-in -> route helper -> process-helper-messages ->
+  netsend 7770` admin chain. Engines may not request update, reboot, shutdown,
+  restart-engine, patch changes, checkout, sample fetches, or other LAN admin.
+- Provide a narrow localhost 7770 request path for only `/config`, `/store`,
+  and `/load`. Its patch-facing send bus should be explicit framework intent,
+  not the retired generic `osc-out` bus. If no current patch consumes
+  persistence, only `/config` needs a façade trigger in this wave; do not
+  invent persistence UI.
+- Add `r to-bopos-report` -> OSC `/report <name> <values...>` -> localhost
+  7770. Reports are demand-inspection state only; they have no meter role or
+  presentation metadata.
+
+### A5. Delete legacy reporting/debug transport
+
+- Delete `osc-out`, the ID-prepending `/rpt` formatter, both 5550 broadcast
+  `netsend`s, the echo gate/chain, `from-helper`, and helper-reply behavior.
+- Delete the old generic `osc-in` and patch-facing abstraction inlet/outlet
+  semantics. Patches consume the named `bopos-*` buses instead.
+- `[bopos]` must never bind or send LAN ports 5550 or 6660.
+
+## B. Update framework PD abstractions
+
+### B1. `pd/bopos.out~.pd`
+
+- Replace `r osc-in -> route os -> route master` with `r bopos-master`.
+- Keep the 10 ms master ramp and default master of 1.
+- Remove the `osc-in /os/mute` multiplier. Framework mute is enforced by
+  Python at the hardware mixer (or engine-stop fallback); `/os/mute` is not on
+  the engine-facing 6661 surface.
+- Keep the `bopos-notify` chirp mixed after patch inputs so `notify identify`
+  remains an audible install diagnostic.
+
+### B2. `pd/bopos.point.pd`
+
+- Rename its source from plural `r bopos-points` to singular
+  `r bopos-point`.
+- Preserve 0-based routing: `[bopos.point <point> <element>]` outputs the value
+  from `<point> <element> <value>`.
+
+## C. Rewrite the reference patch
+
+Apply these edits to `patches/default/main.pd`; use the resulting spellings in
+future PD starter patches.
+
+- Instantiate `[bopos]`, not `[bopos.osc]`.
+- Replace `r osc-in -> route gain` with `r bopos-param -> route gain`.
+- Rename `r from-bopos-io` to `r bopos-io`; keep `s to-bopos-io`.
+- Keep `r bopos-cue` and the `snap` diagnostic.
+- Keep `[bopos.point 0 0]` and the two element buses.
+- Delete the entire level snapshot/metro sender, `s osc-out`, and the stale
+  `role:meter` annotation. Do not replace it with `to-bopos-report` unless a
+  concrete demand-driven inspection need is specified later.
+- Retain `[bopos.out~]` as the only final sink.
+
+Search every shipped/reference PD patch after editing. These legacy symbols
+must be absent from active patch code:
+
+```text
+bopos.osc  osc-in  osc-out  from-bopos-io  bopos-points
+route-by-id  from-helper  role:meter
+```
+
+## D. Post-edit verification (agent-supported, Bob runs/hears)
+
+Before D2, the supporting agent must normalize helper-to-engine lifecycle
+notifications in `python/helper.py`. It currently emits legacy `/identify`,
+`/update`, `/shutdown`, `/reboot`, `/checkout`, and `/restart-engine`
+addresses. The ratified surface is only `/notify <event>`; fix the Python
+producer and its tests rather than retaining those aliases in PD.
+
+### D1. Static/headless assertions
+
+The boundary-4 verifier should fail unless all of the following are true:
+
+- `pd/bopos.pd` exists and `pd/bopos.osc.pd` does not.
+- No shipped `.pd` binds 6660 or sends 5550.
+- `[bopos]` contains one configurable ingress defaulting to 6661, plus the
+  retained 6662 input and 7770/8880 request/IO outputs.
+- The six incoming named buses and two outgoing buses use these exact names:
+  `bopos-master`, `bopos-param`, `bopos-point`, `bopos-cue`, `bopos-notify`,
+  `bopos-io`, `bopos-context`, `to-bopos-io`, `to-bopos-report`.
+- The deleted legacy symbols above and admin verbs are absent from `[bopos]`.
+- The default patch has no meter sender or `role:meter` annotation.
+
+### D2. Production-style macOS N=1 gate
+
+1. Ensure no previous PD process owns the test ports.
+2. Launch one stock PD 0.55.2/CoreAudio default patch with `[bopos]` on its
+   default ingress (6661), not an audition override.
+3. Assert with `lsof` that PD owns 6661 and 6662, does **not** own 6660, and
+   has no 5550 socket.
+4. Send selector-free `/id 7`, `/os/master 1`, `/p/gain 0.75`,
+   `/pt 0 0 0.5`, `/cue snap`, and `/notify identify` to localhost 6661.
+5. Confirm ID/context routing, parameter delivery, point-controlled element-0
+   sound on the left, the snap cue, and the identify chirp on both channels.
+6. Send a representative `to-bopos-io` message and confirm its decoded OSC on
+   8880. Send `to-bopos-report` test state and confirm `/report` on 7770.
+7. Stop PD cleanly and confirm 6661/6662 are released with no `pd` or
+   `pd-watchdog` process remaining.
+
+The gate is N=1 deliberately. Multi-instance audition topology cleanup belongs
+to stage 5. Record automated results and Bob's audible observation inside the
+boundary-4 stitch before tying it.

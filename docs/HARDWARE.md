@@ -92,10 +92,16 @@ engine-safe. Blank cells are unknown — check, don't guess.
 
 | Board | `dtoverlay` | ALSA card (`SOUNDCARD`) | Mute control | Verified |
 |---|---|---|---|---|
-| IQaudIO DigiAMP+ | `iqaudio-dacplus,unmute_amp` | `DigiAMP` | *(expected `Digital` — unverified)* | — (deployed default; mute path not yet benched) |
+| IQaudIO DigiAMP+ | `iqaudio-dacplus,unmute_amp` | `DigiAMP` | `Digital` | Bob, 2026-07-12 (Pi OS Trixie, audible mute/resume) |
 | Pimoroni Audio SHIM | | | | — |
 | Class-compliant USB interface | *(none — USB)* | *(from `/proc/asound/cards`)* | *(often `PCM` or `Speaker`)* | — |
 | Onboard headphone jack | *(none — `dtparam=audio=on`)* | `Headphones` | | — |
+
+On the verified DigiAMP+ image, the board's mute light did not change with
+the ALSA `Digital` switch and is not a reliable mute indicator. Audible output
+and `amixer sget Digital` are the bench checks. ALSA percentages on this
+control are also misleadingly quiet: 10% mapped to -93 dB; use an explicit dB
+value when setting a safe bench level (-40 dB was audible but very quiet).
 
 ## Input-capable boards
 

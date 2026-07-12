@@ -14,14 +14,6 @@ from pythonosc.osc_message_builder import OscMessageBuilder
 import points
 
 
-# Wire-compat matrix, in one place. Params are idempotent full-state, so the
-# legacy spelling is double-sent while LEGACY_COMPAT is on. Admin verbs are
-# NOT idempotent (update runs a pull, reboot reboots): they go out only as
-# /<sel>/os/<verb>, answered by helper.py's 6660 listener -- nodes that
-# predate the contract keep working from old dashboards via the PD-routed
-# 7770 aliases (contract sec 13), but this dashboard needs contract nodes.
-LEGACY_COMPAT = True
-LEGACY_PARAMS = {"gain", "gain2", "backing", "echo"}
 LEGACY_DECLARATIONS = [
     {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.75, "group": "mix"},
     {"name": "gain2", "type": "f", "min": 0, "max": 1, "default": 0.3, "group": "mix"},
@@ -64,7 +56,6 @@ class OSCBridge:
         self.transport = None
         self.sender = None
         self.pending = {"params": deque(), "report": deque()}
-        self._meter_sent = {}
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
@@ -123,8 +114,6 @@ class OSCBridge:
 
     def set_param(self, selector, name, value):
         self.send(f"/{selector}/p/{name}", [value])
-        if LEGACY_COMPAT and name in LEGACY_PARAMS:
-            self.send(f"/{selector}/{name}", [value])
 
     def send_master(self, selector="all"):
         # provided term (contract sec 4.1): idempotent full-state; the engine
@@ -260,8 +249,7 @@ class OSCBridge:
             device["declared"] = declarations
             for declaration in declarations:
                 name = declaration.get("name")
-                if (name and name not in device["params"] and "default" in declaration
-                        and declaration.get("role") != "meter"):
+                if name and name not in device["params"] and "default" in declaration:
                     device["params"][name] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
@@ -270,7 +258,7 @@ class OSCBridge:
             if int(device["id"]) >= 0:
                 for declaration in declarations:
                     name = declaration.get("name")
-                    if name and name in device["params"] and declaration.get("role") != "meter":
+                    if name and name in device["params"]:
                         self.set_param(int(device["id"]), name, device["params"][name])
                 self.send_master(int(device["id"]))
                 if self.state.data.get("points"):
@@ -303,11 +291,7 @@ class OSCBridge:
         if address == "/sync/pong" and len(args) >= 4:
             self.handle_pong(args)
             return
-        parts = [part for part in address.split("/") if part]
-        if len(parts) == 3 and parts[1] == "p" and args:
-            self.handle_meter(parts[0], parts[2], args[0])
-            return
-        if address in ("/os/pong", "/os/load") or address == "/rpt":
+        if address in ("/os/pong", "/os/load"):
             log.debug("ignored %s %r", address, args)
 
     @staticmethod
@@ -350,38 +334,3 @@ class OSCBridge:
         if now - self._sync_sent.get(uid, 0) >= 0.2:
             self._sync_sent[uid] = now
             self.broadcast("sync", {"uid": uid, **device["sync"]})
-
-    def handle_meter(self, selector, name, value):
-        # inbound /<id>/p/<name>: a live value republished by the patch or
-        # helper (contract sec 11). Declared role:"meter" renders as a meter;
-        # an undeclared name gets the sec 8 badge; a declared *control* name
-        # inbound is not the meter surface and is ignored.
-        try:
-            device_id = int(selector)
-        except ValueError:
-            return
-        if device_id < 0 or re.fullmatch(r"[A-Za-z0-9_-]+", name) is None:
-            return
-        matches = [item for item in self.state.devices.values()
-                   if int(item["id"]) == device_id]
-        if len(matches) != 1:
-            return
-        device = matches[0]
-        declaration = next((item for item in (device.get("declared") or [])
-                            if item.get("name") == name), None)
-        declared_meter = declaration is not None and declaration.get("role") == "meter"
-        if declaration is not None and not declared_meter:
-            return
-        meters = device.setdefault("meters", {})
-        if name not in meters and len(meters) >= 32:
-            return  # cap junk from a misbehaving sender
-        if not isinstance(value, (int, float)):
-            value = str(value)
-        now = time.time()
-        meters[name] = {"value": value, "at": now, "declared": declared_meter}
-        key = (device["uid"], name)
-        if now - self._meter_sent.get(key, 0) >= 0.2:
-            self._meter_sent[key] = now
-            self.broadcast("meter", {"uid": device["uid"], "name": name,
-                                     "value": value, "at": now,
-                                     "declared": declared_meter})

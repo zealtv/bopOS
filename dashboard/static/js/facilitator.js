@@ -15,13 +15,13 @@ function volumeParam(device) {
   const declared = device.declared || [];
   const byRole = declared.find(p => p.role === "volume");
   if (byRole) return byRole;
-  return declared.find(p => p.name === "gain" && p.role !== "meter") || null;
+  return declared.find(p => p.name === "gain") || null;
 }
 
 function promotedParams(device) {
   const volume = volumeParam(device);
   return (device.declared || []).filter(p =>
-    p.facilitator === true && p.role !== "meter" && p.name !== volume?.name);
+    p.facilitator === true && p.name !== volume?.name);
 }
 
 function paramControl(d, param) {

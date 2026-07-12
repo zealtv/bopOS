@@ -2,7 +2,7 @@
 #X obj 122 110 route \$1;
 #X obj 122 174 outlet;
 #X obj 122 134 route \$2;
-#X obj 122 72 r bopos-points;
+#X obj 122 72 r bopos-point;
 #X connect 0 0 2 0;
 #X connect 2 0 1 0;
 #X connect 3 0 0 0;

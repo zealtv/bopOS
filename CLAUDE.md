@@ -50,12 +50,15 @@ it on a real rig).
 Every active thread is decomposed into numbered children (2026-07-08 loom audit);
 in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
 
-1. **`engine-boundary-design`** — **do this before further SC/audition work**
-   (Bob, 2026-07-11). The PD rewrite and three-instance Mac gate exposed open
-   ownership/naming/transport questions across PD, helper, IO, SC, meters, and
-   the audition relay. Run the council child, then stop at Bob's ratification
-   gate. Ground truth starts at `.notes/pd-engine-boundary-design-brief.md` and
-   lore `2026-07-11-pd-engine-boundary-brain-dump`.
+1. **`engine-boundary-design`** — **ratified 2026-07-12; implement before
+   further SC/audition work.** The sole-binder end state is accepted with a
+   clean break: future `bopos.py` alone owns LAN 6660 and every engine consumes
+   the same selector-stripped localhost 6661 surface. The six migration stages
+   are a Loom dependency chain; `boundary-1-client-lock` is next. PD's direct
+   path remains until the relay, helper-death, and production-Mac N=1 gates
+   pass. The authoritative amended record is tied stitch
+   `engine-boundary-ratification`; notably, no `/helper/*` alias, leased probe,
+   or `role:meter` survives, and civil-time/plugin capability design stays open.
 2. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
    wire shape in contract §3.1; dashboard is the leader (offset estimate + push);
    helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
