@@ -27,7 +27,7 @@ unresolved child stitches. Focused verifier scripts should also set
 
 ```sh
 # Current work state; do not claim a stitch merely to inspect it
-./.loom/loom status
+./.loom/loom.sh status
 
 # Manual dashboard smoke test, terminals 1 and 2
 ~/.venvs/bopos/bin/python dashboard/server.py

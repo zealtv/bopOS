@@ -14,7 +14,7 @@ installations. This file is the orientation for any agent working here.
    `2026-07-10-patch-seam-council`, and tied `engine-boundary-ratification`.
 3. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
    forward plan; the shared context every loom thread points back to.
-4. `./.loom/loom status` — live task state. The loom (`.loom/`) is the task tracker;
+4. `./.loom/loom.sh status` — live task state. The loom (`.loom/`) is the task tracker;
    read `.loom/README.md` for the protocol (claim → work → tie; split when too big).
 5. `.notes/dashboard-development-context.md` — full dashboard design (stack, protocol,
    UI) if working on dashboard threads.
@@ -51,7 +51,7 @@ surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
 **The workable queue for autonomous sessions.** This recommended order
-takes precedence over `./.loom/loom next`'s alphabetical listing (which
+takes precedence over `./.loom/loom.sh next`'s alphabetical listing (which
 serves `d8-1` first); in-thread, numeric prefixes are the order:
 
 1. **`patch-asset-sync/dist-1..4`** — ratified 2026-07-13 (record:
