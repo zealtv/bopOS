@@ -57,3 +57,13 @@ Consequences executed at tie time: `d8-1..3` children created under the
 Bob alongside dist-1..4); hostname-in-report folded into
 `dist-1-contract-amendment` + `dist-2-node-side` so the node-side change
 lands once; coordination notes updated in ui-0/ui-2.
+
+## Addendum — Bob, 2026-07-13 (same day, post-ratification)
+
+On the seat id collision (sim instances and real devices sharing ids on the
+broadcast plane): Bob asked whether piping OSC to localhost rather than
+broadcast fixes it — yes, adopted as the mechanism: **the mode is the send
+target**. Performance mode sends to LAN broadcast; sim mode sends unicast to
+`127.0.0.1:6660` (relay is sole binder). Assign-replay to real devices
+pauses in sim mode. This supersedes the earlier "warn on toggle" mitigation;
+recorded in `d8-2-simulate-toggle`.
