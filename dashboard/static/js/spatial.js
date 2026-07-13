@@ -46,6 +46,13 @@
     const clip = el("clipPath", {id: "spatial-room-clip"}, defs);
     el("rect", {x: 0, y: 0, width: W, height: D}, clip);
     el("rect", {x: 0, y: 0, width: W, height: D, class: "room"}, svg);
+    const origin = room.origin || [0, 0];
+    const originGroup = el("g", {class: "space-origin",
+                                  transform: `translate(${origin[0]} ${origin[1]})`}, svg);
+    el("circle", {r: 0.16}, originGroup);
+    el("line", {x1: -0.35, y1: 0, x2: 0.35, y2: 0}, originGroup);
+    el("line", {x1: 0, y1: -0.35, x2: 0, y2: 0.35}, originGroup);
+    el("text", {x: 0.22, y: 0.38}, originGroup).textContent = "0,0";
     el("rect", {x: 0, y: D + TRAY_GAP, width: W, height: TRAY_H, class: "tray"}, svg);
     el("text", {x: 0.15, y: D + TRAY_GAP + 0.38, class: "tray-label"}, svg).textContent = "UNPLACED";
 

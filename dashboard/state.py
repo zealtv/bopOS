@@ -13,7 +13,7 @@ FACILITATOR_COMMANDS = frozenset(("restart-engine", "update", "reboot", "shutdow
 class InstallationState:
     # top-down floor plan in metres: origin top-left, x right, y down —
     # the spatial-audio work consumes these coordinates, keep them explicit
-    DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m"}
+    DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m", "origin": [0.0, 0.0]}
 
     def __init__(self, path, devices_file=None):
         self.path = path
@@ -177,7 +177,22 @@ class InstallationState:
             if not math.isfinite(dimension) or not 0 < dimension <= 1000:
                 return None
             dimensions.append(dimension)
-        return {"width": dimensions[0], "depth": dimensions[1], "units": "m"}
+        origin = value.get("origin", [0.0, 0.0])
+        if not isinstance(origin, (list, tuple)) or len(origin) < 2:
+            return None
+        offsets = []
+        for raw, limit in zip(origin[:2], dimensions):
+            if isinstance(raw, bool):
+                return None
+            try:
+                offset = float(raw)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(offset):
+                return None
+            offsets.append(min(max(offset, 0.0), limit))
+        return {"width": dimensions[0], "depth": dimensions[1], "units": "m",
+                "origin": offsets}
 
     def save(self):
         directory = os.path.dirname(os.path.abspath(self.path))

@@ -88,13 +88,21 @@ function row(d) {
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
-  const w = $("#room-w"), d = $("#room-d");
+  const w = $("#room-w"), d = $("#room-d"), ox = $("#origin-x"), oy = $("#origin-y");
   if (!w) return;
-  if (document.activeElement !== w && document.activeElement !== d) {
+  if (![w, d, ox, oy].includes(document.activeElement)) {
     w.value = room.width ?? 10; d.value = room.depth ?? 8;
+    ox.value = room.origin?.[0] ?? 0; oy.value = room.origin?.[1] ?? 0;
+    ox.max = room.width ?? 10; oy.max = room.depth ?? 8;
   }
 }
-["room-w", "room-d"].forEach(id => { const input = document.getElementById(id); if (input) input.onchange = () => ws.send("set_room", {width: Number($("#room-w").value), depth: Number($("#room-d").value)}); });
+["room-w", "room-d", "origin-x", "origin-y"].forEach(id => {
+  const input = document.getElementById(id);
+  if (input) input.onchange = () => ws.send("set_room", {
+    width: Number($("#room-w").value), depth: Number($("#room-d").value),
+    origin: [Number($("#origin-x").value), Number($("#origin-y").value)],
+  });
+});
 (function bindCue() {
   const button = $("#cue-fire"); if (!button) return;
   button.onclick = () => {
@@ -134,8 +142,18 @@ function renderDetail() {
   }).join("");
   const assigned = Number(d.id) >= 0;
   const assignmentDraft = assignmentDrafts.get(d.uid) || {};
+  const positionKeys = ["pos1", "pos2"].filter(key => Array.isArray(d[key]));
+  if (!positionKeys.length) positionKeys.push("pos1");
+  const room = installation.room || {}; const origin = room.origin || [0, 0];
+  const positions = positionKeys.map((key, index) => {
+    const position = d[key];
+    const x = Array.isArray(position) ? Math.round((position[0] - origin[0]) * 100) / 100 : "";
+    const y = Array.isArray(position) ? Math.round((position[1] - origin[1]) * 100) / 100 : "";
+    return `<div class="position-row" data-position-key="${key}"><strong>element ${index}</strong><label>x <input class="position-coordinate" data-axis="x" type="number" step="0.01" min="${-origin[0]}" max="${(room.width??10)-origin[0]}" value="${x}"></label><label>y <input class="position-coordinate" data-axis="y" type="number" step="0.01" min="${-origin[1]}" max="${(room.depth??8)-origin[1]}" value="${y}"></label><span class="dim">m from origin</span></div>`;
+  }).join("");
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):(assignmentDraft.name??''))}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:(assignmentDraft.id??nextFreeId())}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
+    ${assigned?`<section><h2>Position</h2><div class="position-grid">${positions}</div></section>`:''}
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
     <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
@@ -164,6 +182,19 @@ function bindControls(d) {
   });
   document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown"].includes(verb)&&!confirm(`${verb} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
   document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
+  document.querySelectorAll(".position-coordinate").forEach(input => input.onchange = () => {
+    const row = input.closest("[data-position-key]");
+    const x = Number(row.querySelector('[data-axis="x"]').value);
+    const y = Number(row.querySelector('[data-axis="y"]').value);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const origin = installation.room?.origin || [0, 0];
+    const position = [Math.round((x + origin[0]) * 100) / 100,
+                      Math.round((y + origin[1]) * 100) / 100];
+    const key = row.dataset.positionKey;
+    d[key] = position;
+    ws.send("set_position", {uid:d.uid, [key]:position});
+    Spatial.render(installation, selected, select, ws);
+  });
   if (Number(d.id) < 0) {
     const rememberAssignment = () => assignmentDrafts.set(d.uid, {
       name: $("#assign-name").value,

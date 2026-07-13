@@ -85,7 +85,9 @@ out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
 for `/os/fetch`.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
-listener, master, presets); named snapshots in
+visual coordinate origin, listener, master, presets). The technical view lets
+you type each element's x/y relative to that origin; the dashboard converts it
+through the same assignment path used by map dragging. Named snapshots live in
 `dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
 
