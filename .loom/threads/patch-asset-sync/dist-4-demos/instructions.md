@@ -1,8 +1,5 @@
 # dist-4-demos
 
-**.waiting — deferred by Bob (2026-07-13): ratified, implement later. Resume
-only on his explicit green light; do not claim autonomously.**
-
 Demo patches replace `templates/` (authority: `.loom/tied/dist-0-proposal/`,
 Q5/Q6 ratified). Take after dist-1/2 so the layout matches the contract.
 

@@ -1,6 +1,6 @@
 # d8-1-seat-model
 
-**Deferred by Bob (2026-07-13) — do not start autonomously.** Authority:
+Authority:
 `.loom/tied/dashboard-8-identity-sim-design/` (proposal.md +
 ratification.md + two surveys with file:line for everything touched).
 

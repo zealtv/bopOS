@@ -43,12 +43,11 @@ confirm-gated dashboard-side (Q4 "violence"); one "Sync all" + per-item
 Sends; `droppatch` and `dropassets`; `demo-pd`/`demo-sc` in `patches/`,
 `templates/` deleted.
 
-Implementation is deliberately deferred (Bob, 2026-07-13: "prep the loom,
-we will implement later"). Children in order: `dist-1-contract-amendment` →
-`dist-2-node-side` → `dist-3-dashboard-send` → `dist-4-demos`.
-`sample-distribution` (goal + samples-0..2) was dropped as superseded;
-`friction-0-docs` waits on dist-2/3 so the composer doc can be walked
-against the real flow.
+Children in order: `dist-1-contract-amendment` → `dist-2-node-side` →
+`dist-3-dashboard-send` → `dist-4-demos` (free to work; dist-3/4 need
+dist-1/2's contract text and verbs first). `sample-distribution` (goal +
+samples-0..2) was dropped as superseded; `friction-0-docs` waits on
+dist-2/3 so the composer doc can be walked against the real flow.
 
 Done when: the ratified model is implemented — a composer can author in
 `patches/`, send patches and assets to any/all devices from the dashboard,

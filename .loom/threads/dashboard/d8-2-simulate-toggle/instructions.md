@@ -1,6 +1,6 @@
 # d8-2-simulate-toggle
 
-**Deferred by Bob (2026-07-13) — do not start autonomously.** Authority:
+Authority:
 `.loom/tied/dashboard-8-identity-sim-design/` (proposal + ratification).
 Needs d8-1's seat model.
 

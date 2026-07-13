@@ -1,6 +1,6 @@
 # d8-3-binding-ux
 
-**Deferred by Bob (2026-07-13) — do not start autonomously.** Authority:
+Authority:
 `.loom/tied/dashboard-8-identity-sim-design/` (proposal + ratification).
 Needs d8-1; take after d8-2 so occupancy states exist.
 

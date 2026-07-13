@@ -32,9 +32,10 @@ current children):
 - `dashboard-6-rig-adoption.waiting` — the goal's tie gate, Bob's.
 - `dashboard-9-ui-review` → `ui-0..3` — **the workable queue for autonomous
   sessions**, in numeric order.
-- `d8-1-seat-model` / `d8-2-simulate-toggle` / `d8-3-binding-ux` — all
-  `.waiting`: ratified seats implementation
-  (`.loom/tied/dashboard-8-identity-sim-design/`), **deferred by Bob**.
+- `d8-1-seat-model` / `d8-2-simulate-toggle` / `d8-3-binding-ux` — the
+  ratified seats implementation
+  (`.loom/tied/dashboard-8-identity-sim-design/`), free to work in numeric
+  order (d8-2/3 build on d8-1).
 Cross-thread: the ratified-but-deferred `patch-asset-sync/dist-3` will
 rework the patch panel; ui-1's layout pass should leave the patch panel's
 *contents* alone (placement moves are fine).

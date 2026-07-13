@@ -23,5 +23,5 @@ Scope once dist-4 lands the demos:
 - [ ] Verify: copy-a-demo → rename → Send patch → runs, walked on simfleet
       and recorded here.
 
-Blocked by `dist-4-demos` (which is itself deferred by Bob) — this stitch
-waits.
+Blocked by `dist-4-demos` (the demos must exist first) — this stitch waits;
+resume once dist-4 ties.
