@@ -1,11 +1,12 @@
 // SVG top-down floor plan and spatial point authoring. Coordinates are metres,
-// origin top-left, x right, y down. The browser mirrors falloff for display
-// only; it never sends per-device gains (nodes own decomposition).
+// origin top-left, x right, y down. Coloured fields show authored falloff
+// geometry; the browser never sends per-device gains (nodes own decomposition).
 (function () {
   const NS = "http://www.w3.org/2000/svg";
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
-  let deviceDrag = null, pointDrag = null, listenerDrag = null;
+  const POINT_COLOURS = ["#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2", "#45d483"];
+  let deviceDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
   let last = null;
   let selectedPoint = null;
   let lastClick = {uid: null, time: 0};
@@ -30,43 +31,31 @@
   const pointsOf = installation => installation.points || (installation.points = {});
   const authoredPoint = (installation, id) => pointsOf(installation)[id] || pointsOf(installation)[String(id)] || drafts.get(Number(id));
   const shownXY = point => pointFrame[String(point.id)] || [point.x, point.y];
-
-  function falloff(kind, distance, radius) {
-    if (!(radius > 0)) return 0;
-    const ratio = distance / radius;
-    if (Number(kind) === 0) return Math.max(0, 1 - ratio);
-    if (Number(kind) === 2) return Math.exp(-(ratio * ratio));
-    const x = Math.min(1, Math.max(0, 1 - ratio));
-    return x * x * (3 - 2 * x);
-  }
-
-  function proximityAt(position, installation) {
-    let value = 0;
-    for (const point of Object.values(pointsOf(installation))) {
-      const [x, y] = shownXY(point);
-      value = Math.max(value, falloff(point.falloff, Math.hypot(position[0] - x, position[1] - y), point.r));
-    }
-    return value;
-  }
+  const pointColour = id => POINT_COLOURS[Math.abs(Number(id)) % POINT_COLOURS.length];
 
   function render(installation, selected, select, ws) {
     last = [installation, selected, select, ws];
-    if (deviceDrag || pointDrag || listenerDrag) return;
+    if (deviceDrag || pointDrag || listenerDrag || headingDrag) return;
     const svg = document.getElementById("spatial");
     if (!svg) return;
     const room = installation.room || {width: 10, depth: 8};
     const W = Number(room.width) || 10, D = Number(room.depth) || 8;
     svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${W + 2 * PAD} ${D + TRAY_GAP + TRAY_H + 2 * PAD}`);
     svg.replaceChildren();
+    const defs = el("defs", {}, svg);
+    const clip = el("clipPath", {id: "spatial-room-clip"}, defs);
+    el("rect", {x: 0, y: 0, width: W, height: D}, clip);
     el("rect", {x: 0, y: 0, width: W, height: D, class: "room"}, svg);
     el("rect", {x: 0, y: D + TRAY_GAP, width: W, height: TRAY_H, class: "tray"}, svg);
     el("text", {x: 0.15, y: D + TRAY_GAP + 0.38, class: "tray-label"}, svg).textContent = "UNPLACED";
 
-    // Radius fields sit behind devices; point handles are drawn last.
+    // One coloured falloff field per point sits behind constant device dots.
+    const fields = el("g", {class: "point-fields", "clip-path": "url(#spatial-room-clip)"}, svg);
     for (const point of Object.values(pointsOf(installation))) {
       const [x, y] = shownXY(point);
       el("circle", {cx: x, cy: y, r: point.r, class: "point-radius",
-                    "data-radius-id": point.id}, svg);
+                    style: `--point-colour:${pointColour(point.id)}`,
+                    "data-radius-id": point.id}, fields);
     }
 
     const devices = Object.values(installation.devices || {}).filter(d => Number(d.id) >= 0);
@@ -83,14 +72,11 @@
                     x2: positions[1][0], y2: positions[1][1], class: "pair"}, node);
       }
       positions.forEach((position, index) => {
-        const placed = Array.isArray(index === 0 ? d.pos1 : d.pos2);
-        const proximity = placed ? proximityAt(position, installation) : 0;
-        const scale = 0.82 + proximity * 0.72;
         const g = el("g", {class: "element", "data-element": index,
                            transform: `translate(${position[0]} ${position[1]})`}, node);
-        const circle = el("circle", {r: ELEMENT_R * scale, class: `element-dot ${index === 0 ? "p1" : "p2"}`,
+        const circle = el("circle", {r: ELEMENT_R, class: `element-dot ${index === 0 ? "p1" : "p2"}`,
                                      fill: ELEMENT_COLOURS[index % ELEMENT_COLOURS.length],
-                                     "fill-opacity": 0.35 + proximity * 0.65,
+                                     "fill-opacity": 0.9,
                                      "data-point": index === 0 ? "pos1" : "pos2"}, g);
         circle.dataset.baseRadius = ELEMENT_R;
         el("text", {x: 0, y: 0.09, class: "element-number"}, g).textContent = d.id;
@@ -107,21 +93,33 @@
       el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip"}, g);
       el("circle", {r: 0.3, class: "listener-body"}, g);
       el("text", {x: 0, y: 0.07, class: "listener-label"}, g).textContent = "L";
+      const readout = document.getElementById("listener-heading-readout");
+      if (readout) readout.value = `${Math.round(Number(listener.heading) || 0)}°`;
     }
 
+    const handles = el("g", {class: "point-handles", "clip-path": "url(#spatial-room-clip)"}, svg);
     for (const point of Object.values(pointsOf(installation))) {
       const [x, y] = shownXY(point);
       const g = el("g", {class: `spatial-point${Number(point.id) === selectedPoint ? " selected" : ""}`,
-                         "data-point-id": point.id, transform: `translate(${x} ${y})`}, svg);
+                         "data-point-id": point.id, transform: `translate(${x} ${y})`,
+                         style: `--point-colour:${pointColour(point.id)}`}, handles);
       el("circle", {r: 0.25, class: "point-handle"}, g);
       el("text", {x: 0, y: 0.08, class: "point-label"}, g).textContent = `P${point.id}`;
     }
+    renderPointList(installation);
     bindMap(svg, W, D);
     bindPointEditor(installation, ws, W, D);
   }
 
   function bindMap(svg, W, D) {
     svg.onpointerdown = event => {
+      const headingHandle = event.target.closest(".listener-tip");
+      if (headingHandle) {
+        headingDrag = {group: headingHandle.closest("g[data-listener]")};
+        svg.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
       const listenerGroup = event.target.closest("g[data-listener]");
       if (listenerGroup) {
         listenerDrag = {group: listenerGroup, start: toSvg(svg, event), moved: false};
@@ -149,6 +147,27 @@
       event.preventDefault();
     };
     svg.onpointermove = event => {
+      if (headingDrag) {
+        const listener = last[0].listener;
+        const [x, y] = toSvg(svg, event);
+        const dx = x - listener.x, dy = y - listener.y;
+        if (Math.hypot(dx, dy) < MOVE_MIN) return;
+        listener.heading = round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
+        const angle = listener.heading * Math.PI / 180;
+        const hx = Math.sin(angle) * 0.72, hy = -Math.cos(angle) * 0.72;
+        headingDrag.group.querySelector(".listener-heading").setAttribute("x2", hx);
+        headingDrag.group.querySelector(".listener-heading").setAttribute("y2", hy);
+        headingDrag.group.querySelector(".listener-tip").setAttribute("cx", hx);
+        headingDrag.group.querySelector(".listener-tip").setAttribute("cy", hy);
+        const readout = document.getElementById("listener-heading-readout");
+        if (readout) readout.value = `${Math.round(listener.heading)}°`;
+        const now = performance.now();
+        if (now - lastListenerSend >= 40) {
+          lastListenerSend = now;
+          last[3].send("set_listener", clone(listener));
+        }
+        return;
+      }
       if (listenerDrag) {
         let [x, y] = toSvg(svg, event);
         x = Math.min(Math.max(x, 0), W); y = Math.min(Math.max(y, 0), D);
@@ -187,6 +206,12 @@
       deviceDrag.g.setAttribute("transform", `translate(${x} ${y})`);
     };
     svg.onpointerup = () => {
+      if (headingDrag) {
+        last[3].send("set_listener", clone(last[0].listener));
+        headingDrag = null;
+        render(...last);
+        return;
+      }
       if (listenerDrag) {
         if (listenerDrag.moved) last[3].send("set_listener", clone(last[0].listener));
         listenerDrag = null;
@@ -264,6 +289,9 @@
     if (editor.hidden) return;
     const sendEdit = () => {
       const point = authoredPoint(installation, selectedPoint); if (!point) return;
+      const current = shownXY(point);
+      point.x = round(current[0]); point.y = round(current[1]);
+      pointFrame[String(point.id)] = [point.x, point.y];
       point.r = Number(document.getElementById("point-radius").value);
       point.falloff = Number(document.getElementById("point-falloff").value);
       if (document.getElementById("point-motion").value === "bounce") {
@@ -300,6 +328,17 @@
     };
   }
 
+  function renderPointList(installation) {
+    const list = document.getElementById("point-list");
+    if (!list) return;
+    const points = Object.values(pointsOf(installation)).sort((a, b) => Number(a.id) - Number(b.id));
+    list.innerHTML = points.map(point => `<button class="point-list-button${Number(point.id) === selectedPoint ? " selected" : ""}" data-point-select="${Number(point.id)}" style="--point-colour:${pointColour(point.id)}"><i></i>Point ${Number(point.id)}</button>`).join("");
+    list.querySelectorAll("[data-point-select]").forEach(button => button.onclick = () => {
+      selectedPoint = Number(button.dataset.pointSelect);
+      render(...last);
+    });
+  }
+
   function updateDisplay(installation) {
     const svg = document.getElementById("spatial"); if (!svg) return;
     for (const point of Object.values(pointsOf(installation))) {
@@ -309,15 +348,6 @@
       const ring = svg.querySelector(`[data-radius-id="${point.id}"]`);
       if (ring) { ring.setAttribute("cx", xy[0]); ring.setAttribute("cy", xy[1]); ring.setAttribute("r", point.r); }
     }
-    svg.querySelectorAll("g.node[data-uid] g.element").forEach(group => {
-      const device = installation.devices[group.closest("g.node").dataset.uid];
-      const position = Number(group.dataset.element) === 0 ? device?.pos1 : device?.pos2;
-      if (!Array.isArray(position)) return;
-      const value = proximityAt(position, installation);
-      const circle = group.querySelector(".element-dot");
-      circle.setAttribute("r", ELEMENT_R * (0.82 + value * 0.72));
-      circle.setAttribute("fill-opacity", 0.35 + value * 0.65);
-    });
   }
 
   function frame(points) {
@@ -333,5 +363,5 @@
     render(...last);
   }
 
-  window.Spatial = {render, frame, get dragging() { return deviceDrag !== null || pointDrag !== null || listenerDrag !== null; }};
+  window.Spatial = {render, frame, get dragging() { return deviceDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null; }};
 })();

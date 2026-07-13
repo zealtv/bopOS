@@ -88,20 +88,13 @@ function row(d) {
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
-  const w = $("#room-w"), d = $("#room-d"), heading = $("#listener-heading");
+  const w = $("#room-w"), d = $("#room-d");
   if (!w) return;
   if (document.activeElement !== w && document.activeElement !== d) {
     w.value = room.width ?? 10; d.value = room.depth ?? 8;
   }
-  if (heading && document.activeElement !== heading) heading.value = listener.heading ?? 0;
 }
 ["room-w", "room-d"].forEach(id => { const input = document.getElementById(id); if (input) input.onchange = () => ws.send("set_room", {width: Number($("#room-w").value), depth: Number($("#room-d").value)}); });
-const listenerHeading = document.getElementById("listener-heading");
-if (listenerHeading) listenerHeading.onchange = () => {
-  const listener = installation.listener; if (!listener) return;
-  listener.heading = ((Number(listenerHeading.value) % 360) + 360) % 360;
-  ws.send("set_listener", listener); render();
-};
 (function bindCue() {
   const button = $("#cue-fire"); if (!button) return;
   button.onclick = () => {

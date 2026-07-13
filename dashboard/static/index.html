@@ -5,9 +5,10 @@
   <header><h1>bopOS</h1><span id="online-count">0 / 0 online</span><label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
   <div class="layout">
     <section id="spatial-section">
-      <div class="section-head"><h2>Spatial</h2><span class="dim">listener heading <input id="listener-heading" type="number" min="0" max="359" step="1">° · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div>
+      <div class="section-head"><h2>Spatial</h2><span class="dim">listener <output id="listener-heading-readout">0°</output> · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div>
       <div id="point-toolbar">
         <button id="point-add">Add point</button>
+        <div id="point-list" aria-label="Points"></div>
         <div id="point-editor" hidden>
           <strong id="point-title">Point</strong>
           <label><input id="point-enabled" type="checkbox" checked> on</label>
@@ -18,7 +19,7 @@
           <button id="point-delete" class="danger">Delete</button>
         </div>
       </div>
-      <p class="dim spatial-help">Drag the listener puck to audition the room. Its arrow shows heading. Dot colour is element index; number is device ID; brightness shows proximity.</p>
+      <p class="dim spatial-help">Drag the listener puck to move it; drag the green heading handle to turn it. Device dot colour is element index and number is device ID. Each point's coloured dashed field shows its reach.</p>
       <svg id="spatial"></svg>
     </section>
     <aside><h2>Devices</h2><div id="assigned"></div><h3>UNASSIGNED</h3><div id="unassigned"></div>
