@@ -1,14 +1,18 @@
 # friction-0-docs
 
-**.waiting (2026-07-13):** Bob's composer-experience brain dump
-(`.lore/items/2026-07-13-composer-experience-brain-dump`) makes this doc a
-first-class deliverable — "how to create a patch, what you need running
-locally, step by step how to get it onto a device, in a beautifully laid out,
-very simple, clearly labelled markdown file" — but the workflow it must teach
-is being redesigned in `patch-asset-sync`. Resume once
-`patch-asset-sync/dist-0-proposal` is ratified, and write against the
-ratified model, not today's git-first flow. The network-recipe checklist
-below is not gated; it can split out if the doc wait drags.
+**.waiting (2026-07-13, gate updated same day):** Bob's composer-experience
+brain dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) makes
+this doc a first-class deliverable — "how to create a patch, what you need
+running locally, step by step how to get it onto a device, in a beautifully
+laid out, very simple, clearly labelled markdown file". The model is now
+**ratified** (`.loom/tied/dist-0-proposal/` — proposal + ratification), but
+implementation (`patch-asset-sync/dist-1..4`) is deferred by Bob; this doc
+must be walked against the real Send flow on simfleet, so resume once
+dist-2/dist-3 are tied. Content rulings from Bob (2026-07-13): the main flow
+is git-free (folder in `patches/`, copy a demo, edit, Send); **git gets its
+own section, "advanced workflow with git"** — not a prerequisite anywhere
+else. The network-recipe checklist below is not gated; it can split out if
+the wait drags.
 
 The documentation half of lowering the musician barrier (parent has context).
 Written for a musician, not an agent — plain language, checklists, no jargon.

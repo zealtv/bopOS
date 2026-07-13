@@ -99,15 +99,17 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    Never edit either PD jig.
 5. **Composer-experience wave (2026-07-13)** — Bob's dashboard/composer brain
    dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) landed as:
-   `patch-asset-sync` (new thread — unified patch+asset distribution model;
-   `dist-0-proposal` is the decision-gate proposal, work it first),
-   `dashboard-8-identity-sim-design` (device-identity data model +
-   dashboard-managed simulation; decision-gate proposal), and
-   `dashboard-9-ui-review` (`ui-0..3` — concrete UI fixes, workable now;
-   absorbed `dashboard-5-position-precision` as `ui-3`). Gated on the
-   `dist-0-proposal` ratification: `samples-0..2` (all `.waiting` — the
-   proposal absorbs or supersedes them) and `friction-0-docs` (`.waiting` —
-   the composer doc must teach the ratified workflow).
+   `patch-asset-sync` (unified patch+asset distribution — **ratified
+   2026-07-13**, tied `dist-0-proposal` is the authoritative record incl.
+   Bob's amendments: all hard breaks, `/os/update`→`/os/updatebopos`,
+   send-to-active is confirm-gated stop→converge→restart; implementation
+   `dist-1..4` is prepped but **deliberately deferred by Bob** — don't start
+   it autonomously), `dashboard-8-identity-sim-design` (device-identity data
+   model + dashboard-managed simulation; decision-gate proposal, workable),
+   and `dashboard-9-ui-review` (`ui-0..3` — concrete UI fixes, workable now;
+   absorbed `dashboard-5-position-precision` as `ui-3`). `sample-distribution`
+   (goal + samples-0..2) dropped as superseded; `friction-0-docs` `.waiting`
+   on dist-2/3 so the composer doc walks the real flow.
 6. Free-floating fill: `friction-1` waits on nothing since the
    engine-boundary ruling landed, but note the `patch-asset-sync` proposal
    may dissolve `templates/` into a demo patch — coordinate before building

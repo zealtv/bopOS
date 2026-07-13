@@ -33,13 +33,22 @@ The forming model (Bob's words, condensed — the proposal firms this up):
 - `templates/supercollider-bopos` dissolves: SC becomes a **demo SC patch in
   `patches/`**, akin to the demo PD patch (which replaces "default").
 
-**Decision gate:** design-first thread. `dist-0-proposal` produces a written
-proposal for Bob to ratify; do not implement past it. Existing work it
-reshapes: `sample-distribution` (samples-0..2 are `.waiting` on this thread's
-ratification — they build on contract §9 `/os/fetch`; absorb or supersede them
-explicitly in the proposal), `dashboard-4-patch-mgmt` (tied — the current
-patch send/update paths), `patch-workflow-friction` (friction-0-docs waits to
-teach the ratified workflow).
+**RATIFIED (Bob, 2026-07-13)** — `.loom/tied/dist-0-proposal/` holds the
+proposal, the two code surveys, and `ratification.md` (Bob's verbatim
+feedback + rulings). Headline amendments over the sketch above: **all hard
+breaks, no legacy windows** (gdrive scheme, getsamples, and the no-manifest
+`main.pd` fallback all die now); `/os/update` renamed **`/os/updatebopos`**;
+git-managed patches get a UI icon; send-to-active = stop→converge→restart,
+confirm-gated dashboard-side (Q4 "violence"); one "Sync all" + per-item
+Sends; `droppatch` and `dropassets`; `demo-pd`/`demo-sc` in `patches/`,
+`templates/` deleted.
+
+Implementation is deliberately deferred (Bob, 2026-07-13: "prep the loom,
+we will implement later"). Children in order: `dist-1-contract-amendment` →
+`dist-2-node-side` → `dist-3-dashboard-send` → `dist-4-demos`.
+`sample-distribution` (goal + samples-0..2) was dropped as superseded;
+`friction-0-docs` waits on dist-2/3 so the composer doc can be walked
+against the real flow.
 
 Done when: the ratified model is implemented — a composer can author in
 `patches/`, send patches and assets to any/all devices from the dashboard,
