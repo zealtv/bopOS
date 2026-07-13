@@ -39,104 +39,60 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (critical path)
+## Thread ordering (audited 2026-07-13)
 
-The OSC contract is **ratified** (v1.1 — the seam amendment landed 2026-07-11;
-§4.1 provided terms are **implemented**: master via `seam-2`, `/pt` via
-`seam-3`, both tied 2026-07-11); the **dashboard's four phases are all tied** (2026-07-08, incl. `/facilitator` and the meters surface —
-the manifest `role` field was **removed entirely** by Bob 2026-07-12
-(`dashboard-7-remove-param-roles`): facilitator controls come only from
-`facilitator: true`, one labelled control per promoted param). The `dashboard` goal
-now waits via its blocker child `dashboard-6-rig-adoption.waiting` (Bob adopting
-it on a real rig).
+**Foundation status (all complete, software-side):** the OSC contract is at
+**v1.2** (2026-07-07 base + seam amendment + engine-boundary revision);
+`engine-boundary-design`, `patch-seam`, `clock-sync` (sync-0..3), spatial
+software (spatial-1/2), the dashboard's four phases, and the audition
+preview stack (Stage 0 + preview-0..3) are **all tied**. `bopos.py`
+(ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
+surface; run context is launch-delivered; `role`/meter are dead;
+facilitator controls come only from `facilitator: true`.
 
-Every active thread is decomposed into numbered children (2026-07-08 loom audit);
-in-thread order is the numeric prefix. Cross-thread order for autonomous sessions:
+**The workable queue for autonomous sessions** (in order — `./.loom/loom
+next` agrees):
 
-1. **`engine-boundary-design`** — **complete (goal tied 2026-07-12).** All six
-   migration stages landed: `bopos.py` (renamed from `helper.py`) alone owns
-   LAN 6660/5550; every engine consumes the selector-stripped localhost 6661
-   surface (contract v1.2 §4.2); run context is launch-delivered
-   (`bopos-context` bus / `BOPOS_*` env via `python/runcontext.py`); PD's
-   direct path is gone. The authoritative record is tied stitch
-   `engine-boundary-ratification`; no `/helper/*` alias, leased probe, or
-   `role:meter` survives, and civil-time/plugin capability design stays open.
-   The three `.waiting` engine-boundary-adoption children (audition-1c,
-   audition-2a, friction-1a) are now unblocked — claim them to resume.
-2. **`clock-sync`** — **software complete (2026-07-09, `sync-0`→`sync-3` tied):**
-   wire shape in contract §3.1; dashboard is the leader (offset estimate + push);
-   helper.py pongs, slews, fires cues; `tools/sync_measure.py` is the jitter
-   harness. Only `sync-4` (hardware run) remains, `.waiting` on Bob/a rig. The
-   `/cue` PD receiver is a pending pd-edit (see handoff).
-3. **`patch-seam`** — **implementation complete.** The 2026-07-10 seam council (tied
-   `seam-0-council`) re-drew the bopOS↔patch boundary: bopOS provides terms,
-   never composes them into patch params; no backwards compat (patches
-   rewrite in lockstep); one engine instance clones N positioned elements.
-   Bob ratified the amendment 2026-07-11 (`seam-1` tied — v1.1 live).
-   **`seam-2` (master term) and `seam-3` (node-side `/pt`) tied 2026-07-11**:
-   `python/pointfield.py` is the shared decomposition module, helper/simfleet
-   both consume it, ws surface is `set_points`/`set_point`/`clear_point`.
-   **`seam-4` and `seam-5` tied 2026-07-11; the patch-seam implementation
-   thread is complete.** The SC starter lives in `templates/supercollider-bopos`;
-   helper relays selector-stripped master/params to non-PD engines on 6661
-   because SC cannot share its 6660 socket. `spatial-1` (point authoring,
-   display-only proximity, and two-axis wall bounce) tied 2026-07-11;
-   `spatial-2` (synced named cue start) tied 2026-07-11; spatial software is
-   complete and the thread now waits on a real-installation sweep.
-   Bob's element-dot UI direction
-   (colour = element index,
-   number = device) is recorded in `seam-3`'s instructions (tied). The PD
-   rewrite wave and its three-instance Mac gate tied 2026-07-11; deferred seam
-   questions moved into `engine-boundary-design`.
-4. **`audition-rig`** — Stage 0 and both engine-boundary adoption children are
-   tied. Bob chose in-engine preview via a bypass-safe audition branch inside
-   existing `bopos.out~` at the final monitor boundary after the production
-   master/notification mix; work
-   `preview-0-channel-model-spike` next. The ABI stays fixed stereo, while
-   dashboard positions select zero-position bypass / one-position stereo or
-   dual-mono / two-position mono semantics.
-   `pd-audition-host` is deferred as the multichannel/DAW integration strategy.
-   Never edit either PD jig.
-5. **Composer-experience wave (2026-07-13)** — Bob's dashboard/composer brain
-   dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) landed as:
-   `patch-asset-sync` (unified patch+asset distribution — **ratified
-   2026-07-13**, tied `dist-0-proposal` is the authoritative record incl.
-   Bob's amendments: all hard breaks, `/os/update`→`/os/updatebopos`,
-   send-to-active is confirm-gated stop→converge→restart; implementation
-   `dist-1..4` is prepped but **deliberately deferred by Bob** — don't start
-   it autonomously), the **seats model** (`dashboard-8-identity-sim-design`
-   **ratified 2026-07-13**, tied stitch is the record: seats vs devices
-   split, "seat" is the noun, simulation is a distinct all-seats mode via a
-   dashboard-managed audition rig, no schema migration — hard break,
-   hostname joins `/os/report`; implementation `d8-1..3` prepped and
-   **equally deferred**), and `dashboard-9-ui-review` (`ui-0..3` — concrete
-   UI fixes, workable now; absorbed `dashboard-5-position-precision` as
-   `ui-3`; ui-0's hostname item hands off to d8-3 until the wire field
-   lands). `sample-distribution` (goal + samples-0..2) dropped as
-   superseded; `friction-0-docs` `.waiting` on dist-2/3 so the composer doc
-   walks the real flow.
-6. Free-floating fill: `friction-1` waits on nothing since the
-   engine-boundary ruling landed, but note the `patch-asset-sync` proposal
-   may dissolve `templates/` into a demo patch — coordinate before building
-   the starter template.
+1. `dashboard-9-ui-review/ui-0-sidebar-fixes` — ID-spinner bug + heartbeat
+   blips (its hostname item hands off to d8-3; see the stitch).
+2. `ui-1-layout-pass` — map to top, synced-cue relocation, master slider in
+   tech view, aloha check, facilitator back-link. Leave the patch panel's
+   *contents* to the deferred dist-3.
+3. `ui-2-spatial-map-pass` — heading drag-dial, amplitude rings, point
+   clipping, size/speed orthogonality, points list.
+4. `ui-3-position-precision` — numeric entry + space origin, deliberately
+   last of the review.
 
-Bob's rulings (2026-07-08): order above confirmed; **`audio-input` deferred**
-(both children `.waiting`); `/sync/*` wire shaping is delegated (record
-additively, flag in handoff); starter-kit template lives in `templates/` in
-this repo; a dev Pi is ssh-reachable during development for hardware stitches
-(confirm the host in-session — don't bake "ask via gremlin" steps into loom
-instructions); audition rig is Linux-first now, but **macOS is the likely
-installation/performance platform** — the macOS spike/relay question stays
-strategically live.
+That's the whole autonomous queue. Everything else is `.waiting` for a
+reason stated in its stitch:
 
-**Paused by Bob (2026-07-08): `scene-sequencing`** — the whole thread (language,
-clip grid, video-mask) waits until the foundation above lands; the language is
-co-design with Bob, never solo (brief in the stitch). Also gated: the SC
-proof-of-concept (`zero-2`) and all hardware `.waiting` children (`sync-4`,
-`zero-1`, `input-1`). (Spatial "Stage B" no longer exists — node-side is the
-ratified primary model, implemented via `patch-seam/seam-3`.)
-Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom` (`bopos-uptodate`) —
-coordinate, don't duplicate.
+- **Ratified-but-deferred by Bob (2026-07-13, "implement later" — do NOT
+  claim without his green light):** `patch-asset-sync/dist-1..4` (unified
+  patch+asset distribution: all hard breaks, `/os/update`→`/os/updatebopos`,
+  Send/Sync UI, demo patches replace `templates/`; record:
+  `.loom/tied/dist-0-proposal/`) and `dashboard/d8-1..3` (seats model:
+  seats/devices split, sim as a distinct all-seats loopback-targeted mode,
+  forget-device; record: `.loom/tied/dashboard-8-identity-sim-design/`).
+  When green-lit, order is dist-1 → dist-2 → {dist-3, dist-4, d8-1} →
+  {d8-2, d8-3}; friction-0-docs and friction-1 unblock behind dist-2/3/4.
+- **Bob + hardware gates:** `sync-4` (rig jitter measurement),
+  `spatial-3-rig-sweep`, `preview-4-mac-linux-audible-gate` (ears, both
+  platforms), `dashboard-6-rig-adoption` (the dashboard goal's tie gate),
+  `zero-1` (claimable in any session that confirms bop000 reachable),
+  `input-1`.
+- **Bob-gated decisions/pauses:** `scene-sequencing` (whole thread paused
+  2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
+  (SC strategy is co-design), `audio-input` (deferred 2026-07-08),
+  `pd-audition-host` (deferred until a concrete multichannel/DAW need).
+
+Standing rulings still in force: `/sync/*` wire shaping delegated (record
+additively, flag it); a dev Pi is ssh-reachable for hardware stitches
+(confirm in-session; don't bake gremlin-ask steps into instructions);
+audition rig is Linux-first but **macOS is the likely performance
+platform**; the 2026-07-08 "template lives in `templates/`" ruling is
+**superseded** (Q6, 2026-07-13 — demos live in `patches/`).
+Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
+(`bopos-uptodate`) — coordinate, don't duplicate.
 
 ## Testing without hardware
 

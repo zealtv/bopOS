@@ -11,7 +11,9 @@ spatial map pass, `ui-3` position precision (absorbed from dashboard-5,
 deliberately last). Each ships its own Playwright `verify_*.py` (copy the
 newest tied dashboard verify; venv + gotchas in CLAUDE.md).
 
-Out of scope here (design gates elsewhere): patch/asset buttons and naming
-(`patch-asset-sync`), simulate toggle / listener-puck visibility / forget
-device (`dashboard-8-identity-sim-design`). If a child collides with one of
-those, do the part that doesn't pre-empt the design and note the rest.
+Out of scope here (ratified elsewhere, implementation deferred by Bob):
+patch/asset buttons and naming (`patch-asset-sync/dist-3`), simulate toggle /
+listener-puck visibility / forget device (`d8-1..3`; design record
+`.loom/tied/dashboard-8-identity-sim-design/`). If a child collides with one
+of those, do the part that doesn't pre-empt the deferred work and note the
+rest.

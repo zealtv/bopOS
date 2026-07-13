@@ -1,5 +1,8 @@
 # dist-1-contract-amendment
 
+**.waiting — deferred by Bob (2026-07-13): ratified, implement later. Resume
+only on his explicit green light; do not claim autonomously.**
+
 Write the ratified distribution model into `docs/OSC-CONTRACT.md` (v1.3).
 Authority: `.loom/tied/dist-0-proposal/` (proposal.md + ratification.md —
 Bob's rulings 2026-07-13, all hard breaks, no legacy windows). Work this

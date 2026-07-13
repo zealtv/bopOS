@@ -1,5 +1,8 @@
 # dist-3-dashboard-send
 
+**.waiting — deferred by Bob (2026-07-13): ratified, implement later. Resume
+only on his explicit green light; do not claim autonomously.**
+
 Dashboard side of the ratified model (authority:
 `.loom/tied/dist-0-proposal/`; needs dist-1 text and dist-2 verbs).
 

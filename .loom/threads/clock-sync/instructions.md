@@ -36,3 +36,8 @@ Decisions:
 
 Done when: N Pis on WiFi fire an audible click cue within an agreed jitter budget
 (target: <10 ms typical), demonstrated with a recorded measurement.
+
+(Naming note, 2026-07-13: `helper.py` above is now `python/bopos.py` — renamed
+in the 2026-07-12 engine-boundary migration; the mechanism described is
+implemented and tied, sync-0..3. Only `sync-4-hw-measurement.waiting`
+remains.)

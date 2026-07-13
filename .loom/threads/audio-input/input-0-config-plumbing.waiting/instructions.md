@@ -6,6 +6,10 @@ confirmation; unpause is his call.
 The bopOS half of audio input: config plumbing (parent has context; hardware
 recipe is input-1).
 
+(Naming note, 2026-07-13: `bopos.config` here means the **node-level** file
+at the repo root — that one survives. The per-patch `bopos.config` was
+retired by the patch-asset-sync ratification; don't resurrect it.)
+
 - [ ] Move soundcard + jack parameters into `bopos.config`: `SOUNDCARD`,
       sample rate, period/buffers, `CAPTURE on|off` (CAPTURE on drops jackd's
       `-P` playback-only flag and sets channel counts). start.sh reads them;

@@ -1,5 +1,8 @@
 # dist-2-node-side
 
+**.waiting — deferred by Bob (2026-07-13): ratified, implement later. Resume
+only on his explicit green light; do not claim autonomously.**
+
 Node/framework side of the ratified model (authority:
 `.loom/tied/dist-0-proposal/`; contract text from dist-1). Surveys with
 file:line for everything touched are in the tied stitch dir.

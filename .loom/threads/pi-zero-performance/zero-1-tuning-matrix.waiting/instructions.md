@@ -14,4 +14,10 @@ Zero-safe defaults.
 an agent may drive the kit over ssh once zero-0 is tied. Confirm the host
 in-session (check `~/.ssh/config`; the kite-choir-brains bopos-dev skill
 documents the Pi tmux workflow) — never flash/reimage/apt-upgrade without
-asking. This stitch waits only on zero-0 existing, not on Bob.
+asking.
+
+**Resume condition (clarified 2026-07-13): zero-0 is tied**, so this waits
+only on the dev Pi being live. bop000 (Zero 2 W + DigiAMP,
+`ssh -i ~/.ssh/id_ed25519_spectre pi@192.168.0.101`, sudo needs Bob) is the
+target — claim this in any session that confirms it reachable. It stays
+`.waiting` so unattended sessions don't stall on a powered-off Pi.

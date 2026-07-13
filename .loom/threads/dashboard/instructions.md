@@ -22,7 +22,19 @@ playing with it: `dashboard/README.md`. Real-rig checks outstanding: every tied
 stitch's hardware pass, the PD edits list, and an iPad touch pass on /facilitator.
 
 Constraints:
-- Phase 1 requires **no Pi-side changes** (coexists with DASHBOARD.pd during migration).
-- Later phases coordinate with `osc-schema-contract` (heartbeat identity) — the dashboard
-  gets much simpler once heartbeats carry MAC/ID, but must work without it first.
 - Don't edit `.pd` files — PD is Bob's domain.
+- (The phase-1 no-Pi-changes and heartbeat-identity constraints above are
+  resolved history — identity landed, DASHBOARD.pd coexistence held.)
+
+---
+**2026-07-13 children map** (the four phases are all tied; these are the
+current children):
+- `dashboard-6-rig-adoption.waiting` — the goal's tie gate, Bob's.
+- `dashboard-9-ui-review` → `ui-0..3` — **the workable queue for autonomous
+  sessions**, in numeric order.
+- `d8-1-seat-model` / `d8-2-simulate-toggle` / `d8-3-binding-ux` — all
+  `.waiting`: ratified seats implementation
+  (`.loom/tied/dashboard-8-identity-sim-design/`), **deferred by Bob**.
+Cross-thread: the ratified-but-deferred `patch-asset-sync/dist-3` will
+rework the patch panel; ui-1's layout pass should leave the patch panel's
+*contents* alone (placement moves are fine).

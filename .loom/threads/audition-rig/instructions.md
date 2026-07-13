@@ -28,13 +28,19 @@ Stages (each independently useful — Bob confirmed Stage 0 alone has value):
   N synths and native spatialisation (ATK) — revisit staging if SC lands first.
 
 Constraints / notes:
-- Child `audition-0-port-spike` MUST pass before building anything (single-host UDP
-  broadcast port sharing is the load-bearing assumption).
-- Single-IP consequence: all instances share the laptop IP, so IP-based device
-  correlation breaks — depends on heartbeat-with-identity (`osc-schema-contract`).
-  Until that lands, the dashboard can special-case a `--sim` flag; don't build
-  elaborate workarounds.
 - Laptop CPU: N patches at Zero-2W complexity is light for a laptop; if it isn't,
   that's useful pi-zero-performance data.
 - Compounding target: audition rig + `scene-sequencing` = full desk-based composition
   loop (write scene → trigger → hear the space → iterate). Design demos around that.
+
+---
+**2026-07-13 status:** Stage 0 and the whole listener-puck software stack are
+**tied** (`preview-0..3`; `tools/audition.py` is the relay-launcher, uid
+scheme `audition-<n>`). The old gating constraints are resolved history:
+the port spike passed, heartbeat identity landed, uids (not IPs) correlate
+devices — no `--sim` flag exists or is needed. The only remaining child is
+`preview-4-mac-linux-audible-gate.waiting` (Bob's ears + both platforms).
+Forward coupling: the ratified seats model (`.loom/tied/
+dashboard-8-identity-sim-design/`, implementation deferred) makes the
+dashboard spawn this rig itself as the Simulate mode, sending loopback-only
+— audition CLI flags become that mode's API; don't change them casually.
