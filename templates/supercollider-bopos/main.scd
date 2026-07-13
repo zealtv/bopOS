@@ -7,6 +7,7 @@
 ~bopos = (
     id: -1,
     master: 1.0,
+    auditionMatrix: [1.0, 0.0, 0.0, 1.0],
     params: IdentityDictionary[
         \gain -> 0.7,
         \frequency -> 220.0
@@ -39,7 +40,8 @@ if(thisProcess.openUDPPort(~bopos.enginePort).not) {
 };
 
 s.waitForBoot {
-    var channels = s.options.numOutputBusChannels.max(1);
+    // Wave 1 keeps the patch/monitor ABI fixed at two ordered channels.
+    var channels = 2;
     ~bopos.mixBus = Bus.audio(s, channels);
 
     SynthDef(\boposElement, { |bus=0, gain=0.7, frequency=220, proximity=0|
@@ -48,17 +50,28 @@ s.waitForBoot {
         Out.ar(bus, signal * envelope * 0.15);
     }).add;
 
-    // The bopos.out~ twin: the only final output stage. Master is smoothed
-    // here and never composed into a patch parameter by the framework.
-    SynthDef(\boposOut, { |bus=0, master=1|
-        var signal = In.ar(bus, channels);
-        Out.ar(0, signal * Lag.kr(master.clip(0, 1), 0.03));
+    // The bopos.out~ twin: the only final output stage. Audition applies a
+    // fixed-stereo matrix before master; both controls are independently
+    // smoothed and neither is composed into a patch parameter.
+    SynthDef(\boposOut, {
+        |bus=0, master=1, l0=1, l1=0, r0=0, r1=1|
+        var signal = In.ar(bus, 2);
+        var gains = Lag.kr([l0, l1, r0, r1].clip(0, 1), 0.02);
+        var auditioned = [
+            (signal[0] * gains[0]) + (signal[1] * gains[1]),
+            (signal[0] * gains[2]) + (signal[1] * gains[3])
+        ];
+        Out.ar(0, auditioned * Lag.kr(master.clip(0, 1), 0.03));
     }).add;
     s.sync;
 
     ~bopos.out = Synth.tail(s, \boposOut, [
         \bus, ~bopos.mixBus.index,
-        \master, ~bopos.master
+        \master, ~bopos.master,
+        \l0, ~bopos.auditionMatrix[0],
+        \l1, ~bopos.auditionMatrix[1],
+        \r0, ~bopos.auditionMatrix[2],
+        \r1, ~bopos.auditionMatrix[3]
     ]);
 
     ~bopos.ensureElement = { |element|
@@ -104,6 +117,30 @@ s.waitForBoot {
         ~bopos.master = message[1].asFloat.clip(0, 1);
         ~bopos.out.set(\master, ~bopos.master);
     }, '/os/master', recvPort: ~bopos.enginePort);
+
+    // Private complete-frame audition state. Reject the whole candidate before
+    // changing retained state so malformed input cannot mute or partially remap.
+    OSCdef(\boposAuditionMatrix, { |message|
+        var gains;
+        var valid = message.size == 5;
+        if(valid) {
+            gains = message.copyRange(1, 4);
+            valid = gains.every { |value|
+                value.isNumber and: { value.isNaN.not } and: {
+                    value >= 0 and: { value <= 1 }
+                }
+            };
+        };
+        if(valid) {
+            ~bopos.auditionMatrix = gains.collect(_.asFloat);
+            ~bopos.out.set(
+                \l0, ~bopos.auditionMatrix[0],
+                \l1, ~bopos.auditionMatrix[1],
+                \r0, ~bopos.auditionMatrix[2],
+                \r1, ~bopos.auditionMatrix[3]
+            );
+        };
+    }, '/audition/matrix', recvPort: ~bopos.enginePort);
 
     // The bopos.point twin. State is keyed by [pointId, element]. This starter
     // voice demonstrates point 0 as amplitude; authors can read any key and

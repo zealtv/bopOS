@@ -1,5 +1,29 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-13 — audition matrix validator follow-up
+
+`pd/bopos.audition~.pd` previously reset only the final `[spigot]` before
+feeding a four-atom candidate through `[unpack f f f f]`. A symbol in matrix
+slots 1, 2, or 3 therefore leaves a stale numeric value in the corresponding
+cold `[expr]` inlet, allowing a malformed matrix to be applied partially.
+
+Before every candidate, reset all four validation values to an invalid numeric
+sentinel. In the existing `[pd validate]` subpatch:
+
+- change the reset message from `[0(` to `[-1 -1 -1 -1(`;
+- disconnect that message from the validation `[spigot]`'s control inlet;
+- connect it to the validation `[unpack f f f f]` inlet instead.
+
+Keep the existing `[t l l b]` ordering. Its bang resets all four values first,
+the second list validates the candidate, and the first list reaches the data
+spigot last. The existing range expression rejects every retained `-1`, while
+a symbol in coefficient 0 cannot retrigger the expression and the gate stays
+closed from the reset evaluation.
+
+Retest a valid matrix plus a symbol independently in each of the four matrix
+positions. Every malformed frame must retain the complete last-valid matrix.
+Bob completed this edit and audibly confirmed all four cases on 2026-07-13.
+
 This is the live, Bob-owned edit list. The earlier 2026-07-11 rewrite is
 complete but is now superseded by the ratified engine boundary in
 `.loom/tied/engine-boundary-ratification/ratification.md`. Agents must not edit

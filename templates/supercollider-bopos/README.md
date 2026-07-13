@@ -23,6 +23,7 @@ each get their own port, so no instance attempts a fixed shared bind.
 | Message | Template behavior |
 |---|---|
 | `/os/master <0..1>` | Smooths and multiplies the final mix in `boposOut`, immediately before hardware output. |
+| `/audition/matrix <l0> <l1> <r0> <r1>` | Applies the private fixed-stereo preview matrix with 20 ms smoothing before master. Exactly four finite numeric gains in `[0,1]` are required; a malformed frame leaves the last valid matrix active. |
 | `/p/<name> <value>` | Updates the manifest-declared patch parameter. |
 | `/id <id>` | Reports the resolved device identity to the patch. The template retries `/config` on 7770 every two seconds until this lands. |
 | `/pt <pointId> <element> <value>` | Stores the shaped scalar by point and 0-based element. The example maps point 0 to element amplitude. |
@@ -46,9 +47,15 @@ thread RNG from `BOPOS_SEED` so a fleet launch can be reproduced.
 
 `main.scd` runs one engine instance per device. It creates element Synths lazily
 from the 0-based element index in `/pt` and maps each element to the matching
-output channel. Increase the server's output-channel setting for devices with
-more hardware outputs. Assignment geometry and falloff are framework concerns;
-the patch receives only the shaped scalar.
+input of the fixed-stereo final mix. Assignment geometry and falloff are
+framework concerns; the patch receives only the shaped scalar. Higher channel
+counts are outside the Wave 1 ABI rather than inferred from the audio device.
+
+The Wave 1 audition boundary is fixed stereo. Its coefficient order is
+`l0 l1 r0 r1`, rendering `L = x0*l0 + x1*l1` and
+`R = x0*r0 + x1*r1`. Identity `[1, 0, 0, 1]` is installed before any preview
+state arrives. The audition matrix is applied before the separately smoothed
+production master, so preview movement cannot rewrite master or patch params.
 
 ## Minimal correctness
 
@@ -56,7 +63,8 @@ A production patch should retain these four properties even if it replaces all
 example synthesis:
 
 1. Route every final signal through one master mix stage and smooth master
-   changes to avoid clicks.
+   changes to avoid clicks. If audition is retained, apply its complete
+   fixed-stereo matrix before master and keep identity as the cold-start state.
 2. Keep patch parameters patch-owned; never multiply master into the stored
    `gain` value.
 3. Treat point values as optional, full-state inputs per element.
