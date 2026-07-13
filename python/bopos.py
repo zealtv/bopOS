@@ -289,6 +289,7 @@ fetch_queue = queue.Queue()
 fetch_jobs = {}
 fetch_lock = threading.Lock()
 fetch_worker = None
+fetch_active_key = None
 
 
 def _fetched_reply(reply_socket, requester, slot, status):
@@ -301,16 +302,63 @@ def _fetched_reply(reply_socket, requester, slot, status):
         print("WARNING: fetch reply failed:", error)
 
 
+def _fetch_progress_reply(reply_socket, requester, slot, status):
+    """Report only progress states the node can observe honestly."""
+    msg = OSCMessage("/os/fetch-progress")
+    msg.append(str(slot), 's')
+    msg.append(str(status), 's')
+    try:
+        reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    except Exception as error:
+        print("WARNING: fetch progress reply failed:", error)
+
+
 def _fetch_worker_loop():
+    global fetch_active_key
     while True:
         key = fetch_queue.get()
         uri, slot = key
+        with fetch_lock:
+            fetch_active_key = key
+            requesters = list(fetch_jobs.get(key, []))
+        for reply_socket, requester in requesters:
+            _fetch_progress_reply(reply_socket, requester, slot, "fetching")
+        active_name = None
+        git_managed = False
+        if slot.startswith("patch:"):
+            patch_name = slot[len("patch:"):]
+            active_path = active_patch_path()
+            active_name = os.path.basename(active_path) if active_path else None
+            git_managed = os.path.lexists(
+                os.path.join(BOPOS_DIR, "patches", patch_name, ".git"))
+        restart_engine = (slot.startswith("patch:") and not git_managed
+                          and active_name == slot[len("patch:"):])
+        stopped = False
+        if restart_engine:
+            stopped = run_command(
+                ["bash", os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")]) == 0
         try:
-            ok, detail = fetcher.fetch(uri, slot, os.path.join(BOPOS_DIR, "assets"))
+            if git_managed:
+                ok, detail = False, "refusing to fetch into a git-managed patch"
+            elif restart_engine and not stopped:
+                ok, detail = False, "failed to stop active patch engine"
+            else:
+                ok, detail = fetcher.fetch(uri, slot,
+                                           os.path.join(BOPOS_DIR, "assets"),
+                                           os.path.join(BOPOS_DIR, "patches"))
         except Exception as error:
             ok, detail = False, str(error)
+        finally:
+            if stopped:
+                start_status = run_command(
+                    ["bash", os.path.join(BOPOS_DIR, "bash", "start-engine.sh")],
+                    wait_for_start=True)
+                if start_status != 0 or engine_alive() != 1:
+                    ok = False
+                    detail = "{}; failed to restart active patch engine".format(detail)
         with fetch_lock:
             requesters = fetch_jobs.pop(key, [])
+            fetch_active_key = None
         print("FETCH {} {}: {} ({})".format(uri, slot, "ok" if ok else "err", detail))
         for reply_socket, requester in requesters:
             _fetched_reply(reply_socket, requester, slot, "ok" if ok else "err")
@@ -323,9 +371,14 @@ def queue_fetch(uri, slot, requester, reply_socket):
     with fetch_lock:
         if key in fetch_jobs:
             fetch_jobs[key].append((reply_socket, requester))
-            return
-        fetch_jobs[key] = [(reply_socket, requester)]
-        fetch_queue.put(key)
+            status = "fetching" if fetch_active_key == key else "queued"
+        else:
+            fetch_jobs[key] = [(reply_socket, requester)]
+            fetch_queue.put(key)
+            status = "queued"
+        # Emit queued before a newly started worker can emit fetching, and hold
+        # the lock so a completion cannot overtake a coalesced requester's state.
+        _fetch_progress_reply(reply_socket, requester, slot, status)
         if fetch_worker is None or not fetch_worker.is_alive():
             fetch_worker = threading.Thread(target=_fetch_worker_loop, daemon=True)
             fetch_worker.start()
@@ -354,10 +407,11 @@ def selector_matches(selector, device_id):
         return False
 
 
-def run_command(argv):
+def run_command(argv, wait_for_start=False):
     try:
         if (len(argv) >= 2 and argv[0] == "bash"
-                and os.path.basename(argv[1]) == "start-engine.sh"):
+                and os.path.basename(argv[1]) == "start-engine.sh"
+                and not wait_for_start):
             subprocess.Popen(argv, start_new_session=True)
             return 0
         return subprocess.run(argv).returncode
@@ -580,6 +634,34 @@ def rev_reply(reply_socket, requester, state=None):
         print("WARNING: rev reply failed:", error)
 
 
+def installed_patches():
+    """Return the stable, declared patch-listing shape from contract section 7."""
+    patches_dir = os.path.join(BOPOS_DIR, "patches")
+    active_path = active_patch_path()
+    active_name = os.path.basename(active_path) if active_path else None
+    result = []
+    try:
+        names = sorted(os.listdir(patches_dir))
+    except OSError:
+        names = []
+    for name in names:
+        # Listing includes git-installed repo names accepted by /os/addpatch,
+        # including dots; only hidden/control entries are framework-owned.
+        if name.startswith("."):
+            continue
+        patch_path = os.path.join(patches_dir, name)
+        if not os.path.isdir(patch_path):
+            continue
+        patch_manifest, _error = manifest.load(patch_path)
+        result.append({
+            "name": name,
+            "active": name == active_name,
+            "git": os.path.lexists(os.path.join(patch_path, ".git")),
+            "manifest": patch_manifest is not None,
+        })
+    return result
+
+
 def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
     # serialized so two provisioning verbs can't interleave in one git tree
     with admin_lock:
@@ -661,10 +743,17 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             _fetched_reply(reply_socket, source[0], str(args[1]) if len(args) > 1 else "", "err")
             return True
         uri, slot = str(args[0]), str(args[1])
-        if re.fullmatch(r"[A-Za-z0-9_-]+", slot) is None:
+        asset_slot = re.fullmatch(r"[A-Za-z0-9_-]+", slot)
+        patch_slot = re.fullmatch(r"patch:[A-Za-z0-9_-]+", slot)
+        if asset_slot is None and patch_slot is None:
             _fetched_reply(reply_socket, source[0], slot, "err")
             return True
         queue_fetch(uri, slot, source[0], reply_socket)
+        return True
+    if parts[2] == "patches":
+        msg = OSCMessage("/os/patches")
+        msg.append(json.dumps(installed_patches(), separators=(",", ":")), 's')
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
         return True
     if parts[2] == "report":
         patch_path = active_patch_path()
@@ -700,6 +789,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             uptime = 0
         report = {
             "uid": state.uid,
+            "hostname": socket.gethostname(),
             "engine": engine or "pd",
             "has_i2c": has_i2c,
             "has_wifi": has_wifi,
@@ -709,7 +799,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             "uptime": uptime,
             "git_rev": state.version,
             "update_model": state.update_model,
-            "contract_version": "1.0",
+            "contract_version": "1.3",
         }
         msg = OSCMessage("/os/report")
         msg.append(json.dumps(report), 's')
@@ -830,20 +920,12 @@ def config_callback(path='', tags='', args='', source=''):
     send_to_engine(msg)
 
 
-def update_callback(path='', tags='', args='', source=''):
+def update_bopos_callback(path='', tags='', args='', source=''):
     update_script = os.path.join(BOPOS_DIR, "bash/update.sh")
     msg = OSCMessage("/notify")
-    msg.append("update", 's')
+    msg.append("updatebopos", 's')
     send_to_engine(msg)
-    print("UPDATE!")
-    os.system(update_script)
-
-def getsamples_callback(path='', tags='', args='', source=''):
-    update_script = os.path.join(BOPOS_DIR, "bash/getsamples.sh")
-    msg = OSCMessage("/notify")
-    msg.append("getsamples", 's')
-    send_to_engine(msg)
-    print("UPDATE SAMPLES!")
+    print("UPDATE BOPOS!")
     os.system(update_script)
 
 def shutdown_callback(path='', tags='', args='', source=''):
@@ -868,7 +950,7 @@ def checkout_callback(path, tags, args, source):
     print("checking out: " + branch)
     os.system(os.path.join(BOPOS_DIR, "bash/checkout.sh ") + branch)
     msg = OSCMessage("/notify")
-    msg.append("update", 's')
+    msg.append("updatebopos", 's')
     send_to_engine(msg)
     print("UPDATE!")
     os.system(os.path.join(BOPOS_DIR, "bash/update.sh"))
@@ -880,11 +962,14 @@ def switch_patch_callback(path='', tags='', args='', source=''):
         print("No patch name provided to /patch")
         return
     patch_name = args[0].strip()
+    if (patch_name.startswith(".")
+            or re.fullmatch(r"[A-Za-z0-9_.-]+", patch_name) is None):
+        print("Invalid patch name for /patch")
+        return
     patch_path = os.path.join(patches_dir, patch_name)
     patch_manifest, _error = manifest.load(patch_path)
-    if (not os.path.isdir(patch_path)
-            or (patch_manifest is None and not os.path.isfile(os.path.join(patch_path, 'main.pd')))):
-        print(f"Patch '{patch_name}' not found or has no valid manifest/main.pd")
+    if not os.path.isdir(patch_path) or patch_manifest is None:
+        print(f"Patch '{patch_name}' not found or has no valid bopos.patch.json")
         return
     current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else 'None'
     print(f"Switching patch: {current} -> {patch_name}")
@@ -949,8 +1034,9 @@ def add_patch_callback(path='', tags='', args='', source=''):
     except Exception as error:
         print(f"Error cloning repo: {error}")
         return
-    if not os.path.isfile(os.path.join(dest_dir, 'main.pd')):
-        print(f"Warning: cloned patch '{repo}' has no main.pd — it won't load in PD")
+    _patch_manifest, manifest_error = manifest.load(dest_dir)
+    if _patch_manifest is None:
+        print(f"Warning: cloned patch '{repo}' will not launch: {manifest_error}")
     try:
         msg = OSCMessage("/addpatch")
         msg.append(repo)
@@ -967,6 +1053,43 @@ def pull_active_patch_callback(path='', tags='', args='', source=''):
             print(f"pull_active_patch.sh exited with code {result.returncode}")
     except Exception as error:
         print(f"[pull_active_patch_callback] Exception: {error}")
+
+
+def drop_patch_callback(path='', tags='', args='', source=''):
+    if (not args or str(args[0]).startswith(".")
+            or re.fullmatch(r"[A-Za-z0-9_.-]+", str(args[0])) is None):
+        print("/droppatch requires a valid patch name")
+        return
+    name = str(args[0])
+    active_path = active_patch_path()
+    if active_path is not None and os.path.basename(active_path) == name:
+        print("Refusing to remove active patch '{}'".format(name))
+        return
+    target = os.path.join(BOPOS_DIR, "patches", name)
+    try:
+        if os.path.islink(target) or os.path.isfile(target):
+            os.remove(target)
+        elif os.path.isdir(target):
+            shutil.rmtree(target)
+        print("Dropped patch '{}'".format(name))
+    except OSError as error:
+        print("Failed to drop patch '{}': {}".format(name, error))
+
+
+def drop_assets_callback(path='', tags='', args='', source=''):
+    if not args or re.fullmatch(r"[A-Za-z0-9_-]+", str(args[0])) is None:
+        print("/dropassets requires a valid asset slot")
+        return
+    slot = str(args[0])
+    target = os.path.join(BOPOS_DIR, "assets", slot)
+    try:
+        if os.path.islink(target) or os.path.isfile(target):
+            os.remove(target)
+        elif os.path.isdir(target):
+            shutil.rmtree(target)
+        print("Dropped asset slot '{}'".format(slot))
+    except OSError as error:
+        print("Failed to drop asset slot '{}': {}".format(slot, error))
 
 
 def restart_engine_callback(path='', tags='', args='', source=''):
@@ -1015,12 +1138,13 @@ LIFECYCLE_VERBS = {
     "restart-engine": restart_engine_callback,
 }
 PROVISION_VERBS = {
-    "update": update_callback,
+    "updatebopos": update_bopos_callback,
     "checkout": checkout_callback,
     "patch": switch_patch_callback,
     "addpatch": add_patch_callback,
     "pullpatch": pull_active_patch_callback,
-    "getsamples": getsamples_callback,
+    "droppatch": drop_patch_callback,
+    "dropassets": drop_assets_callback,
 }
 
 

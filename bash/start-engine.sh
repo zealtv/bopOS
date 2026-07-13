@@ -11,15 +11,11 @@ SOUNDCARD="${SOUNDCARD:-DigiAMP}"
 ACTIVE_PATCH=$(cat "$BOPOS_DIR/patches/active_patch.txt")
 PATCH_PATH="$BOPOS_DIR/patches/$ACTIVE_PATCH"
 
-MANIFEST_OUTPUT=$(python3 "$BOPOS_DIR/python/manifest.py" "$PATCH_PATH")
-MANIFEST_STATUS=$?
-eval "$MANIFEST_OUTPUT"
-# even a failed python3 must not silence the node: fall back to legacy pd
-ENGINE="${ENGINE:-pd}"
-ENTRYPOINT="${ENTRYPOINT:-main.pd}"
-if [ "$MANIFEST_STATUS" -eq 1 ]; then
-    echo "WARNING: INVALID PATCH MANIFEST; USING LEGACY LAUNCH"
+if ! MANIFEST_OUTPUT=$(python3 "$BOPOS_DIR/python/manifest.py" "$PATCH_PATH"); then
+    echo "ERROR: PATCH REQUIRES A VALID bopos.patch.json: $PATCH_PATH" >&2
+    exit 1
 fi
+eval "$MANIFEST_OUTPUT"
 
 # bopOS-owned run context, delivered atomically at launch (never over OSC)
 eval "$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")"
@@ -37,7 +33,8 @@ echo "ENGINE: $ENGINE"
 echo "PATCH ENTRYPOINT: $PATCH_PATH/$ENTRYPOINT"
 echo "====================="
 
-# Keep the legacy PD sample path attached to the framework asset slot.
+# Contract v1.3 retains this legacy PD sample path for one release. Asset
+# fetching no longer depends on it; every engine receives BOPOS_ASSETS below.
 ASSETS_DIR="$BOPOS_DIR/assets"
 SAMPLEPACKS_DIR="$PATCH_PATH/bop/samplepacks"
 SAMPLEPACKS_SLOT="$ASSETS_DIR/samplepacks"

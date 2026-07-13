@@ -1,17 +1,9 @@
 #!/bin/bash
-# Clear the downloaded sample packs for the currently active patch.
-# Mirrors getsamples.sh: samples live under the active patch's bop/samplepacks.
+# Clear the framework-owned samplepacks asset slot. The one-release legacy
+# patch path is a symlink to this directory; acquisition no longer lives here.
 
 GITREPO_ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-ACTIVE_PATCH_FILE="$GITREPO_ROOT/patches/active_patch.txt"
-
-if [ ! -f "$ACTIVE_PATCH_FILE" ]; then
-  echo "Error: active_patch.txt not found at $ACTIVE_PATCH_FILE"
-  exit 1
-fi
-
-PATCH_NAME=$(cat "$ACTIVE_PATCH_FILE" | tr -d '\n')
-SAMPLES_DIR_PATH="$GITREPO_ROOT/patches/$PATCH_NAME/bop/samplepacks"
+SAMPLES_DIR_PATH="$GITREPO_ROOT/assets/samplepacks"
 
 echo "Clearing all contents from: $SAMPLES_DIR_PATH"
 

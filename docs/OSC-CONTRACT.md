@@ -426,6 +426,12 @@ A patch ships **`bopos.patch.json`** in its patch root:
 /<id>/os/fetch <source-uri> patch:<name>    → /os/fetched patch:<name> <ok|err>
 ```
 
+While a valid request is pending, the node unicasts
+`/os/fetch-progress <slot|patch:name> <queued|fetching>` to each requester.
+These are honest phase states, not invented percentages; `/os/fetched` remains
+the terminal receipt. A coalesced requester receives the phase current when it
+joins the job.
+
 - `source-uri` dispatches on scheme: `http:` (the fleet-scale path — dashboard
   serves LAN HTTP with a manifest of files + hashes; nodes pull by diff with
   Range-resume; works air-gapped) or `file:`. The legacy `gdrive:` scheme is

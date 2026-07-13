@@ -7,5 +7,12 @@ run/
 /state/
 /dashboard/installation.json
 /dashboard/installations/
-/assets/
+/assets/*
+/patches/*
+!/patches/README.md
+!/patches/active_patch.txt
+!/patches/demo-pd/
+!/patches/demo-pd/**
+!/patches/demo-sc/
+!/patches/demo-sc/**
 /dashboard/assets/

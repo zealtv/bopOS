@@ -1,12 +1,17 @@
-"""Convergent asset fetching for bopOS nodes."""
+"""Convergent asset and patch fetching for bopOS nodes."""
 
 import hashlib
 import json
 import os
 import shutil
-import subprocess
+import tempfile
 import urllib.parse
 import urllib.request
+
+try:
+    from . import manifest as patch_manifest
+except ImportError:
+    import manifest as patch_manifest
 
 
 def _valid_slot(slot):
@@ -94,6 +99,23 @@ def _prune(root, wanted):
                 pass
 
 
+def _reject_symlinks(root, allowed=None):
+    """Refuse convergence through any existing destination symlink."""
+    allowed = allowed or {}
+    if os.path.islink(root):
+        raise ValueError("destination must not be a symlink")
+    if not os.path.isdir(root):
+        return
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs + files:
+            path = os.path.join(directory, name)
+            if not os.path.islink(path):
+                continue
+            expected = allowed.get(os.path.abspath(path))
+            if expected is None or os.path.realpath(path) != os.path.realpath(expected):
+                raise ValueError("destination contains a symlink")
+
+
 def _download(url, target, item):
     part = target + ".part"
     for _attempt in range(3):
@@ -167,26 +189,105 @@ def _file_fetch(uri, destination):
     return True, "synced {} files".format(len(files))
 
 
-def fetch(uri, slot, assets_root):
+def _landing(slot, assets_root, patches_root):
+    if slot.startswith("patch:"):
+        name = slot[len("patch:"):]
+        if not _valid_slot(name):
+            raise ValueError("invalid patch name")
+        root = patches_root or os.path.join(os.path.dirname(assets_root), "patches")
+        destination = os.path.join(root, name)
+        # A strict name already excludes traversal. The realpath check also
+        # refuses a pre-existing symlink that would make convergence prune
+        # files outside the framework's patches root.
+        if os.path.commonpath((os.path.realpath(root), os.path.realpath(destination))) \
+                != os.path.realpath(root):
+            raise ValueError("patch destination escapes patches root")
+        if os.path.lexists(destination) and not os.path.isdir(destination):
+            raise ValueError("patch destination must be a directory")
+        if os.path.lexists(os.path.join(destination, ".git")):
+            raise ValueError("refusing to fetch over a git-managed patch")
+        return destination, True
+    if not _valid_slot(slot):
+        raise ValueError("invalid slot")
+    return os.path.join(assets_root, slot), False
+
+
+def _converge(uri, destination, scheme):
+    if scheme in ("http", "https"):
+        return _http_fetch(uri, destination)
+    if scheme == "file":
+        return _file_fetch(uri, destination)
+    return False, "unsupported URI scheme"
+
+
+def _patch_fetch(uri, destination, scheme, assets_root):
+    """Converge and validate off to the side, then atomically replace."""
+    root = os.path.dirname(destination)
+    os.makedirs(root, exist_ok=True)
+    legacy_link = os.path.join(destination, "bop", "samplepacks")
+    legacy_target = os.path.join(assets_root, "samplepacks")
+    allowed = ({os.path.abspath(legacy_link): legacy_target}
+               if os.path.islink(legacy_link) else {})
+    _reject_symlinks(destination, allowed)
+    staging = tempfile.mkdtemp(prefix=".fetch-{}-".format(os.path.basename(destination)),
+                               dir=root)
+    backup = None
+    try:
+        if os.path.isdir(destination):
+            def ignore_legacy(directory, names):
+                if (os.path.realpath(directory)
+                        == os.path.realpath(os.path.join(destination, "bop"))
+                        and "samplepacks" in names
+                        and os.path.islink(os.path.join(directory, "samplepacks"))):
+                    return {"samplepacks"}
+                return set()
+
+            shutil.copytree(destination, staging, dirs_exist_ok=True,
+                            ignore=ignore_legacy)
+        ok, detail = _converge(uri, staging, scheme)
+        if not ok:
+            return ok, detail
+        _value, error = patch_manifest.load(staging)
+        if error is not None:
+            return False, "fetched patch manifest invalid: {}".format(error)
+        if os.path.isdir(destination):
+            backup = tempfile.mkdtemp(
+                prefix=".previous-{}-".format(os.path.basename(destination)), dir=root)
+            os.rmdir(backup)
+            os.replace(destination, backup)
+        try:
+            os.replace(staging, destination)
+            staging = None
+        except Exception:
+            if backup is not None and not os.path.lexists(destination):
+                os.replace(backup, destination)
+                backup = None
+            raise
+        if backup is not None:
+            shutil.rmtree(backup, ignore_errors=True)
+            backup = None
+        return True, detail
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+        if backup is not None and os.path.isdir(backup):
+            if not os.path.lexists(destination):
+                os.replace(backup, destination)
+            else:
+                shutil.rmtree(backup, ignore_errors=True)
+
+
+def fetch(uri, slot, assets_root, patches_root=None):
     try:
         if not isinstance(uri, str):
             raise ValueError("URI must be a string")
-        if not _valid_slot(slot):
-            raise ValueError("invalid slot")
-        destination = os.path.join(assets_root, slot)
+        if not isinstance(slot, str):
+            raise ValueError("slot must be a string")
+        destination, is_patch = _landing(slot, assets_root, patches_root)
         scheme = urllib.parse.urlparse(uri).scheme.lower()
-        if scheme in ("http", "https"):
-            return _http_fetch(uri, destination)
-        if scheme == "file":
-            return _file_fetch(uri, destination)
-        if scheme == "gdrive":
-            if slot != "samplepacks":
-                raise ValueError("gdrive requires the samplepacks slot")
-            script = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
-                                  "bash", "getsamples.sh")
-            result = subprocess.run(["bash", script])
-            return (result.returncode == 0,
-                    "getsamples exit {}".format(result.returncode))
-        return False, "unsupported URI scheme"
+        if is_patch:
+            return _patch_fetch(uri, destination, scheme, assets_root)
+        _reject_symlinks(destination)
+        return _converge(uri, destination, scheme)
     except Exception as error:
         return False, str(error)

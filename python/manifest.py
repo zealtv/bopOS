@@ -101,10 +101,9 @@ def warnings(manifest):
 def main():
     """CLI for the launcher: prints eval-able ENGINE=/ENTRYPOINT= lines.
 
-    Exit 0: valid manifest. Exit 3: no manifest, but main.pd exists (legacy
-    launch). Exit 1: manifest present but invalid, or nothing to launch —
-    the launcher prints the error and falls back to legacy if it can
-    (contract section 1: a node never falls silent over a JSON typo).
+    Exit 0: valid manifest. Exit 1: missing or invalid manifest. Contract
+    v1.3 makes the manifest mandatory, so this CLI never emits fallback launch
+    values.
     """
     patch_path = sys.argv[1]
     manifest, error = load(patch_path)
@@ -114,13 +113,8 @@ def main():
         for note in warnings(manifest):
             print(f"manifest: warning: {note}", file=sys.stderr)
         return 0
-    legacy = os.path.isfile(os.path.join(patch_path, "main.pd"))
-    print("ENGINE='pd'")
-    print("ENTRYPOINT='main.pd'")
     print(f"manifest: {error}", file=sys.stderr)
-    if legacy and error.startswith("no "):
-        return 3  # no manifest at all: the quiet legacy case
-    return 1      # invalid manifest (or nothing launchable): loud
+    return 1
 
 
 if __name__ == "__main__":

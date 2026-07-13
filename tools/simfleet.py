@@ -107,7 +107,11 @@ class Device:
         self.gain2 = 0.0
         self.backing = 0.0
         self.params = {}
-        self.active_patch = ""
+        self.active_patch = "default"
+        self.patches = {
+            "default": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None}
+        }
+        self.asset_slots = set()
         self.reports = {}
         self.last_hb = None
         self.last_command = "-"
@@ -184,6 +188,9 @@ class SimFleet:
         self.manifest_text, self.declared_params = load_manifest(
             getattr(args, "manifest", None) or DEFAULT_MANIFEST_PATH)
         self.events = []
+        self.fetch_jobs = {}
+        self.fetch_active = {}
+        self.fetch_pending = {}
         self.sequence = itertools.count()
         self.running = True
         self.start_monotonic = time.monotonic()
@@ -275,11 +282,96 @@ class SimFleet:
         except OSError as error:
             print(f"simfleet: rev reply failed: {error}", file=sys.stderr)
 
+    def send_patch_list(self, device, source):
+        listing = [
+            {
+                "name": name,
+                "active": name == device.active_patch,
+                "git": facts["git"],
+                "manifest": facts["manifest"],
+            }
+            for name, facts in sorted(device.patches.items())
+        ]
+        builder = osc_message_builder.OscMessageBuilder(address="/os/patches")
+        builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def send_fetch_state(self, source, slot, state):
+        builder = osc_message_builder.OscMessageBuilder(address="/os/fetch-progress")
+        builder.add_arg(slot, arg_type="s")
+        builder.add_arg(state, arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def begin_fetch(self, key):
+        job = self.fetch_jobs.get(key)
+        if job is None:
+            return
+        job["phase"] = "fetching"
+        if job["active"]:
+            job["device"].engine_restart_until = float("inf")
+        for source in job["requesters"]:
+            self.send_fetch_state(source, job["slot"], "fetching")
+        self.schedule(0.9, self.finish_fetch, key)
+
+    def finish_fetch(self, key):
+        job = self.fetch_jobs.pop(key, None)
+        if job is None:
+            return
+        device, slot = job["device"], job["slot"]
+        if job["active"]:
+            device.engine_restart_until = 0.0
+        ok = job["ok"]
+        if ok:
+            if slot.startswith("patch:"):
+                name = slot.split(":", 1)[1]
+                device.patches[name] = {"git": False, "manifest": True}
+            else:
+                device.asset_slots.add(slot)
+        for source in job["requesters"]:
+            builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
+            builder.add_arg(slot, arg_type="s")
+            builder.add_arg("ok" if ok else "err", arg_type="s")
+            self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+        mac = device.mac
+        if self.fetch_active.get(mac) == key:
+            self.fetch_active.pop(mac, None)
+        pending = self.fetch_pending.get(mac, [])
+        if pending:
+            next_key = pending.pop(0)
+            self.fetch_active[mac] = next_key
+            self.schedule(0.1, self.begin_fetch, next_key)
+        else:
+            self.fetch_pending.pop(mac, None)
+
+    def queue_fetch(self, device, source, uri, slot):
+        key = (device.mac, uri, slot)
+        existing = self.fetch_jobs.get(key)
+        if existing is not None:
+            existing["requesters"].append(source)
+            self.send_fetch_state(source, slot, existing["phase"])
+            return
+        job = {
+            "device": device,
+            "requesters": [source],
+            "slot": slot,
+            "phase": "queued",
+            "active": slot == "patch:" + device.active_patch,
+            "ok": True,
+        }
+        self.fetch_jobs[key] = job
+        self.send_fetch_state(source, slot, "queued")
+        if device.mac not in self.fetch_active:
+            self.fetch_active[device.mac] = key
+            self.schedule(0.1, self.begin_fetch, key)
+        else:
+            self.fetch_pending.setdefault(device.mac, []).append(key)
+
     def admin_verb(self, device, member, args, source):
         # bopos.py owns these, so a dead engine still answers
         self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
-        provisioning = member in ("update", "checkout", "patch",
-                                  "addpatch", "pullpatch", "getsamples")
+        provisioning = member in ("updatebopos", "checkout", "patch",
+                                  "addpatch", "pullpatch", "droppatch",
+                                  "dropassets")
         if provisioning and device.ephemeral:
             # ephemeral: honest no-op, receipt still sent (contract sec 7)
             self.send_rev(device, source)
@@ -293,21 +385,34 @@ class SimFleet:
         elif member == "restart-engine":
             self.send_rev(device, source)
             device.engine_restart_until = time.monotonic() + 3.0
-        elif member == "update" or (member == "checkout" and args):
+        elif member == "updatebopos" or (member == "checkout" and args):
             # the pull lands (sha bumps), the receipt goes out, then the reboot
             self.set_state(device, "updating")
             self.bump(device)
             self.schedule(2.0, self.send_rev, device, source)
             self.schedule(5.0, self.reboot_after_silence, device, False)
         elif member == "patch" and args:
-            device.active_patch = str(args[0])
+            name = str(args[0])
+            if name not in device.patches or not device.patches[name]["manifest"]:
+                self.send_rev(device, source)
+                return
+            device.active_patch = name
             self.set_state(device, "updating")
             self.schedule(2.0, self.send_rev, device, source)
             self.schedule(5.0, self.reboot_after_silence, device, False)
         elif member == "addpatch" and len(args) >= 2:
+            device.patches[str(args[1])] = {"git": True, "manifest": True}
             self.schedule(1.0, self.send_rev, device, source)
-        elif member in ("pullpatch", "getsamples"):
+        elif member == "pullpatch":
             self.schedule(1.0, self.send_rev, device, source)
+        elif member == "droppatch" and args:
+            name = str(args[0])
+            if name != device.active_patch:
+                device.patches.pop(name, None)
+            self.send_rev(device, source)
+        elif member == "dropassets" and args:
+            device.asset_slots.discard(str(args[0]))
+            self.send_rev(device, source)
         else:
             # malformed args change nothing; the receipt is still the honest state
             self.send_rev(device, source)
@@ -542,38 +647,46 @@ class SimFleet:
                 if self.manifest_text is not None:
                     builder.add_arg(self.manifest_text, arg_type="s")
                 self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            elif member == "patches":
+                self.send_patch_list(device, source)
             elif member == "fetch":
                 uri = str(args[0]) if args else ""
                 slot = str(args[1]) if len(args) > 1 else ""
                 scheme = uri.split(":", 1)[0].lower() if ":" in uri else ""
-                ok = (scheme in ("http", "https", "gdrive", "file")
-                      and re.fullmatch(r"[A-Za-z0-9_-]+", slot) is not None)
+                patch_name = slot.split(":", 1)[1] if slot.startswith("patch:") else None
+                valid_slot = (re.fullmatch(r"[A-Za-z0-9_-]+", patch_name) is not None
+                              if patch_name is not None
+                              else re.fullmatch(r"[A-Za-z0-9_-]+", slot) is not None)
+                git_target = (patch_name is not None and patch_name in device.patches
+                              and device.patches[patch_name]["git"])
+                ok = scheme in ("http", "https", "file") and valid_slot and not git_target
                 self.log(device, f"fetch {uri} {slot}")
-                builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
-                builder.add_arg(slot, arg_type="s")
-                builder.add_arg("ok" if ok else "err", arg_type="s")
-                target = (source[0], self.args.report_port)
                 if ok:
-                    self.schedule(1.0, self.sock.sendto, builder.build().dgram, target)
+                    self.queue_fetch(device, source, uri, slot)
                 else:
-                    self.sock.sendto(builder.build().dgram, target)
-            elif member in ("reboot", "shutdown", "restart-engine", "update",
+                    builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
+                    builder.add_arg(slot, arg_type="s")
+                    builder.add_arg("err", arg_type="s")
+                    self.sock.sendto(builder.build().dgram,
+                                     (source[0], self.args.report_port))
+            elif member in ("reboot", "shutdown", "restart-engine", "updatebopos",
                             "checkout", "patch", "addpatch", "pullpatch",
-                            "getsamples"):
+                            "droppatch", "dropassets"):
                 self.admin_verb(device, member, list(args), source)
             elif member == "report":
                 report = {
                     "uid": device.mac,
+                    "hostname": device.hostname,
                     "engine": "pd",
                     "has_i2c": False,
                     "has_wifi": not device.wired,
                     "audio_channels": 2,
                     "screen": False,
-                    "patch": device.active_patch or "default",
+                    "patch": device.active_patch,
                     "uptime": int(time.monotonic() - self.start_monotonic),
                     "git_rev": device.version,
                     "update_model": "ephemeral" if device.ephemeral else "persistent",
-                    "contract_version": "1.0",
+                    "contract_version": "1.3",
                 }
                 builder = osc_message_builder.OscMessageBuilder(address="/os/report")
                 builder.add_arg(json.dumps(report), arg_type="s")
