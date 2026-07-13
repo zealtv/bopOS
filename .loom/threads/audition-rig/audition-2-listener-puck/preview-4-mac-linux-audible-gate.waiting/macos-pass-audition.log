@@ -1,0 +1,14 @@
+audition: id=1 port=17691 pid=14359
+audition: id=2 port=17692 pid=14360
+audition: id=3 port=17693 pid=14361
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)
+audition: id=1 port=17691 pid=15380
+audition: id=2 port=17692 pid=15381
+audition: id=3 port=17693 pid=15382
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)
+error: netreceive: listen failed: Address already in use (48)

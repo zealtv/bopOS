@@ -1,0 +1,60 @@
+{
+  "devices": {
+    "audition-0001": {
+      "id": 1,
+      "name": "left",
+      "params": {
+        "echo": 0,
+        "gain0": 1,
+        "gain1": 1
+      },
+      "patch": "default",
+      "pos1": [
+        2.77,
+        6.2
+      ]
+    },
+    "audition-0002": {
+      "id": 2,
+      "name": "front",
+      "params": {
+        "echo": 0,
+        "gain0": 0,
+        "gain1": 0
+      },
+      "patch": "default",
+      "pos1": [
+        5.0,
+        1.5
+      ]
+    },
+    "audition-0003": {
+      "id": 3,
+      "name": "right",
+      "params": {
+        "echo": 0,
+        "gain0": 0,
+        "gain1": 0
+      },
+      "patch": "default",
+      "pos1": [
+        8.0,
+        3.5
+      ]
+    }
+  },
+  "facilitator_commands": [],
+  "listener": {
+    "heading": 0.0,
+    "x": 5.99,
+    "y": 7.11
+  },
+  "master": 1.0,
+  "name": "audition-audible-gate",
+  "presets": {},
+  "room": {
+    "depth": 8.0,
+    "units": "m",
+    "width": 10.0
+  }
+}

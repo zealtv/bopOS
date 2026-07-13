@@ -1,7 +1,7 @@
 /* Facilitator: dark, touch-first, iPad portrait & landscape. */
-:root{color-scheme:dark;--bg:#101316;--panel:#191e23;--line:#303942;--text:#e8edf1;--dim:#8f9ba5;--green:#45d483;--red:#ff4e5d}
+:root{color-scheme:dark only;--bg:#101316;--panel:#191e23;--line:#303942;--text:#e8edf1;--dim:#8f9ba5;--green:#45d483;--red:#ff4e5d}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+html,body{height:100%}html{background:#101316;color:#e8edf1}
 body{margin:0;background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
 header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:#14191d;padding-top:max(14px,env(safe-area-inset-top))}
 h1{font-size:22px;margin:0;margin-right:auto}
