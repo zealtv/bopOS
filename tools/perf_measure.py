@@ -145,13 +145,23 @@ class DspLoadWatcher:
                 self.samples.append(float(m.group(1)))
 
     def stop(self):
-        self.poll()
-        if self.proc and self.proc.poll() is None:
+        # jack_cpu_load block-buffers when piped, so most output only
+        # arrives once it exits — drain after termination, not before.
+        if not self.proc:
+            return
+        if self.proc.poll() is None:
             self.proc.terminate()
             try:
                 self.proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+                self.proc.wait()
+        os.set_blocking(self.proc.stdout.fileno(), True)
+        for line in (self.proc.stdout.read() or "").splitlines():
+            m = re.search(r"([\d.]+)", line)
+            if m:
+                self.samples.append(float(m.group(1)))
+
 
 
 def run(args):
