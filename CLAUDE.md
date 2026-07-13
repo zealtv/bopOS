@@ -44,7 +44,7 @@ remain the authority for a particular piece of work.
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.2** (2026-07-07 base + seam amendment + engine-boundary revision);
 `engine-boundary-design`, `patch-seam`, `clock-sync` (sync-0..3), spatial
-software (spatial-1/2), the dashboard's four phases, and the audition
+software (spatial-1/2), the dashboard's four phases + UI review, and the audition
 preview stack (Stage 0 + preview-0..3) are **all tied**. `bopos.py`
 (ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
 surface; run context is launch-delivered; `role`/meter are dead;
@@ -54,20 +54,12 @@ facilitator controls come only from `facilitator: true`.
 takes precedence over `./.loom/loom next`'s alphabetical listing (which
 serves `d8-1` first); in-thread, numeric prefixes are the order:
 
-1. **`dashboard-9-ui-review/ui-0..3`** first — small Bob-visible fixes, and
-   doing the layout/sidebar passes *before* dist-3/d8-3 means new UI lands
-   into the new layout instead of churning it. ui-0: ID-spinner bug +
-   heartbeat blips (hostname item hands off to d8-3). ui-1: map to top,
-   synced-cue relocation, master slider, aloha check, facilitator back-link
-   (leave the patch panel's *contents* to dist-3). ui-2: heading drag-dial,
-   amplitude rings, point clipping, size/speed orthogonality, points list.
-   ui-3: numeric entry + space origin, last of the review.
-2. **`patch-asset-sync/dist-1..4`** — ratified 2026-07-13 (record:
+1. **`patch-asset-sync/dist-1..4`** — ratified 2026-07-13 (record:
    `.loom/tied/dist-0-proposal/`): contract v1.3 text first (dist-1), node
    side (dist-2), then dashboard Send/Sync UI (dist-3) and demo patches
    (dist-4) — 3/4 need 1/2 tied. Tying dist-2+3 unblocks
    `friction-0-docs`; dist-4 unblocks `friction-1`.
-3. **`dashboard/d8-1..3`** — the seats model, ratified 2026-07-13 (record:
+2. **`dashboard/d8-1..3`** — the seats model, ratified 2026-07-13 (record:
    `.loom/tied/dashboard-8-identity-sim-design/`): state model (d8-1), then
    simulate toggle (d8-2) and binding UX (d8-3) — both need d8-1 tied;
    d8-3 last so its sidebar restructure absorbs ui-0's blips and dist-2's
