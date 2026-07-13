@@ -1,6 +1,8 @@
 import asyncio
+import ipaddress
 import json
 import logging
+import math
 import random
 import re
 import socket
@@ -107,12 +109,32 @@ class OSCBridge:
             pass
 
     def send(self, address, args=()):
+        self.sender.sendto(self._datagram(address, args), self.destination)
+
+    @staticmethod
+    def _datagram(address, args=()):
         builder = OscMessageBuilder(address=address)
         for value in args:
             if isinstance(value, float):
                 value = float(format(value, ".6g"))
             builder.add_arg(value)
-        self.sender.sendto(builder.build().dgram, self.destination)
+        return builder.build().dgram
+
+    def send_audition_listener(self):
+        """Send the private listener frame only to the local audition relay."""
+        listener = self.state.data.get("listener")
+        room = self.state.data.get("room") or {}
+        if not listener or self.sender is None:
+            return
+        range_m = math.hypot(float(room.get("width", 0)),
+                             float(room.get("depth", 0)))
+        if not math.isfinite(range_m) or range_m <= 0:
+            return
+        packet = self._datagram("/audition/listener", [
+            float(listener["x"]), float(listener["y"]),
+            float(listener["heading"]), range_m,
+        ])
+        self.sender.sendto(packet, ("127.0.0.1", self.destination[1]))
 
     def set_param(self, selector, name, value):
         self.send(f"/{selector}/p/{name}", [value])
@@ -216,6 +238,24 @@ class OSCBridge:
         return matches[0] if len(matches) == 1 else None
 
     def handle(self, address, args, ip):
+        if address == "/audition/ready":
+            try:
+                local = ipaddress.ip_address(ip).is_loopback
+            except ValueError:
+                local = False
+            if not local:
+                return
+            # A relay restart can be faster than the normal offline threshold.
+            # Its private ready frame requests the complete dashboard-owned
+            # assignments and listener without weakening heartbeat rate limits.
+            for uid, device in self.state.devices.items():
+                if (uid.startswith("audition-") and int(device.get("id", -1)) >= 0
+                        and device.get("name")):
+                    elements = [position for position in
+                                (device.get("pos1"), device.get("pos2")) if position]
+                    self.assign(uid, int(device["id"]), device["name"], elements)
+            self.send_audition_listener()
+            return
         if address == "/hb" and len(args) >= 4:
             uid = str(args[0])
             first_seen = uid not in self.state.devices

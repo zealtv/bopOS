@@ -61,6 +61,7 @@ class Dashboard:
 
     async def start(self):
         await self.osc.start()
+        self.osc.send_audition_listener()
         self.tasks.add(asyncio.create_task(self.offline_sweep()))
 
     async def stop(self):
@@ -95,6 +96,9 @@ class Dashboard:
         await ws.accept()
         self.clients.add(ws)
         await ws.send_json({"type": "state", "data": self.state.public()})
+        # A browser reconnect is another full-state convergence edge. Replaying
+        # the private listener is idempotent in the audition relay.
+        self.osc.send_audition_listener()
         await ws.send_json({"type": "venues", "data": {"venues": self.state.list_venues(),
                                                        "current": self.state.data.get("name")}})
         try:
@@ -221,6 +225,14 @@ class Dashboard:
                 self.osc.assign(uid, device["id"], device["name"],
                                 self.device_elements(device))
             await self.broadcast("device_update", device)
+        elif kind == "set_listener":
+            listener = self.state.clean_listener(data)
+            if listener is None:
+                return
+            self.state.data["listener"] = listener
+            self.state.save_debounced()
+            self.osc.send_audition_listener()
+            await self.broadcast("listener", listener)
         elif kind == "set_points":
             # full-state authoring surface (contract sec 4.1); geometry only —
             # decomposition is the nodes' job, never composed here (sec 1)
@@ -243,12 +255,10 @@ class Dashboard:
             self.osc.clear_point(point_id)
             await self.broadcast("points", {"points": self.state.data["points"]})
         elif kind == "set_room":
-            try:
-                width, depth = float(data.get("width")), float(data.get("depth"))
-            except (TypeError, ValueError):
-                return
-            if 0 < width <= 1000 and 0 < depth <= 1000:
-                self.state.data["room"] = {"width": width, "depth": depth, "units": "m"}
+            room = self.state.clean_room(data)
+            if room is not None:
+                width, depth = room["width"], room["depth"]
+                self.state.data["room"] = room
                 for point in self.state.data.get("points", {}).values():
                     motion = point.get("motion") or {}
                     if motion.get("type") == "bounce":
@@ -259,6 +269,11 @@ class Dashboard:
                 if self.state.data.get("points"):
                     self.osc.send_points_frame()
                     await self.broadcast("points", {"points": self.state.data["points"]})
+                listener = (self.state.clean_listener(self.state.data.get("listener"))
+                            or self.state.default_listener())
+                self.state.data["listener"] = listener
+                self.osc.send_audition_listener()
+                await self.broadcast("listener", listener)
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
         elif kind == "assign_device":
@@ -297,6 +312,11 @@ class Dashboard:
         elif kind == "load_venue":
             name = str(data.get("name", "")).strip()
             if name and self.state.load_venue(name):
+                for assigned_uid, device in self.state.devices.items():
+                    if int(device["id"]) >= 0 and device.get("name"):
+                        self.osc.assign(assigned_uid, device["id"], device["name"],
+                                        self.device_elements(device))
+                self.osc.send_audition_listener()
                 await self.broadcast("state", self.state.public())
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})

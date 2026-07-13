@@ -5,12 +5,13 @@
   const NS = "http://www.w3.org/2000/svg";
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
-  let deviceDrag = null, pointDrag = null;
+  let deviceDrag = null, pointDrag = null, listenerDrag = null;
   let last = null;
   let selectedPoint = null;
   let lastClick = {uid: null, time: 0};
   let pointFrame = {};
   let lastPointSend = 0;
+  let lastListenerSend = 0;
   const drafts = new Map();
 
   function el(name, attrs, parent) {
@@ -50,7 +51,7 @@
 
   function render(installation, selected, select, ws) {
     last = [installation, selected, select, ws];
-    if (deviceDrag || pointDrag) return;
+    if (deviceDrag || pointDrag || listenerDrag) return;
     const svg = document.getElementById("spatial");
     if (!svg) return;
     const room = installation.room || {width: 10, depth: 8};
@@ -96,6 +97,18 @@
       });
     }
 
+    const listener = installation.listener;
+    if (listener) {
+      const heading = Number(listener.heading) * Math.PI / 180;
+      const hx = Math.sin(heading) * 0.72, hy = -Math.cos(heading) * 0.72;
+      const g = el("g", {class: "listener-puck", "data-listener": "true",
+                          transform: `translate(${listener.x} ${listener.y})`}, svg);
+      el("line", {x1: 0, y1: 0, x2: hx, y2: hy, class: "listener-heading"}, g);
+      el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip"}, g);
+      el("circle", {r: 0.3, class: "listener-body"}, g);
+      el("text", {x: 0, y: 0.07, class: "listener-label"}, g).textContent = "L";
+    }
+
     for (const point of Object.values(pointsOf(installation))) {
       const [x, y] = shownXY(point);
       const g = el("g", {class: `spatial-point${Number(point.id) === selectedPoint ? " selected" : ""}`,
@@ -109,6 +122,13 @@
 
   function bindMap(svg, W, D) {
     svg.onpointerdown = event => {
+      const listenerGroup = event.target.closest("g[data-listener]");
+      if (listenerGroup) {
+        listenerDrag = {group: listenerGroup, start: toSvg(svg, event), moved: false};
+        svg.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
       const pointGroup = event.target.closest("g[data-point-id]");
       if (pointGroup) {
         const id = Number(pointGroup.dataset.pointId);
@@ -129,6 +149,22 @@
       event.preventDefault();
     };
     svg.onpointermove = event => {
+      if (listenerDrag) {
+        let [x, y] = toSvg(svg, event);
+        x = Math.min(Math.max(x, 0), W); y = Math.min(Math.max(y, 0), D);
+        if (!listenerDrag.moved && Math.hypot(x - listenerDrag.start[0], y - listenerDrag.start[1]) < MOVE_MIN) return;
+        listenerDrag.moved = true;
+        listenerDrag.at = [x, y];
+        listenerDrag.group.setAttribute("transform", `translate(${x} ${y})`);
+        const listener = last[0].listener;
+        listener.x = round(x); listener.y = round(y);
+        const now = performance.now();
+        if (now - lastListenerSend >= 40) {
+          lastListenerSend = now;
+          last[3].send("set_listener", clone(listener));
+        }
+        return;
+      }
       if (pointDrag) {
         let [x, y] = toSvg(svg, event);
         x = Math.min(Math.max(x, 0), W); y = Math.min(Math.max(y, 0), D);
@@ -151,6 +187,12 @@
       deviceDrag.g.setAttribute("transform", `translate(${x} ${y})`);
     };
     svg.onpointerup = () => {
+      if (listenerDrag) {
+        if (listenerDrag.moved) last[3].send("set_listener", clone(last[0].listener));
+        listenerDrag = null;
+        render(...last);
+        return;
+      }
       if (pointDrag) {
         if (pointDrag.moved && pointDrag.at) movePoint(pointDrag.id, ...pointDrag.at, true);
         pointDrag = null;
@@ -291,5 +333,5 @@
     render(...last);
   }
 
-  window.Spatial = {render, frame, get dragging() { return deviceDrag !== null || pointDrag !== null; }};
+  window.Spatial = {render, frame, get dragging() { return deviceDrag !== null || pointDrag !== null || listenerDrag !== null; }};
 })();

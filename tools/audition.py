@@ -169,6 +169,10 @@ class AuditionRig:
                 self.send_id(node)
             self.send_matrix(node)
 
+    def send_ready(self):
+        self.sock.sendto(osc_datagram("/audition/ready", VERSION),
+                         ("127.0.0.1", self.args.report_port))
+
     def send_id(self, node):
         self.sock.sendto(osc_datagram("/id", node.device_id),
                          (self.local_target, node.engine_port))
@@ -243,6 +247,9 @@ class AuditionRig:
         uid, device_id, name, positions = assignment
         for node in self.nodes:
             if not matches(selector, node.device_id) or uid != node.uid:
+                continue
+            if (node.device_id == device_id and node.name == name
+                    and node.positions == positions):
                 continue
             node.device_id = device_id
             node.name = name
@@ -337,6 +344,7 @@ class AuditionRig:
     def run(self):
         try:
             self.start_engines()
+            self.send_ready()
             next_hb = 0.0
             ids_sent = False
             while self.running:

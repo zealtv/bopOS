@@ -12,7 +12,7 @@
     </aside>
     <main>
       <section id="spatial-section">
-        <div class="section-head"><h2>Spatial</h2><span class="dim">room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div>
+        <div class="section-head"><h2>Spatial</h2><span class="dim">listener heading <input id="listener-heading" type="number" min="0" max="359" step="1">° · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m</span></div>
         <div id="point-toolbar">
           <button id="point-add">Add point</button>
           <div id="point-editor" hidden>
@@ -32,7 +32,7 @@
           <button id="cue-fire">Fire on all devices</button>
           <output id="cue-status" class="dim">scheduled against the shared clock</output>
         </div>
-        <p class="dim spatial-help">Drag a point to stream its position. Dot colour is element index; number is device ID; brightness shows proximity.</p>
+        <p class="dim spatial-help">Drag the listener puck to audition the room. Its arrow shows heading. Dot colour is element index; number is device ID; brightness shows proximity.</p>
         <svg id="spatial"></svg>
       </section>
       <div id="detail"><p class="empty">Select a device.</p></div>

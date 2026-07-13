@@ -13,6 +13,7 @@ ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("r
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
+ws.on("listener", data => { installation.listener = data; render(); });
 ws.on("points", data => { installation.points = data.points || {}; render(); });
 ws.on("point_frame", data => Spatial.frame(data.points || {}));
 ws.on("cue_scheduled", data => {
@@ -62,11 +63,21 @@ function row(d) {
   return `<button class="device-row ${d.uid===selected?'selected':''}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><span><strong>${esc(d.name || d.uid)}</strong><small>ID ${esc(d.id)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span></button>`;
 }
 function renderRoom() {
-  const room = installation.room || {}; const w = $("#room-w"), d = $("#room-d");
-  if (!w || document.activeElement === w || document.activeElement === d) return;
-  w.value = room.width ?? 10; d.value = room.depth ?? 8;
+  const room = installation.room || {}; const listener = installation.listener || {};
+  const w = $("#room-w"), d = $("#room-d"), heading = $("#listener-heading");
+  if (!w) return;
+  if (document.activeElement !== w && document.activeElement !== d) {
+    w.value = room.width ?? 10; d.value = room.depth ?? 8;
+  }
+  if (heading && document.activeElement !== heading) heading.value = listener.heading ?? 0;
 }
 ["room-w", "room-d"].forEach(id => { const input = document.getElementById(id); if (input) input.onchange = () => ws.send("set_room", {width: Number($("#room-w").value), depth: Number($("#room-d").value)}); });
+const listenerHeading = document.getElementById("listener-heading");
+if (listenerHeading) listenerHeading.onchange = () => {
+  const listener = installation.listener; if (!listener) return;
+  listener.heading = ((Number(listenerHeading.value) % 360) + 360) % 360;
+  ws.send("set_listener", listener); render();
+};
 (function bindCue() {
   const button = $("#cue-fire"); if (!button) return;
   button.onclick = () => {

@@ -27,7 +27,8 @@ Run a simulated fleet to play against (terminal 2):
 Then open:
 
 - **<http://localhost:8080/>** — tech dashboard: device list, spatial map,
-point authoring (drag/radius/falloff/two-axis wall bounce), params, patch
+  listener audition puck, point authoring
+  (drag/radius/falloff/two-axis wall bounce), params, patch
   management, discovery/assignment, synced named cues, venues, presets.
 - **<http://localhost:8080/facilitator>** — facilitator view: device cards
   with the patch's promoted (`facilitator: true`) params as labelled controls,
@@ -37,6 +38,13 @@ point authoring (drag/radius/falloff/two-axis wall bounce), params, patch
 Useful simfleet variations: `--unassigned 2` (exercise discovery/assign),
 `--engine-dead 1` (a crashed engine), `--drop 0.05 --jitter-ms 30` (bad WiFi),
 `--manifest path/to/bopos.patch.json` (serve a different param declaration).
+
+When `tools/audition.py` runs on the dashboard machine, drag the white listener
+puck to preview the installation from that position; edit its heading above the
+map. The dashboard sends the complete listener state only to loopback port 6660,
+where the audition relay derives and forwards fixed-stereo matrices. This
+private preview state is never broadcast onto the installation LAN and is not
+part of the fleet OSC contract.
 
 ## Real fleet
 
@@ -77,7 +85,8 @@ out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
 for `/os/fetch`.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
-master, presets); named snapshots in `dashboard/installations/<venue>.json`
+listener, master, presets); named snapshots in
+`dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
 
 The facilitator is fail-closed. Patch parameters appear there only when their
