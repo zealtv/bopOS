@@ -2,6 +2,8 @@
 """Run several audible bopOS virtual nodes behind one LAN command socket."""
 
 import argparse
+import ipaddress
+import math
 import os
 import shlex
 import signal
@@ -17,11 +19,13 @@ from pythonosc import osc_message, osc_message_builder
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(REPO_DIR, "python"))
 import manifest as patch_manifest  # noqa: E402
+import audition_geometry  # noqa: E402
+import audition_matrix  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
-VERSION = "audition-1"
+VERSION = "audition-2"
 
 
 def osc_datagram(address, *args):
@@ -31,6 +35,13 @@ def osc_datagram(address, *args):
             builder.add_arg(value, arg_type="i")
         else:
             builder.add_arg(str(value), arg_type="s")
+    return builder.build().dgram
+
+
+def osc_float_datagram(address, values):
+    builder = osc_message_builder.OscMessageBuilder(address=address)
+    for value in values:
+        builder.add_arg(float(value), arg_type="f")
     return builder.build().dgram
 
 
@@ -49,6 +60,8 @@ class VirtualNode:
     device_id: int
     uid: str
     engine_port: int
+    name: str = ""
+    positions: tuple = ()
     process: subprocess.Popen | None = None
 
     def engine_alive(self, no_engine):
@@ -73,6 +86,7 @@ class AuditionRig:
         self.sock.settimeout(0.1)
         self.local_target = args.engine_host
         self.report_target = (args.target, args.report_port)
+        self.listener = None
 
     def _load_patch(self):
         path = os.path.realpath(self.args.manifest)
@@ -141,16 +155,112 @@ class AuditionRig:
             print(f"audition: id={node.device_id} port={node.engine_port} "
                   f"pid={node.process.pid}", flush=True)
 
+    def send_heartbeat(self, node):
+        packet = osc_datagram("/hb", node.uid, node.device_id, VERSION,
+                              node.engine_alive(self.args.no_engine))
+        self.sock.sendto(packet, self.report_target)
+
     def send_heartbeats(self):
         for node in self.nodes:
-            packet = osc_datagram("/hb", node.uid, node.device_id, VERSION,
-                                  node.engine_alive(self.args.no_engine))
-            self.sock.sendto(packet, self.report_target)
+            self.send_heartbeat(node)
+            # A periodic full-state resend lets a restarted/reconnected engine
+            # converge without requiring another dashboard movement.
+            if self.listener is not None:
+                self.send_id(node)
+            self.send_matrix(node)
+
+    def send_id(self, node):
+        self.sock.sendto(osc_datagram("/id", node.device_id),
+                         (self.local_target, node.engine_port))
+
+    def matrix_for_node(self, node):
+        if not node.positions:
+            return audition_matrix.IDENTITY
+        if len(node.positions) > 2:
+            # The fleet assignment is true-N, but Wave 1 audition is fixed
+            # stereo. Preserve assignment state and bypass unsupported shapes.
+            return audition_matrix.IDENTITY
+        try:
+            terms = audition_geometry.terms_for_positions(self.listener, node.positions)
+            return audition_matrix.matrix_for_positions(terms)
+        except ValueError:
+            return audition_matrix.IDENTITY
+
+    def send_matrix(self, node):
+        # Before the first valid listener frame the PD adapter's load-time
+        # identity is authoritative; silence on this private plane means hold.
+        if self.listener is None:
+            return
+        frame = audition_matrix.matrix_frame(self.matrix_for_node(node))
+        self.sock.sendto(osc_float_datagram(frame[0], frame[1:]),
+                         (self.local_target, node.engine_port))
 
     def send_ids(self):
-        packet_by_id = [(node, osc_datagram("/id", node.device_id)) for node in self.nodes]
-        for node, packet in packet_by_id:
-            self.sock.sendto(packet, (self.local_target, node.engine_port))
+        for node in self.nodes:
+            self.send_id(node)
+            self.send_matrix(node)
+
+    @staticmethod
+    def _loopback(source):
+        if source is None:
+            return False
+        try:
+            return ipaddress.ip_address(source[0]).is_loopback
+        except (ValueError, TypeError, IndexError):
+            return False
+
+    @staticmethod
+    def _assignment(params):
+        if len(params) < 3 or not isinstance(params[0], str) or not isinstance(params[2], str):
+            return None
+        raw_id = params[1]
+        if isinstance(raw_id, bool) or not isinstance(raw_id, (int, float)):
+            return None
+        device_id = int(raw_id)
+        if not math.isfinite(float(raw_id)) or float(raw_id) != device_id:
+            return None
+        if not 0 <= device_id <= 2_147_483_647:
+            return None
+        flat = params[3:]
+        if len(flat) % 2:
+            return None
+        values = []
+        for value in flat:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                return None
+            value = float(value)
+            if not math.isfinite(value):
+                return None
+            values.append(value)
+        positions = tuple((values[index], values[index + 1])
+                          for index in range(0, len(values), 2))
+        return str(params[0]), device_id, str(params[2]), positions
+
+    def apply_assignment(self, selector, params):
+        assignment = self._assignment(params)
+        if assignment is None:
+            return
+        uid, device_id, name, positions = assignment
+        for node in self.nodes:
+            if not matches(selector, node.device_id) or uid != node.uid:
+                continue
+            node.device_id = device_id
+            node.name = name
+            node.positions = positions
+            self.send_id(node)
+            self.send_matrix(node)
+            self.send_heartbeat(node)
+
+    def apply_listener(self, params, source):
+        if not self._loopback(source):
+            return
+        try:
+            listener = audition_geometry.listener_from_frame(params)
+        except ValueError:
+            return
+        self.listener = listener
+        for node in self.nodes:
+            self.send_matrix(node)
 
     def relay(self, datagram, source=None):
         # Engines see only the ratified selector-stripped surface. Framework
@@ -161,9 +271,15 @@ class AuditionRig:
         except (osc_message.ParseError, ValueError, IndexError):
             return
         parts = [part for part in message.address.split("/") if part]
+        if parts == ["audition", "listener"]:
+            self.apply_listener(message.params, source)
+            return
         if len(parts) != 3:
             return
         selector = parts[0]
+        if parts[1:] == ["os", "assign"]:
+            self.apply_assignment(selector, message.params)
+            return
         if parts[1:] == ["os", "params"]:
             patch_dir, _loaded = self._load_patch()
             manifest_text = patch_manifest.raw(patch_dir)
@@ -266,7 +382,7 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if args.devices < 1:
         parser.error("--devices must be at least 1")
-    if not 1 <= args.id_base <= 2_147_483_647 - args.devices:
+    if not 0 <= args.id_base <= 2_147_483_647 - args.devices + 1:
         parser.error("--id-base is outside the int32 device-id range")
     if not 1 <= args.engine_port_base <= 65535 - args.devices + 1:
         parser.error("engine port range exceeds UDP ports")

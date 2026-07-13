@@ -510,7 +510,11 @@ class SimFleet:
                 device.elements = [[positions[i], positions[i + 1]]
                                    for i in range(0, len(positions) - 1, 2)]
                 device.save_assignment(self.args.state_dir, positions)
-                self.log(device, f"assigned id={device.device_id:g} name={device.hostname}")
+                # Preview relay tests need the ordered element state but the
+                # protocol simulator must not pretend to render audio.
+                preview_positions = json.dumps(device.elements, separators=(",", ":"))
+                self.log(device, f"assigned id={device.device_id:g} name={device.hostname} "
+                         f"positions={preview_positions}")
                 # the ack is an immediate heartbeat at the new id; the running
                 # schedule picks up the new cadence on its own
                 self.heartbeat(device, reschedule=False)

@@ -33,6 +33,7 @@ SYNC_WINDOW = 16                   # rolling samples kept per device
 SYNC_RTT_CEILING_NS = 200_000_000  # discard a pong slower than this outright
 SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-min RTT
 SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
+ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -62,6 +63,7 @@ class OSCBridge:
         self._ping_task = None
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
+        self._assign_replayed = {}  # uid -> monotonic time of last full replay
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -219,9 +221,31 @@ class OSCBridge:
             first_seen = uid not in self.state.devices
             device = self.state.ensure(uid)
             old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
-            device.update(id=int(args[1]), version=str(args[2]), engine_alive=int(args[3]),
+            advertised_id = int(args[1])
+            configured = (not first_seen and int(device.get("id", -1)) >= 0
+                          and bool(str(device.get("name", "")).strip()))
+            configured_id = int(device["id"]) if configured else advertised_id
+            mismatch = configured and advertised_id != configured_id
+            now = time.monotonic()
+            last_replay = self._assign_replayed.get(uid, float("-inf"))
+            reassign = configured and (not old["online"] or
+                                       (mismatch and now - last_replay >=
+                                        ASSIGN_REPLAY_MIN_SECONDS))
+            if configured and not mismatch:
+                self._assign_replayed.pop(uid, None)
+            device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
                           rssi=args[4] if len(args) > 4 else None, ip=ip, online=True,
                           last_seen=time.time())
+            if reassign:
+                # Dashboard durable assignment is authoritative. Replaying its
+                # full state on appearance also restores ephemeral audition
+                # nodes' ordered positions after the relay restarts. The ack
+                # heartbeat advertises configured_id while already online, so
+                # it cannot form a resend loop.
+                elements = [position for position in
+                            (device.get("pos1"), device.get("pos2")) if position]
+                self.assign(uid, configured_id, device["name"], elements)
+                self._assign_replayed[uid] = now
             self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
             new = {key: device.get(key) for key in old}
             if old != new:
