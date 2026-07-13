@@ -1,5 +1,9 @@
 # samples-1-fetch-client
 
+**.waiting (2026-07-13):** gated on `patch-asset-sync/dist-0-proposal`
+ratification — see the note in `samples-0-backend-manifest.waiting`; same
+reasoning applies fleet-wide.
+
 Device side: helper.py implements the `http:` scheme of `/os/fetch` against
 samples-0's manifest server.
 

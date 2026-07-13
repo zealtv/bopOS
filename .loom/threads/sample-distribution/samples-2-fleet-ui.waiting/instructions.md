@@ -1,5 +1,9 @@
 # samples-2-fleet-ui
 
+**.waiting (2026-07-13):** gated on `patch-asset-sync/dist-0-proposal`
+ratification — see the note in `samples-0-backend-manifest.waiting`. The UI
+naming here ("sync samples") is explicitly under redesign (Get/Send Assets).
+
 Dashboard fleet operation: "sync samples" per device / group / all.
 
 - [ ] UI action fires `/os/fetch` at the selection with the backend's own URL;

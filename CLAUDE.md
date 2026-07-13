@@ -97,11 +97,21 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    dual-mono / two-position mono semantics.
    `pd-audition-host` is deferred as the multichannel/DAW integration strategy.
    Never edit either PD jig.
-5. Free-floating fill: `samples-0..2`, `zero-0-measure-kit`, `friction-0`
-   (`hw-onboarding-doc` tied 2026-07-11 → `docs/HARDWARE.md`),
-   `dashboard-5-position-precision` (numeric position entry + space origin,
-   Bob 2026-07-11 — deliberately last). `friction-1` now waits on the
-   engine-boundary ruling so the starter template teaches the accepted seam.
+5. **Composer-experience wave (2026-07-13)** — Bob's dashboard/composer brain
+   dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) landed as:
+   `patch-asset-sync` (new thread — unified patch+asset distribution model;
+   `dist-0-proposal` is the decision-gate proposal, work it first),
+   `dashboard-8-identity-sim-design` (device-identity data model +
+   dashboard-managed simulation; decision-gate proposal), and
+   `dashboard-9-ui-review` (`ui-0..3` — concrete UI fixes, workable now;
+   absorbed `dashboard-5-position-precision` as `ui-3`). Gated on the
+   `dist-0-proposal` ratification: `samples-0..2` (all `.waiting` — the
+   proposal absorbs or supersedes them) and `friction-0-docs` (`.waiting` —
+   the composer doc must teach the ratified workflow).
+6. Free-floating fill: `friction-1` waits on nothing since the
+   engine-boundary ruling landed, but note the `patch-asset-sync` proposal
+   may dissolve `templates/` into a demo patch — coordinate before building
+   the starter template.
 
 Bob's rulings (2026-07-08): order above confirmed; **`audio-input` deferred**
 (both children `.waiting`); `/sync/*` wire shaping is delegated (record

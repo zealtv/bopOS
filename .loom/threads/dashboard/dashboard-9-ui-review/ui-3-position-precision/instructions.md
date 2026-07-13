@@ -1,4 +1,8 @@
-# dashboard-5-position-precision
+# ui-3-position-precision
+
+(Was `dashboard-5-position-precision`; moved into `dashboard-9-ui-review`
+2026-07-13 per Bob's note below — take after ui-0..ui-2 so it's judged with
+the rest of the review.)
 
 **Bob, 2026-07-13:** do not take this as a standalone stitch. Integrate these
 requirements into the broader dashboard UI review after functional work is in

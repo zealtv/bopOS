@@ -1,5 +1,10 @@
 # sample-distribution
 
+**2026-07-13:** all three children are `.waiting` on the `patch-asset-sync`
+thread — Bob's composer-experience brain dump reshapes this into a unified
+patch+asset model; `dist-0-proposal` will absorb or supersede these stitches
+explicitly. Don't work this thread until that lands.
+
 **Goal:** a flexible, low-pain way to mass-update the audio (sample packs) running on
 all Pis, using the **local network** rather than per-Pi cloud fetches. Review §10.
 

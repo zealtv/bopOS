@@ -1,5 +1,12 @@
 # samples-0-backend-manifest
 
+**.waiting (2026-07-13):** Bob's composer-experience brain dump
+(`.lore/items/2026-07-13-composer-experience-brain-dump`) reshapes sample
+distribution into a unified patch+asset model (`patch-asset-sync` thread,
+host↔Pi directory mirror, "Get/Send Assets"). Don't build against the brief
+below until `patch-asset-sync/dist-0-proposal` is ratified — the proposal
+will absorb or supersede this stitch explicitly.
+
 Dashboard backend serves sample packs over the LAN with a manifest. Contract
 is settled (§9, implemented by `fetch-landing` — absorb, don't duplicate):
 `/os/fetch <source-uri> <slot>` → `/os/fetched <slot> <ok|err>`, `http:` scheme
