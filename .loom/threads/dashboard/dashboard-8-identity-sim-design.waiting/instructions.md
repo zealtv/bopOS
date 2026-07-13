@@ -1,5 +1,17 @@
 # dashboard-8-identity-sim-design
 
+**2026-07-13: proposal written — `.waiting` on Bob's ratification.**
+Deliverable kept in lore: `.lore/items/2026-07-13-seats-identity-sim-proposal`
+(same text as `proposal.md` here; code surveys with file:line evidence in
+`survey-identity-state.md` / `survey-simfleet-audition.md`). Core: split
+installation.json into **seats** (durable places in the piece) and
+**devices** (heartbeating boxes); binding fires the existing `/os/assign`;
+Simulate toggle = dashboard-managed audition rig inhabiting unoccupied
+seats with ephemeral virtual rows; puck sim-only; forget + bulk-forget; one
+additive wire change (hostname in `/os/report`). Six open questions Q1–Q6
+(first: the noun). On ratification: create `d8-1..3` children per proposal
+§8 (deferred like dist-1..4 unless Bob says go).
+
 Design proposal (decision gate — Bob ratifies): the device-identity data model
 and dashboard-managed simulation. Source: Bob's 2026-07-13 brain dump
 (`.lore/items/2026-07-13-composer-experience-brain-dump`) — read it first;
