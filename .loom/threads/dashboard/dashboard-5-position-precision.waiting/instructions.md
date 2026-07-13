@@ -1,5 +1,10 @@
 # dashboard-5-position-precision
 
+**Bob, 2026-07-13:** do not take this as a standalone stitch. Integrate these
+requirements into the broader dashboard UI review after functional work is in
+place, so coordinate entry, spatial alignment, layout, legibility, and
+interaction design are judged together.
+
 Two dashboard improvements from Bob's seam-1 review (2026-07-11) — deliberately
 **after** the current critical path (patch-seam, audition-rig); take as fill.
 

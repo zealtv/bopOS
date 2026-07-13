@@ -1,153 +1,311 @@
 # bopOS
 
-A Raspberry Pi + Pure Data framework for **networked multi-device sound and interactivity**.
+bopOS is a Raspberry Pi framework for networked, multi-device sound and
+interactivity. A fleet of small computers runs autonomous sound patches while a
+web dashboard handles discovery, assignment, control, spatial authoring, patch
+management, and synchronized cues over Wi-Fi.
 
-- Pis run autonomous **bop** / Pure Data audio patches, administered and controlled over WiFi (OSC).
-- **Python** provides admin services (update, reboot, shutdown, patch management) and **I2C input/
-  output** (sensors, buttons, displays) — no microcontroller or soldering required.
-- Plays well with the [bop](https://github.com/zealtv/bop) module library for PD Vanilla.
+- Pure Data is the reference sound engine; SuperCollider is also supported
+  through the same engine boundary.
+- Python owns fleet administration, OSC routing, persistence, clock sync, asset
+  delivery, and direct I2C peripherals.
+- Each node can keep playing without the dashboard or network once it has been
+  configured.
+- The [bop](https://github.com/zealtv/bop) Pure Data module library is included
+  as a submodule.
 
-> **Status (2026-06):** bopOS was brought up to date with its fork
-> [plantsOS](https://github.com/playablestreets/plantsOS) and is now the canonical line —
-> plantsOS systems migrate back to bopOS over time. The architecture is **I2C-direct** (the old
-> ESP32 + serial path is archived under `legacy/arduino/`). See `.notes/architecture-overview.md`.
->
-> **Plans (2026-07):** forward plan + architectural review in
-> `.notes/architecture-review-2026-07-05.md`; work is tracked in `.loom/` (agents: start at
-> `CLAUDE.md`); design/decision records in `.lore/`.
+> **Status — July 2026:** the OSC v1.2 engine boundary, web dashboard, patch
+> manifest, master/point/cue terms, and macOS audition rig are implemented. The
+> equivalent Linux/JACK audition run and several installation-scale hardware
+> gates remain open. The current architecture and work state live in
+> [CLAUDE.md](CLAUDE.md), [the OSC contract](docs/OSC-CONTRACT.md), and
+> [`.loom/`](.loom/).
 
-# Requirements
+## System at a glance
 
-- Raspberry Pi (any model; **Pi Zero 2 W** supported)
-- A Raspberry Pi soundcard (e.g. DigiAmp+ / IQaudio / HiFiBerry, i2s)
-
-# Installation and Setup
-
-## Flash SD using Raspberry Pi Imager
-
-- Choose OS **RASPBERRY PI OS LITE (64-BIT)**
-- Set username **`pi`** and a password
-- Configure wireless LAN
-- Enable SSH
-- Flash SD
-
-## Install packages
-
-### login
-
+```text
+web dashboard                         each bopOS node
+  sends fleet commands on UDP 6660      bopos.py: sole LAN listener
+  receives heartbeats on UDP 5550          ├─ engine surface on localhost 6661
+  authors room, points and cues             ├─ engine requests on localhost 7770
+                                              └─ I2C bridge on 6662 / 8880
 ```
+
+`bopos.py` is the node's only LAN-facing process. It matches the device
+selector, performs framework work, and relays a selector-free surface to the
+active sound engine. Patches do not bind fleet ports or perform administrative
+operations.
+
+## Requirements
+
+For a production node:
+
+- Raspberry Pi running Raspberry Pi OS Lite 64-bit (Pi Zero 2 W is supported)
+- an audio output supported by ALSA/JACK, such as an IQaudio DigiAMP+
+- a Wi-Fi network shared with the dashboard machine during setup and control
+- optional I2C sensors, buttons, ADCs, touch controllers, or displays
+
+The current image/bootstrap scripts use the `pi` account and
+`/home/pi/bopOS`. The wire protocol itself does not depend on that username or
+on any particular Pi, audio board, Wi-Fi interface, or sound engine.
+
+## Install a Raspberry Pi node
+
+Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In the Imager
+settings:
+
+1. create the `pi` user and a password;
+2. configure the installation Wi-Fi;
+3. enable SSH.
+
+Log in and prepare the system:
+
+```sh
 ssh pi@raspberrypi.local
+
+sudo raspi-config nonint do_expand_rootfs
+sudo raspi-config nonint do_i2c 0
+sudo apt-get update
+sudo apt-get upgrade -y
+echo "jackd2 jackd/tweak_rt_limits boolean true" | sudo debconf-set-selections
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  jackd2 puredata git python3-pip python3-venv i2c-tools
+
+python3 -m venv ~/venv
+git clone --recursive https://github.com/zealtv/bopOS.git ~/bopOS
+~/venv/bin/pip install -r ~/bopOS/python/requirements.txt
+cd ~/bopOS
+sudo bash/update.sh
 ```
 
-### run this one-liner
+`update.sh` installs the current `rc.local` boot entry and reboots. It also
+restores the repository checkout before pulling, so do not keep uncommitted
+work on an installation node.
 
-```
-sudo raspi-config nonint do_expand_rootfs; sudo raspi-config nonint do_i2c 0; sudo apt-get update; sudo apt-get upgrade -y; echo "jackd2 jackd/tweak_rt_limits boolean true" | sudo debconf-set-selections; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jackd2; sudo apt-get install puredata git python3-pip i2c-tools -y; cd ~; python3 -m venv ./venv; git clone --recursive https://github.com/zealtv/bopOS.git; ~/venv/bin/pip install -r ~/bopOS/python/requirements.txt; sleep 5; sudo ~/bopOS/bash/update.sh;
-```
+Before relying on audio, set the ALSA card name used by JACK. The current
+default is `DigiAMP` in `bash/start-engine.sh`:
 
-This expands the filesystem, enables I2C, installs jackd2 + Pure Data + git + i2c-tools, creates a
-Python venv, clones bopOS (with the `bop` submodule), installs the Python deps, and runs
-`update.sh` — which copies `rc.local` and reboots with jack, Pure Data, `io/main.py`, and
-`bopos.py` running.
-
-- You may need to edit **`bash/start.sh`** to set your `SOUNDCARD` (default `DigiAMP`). List cards
-  with `cat /proc/asound/cards`. Bringing up a **new audio board** (and verifying mute against it)
-  has its own procedure: see [`docs/HARDWARE.md`](docs/HARDWARE.md).
-- Run `i2cdetect -y 1` to check for connected I2C devices.
-
-## Device identity
-
-`bopos.devices` maps **MAC → hostname, ID, position**. On boot, `bopos.py` reads the Pi's MAC,
-sets its hostname, and reports its ID to Pure Data. Add each Pi here.
-
-```
-MAC, hostname, ID,  POSL, POSR
-b8:27:eb:b4:64:79, bobop, 111, 0 0, 0 0
+```sh
+cat /proc/asound/cards
 ```
 
-# Patches (the sound engine)
+New audio boards must be benched for playback and engine-safe mute; follow
+[docs/HARDWARE.md](docs/HARDWARE.md). To confirm the I2C bus is visible:
 
-A **patch** is a hot-swappable git repo under `patches/`, entry point `main.pd`. The active patch
-is named in `patches/active_patch.txt`. From `DASHBOARD.pd` (or any OSC sender) on the same
-network:
-
-```
-/addpatch <gituser> <reponame>   # clone a patch repo onto the Pi (recursive)
-/patch <reponame>                # switch active patch + reboot
-/pullpatch                       # git pull the active patch
-/getsamples                      # fetch sample packs (gdrive) per the patch's bopos.config
+```sh
+i2cdetect -y 1
 ```
 
-A patch may include an optional `bopos.config` (shell vars like `SAMPLEPACKSURL`) and a
-patch-specific `start.sh`. See `patches/README.md`.
+## Run the dashboard
 
-> **PD-agnostic by design:** bopOS talks to its sound engine purely over OSC, and a patch declares
-> its own entry. Pure Data is the preferred/reference engine, but the OSC contract below is not
-> PD-specific — another engine could sit on the same ports.
+The dashboard has a technical view at `/` and a simplified facilitator view at
+`/facilitator`.
 
-# OSC architecture
+One-time laptop setup:
 
-UDP. The laptop (`DASHBOARD.pd`) only needs ports **5550** (listen) and **6660** (send); the rest
-are localhost-only on each Pi.
-
-| Port | Direction | Purpose |
-|------|-----------|---------|
-| 5550 | Pi → Laptop (broadcast) | device status / heartbeat |
-| 6660 | Laptop → Pi (broadcast) | commands to devices |
-| 6661 | bopos.py → engine (localhost) | selector-stripped engine surface (`/id`, `/os/master`, `/p/*`, `/pt`, `/cue`, `/notify`) |
-| 6662 | io/main.py → PD (localhost) | sensor data bundles |
-| 7770 | engine → bopos.py (localhost) | requests only: `/config` `/store` `/load` `/report` |
-| 8880 | PD → io/main.py (localhost) | I/O commands |
-
-## MAIN / patch (`patches/<active>/main.pd`)
-
-Runs on Pis. Generates audio. `[bopos]` (`pd/bopos.pd`) owns the engine-side transport: it
-consumes the selector-stripped surface on 6661 and exposes the `bopos-*` buses to the patch.
-Engines never bind LAN ports or issue admin commands.
-
-## bopos.py (LAN 6660 + localhost 7770)
-
-Runs on Pis; the node's only LAN citizen. Handles the `/​<selector>/os/*` admin plane from 6660
-(update, reboot, shutdown, patch management, fetch, assign, mute, probe) and relays provided
-terms to the engine on 6661. On 7770 it answers engine requests: `/config` `/store` `/load`
-`/report`. See `docs/OSC-CONTRACT.md`.
-
-## io/main.py (port 8880)
-
-Runs on Pis. **I2C → OSC bridge.** Polls all configured peripherals at a rate (default 10 Hz) and
-sends a single OSC bundle to PD on 6662. Create peripherals dynamically:
-
-```
-/io/create <name> <type> <0xADDR>   e.g.  /io/create tilt lis3dh 0x19
-/poll <hz>                          set the poll rate
-/report                             list active peripherals
+```sh
+python3 -m venv ~/.venvs/bopos
+~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt pyOSC3
 ```
 
-Built-in peripheral types live in `python/io/` (`io_lis3dh.py`, `io_ads1015.py`, `io_ads1115.py`,
-`io_mpr121.py`); copy `io_template.py` to add more. See `python/io/README.md`.
+Run it on the installation LAN:
 
-## ADMIN (`DASHBOARD.pd`)
-
-Runs on a laptop. Monitors and controls the Pis: broadcasts commands to 6660, listens for status
-on 5550.
-
-# Repo layout
-
-```
-bopOS/
-├── bash/          boot, start/stop, update, sample + patch management
-├── python/
-│   ├── bopos.py   admin/OS OSC service
-│   └── io/        I2C-to-OSC bridge + per-peripheral modules
-├── pd/            bopos / feedback / gui patches + bop submodule
-├── patches/       hot-swappable git-repo patches (active_patch.txt)
-├── bopos.devices  MAC → hostname/ID/position
-├── DASHBOARD.pd   laptop admin/control patch
-├── legacy/arduino archived ESP32 sketches (out of the boot path)
-└── .notes/        architecture + design notes
+```sh
+~/.venvs/bopos/bin/python dashboard/server.py --host 0.0.0.0
 ```
 
-# Laptop dev workflow
+Open <http://localhost:8080/>. Nodes appear from their heartbeats; no static
+device list is required. The technical view provides:
 
-`bash/start-laptop.sh` / `stop-laptop.sh` run bopOS on a laptop (Pure Data + `io/main.py`) using an
-MCP2221A USB-to-I2C adapter — useful for developing patches and peripherals without a Pi.
+- discovery, identify, naming, ID assignment, and element positioning;
+- manifest-declared patch parameters and master control;
+- patch add/switch/pull and framework lifecycle actions;
+- room, point, listener, venue, and preset authoring;
+- synchronized named cues and engine/device health.
+
+The facilitator view exposes master, safety controls, presets, and only the
+patch parameters explicitly promoted with `"facilitator": true`.
+
+See [dashboard/README.md](dashboard/README.md) for configuration, simulator
+options, venue state, and clock measurement.
+
+## Device identity and assignment
+
+Every node has a stable `uid` (normally its primary-interface MAC address) and
+a numeric installation ID. A new node that has never been configured starts as
+ID `-1`, continues running, and announces itself quickly until assigned.
+
+Use the dashboard to identify the physical box, give it a name and ID, and drag
+its element outputs onto the room map. The full assignment is persisted on the
+node and in the dashboard, then replayed whenever the device reappears.
+
+`bopos.devices` remains an optional CSV seed for existing fleets and hostnames;
+it is not the source of truth and an unknown MAC never prevents a node from
+starting. Boot resolution is:
+
+```text
+persisted assignment → bopos.devices seed → unassigned (ID -1)
+```
+
+## Patches and sound engines
+
+A patch is a git repository cloned under `patches/<name>/`. The selected name
+is stored in `patches/active_patch.txt`. A current patch declares its engine,
+entry point, parameters, capabilities, and asset slots in
+`bopos.patch.json`:
+
+```json
+{
+  "engine": "pd",
+  "entrypoint": "main.pd",
+  "params": [
+    {
+      "name": "density",
+      "type": "f",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "facilitator": true
+    }
+  ],
+  "caps": [],
+  "slots": ["samplepacks"]
+}
+```
+
+The manifest is authoritative: PD is the reference engine, not a hard-coded
+requirement. A legacy patch without a manifest still falls back to
+`main.pd`. Invalid manifests fail loudly while retaining a safe legacy launch
+where possible.
+
+Use the dashboard to add a GitHub patch, switch the active patch, pull its
+latest revision, or fetch assets. These actions target one device or the whole
+fleet and use the `/os/*` administration plane described in the
+[OSC contract](docs/OSC-CONTRACT.md).
+
+### Patch-side boundary
+
+The engine receives this selector-stripped localhost surface:
+
+```text
+/id <n>
+/os/master <0..1>
+/p/<name> <values...>
+/pt <point> <element> <value>
+/cue <cue-id>
+/notify <event>
+```
+
+The framework provides values; the patch decides what they mean. Master belongs
+at the final output stage, point values can drive any patch behavior, and a cue
+is already scheduled before the engine sees it. Ignoring an unused term is
+legal.
+
+Pure Data patches receive the surface through `[bopos]` (`pd/bopos.pd`) and
+normally finish through `[bopos.out~]`, which applies master and the private
+audition preview safely at the output boundary. A SuperCollider starter with
+the equivalent adapters lives in
+[`templates/supercollider-bopos/`](templates/supercollider-bopos/).
+
+Framework-owned run context is delivered atomically at launch: reproducible
+seed, opaque run ID, patch name, asset root, and engine port. Engines never need
+absolute wall-clock time for synchronized cues.
+
+## OSC ports
+
+UDP ports are fixed in production. Only 5550 and 6660 cross the network; the
+rest are localhost plumbing on each node.
+
+| Port | Listener | Sender | Purpose |
+|---:|---|---|---|
+| 5550 | dashboard | `bopos.py` | heartbeat, status, and command replies |
+| 6660 | `bopos.py` | dashboard | selected fleet commands |
+| 6661 | active engine | `bopos.py` | selector-stripped engine surface |
+| 6662 | active engine | `io/main.py` | bundled peripheral data |
+| 7770 | `bopos.py` | active engine | engine requests: config, store, load, report |
+| 8880 | `io/main.py` | active engine | peripheral and I/O commands |
+
+The normative addresses, ownership rules, persistence model, patch manifest,
+sync encoding, and provided terms are in
+[docs/OSC-CONTRACT.md](docs/OSC-CONTRACT.md).
+
+## Direct I2C peripherals
+
+`python/io/main.py` polls configured peripherals (10 Hz by default), sends one
+OSC bundle to the engine, and accepts localhost commands on 8880:
+
+```text
+/io/create tilt lis3dh 0x19
+/io/poll 20
+/io/report
+/io/scan 1
+```
+
+Built-in modules cover LIS3DH, ADS1015, ADS1115, MPR121, switches, and SSD1306
+displays. Copy `python/io/io_template.py` to add another device. Details and
+the peripheral command shape are in
+[python/io/README.md](python/io/README.md).
+
+## Develop without a fleet
+
+### Protocol-only simulated nodes
+
+Run the dashboard in one terminal and a five-device simulated fleet in another:
+
+```sh
+~/.venvs/bopos/bin/python dashboard/server.py
+~/.venvs/bopos/bin/python tools/simfleet.py --devices 5
+```
+
+The simulator speaks the real heartbeat and command protocol but produces no
+audio.
+
+### Audible laptop fleet
+
+`tools/audition.py` launches multiple real instances of the selected patch
+behind one fleet command socket:
+
+```sh
+~/.venvs/bopos/bin/python dashboard/server.py --osc-target 127.0.0.1
+~/.venvs/bopos/bin/python tools/audition.py --devices 3 \
+  --bind 127.0.0.1 --target 127.0.0.1 \
+  --manifest patches/default/bopos.patch.json
+```
+
+On macOS it defaults to CoreAudio; on Linux it defaults to JACK. Drag the white
+listener puck and edit its heading to hear the room from that perspective.
+Normal production output remains identity/bypass when no audition positions are
+present.
+
+### One local patch and I2C bridge
+
+`bash/start-laptop.sh` and `bash/stop-laptop.sh` run the active PD patch with
+the I2C bridge on a laptop using an MCP2221A USB adapter. Configure `PD_BIN` and
+`PYTHON_BIN` at the top of `start-laptop.sh` first.
+
+Verification is proportional to the change; the project test matrix and venv
+conventions are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
+
+## Repository layout
+
+```text
+bash/        boot, engine lifecycle, update, patch and asset scripts
+dashboard/   FastAPI/WebSocket server and browser interfaces
+docs/        OSC contract, hardware, performance, and verification guides
+patches/     active patch selection and installed patch repositories
+pd/          bopOS Pure Data adapters and the bop submodule
+python/      node service, persistence, sync, spatial math, and I2C bridge
+templates/   starter patches for non-PD engines
+tools/       simfleet, audible audition rig, sync and performance harnesses
+.loom/       live work tracker and retained stitch evidence
+.notes/      current design and handoff notes
+.lore/       dated design decisions and council records
+```
+
+## Further reading
+
+- [Dashboard guide](dashboard/README.md)
+- [OSC contract v1.2](docs/OSC-CONTRACT.md)
+- [Audio hardware onboarding](docs/HARDWARE.md)
+- [Verification matrix](docs/VERIFICATION.md)
+- [Performance measurement](docs/PERF.md)
