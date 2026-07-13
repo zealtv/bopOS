@@ -149,10 +149,10 @@ persisted assignment → bopos.devices seed → unassigned (ID -1)
 
 ## Patches and sound engines
 
-A patch is a git repository cloned under `patches/<name>/`. The selected name
-is stored in `patches/active_patch.txt`. A current patch declares its engine,
-entry point, parameters, capabilities, and asset slots in
-`bopos.patch.json`:
+A patch is a folder under `patches/<name>/`; it may be host-mirrored or an
+independent Git repository. The selected name is stored in
+`patches/active_patch.txt`. Every patch declares its engine, entry point,
+parameters, capabilities, and asset slots in `bopos.patch.json`:
 
 ```json
 {
@@ -174,9 +174,8 @@ entry point, parameters, capabilities, and asset slots in
 ```
 
 The manifest is authoritative: PD is the reference engine, not a hard-coded
-requirement. A legacy patch without a manifest still falls back to
-`main.pd`. Invalid manifests fail loudly while retaining a safe legacy launch
-where possible.
+requirement. A missing or invalid manifest fails launch loudly; there is no
+implicit `main.pd` fallback.
 
 Use the dashboard to add a GitHub patch, switch the active patch, pull its
 latest revision, or fetch assets. These actions target one device or the whole
@@ -305,7 +304,7 @@ tools/       simfleet, audible audition rig, sync and performance harnesses
 ## Further reading
 
 - [Dashboard guide](dashboard/README.md)
-- [OSC contract v1.2](docs/OSC-CONTRACT.md)
+- [OSC contract v1.3](docs/OSC-CONTRACT.md)
 - [Audio hardware onboarding](docs/HARDWARE.md)
 - [Verification matrix](docs/VERIFICATION.md)
 - [Performance measurement](docs/PERF.md)
