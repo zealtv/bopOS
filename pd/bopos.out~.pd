@@ -1,4 +1,4 @@
-#N canvas 764 228 513 440 12;
+#N canvas 764 228 503 453 12;
 #X obj 65 78 r bopos-notify;
 #X obj 65 115 bng 19 250 50 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000;
 #X obj 224 362 dac~, f 26;
