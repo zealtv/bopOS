@@ -36,6 +36,8 @@ SYNC_RTT_CEILING_NS = 200_000_000  # discard a pong slower than this outright
 SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-min RTT
 SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
 ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
+FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must still recover
+REQUEST_TIMEOUT_SECONDS = 5.0
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -58,7 +60,12 @@ class OSCBridge:
         self.destination = (target, send_port)
         self.transport = None
         self.sender = None
-        self.pending = {"params": deque(), "report": deque()}
+        self.pending = {"params": deque(), "report": deque(), "patches": deque()}
+        # v1.3 distribution replies carry slot + phase/status but no uid. Real
+        # nodes are normally attributable by source IP; the ordered records are
+        # the fallback for simfleet, whose devices share one loopback address.
+        self.fetch_pending = {}
+        self.pending_timeouts = {}
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
@@ -93,6 +100,11 @@ class OSCBridge:
             self.transport.close()
         if self.sender:
             self.sender.close()
+        for records in self.fetch_pending.values():
+            for record in records:
+                record.get("timeout") and record["timeout"].cancel()
+        for timeout in self.pending_timeouts.values():
+            timeout.cancel()
 
     async def sync_ping_loop(self):
         # leader broadcasts /sync/ping ~2 Hz, jittered so N nodes don't pong in
@@ -198,14 +210,33 @@ class OSCBridge:
             pass
 
     def action(self, selector, verb):
-        wire_verb = "getsamples" if verb == "get_samples" else verb
-        self.send(f"/{selector}/os/{wire_verb}")
+        self.send(f"/{selector}/os/{verb}")
+
+    def fetch(self, uid, uri, slot, fingerprint):
+        device = self.state.devices.get(uid)
+        if not device or int(device.get("id", -1)) < 0:
+            return
+        records = self.fetch_pending.setdefault(slot, deque())
+        if any(record["uid"] == uid for record in records):
+            return False  # one generation per device/slot; never mislabel coalesced bytes
+        record = {"uid": uid, "fingerprint": fingerprint, "phase": "sent"}
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            FETCH_TIMEOUT_SECONDS, self._expire_fetch, slot, record)
+        records.append(record)
+        device.setdefault("fetch", {})[slot] = "sent"
+        self.send(f"/{int(device['id'])}/os/fetch", [uri, slot])
+        self.broadcast("device_update", device)
+        return True
 
     def request(self, uid, member):
         device = self.state.devices.get(uid)
         if not device:
             return
+        if uid in self.pending[member]:
+            return
         self.pending[member].append(uid)
+        self.pending_timeouts[(member, uid)] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_request, member, uid)
         self.send(f"/{int(device['id'])}/os/{member}")
 
     def os_command(self, selector, member, args=()):
@@ -228,11 +259,34 @@ class OSCBridge:
                 self.pending[kind].remove(uid)
             except ValueError:
                 pass
+            self._finish_request(kind, uid)
             return self.state.devices[uid]
-        if self.pending[kind]:
-            return self.state.devices.get(self.pending[kind].popleft())
         matches = [device for device in self.state.devices.values() if device.get("ip") == ip]
-        return matches[0] if len(matches) == 1 else None
+        if len(matches) == 1:
+            uid = matches[0]["uid"]
+            try:
+                self.pending[kind].remove(uid)
+            except ValueError:
+                pass
+            self._finish_request(kind, uid)
+            return matches[0]
+        if self.pending[kind]:
+            uid = self.pending[kind].popleft()
+            self._finish_request(kind, uid)
+            return self.state.devices.get(uid)
+        return None
+
+    def _finish_request(self, member, uid):
+        timeout = self.pending_timeouts.pop((member, uid), None)
+        if timeout:
+            timeout.cancel()
+
+    def _expire_request(self, member, uid):
+        self.pending_timeouts.pop((member, uid), None)
+        try:
+            self.pending[member].remove(uid)
+        except ValueError:
+            pass
 
     def handle(self, address, args, ip):
         if address == "/audition/ready":
@@ -291,6 +345,7 @@ class OSCBridge:
                 self.state.save_debounced()
                 if device["id"] >= 0:
                     self.request(uid, "params")
+                    self.request(uid, "patches")
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)
@@ -336,6 +391,60 @@ class OSCBridge:
                 device["report"] = report
                 self.broadcast("report", device)
             return
+        if address == "/os/patches" and args:
+            device = self._device_for_reply("patches", ip)
+            if not device:
+                return
+            try:
+                listing = json.loads(args[0])
+            except (ValueError, TypeError):
+                return
+            if not isinstance(listing, list):
+                return
+            cleaned = []
+            for patch in listing:
+                if not isinstance(patch, dict) or not isinstance(patch.get("name"), str):
+                    continue
+                cleaned.append({"name": patch["name"],
+                                "active": bool(patch.get("active")),
+                                "git": bool(patch.get("git")),
+                                "manifest": bool(patch.get("manifest"))})
+            device["patches"] = cleaned
+            self.broadcast("patches", device)
+            return
+        if address == "/os/fetch-progress" and len(args) >= 2:
+            slot, phase = str(args[0]), str(args[1])
+            record = self._fetch_record(slot, ip, phase)
+            if record and phase in ("queued", "fetching"):
+                record["phase"] = phase
+                device = self.state.devices.get(record["uid"])
+                if device:
+                    device.setdefault("fetch", {})[slot] = phase
+                    self.broadcast("device_update", device)
+            return
+        if address == "/os/fetched" and len(args) >= 2:
+            slot, status = str(args[0]), str(args[1])
+            record = self._fetch_record(slot, ip, "terminal")
+            if not record:
+                return
+            pending = self.fetch_pending.get(slot)
+            try:
+                pending.remove(record)
+            except (AttributeError, ValueError):
+                pass
+            if not pending:
+                self.fetch_pending.pop(slot, None)
+            record.get("timeout") and record["timeout"].cancel()
+            device = self.state.devices.get(record["uid"])
+            if device:
+                device.setdefault("fetch", {})[slot] = "ok" if status == "ok" else "err"
+                if status == "ok":
+                    device.setdefault("distribution", {})[slot] = record["fingerprint"]
+                    self.state.save_debounced()
+                self.broadcast("device_update", device)
+                if status == "ok" and slot.startswith("patch:"):
+                    self.request(record["uid"], "patches")
+            return
         if address == "/os/rev" and len(args) >= 2:
             device = None
             if len(args) >= 3 and str(args[2]) in self.state.devices:
@@ -348,12 +457,40 @@ class OSCBridge:
                 return
             device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
             self.broadcast("rev", device)
+            self.request(device["uid"], "patches")
             return
         if address == "/sync/pong" and len(args) >= 4:
             self.handle_pong(args)
             return
         if address in ("/os/pong", "/os/load"):
             log.debug("ignored %s %r", address, args)
+
+    def _fetch_record(self, slot, ip, phase):
+        records = self.fetch_pending.get(slot, ())
+        if not records:
+            return None
+        matches = [record for record in records
+                   if self.state.devices.get(record["uid"], {}).get("ip") == ip]
+        candidates = matches or list(records)
+        expected = ({"queued": "sent", "fetching": "queued"}.get(phase))
+        if expected:
+            return next((record for record in candidates
+                         if record["phase"] == expected), candidates[0])
+        return next((record for record in candidates
+                     if record["phase"] in ("fetching", "queued", "sent")), candidates[0])
+
+    def _expire_fetch(self, slot, record):
+        pending = self.fetch_pending.get(slot)
+        if not pending or record not in pending:
+            return
+        # Keep an expired tombstone ahead of any retry: v1.3 has no request id,
+        # so allowing a new generation could make a late old receipt certify
+        # newer bytes falsely. A late terminal still consumes this record.
+        record["phase"] = "expired"
+        device = self.state.devices.get(record["uid"])
+        if device:
+            device.setdefault("fetch", {})[slot] = "timeout"
+            self.broadcast("device_update", device)
 
     @staticmethod
     def _sync_estimate(window):

@@ -5,6 +5,10 @@ let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
 const assignmentDrafts = new Map();
+const patchChoices = new Map();
+let distribution = {assets: [], patches: []};
+let distributionAll = false;
+let patchAll = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -32,6 +36,8 @@ ws.on("heartbeat", data => {
   blip.dataset.heartbeatAt = heartbeatAt;
 });
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
+ws.on("patches", mergeDevice);
+ws.on("distribution", data => { distribution = data || {assets: [], patches: []}; render(); });
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("master", data => { master = Number(data.value); renderHeader(); });
@@ -121,7 +127,12 @@ function renderHeader() {
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
 }
-function select(uid) { selected = uid; const d=installation.devices[uid]; if (!d.declared) ws.send("request_params", {uid}); render(); }
+function select(uid) {
+  selected = uid; const d=installation.devices[uid];
+  if (!d.declared) ws.send("request_params", {uid});
+  ws.send("request_patches", {uid});
+  render();
+}
 let interacting = false;
 document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input")) interacting = true; });
 document.addEventListener("pointerup", () => { interacting = false; });
@@ -151,17 +162,70 @@ function renderDetail() {
     const y = Array.isArray(position) ? Math.round((position[1] - origin[1]) * 100) / 100 : "";
     return `<div class="position-row" data-position-key="${key}"><strong>element ${index}</strong><label>x <input class="position-coordinate" data-axis="x" type="number" step="0.01" min="${-origin[0]}" max="${(room.width??10)-origin[0]}" value="${x}"></label><label>y <input class="position-coordinate" data-axis="y" type="number" step="0.01" min="${-origin[1]}" max="${(room.depth??8)-origin[1]}" value="${y}"></label><span class="dim">m from origin</span></div>`;
   }).join("");
+  const installed = Array.isArray(d.patches) ? d.patches : [];
+  const activePatch = installed.find(p => p.active) || installed.find(p => p.name === d.report?.patch);
+  const rememberedPatch = patchChoices.get(d.uid);
+  const chosenName = (installed.some(p => p.name === rememberedPatch) ? rememberedPatch : null)
+    || activePatch?.name || installed[0]?.name || "";
+  if (chosenName) patchChoices.set(d.uid, chosenName); else patchChoices.delete(d.uid);
+  const chosenPatch = installed.find(p => p.name === chosenName);
+  const patchOptions = installed.map(p => `<option value="${esc(p.name)}" ${p.name===chosenName?'selected':''}>${p.git?'◆ ':''}${esc(p.name)}${p.manifest?'':' (invalid manifest)'}</option>`).join("");
+  const patchRows = distribution.patches.map(item => distributionRow(d, item)).join("");
+  const assetRows = distribution.assets.map(item => distributionRow(d, item)).join("");
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):(assignmentDraft.name??''))}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:(assignmentDraft.id??nextFreeId())}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
     ${assigned?`<section><h2>Position</h2><div class="position-grid">${positions}</div></section>`:''}
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
-    <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
-    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
+    <section><div class="section-head"><h2>Patch</h2><span class="dim">◆ Git-managed</span></div><p class="dim">current: <b>${esc(activePatch?.name ?? d.report?.patch ?? '—')}</b></p><div class="assign"><label>installed <select id="patch-select">${patchOptions || `<option disabled>${d.patches===null?'loading…':'No patches installed'}</option>`}</select></label><button id="patch-switch" ${!chosenPatch||!chosenPatch.manifest?'disabled':''}>Switch</button>${activePatch?.git?'<button id="patch-pull">Pull latest</button>':''}<button id="patch-drop" ${!chosenPatch||chosenPatch.active?'disabled':''}>Delete from device</button><label><input id="patch-all" type="checkbox" ${patchAll?'checked':''}> target all compatible devices</label></div><div class="assign git-add"><label>add Git patch <input id="patch-user" type="text" placeholder="GitHub user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repository"></label><button id="patch-add">Add</button></div></section>
+    <section id="distribution"><div class="section-head"><h2>Send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. Status is known after this dashboard receives a completed send; Refresh detects later host edits.</p><div class="distribution-actions"><button id="sync-all">Sync all</button><button id="refresh-distribution">Refresh host folders</button></div><h3>Patches</h3><div class="distribution-grid">${patchRows || '<p class="dim">No host patches.</p>'}</div><h3>Assets</h3><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>
+    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d);
 }
+function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
+function itemSlot(item) { return item.kind === "patch" ? `patch:${item.name}` : item.name; }
+function deviceDistributionStatus(d, item) {
+  const slot = itemSlot(item), phase = d.fetch?.[slot], sent = d.distribution?.[slot];
+  if (!d.online) return "offline";
+  if (item.kind === "patch" && (d.patches || []).some(p=>p.name===item.name&&p.git)) return "Git-managed";
+  if (phase === "queued" || phase === "fetching" || phase === "sent") return phase === "sent" ? "queued" : phase;
+  if (phase === "err" || phase === "timeout") return phase === "timeout" ? "timed out" : "failed";
+  if (sent && sent !== item.fingerprint) return "stale";
+  if (sent === item.fingerprint) return "in sync";
+  return "unknown";
+}
+function distributionTargets(d) { return distributionAll ? Object.values(installation.devices||{}).filter(device=>Number(device.id)>=0) : [d]; }
+function distributionStatus(d, item) {
+  const targets=distributionTargets(d), statuses=targets.map(device=>({device,status:deviceDistributionStatus(device,item)}));
+  if (!distributionAll) return {label:statuses[0]?.status||"unknown", details:""};
+  const eligible=statuses.filter(entry=>!["offline","Git-managed"].includes(entry.status));
+  const synced=eligible.filter(entry=>entry.status==="in sync").length;
+  const pending=eligible.find(entry=>["queued","fetching"].includes(entry.status));
+  const failed=eligible.find(entry=>["failed","timed out","stale"].includes(entry.status));
+  const label=pending?.status || failed?.status || `${synced}/${eligible.length} in sync`;
+  const details=statuses.map(entry=>`${entry.device.name||entry.device.uid}: ${entry.status}`).join(" · ");
+  return {label,details};
+}
+function formatBytes(value) {
+  const bytes = Number(value) || 0;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1024/1024).toFixed(1)} MB`;
+}
+function distributionRow(d, item) {
+  const status = distributionStatus(d, item), targets=distributionTargets(d);
+  const gitTargets = item.kind === "patch" ? targets.filter(device=>(device.patches||[]).some(p=>p.name===item.name&&p.git)) : [];
+  const pending=targets.some(device=>["sent","queued","fetching"].includes(device.fetch?.[itemSlot(item)]));
+  const timedOut=targets.some(device=>device.fetch?.[itemSlot(item)]==="timeout");
+  const selectedGit=!distributionAll&&gitTargets.length>0;
+  const invalid=item.kind==="patch"&&!item.valid;
+  const noOnline=targets.every(device=>!device.online);
+  const disabled=selectedGit||invalid||pending||timedOut||noOnline;
+  const reason=selectedGit?'Git-managed patches use Pull latest':invalid?(item.error||'Invalid patch manifest'):pending?'Send already in progress':timedOut?'Receipt timed out; restart the dashboard before retrying so a late receipt cannot be misread':noOnline?'No online target devices':'';
+  return `<article class="distribution-item" data-kind="${item.kind}" data-name="${esc(item.name)}"><div><strong>${esc(item.name)}</strong>${gitTargets.length?`<span class="git-badge">◆ Git on ${gitTargets.length} device${gitTargets.length===1?'':'s'}</span>`:''}${invalid?'<span class="invalid-badge">invalid manifest</span>':''}<small>${item.files} files · ${formatBytes(item.bytes)} · <time datetime="${new Date(item.modified*1000).toISOString()}">${new Date(item.modified*1000).toLocaleString()}</time></small>${status.details?`<small class="device-sync">${esc(status.details)}</small>`:''}</div><span role="status" aria-live="polite" class="sync-status ${status.label.replace(/[^a-z0-9]+/gi,'-')}">${status.label}</span><button data-send ${disabled?`disabled title="${esc(reason)}"`:''}>${item.kind==='asset'?'Send assets':'Send patch'}</button>${item.kind==='asset'?'<button data-drop-asset>Remove from device</button>':''}</article>`;
+}
 function nextFreeId() { const used = new Set(Object.values(installation.devices||{}).map(d=>Number(d.id)).filter(id=>id>=0)); let id=1; while (used.has(id)) id++; return id; }
-function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
+function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
 function bindControls(d) {
@@ -180,7 +244,7 @@ function bindControls(d) {
     // the input and strand the final change event on a dead node
     input.onpointerup=send;
   });
-  document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown"].includes(verb)&&!confirm(`${verb} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
+  document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
   document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
   document.querySelectorAll(".position-coordinate").forEach(input => input.onchange = () => {
     const row = input.closest("[data-position-key]");
@@ -204,12 +268,45 @@ function bindControls(d) {
     $("#assign-id").oninput = rememberAssignment;
   }
   const assign=$("#assign-send"); if(assign) assign.onclick=()=>ws.send("assign_device",{uid:d.uid,name:$("#assign-name").value,id:Number($("#assign-id").value)});
-  const bcast=()=>$("#broadcast")?.checked; const target=()=>bcast()?"all":d.uid;
   const patchSwitch=$("#patch-switch"); if(patchSwitch){
-    patchSwitch.onclick=()=>{const p=$("#patch-name").value.trim(); if(p&&confirm(`Switch ${bcast()?'ALL devices':d.name||d.uid} to patch "${p}"? The device reboots.`))ws.send("switch_patch",{uid:target(),patch:p});};
-    $("#patch-pull").onclick=()=>{if(confirm(`Pull latest patch on ${bcast()?'ALL devices':d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:target()});};
-    $("#patch-add").onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:target(),user:u,repo:r});};
+    const patchTarget=()=>patchAll?"all":d.uid;
+    const patchAllInput=$("#patch-all"); patchAllInput.onchange=()=>{patchAll=patchAllInput.checked;renderDetail();};
+    const patchSelect=$("#patch-select");
+    patchSelect.onchange=()=>{ patchChoices.set(d.uid, patchSelect.value); renderDetail(); };
+    patchSwitch.onclick=()=>{const p=patchSelect.value; if(p&&confirm(`Switch ${patchAll?'all compatible devices':d.name||d.uid} to patch "${p}"? The device reboots.`))ws.send("switch_patch",{uid:patchTarget(),patch:p});};
+    const pull=$("#patch-pull"); if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${patchAll?'all Git-managed devices':d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:patchTarget()});};
+    $("#patch-drop").onclick=()=>{const p=patchSelect.value;if(p&&confirm(`Delete patch "${p}" from ${patchAll?'all devices where it is inactive':d.name||d.uid}?`))ws.send("drop_distribution",{uid:patchTarget(),kind:"patch",name:p});};
+    $("#patch-add").onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:patchTarget(),user:u,repo:r});};
   }
+  const distributionTarget=$("#distribution-all");
+  if(distributionTarget) distributionTarget.onchange=()=>{ distributionAll=distributionTarget.checked; renderDetail(); };
+  const distributionTargetUid=()=>distributionAll?"all":d.uid;
+  const needsRestartConfirmation = item => {
+    if (item.kind !== "patch") return false;
+    const targets = distributionAll ? Object.values(installation.devices || {}).filter(device=>Number(device.id)>=0) : [d];
+    return targets.some(device => !Array.isArray(device.patches) || !device.patches.length || device.patches.some(p=>p.active&&p.name===item.name));
+  };
+  const sendItem = item => {
+    let confirmedActive = false;
+    if (needsRestartConfirmation(item)) {
+      confirmedActive = confirm(`Sending active patch "${item.name}" will stop and restart the engine on the target device(s). Continue?`);
+      if (!confirmedActive) return;
+    }
+    ws.send("send_distribution", {uid:distributionTargetUid(),kind:item.kind,name:item.name,confirmed_active:confirmedActive});
+  };
+  document.querySelectorAll(".distribution-item").forEach(row => {
+    const item = [...distribution.patches, ...distribution.assets].find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
+    const send=row.querySelector("[data-send]"); if(send&&!send.disabled) send.onclick=()=>sendItem(item);
+    const drop=row.querySelector("[data-drop-asset]"); if(drop) drop.onclick=()=>{if(confirm(`Remove asset slot "${item.name}" from ${distributionAll?'all devices':d.name||d.uid}?`))ws.send("drop_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name});};
+  });
+  const syncAll=$("#sync-all"); if(syncAll) syncAll.onclick=()=>{
+    const patchItems=distribution.patches || [];
+    const restart=patchItems.some(needsRestartConfirmation);
+    let confirmedActive=false;
+    if(restart){confirmedActive=confirm("Sync all includes active patches. Their engines will stop and restart on the target device(s). Continue?");if(!confirmedActive)return;}
+    ws.send("sync_distribution",{uid:distributionTargetUid(),confirmed_active:confirmedActive});
+  };
+  const refreshDistribution=$("#refresh-distribution"); if(refreshDistribution) refreshDistribution.onclick=()=>ws.send("refresh_distribution",{});
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
 }
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};
@@ -221,4 +318,4 @@ $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});r
   input.onchange = send;
   input.onpointerup = send;
 }
-document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(["reboot","update"].includes(verb)&&!confirm(`${verb} all devices?`))return;ws.send("action",{uid:"all",verb});});
+document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(["reboot","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} all devices?`))return;ws.send("action",{uid:"all",verb});});

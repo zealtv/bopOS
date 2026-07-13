@@ -29,7 +29,8 @@ Then open:
 - **<http://localhost:8080/>** — tech dashboard: device list, spatial map,
   listener audition puck, point authoring
   (drag/radius/falloff/two-axis wall bounce), params, patch
-  management, discovery/assignment, synced named cues, venues, presets.
+  management, host-to-node patch and asset distribution, discovery/assignment,
+  synced named cues, venues, presets.
 - **<http://localhost:8080/facilitator>** — facilitator view: device cards
   with the patch's promoted (`facilitator: true`) params as labelled controls,
   master, Silence All, preset picker. On an iPad, "Add to Home
@@ -81,8 +82,18 @@ Sim spread is a single-machine floor; the honest number is the hardware run.
 
 `--port` HTTP port (8080) · `--listen-port` OSC in (5550) · `--send-port` OSC
 out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
-`--state-file` installation.json path · `--assets-dir` served at `/assets`
-for `/os/fetch`.
+`--state-file` installation.json path · `--assets-dir` host asset folders served
+at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
+`--public-url` URL nodes should fetch from (normally unnecessary when the
+dashboard is opened by its LAN hostname or address).
+
+The defaults are the repository's `assets/` and `patches/` directories. Select
+a device, then Send one folder or Sync all folders. A successful receipt marks
+that host manifest in sync; after editing a host folder, Refresh host folders
+marks the prior receipt stale.
+Sending a device's active patch is confirmation-gated because its engine stops
+and restarts. A ◆ marker identifies Git-managed device patches: update those
+with Pull latest; host-mirrored patches use Send.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
 visual coordinate origin, listener, master, presets). The technical view lets

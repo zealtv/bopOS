@@ -104,8 +104,8 @@ function renderPresets() {
     button.onclick = () => ws.send("load_preset", {name: button.dataset.preset}));
 }
 
-const destructiveCommands = new Set(["update", "reboot", "shutdown"]);
-function commandLabel(command) { return command.replaceAll("-", " ").replaceAll("_", " "); }
+const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);
+function commandLabel(command) { return command === "updatebopos" ? "Update bopOS" : command.replaceAll("-", " ").replaceAll("_", " "); }
 function renderCommands() {
   const commands = installation.facilitator_commands || [];
   $("#facilitator-commands").innerHTML = commands.map(command =>

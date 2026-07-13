@@ -5,9 +5,8 @@ import math
 import os
 
 
-DURABLE = ("id", "name", "pos1", "pos2", "patch")
-FACILITATOR_COMMANDS = frozenset(("restart-engine", "update", "reboot", "shutdown",
-                                  "get_samples"))
+DURABLE = ("id", "name", "pos1", "pos2", "patch", "distribution")
+FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "shutdown"))
 
 
 class InstallationState:
@@ -70,6 +69,13 @@ class InstallationState:
             "online": False, "last_seen": None, "ip": None, "version": None,
             "engine_alive": None, "rssi": None, "report": None,
             "declared": None, "undeclared": False, "rev": None,
+            # Last host-manifest fingerprint acknowledged by this node for each
+            # asset slot or patch:<name>. This is the strongest sync fact v1.3
+            # exposes: the node receipts success but does not report a hash.
+            "distribution": (dict(values.get("distribution", {}))
+                             if isinstance(values.get("distribution", {}), dict) else {}),
+            "fetch": {},  # runtime phase by slot: queued/fetching/ok/err
+            "patches": None,  # runtime /os/patches listing; None = not queried
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
         }
 

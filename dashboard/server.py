@@ -3,9 +3,11 @@ import argparse
 import asyncio
 import contextlib
 import hashlib
+import json
 import logging
 import os
 import re
+import sys
 import time
 
 import uvicorn
@@ -17,37 +19,91 @@ import points
 from osc_bridge import OSCBridge
 from state import InstallationState
 
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python import manifest as patch_manifest
 
-_asset_hashes = {}
+
+_file_hashes = {}
+NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
-def asset_manifest(assets_dir, slot):
-    if re.fullmatch(r"[A-Za-z0-9_-]+", slot) is None:
+class DistributionStaticFiles(StaticFiles):
+    """Serve manifest-listed content without exposing source-control internals."""
+    async def get_response(self, path, scope):
+        parts = path.replace("\\", "/").split("/")
+        if any(part.startswith(".") or part.endswith(".part") for part in parts):
+            return PlainTextResponse("Not Found", status_code=404)
+        current = self.directory
+        for part in parts:
+            current = os.path.join(current, part)
+            if os.path.islink(current):
+                return PlainTextResponse("Not Found", status_code=404)
+        return await super().get_response(path, scope)
+
+
+def directory_manifest(root_dir, name):
+    if NAME_RE.fullmatch(name) is None:
         raise HTTPException(status_code=404)
-    root = os.path.join(assets_dir, slot)
-    if not os.path.isdir(root):
+    root = os.path.join(root_dir, name)
+    if os.path.islink(root) or not os.path.isdir(root):
         raise HTTPException(status_code=404)
     files = []
     for directory, dirs, names in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if not name.startswith("."))
+        dirs[:] = sorted(name for name in dirs
+                         if not name.startswith(".")
+                         and not os.path.islink(os.path.join(directory, name)))
         for name in sorted(names):
-            if name.startswith(".") or name.endswith(".part"):
+            if (name.startswith(".") or name.endswith(".part")
+                    or os.path.islink(os.path.join(directory, name))):
                 continue
             path = os.path.join(directory, name)
             stat = os.stat(path)
-            key = (path, stat.st_mtime_ns, stat.st_size)
-            digest = _asset_hashes.get(key)
-            if digest is None:
+            signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+            cached = _file_hashes.get(path)
+            if cached is None or cached[0] != signature:
                 hasher = hashlib.sha256()
                 with open(path, "rb") as source:
                     for chunk in iter(lambda: source.read(1024 * 1024), b""):
                         hasher.update(chunk)
                 digest = hasher.hexdigest()
-                _asset_hashes[key] = digest
+                _file_hashes[path] = (signature, digest)
+            else:
+                digest = cached[1]
             files.append({"path": os.path.relpath(path, root).replace(os.sep, "/"),
                           "size": stat.st_size, "sha256": digest})
     files.sort(key=lambda item: item["path"])
     return {"files": files}
+
+
+def directory_info(root_dir, name, kind):
+    root = os.path.join(root_dir, name)
+    manifest = directory_manifest(root_dir, name)
+    files = manifest["files"]
+    modified = os.stat(root).st_mtime
+    for item in files:
+        modified = max(modified, os.stat(os.path.join(root, item["path"])).st_mtime)
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    valid, error = True, None
+    if kind == "patch":
+        _loaded, error = patch_manifest.load(root)
+        valid = error is None
+    return {"kind": kind, "name": name, "files": len(files),
+            "bytes": sum(item["size"] for item in files), "modified": modified,
+            "fingerprint": hashlib.sha256(canonical).hexdigest(),
+            "valid": valid, "error": error}
+
+
+def distribution_catalog(assets_dir, patches_dir):
+    def entries(root, kind):
+        names = (name for name in os.listdir(root)
+                 if NAME_RE.fullmatch(name)
+                 and not os.path.islink(os.path.join(root, name))
+                 and os.path.isdir(os.path.join(root, name)))
+        return [directory_info(root, name, kind) for name in sorted(names)]
+    return {"assets": entries(assets_dir, "asset"),
+            "patches": entries(patches_dir, "patch")}
 
 
 class Dashboard:
@@ -58,15 +114,31 @@ class Dashboard:
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
                              args.send_port, args.osc_target)
         self.tasks = set()
+        self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
+        self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
+        os.makedirs(self.assets_dir, exist_ok=True)
+        os.makedirs(self.patches_dir, exist_ok=True)
+
+    async def catalog(self):
+        return await asyncio.to_thread(distribution_catalog,
+                                       self.assets_dir, self.patches_dir)
 
     async def start(self):
         await self.osc.start()
         self.osc.send_audition_listener()
-        self.tasks.add(asyncio.create_task(self.offline_sweep()))
+        self.spawn(self.offline_sweep())
+
+    def spawn(self, coroutine):
+        task = asyncio.create_task(coroutine)
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+        return task
 
     async def stop(self):
         for task in self.tasks:
             task.cancel()
+        if self.tasks:
+            await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
         self.osc.close()
         await self.state.close()
 
@@ -96,11 +168,15 @@ class Dashboard:
         await ws.accept()
         self.clients.add(ws)
         await ws.send_json({"type": "state", "data": self.state.public()})
+        await ws.send_json({"type": "distribution", "data": await self.catalog()})
         # A browser reconnect is another full-state convergence edge. Replaying
         # the private listener is idempotent in the audition relay.
         self.osc.send_audition_listener()
         await ws.send_json({"type": "venues", "data": {"venues": self.state.list_venues(),
                                                        "current": self.state.data.get("name")}})
+        for device_uid, device in self.state.devices.items():
+            if int(device.get("id", -1)) >= 0 and device.get("online"):
+                self.osc.request(device_uid, "patches")
         try:
             while True:
                 message = await ws.receive_json()
@@ -126,7 +202,7 @@ class Dashboard:
             for device in targets:
                 await self.broadcast("device_update", device)
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
-                                                       "update", "get_samples"}:
+                                                       "updatebopos"}:
             selector = "all" if uid == "all" else self.selector(uid)
             if selector is not None:
                 self.osc.action(selector, data["verb"])
@@ -136,19 +212,81 @@ class Dashboard:
             if uid in self.state.devices:
                 self.osc.os_command("all", "identify", [str(uid)])
         elif kind == "switch_patch":
-            selector = "all" if uid == "all" else self.selector(uid)
             name = str(data.get("patch", "")).strip()
-            if selector is not None and re.fullmatch(r"[\w.-]+", name):
-                self.osc.os_command(selector, "patch", [name])
+            if re.fullmatch(r"[\w.-]+", name):
+                targets = self.distribution_targets(uid)
+                if uid == "all":
+                    targets = [device_uid for device_uid in targets
+                               if self.device_patch(device_uid, name)
+                               and self.device_patch(device_uid, name).get("manifest")]
+                for device_uid in targets:
+                    self.osc.os_command(self.selector(device_uid), "patch", [name])
+                    self.spawn(self.refresh_patches_later(device_uid, 2.25))
         elif kind == "add_patch":
             user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
             selector = "all" if uid in (None, "all") else self.selector(uid)
             if selector is not None and re.fullmatch(r"[\w-]+", user) and re.fullmatch(r"[\w.-]+", repo):
                 self.osc.os_command(selector, "addpatch", [user, repo])
+                for device_uid in self.distribution_targets(uid):
+                    self.spawn(self.refresh_patches_later(device_uid, 1.25))
         elif kind == "pull_patch":
-            selector = "all" if uid == "all" else self.selector(uid)
-            if selector is not None:
-                self.osc.os_command(selector, "pullpatch")
+            targets = self.distribution_targets(uid)
+            for device_uid in targets:
+                listing = self.state.devices[device_uid].get("patches") or ()
+                if any(patch.get("active") and patch.get("git") for patch in listing):
+                    self.osc.os_command(self.selector(device_uid), "pullpatch")
+        elif kind == "request_patches":
+            if uid in self.state.devices:
+                self.osc.request(uid, "patches")
+        elif kind in ("send_distribution", "sync_distribution"):
+            catalog = await self.catalog()
+            await self.broadcast("distribution", catalog)
+            targets = self.distribution_targets(uid)
+            requested = []
+            if kind == "send_distribution":
+                item_kind = str(data.get("kind", ""))
+                name = str(data.get("name", ""))
+                requested = [item for group in catalog.values() for item in group
+                             if item["kind"] == item_kind and item["name"] == name
+                             and (item["kind"] != "patch" or item["valid"])]
+            else:
+                requested = ([item for item in catalog["patches"] if item["valid"]]
+                             + catalog["assets"])
+            if (self.requires_active_confirmation(targets, requested)
+                    and data.get("confirmed_active") is not True):
+                if ws is not None:
+                    await ws.send_json({"type": "error", "data": {"message":
+                        "Sending an active patch requires stop/restart confirmation."}})
+                return
+            base_url = self.public_url(ws)
+            for device_uid in targets:
+                for item in requested:
+                    if (item["kind"] == "patch"
+                            and self.device_patch(device_uid, item["name"], git=True)):
+                        continue
+                    path = "patches" if item["kind"] == "patch" else "assets"
+                    slot = "patch:" + item["name"] if item["kind"] == "patch" else item["name"]
+                    uri = f"{base_url}/{path}/{item['name']}/.manifest.json"
+                    self.osc.fetch(device_uid, uri, slot, item["fingerprint"])
+        elif kind == "drop_distribution":
+            targets = self.distribution_targets(uid)
+            item_kind, name = str(data.get("kind", "")), str(data.get("name", ""))
+            if NAME_RE.fullmatch(name) and item_kind in ("patch", "asset"):
+                verb = "droppatch" if item_kind == "patch" else "dropassets"
+                slot = "patch:" + name if item_kind == "patch" else name
+                for device_uid in targets:
+                    selector = self.selector(device_uid)
+                    if selector is not None:
+                        self.osc.os_command(selector, verb, [name])
+                        device = self.state.devices[device_uid]
+                        device.setdefault("distribution", {}).pop(slot, None)
+                        device.setdefault("fetch", {}).pop(slot, None)
+                        await self.broadcast("device_update", device)
+                        if item_kind == "patch":
+                            self.spawn(self.refresh_patches_later(device_uid))
+                self.state.save_debounced()
+        elif kind == "refresh_distribution":
+            await self.broadcast("distribution", await self.catalog())
         elif kind == "set_master":
             master = self.state.clean_master(data.get("value"))
             self.state.data["master"] = master
@@ -316,6 +454,7 @@ class Dashboard:
                     if int(device["id"]) >= 0 and device.get("name"):
                         self.osc.assign(assigned_uid, device["id"], device["name"],
                                         self.device_elements(device))
+                        self.osc.request(assigned_uid, "patches")
                 self.osc.send_audition_listener()
                 await self.broadcast("state", self.state.public())
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
@@ -331,6 +470,47 @@ class Dashboard:
     def selector(self, uid):
         device = self.state.devices.get(uid)
         return int(device["id"]) if device else None
+
+    def distribution_targets(self, uid):
+        if uid == "all":
+            return [device_uid for device_uid, device in self.state.devices.items()
+                    if int(device.get("id", -1)) >= 0 and device.get("online")]
+        return ([uid] if uid in self.state.devices and self.selector(uid) is not None
+                and self.state.devices[uid].get("online") else [])
+
+    def device_patch(self, uid, name, git=None):
+        for patch in self.state.devices.get(uid, {}).get("patches") or ():
+            if patch.get("name") == name and (git is None or patch.get("git") is git):
+                return patch
+        return None
+
+    def public_url(self, ws):
+        configured = getattr(self.args, "public_url", None)
+        if configured:
+            return configured.rstrip("/")
+        scheme = "https" if ws is not None and ws.url.scheme == "wss" else "http"
+        host = ws.headers.get("host") if ws is not None else None
+        return f"{scheme}://{host or '127.0.0.1:' + str(self.args.port)}"
+
+    def requires_active_confirmation(self, target_uids, items):
+        patch_names = {item["name"] for item in items if item["kind"] == "patch"}
+        if not patch_names:
+            return False
+        for uid in target_uids:
+            listing = self.state.devices[uid].get("patches")
+            if listing is None:
+                return True  # fail safe while the node's active patch is unknown
+            if any(patch.get("active") and patch.get("name") in patch_names
+                   for patch in listing):
+                return True
+            if (self.state.devices[uid].get("report") or {}).get("patch") in patch_names:
+                return True
+        return False
+
+    async def refresh_patches_later(self, uid, delay=0.25):
+        await asyncio.sleep(delay)
+        if uid in self.state.devices:
+            self.osc.request(uid, "patches")
 
     @staticmethod
     def device_elements(device):
@@ -354,9 +534,7 @@ def create_app(args):
     async def websocket_endpoint(ws: WebSocket):
         await dashboard.websocket(ws)
 
-    assets = os.path.realpath(getattr(args, "assets_dir",
-                                      os.path.join(os.path.dirname(__file__), "assets")))
-    os.makedirs(assets, exist_ok=True)
+    assets, patches = dashboard.assets_dir, dashboard.patches_dir
 
     @app.get("/bopos.devices")
     async def devices_export():
@@ -374,10 +552,15 @@ def create_app(args):
         return PlainTextResponse("\n".join(lines) + "\n")
 
     @app.get("/assets/{slot}/.manifest.json")
-    async def assets_manifest(slot: str):
-        return JSONResponse(asset_manifest(assets, slot))
+    def assets_manifest(slot: str):
+        return JSONResponse(directory_manifest(assets, slot))
 
-    app.mount("/assets", StaticFiles(directory=assets), name="assets")
+    @app.get("/patches/{name}/.manifest.json")
+    def patches_manifest(name: str):
+        return JSONResponse(directory_manifest(patches, name))
+
+    app.mount("/assets", DistributionStaticFiles(directory=assets), name="assets")
+    app.mount("/patches", DistributionStaticFiles(directory=patches), name="patches")
     static = os.path.join(os.path.dirname(__file__), "static")
 
     @app.get("/facilitator")
@@ -396,7 +579,9 @@ def parse_args():
     parser.add_argument("--osc-target", default="255.255.255.255")
     parser.add_argument("--state-file", default=os.path.join(os.path.dirname(__file__), "installation.json"))
     parser.add_argument("--devices-file")
-    parser.add_argument("--assets-dir", default=os.path.join(os.path.dirname(__file__), "assets"))
+    parser.add_argument("--assets-dir", default=os.path.join(REPO_DIR, "assets"))
+    parser.add_argument("--patches-dir", default=os.path.join(REPO_DIR, "patches"))
+    parser.add_argument("--public-url", help="dashboard URL nodes use for patch/asset fetches")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()
