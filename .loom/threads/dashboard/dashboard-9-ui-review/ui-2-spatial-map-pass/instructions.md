@@ -22,6 +22,7 @@ Spatial map interaction and rendering changes from the 2026-07-13 brain dump.
       varies, size/speed edit leaves position unchanged, out-of-bounds point
       is clipped, list-selection selects.
 
-Listener-puck *visibility* (sim-only) is `dashboard-8-identity-sim-design`'s
-call — don't pre-empt it here; the drag-dial applies whenever the puck is
-shown.
+Listener-puck *visibility* is settled: **sim-only**, ratified in
+`dashboard-8-identity-sim-design` (tied), implemented by `d8-2-simulate-toggle`
+(deferred). Don't implement visibility here; the drag-dial applies whenever
+the puck is shown.

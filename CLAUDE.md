@@ -104,12 +104,17 @@ in-thread order is the numeric prefix. Cross-thread order for autonomous session
    Bob's amendments: all hard breaks, `/os/update`→`/os/updatebopos`,
    send-to-active is confirm-gated stop→converge→restart; implementation
    `dist-1..4` is prepped but **deliberately deferred by Bob** — don't start
-   it autonomously), `dashboard-8-identity-sim-design` (device-identity data
-   model + dashboard-managed simulation; decision-gate proposal, workable),
-   and `dashboard-9-ui-review` (`ui-0..3` — concrete UI fixes, workable now;
-   absorbed `dashboard-5-position-precision` as `ui-3`). `sample-distribution`
-   (goal + samples-0..2) dropped as superseded; `friction-0-docs` `.waiting`
-   on dist-2/3 so the composer doc walks the real flow.
+   it autonomously), the **seats model** (`dashboard-8-identity-sim-design`
+   **ratified 2026-07-13**, tied stitch is the record: seats vs devices
+   split, "seat" is the noun, simulation is a distinct all-seats mode via a
+   dashboard-managed audition rig, no schema migration — hard break,
+   hostname joins `/os/report`; implementation `d8-1..3` prepped and
+   **equally deferred**), and `dashboard-9-ui-review` (`ui-0..3` — concrete
+   UI fixes, workable now; absorbed `dashboard-5-position-precision` as
+   `ui-3`; ui-0's hostname item hands off to d8-3 until the wire field
+   lands). `sample-distribution` (goal + samples-0..2) dropped as
+   superseded; `friction-0-docs` `.waiting` on dist-2/3 so the composer doc
+   walks the real flow.
 6. Free-floating fill: `friction-1` waits on nothing since the
    engine-boundary ruling landed, but note the `patch-asset-sync` proposal
    may dissolve `templates/` into a demo patch — coordinate before building

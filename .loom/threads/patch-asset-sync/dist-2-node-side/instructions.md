@@ -28,6 +28,10 @@ file:line for everything touched are in the tied stitch dir.
 - [ ] **Fetch progress observability** (inherited from dropped samples-1):
       progress visible while a fetch runs — contract-cleanest option, shaped
       additively and flagged (delegated wire-shaping rule).
+- [ ] **`hostname` in `/os/report`** (additive; ratified via
+      `dashboard-8-identity-sim-design` Q6): bopos.py adds the node's
+      hostname to the report JSON — the dashboard seats work (d8-1/d8-3)
+      consumes it for name suggestions.
 - [ ] **simfleet parity in the same stitch**: fetch `patch:` simulation,
       patches/droppatch/dropassets members, updatebopos rename, getsamples
       member removed.

@@ -27,6 +27,9 @@ before dist-2/3/4 so implementation cites settled text.
       sibling) — coordinate, don't duplicate.
 - [ ] §14 if apt: gdrive ingest and undeclared-patch launch join "rejected by
       design".
+- [ ] §6: **`hostname` joins the `/os/report` JSON fields** (additive) —
+      ratified via `dashboard-8-identity-sim-design` Q6 (Bob 2026-07-13);
+      heartbeat stays lean. One contract touch for both threads.
 - [ ] Rewrite the stale `patches/README.md` ("entry point is always main.pd"
       is wrong) against the new model; note the host layout (`patches/`,
       `assets/`, demos, composer dirs gitignored).

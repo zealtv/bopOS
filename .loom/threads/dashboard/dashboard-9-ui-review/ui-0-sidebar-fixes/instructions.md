@@ -9,6 +9,12 @@ Device sidebar fixes from the 2026-07-13 brain dump.
       feedback loop on the suggested-ID), don't just patch the symptom.
 - [ ] **Suggested name from hostname:** when assigning an ID to an unassigned
       device, the suggested name should be pulled from the device hostname.
+      NOTE (2026-07-13): hostname is not on the wire today; the additive
+      `/os/report` hostname field was ratified in
+      `dashboard-8-identity-sim-design` and lands node-side via dist-1/2
+      (deferred). If this stitch is worked before that lands, do the spinner
+      bug + blips and leave this item to `d8-3-binding-ux` (where naming
+      moves to seat-binding anyway) — note the handoff here.
 - [ ] **Heartbeat blips:** visualise each device's heartbeat in the left bar —
       a little blip on the device row when its beat arrives.
 - [ ] Playwright `verify_*.py` on simfleet: assign flow with spinner
