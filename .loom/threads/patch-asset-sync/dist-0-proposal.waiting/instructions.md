@@ -1,5 +1,13 @@
 # dist-0-proposal
 
+**2026-07-13: proposal written — `.waiting` on Bob's ratification.**
+Deliverable kept in lore: `.lore/items/2026-07-13-patch-asset-sync-proposal`
+(same text as `proposal.md` here; code surveys with file:line evidence in
+`survey-patch-pipeline.md` / `survey-fetch-assets-templates.md`). Six open
+questions (Q1–Q6) are Bob's. On ratification: create the four `dist-1..4`
+implementation children per proposal §8, drop `samples-0..2` with reasons
+(§7), and unwait `friction-0-docs`.
+
 Write the unified patch+asset distribution proposal for Bob to ratify.
 Parent has the full brief; the raw source is
 `.lore/items/2026-07-13-composer-experience-brain-dump`.
