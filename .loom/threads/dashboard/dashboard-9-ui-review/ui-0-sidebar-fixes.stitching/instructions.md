@@ -2,7 +2,7 @@
 
 Device sidebar fixes from the 2026-07-13 brain dump.
 
-- [ ] **ID assign spinner bug:** on an unassigned device the increment/
+- [x] **ID assign spinner bug:** on an unassigned device the increment/
       decrement number box wouldn't move — it kept resetting to 6; Bob could
       only escape by decrementing to 3, after which incrementing past 6
       worked. Find the actual cause (likely value-clamp or stale-state
@@ -15,8 +15,12 @@ Device sidebar fixes from the 2026-07-13 brain dump.
       (deferred). If this stitch is worked before that lands, do the spinner
       bug + blips and leave this item to `d8-3-binding-ux` (where naming
       moves to seat-binding anyway) — note the handoff here.
-- [ ] **Heartbeat blips:** visualise each device's heartbeat in the left bar —
+- [x] **Heartbeat blips:** visualise each device's heartbeat in the left bar —
       a little blip on the device row when its beat arrives.
-- [ ] Playwright `verify_*.py` on simfleet: assign flow with spinner
+- [x] Playwright `verify_*.py` on simfleet: assign flow with spinner
       + hostname suggestion, and a heartbeat blip assertion (class toggle or
       similar — don't try to screenshot-diff an animation).
+
+Hostname handoff: the report field has not landed yet, and the seat model will
+replace this device assignment form. Per the brief, hostname-based naming stays
+with `d8-3-binding-ux` after `dist-1`/`dist-2` supply the field.

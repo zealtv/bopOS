@@ -2,13 +2,34 @@ const ws = new BopSocket("/ws");
 let installation = {devices: {}};
 let selected = null;
 let muted = false;
+const heartbeats = new Map();
+const assignmentDrafts = new Map();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
-function mergeDevice(device) { if (device && device.uid) installation.devices[device.uid] = device; render(); }
+function mergeDevice(device) {
+  if (device && device.uid) {
+    installation.devices[device.uid] = device;
+    if (Number(device.id) >= 0) assignmentDrafts.delete(device.uid);
+  }
+  render();
+}
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
 ws.on("state", data => { installation = data; muted = !!data.muted; presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
+ws.on("heartbeat", data => {
+  if (!data?.uid) return;
+  const heartbeatAt = String(data.timestamp ?? Date.now() / 1000);
+  heartbeats.set(data.uid, heartbeatAt);
+  const row = Array.from(document.querySelectorAll(".device-row"))
+    .find(element => element.dataset.uid === data.uid);
+  const blip = row?.querySelector(".heartbeat-blip");
+  if (!blip) return;
+  blip.classList.remove("pulse");
+  void blip.offsetWidth;
+  blip.classList.add("pulse");
+  blip.dataset.heartbeatAt = heartbeatAt;
+});
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
@@ -60,7 +81,8 @@ function render() {
 }
 function row(d) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
-  return `<button class="device-row ${d.uid===selected?'selected':''}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><span><strong>${esc(d.name || d.uid)}</strong><small>ID ${esc(d.id)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span></button>`;
+  const heartbeatAt = heartbeats.get(d.uid);
+  return `<button class="device-row ${d.uid===selected?'selected':''}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.name || d.uid)}</strong><small>ID ${esc(d.id)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span></button>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -97,7 +119,7 @@ function renderHeader() {
 function select(uid) { selected = uid; const d=installation.devices[uid]; if (!d.declared) ws.send("request_params", {uid}); render(); }
 let interacting = false;
 document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input")) interacting = true; });
-document.addEventListener("pointerup", () => { if (interacting) { interacting = false; renderDetail(); } });
+document.addEventListener("pointerup", () => { interacting = false; });
 
 function renderDetail() {
   const d = installation.devices[selected]; if (!d) return;
@@ -114,8 +136,9 @@ function renderDetail() {
     return `${label}<label>${esc(p.name)} <output>${esc(value)}</output><input data-param="${esc(p.name)}" type="range" min="${p.min??0}" max="${p.max??1}" step="${p.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
   }).join("");
   const assigned = Number(d.id) >= 0;
+  const assignmentDraft = assignmentDrafts.get(d.uid) || {};
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
-    <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):'')}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:nextFreeId()}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
+    <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):(assignmentDraft.name??''))}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:(assignmentDraft.id??nextFreeId())}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
     <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
@@ -144,6 +167,14 @@ function bindControls(d) {
   });
   document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown"].includes(verb)&&!confirm(`${verb} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
   document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
+  if (Number(d.id) < 0) {
+    const rememberAssignment = () => assignmentDrafts.set(d.uid, {
+      name: $("#assign-name").value,
+      id: Number($("#assign-id").value),
+    });
+    $("#assign-name").oninput = rememberAssignment;
+    $("#assign-id").oninput = rememberAssignment;
+  }
   const assign=$("#assign-send"); if(assign) assign.onclick=()=>ws.send("assign_device",{uid:d.uid,name:$("#assign-name").value,id:Number($("#assign-id").value)});
   const bcast=()=>$("#broadcast")?.checked; const target=()=>bcast()?"all":d.uid;
   const patchSwitch=$("#patch-switch"); if(patchSwitch){

@@ -8,3 +8,4 @@
 .assign{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.assign label{display:grid;gap:4px;color:var(--dim);font-size:13px}.assign input{background:#12171c;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px;width:150px}.assign input[type=number]{width:80px}
 
 #venue-bar,#preset-bar{margin-top:8px;display:grid;gap:6px}#venue-bar select,#preset-bar select{background:#12171c;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px}#venue-bar button,#preset-bar button{width:100%}#facilitator-link{color:var(--dim);font-size:13px;text-align:center;margin-top:4px}
+.device-row{gap:8px}.heartbeat-blip{width:4px;height:14px;border-radius:2px;background:var(--green);opacity:.12;flex:none}.heartbeat-blip.pulse{animation:heartbeat-pulse .55s ease-out}@keyframes heartbeat-pulse{0%{opacity:1;box-shadow:0 0 8px var(--green)}100%{opacity:.12;box-shadow:none}}
