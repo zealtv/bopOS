@@ -2,6 +2,7 @@ const ws = new BopSocket("/ws");
 let installation = {devices: {}};
 let selected = null;
 let muted = false;
+let master = 1.0;
 const heartbeats = new Map();
 const assignmentDrafts = new Map();
 const $ = selector => document.querySelector(selector);
@@ -15,7 +16,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -33,6 +34,7 @@ ws.on("heartbeat", data => {
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
+ws.on("master", data => { master = Number(data.value); renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
 ws.on("listener", data => { installation.listener = data; render(); });
 ws.on("points", data => { installation.points = data.points || {}; render(); });
@@ -115,6 +117,8 @@ function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
   $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
+  if (document.activeElement !== $("#master")) $("#master").value = master;
+  $("#master-out").value = Math.round(master * 100) + "%";
 }
 function select(uid) { selected = uid; const d=installation.devices[uid]; if (!d.declared) ws.send("request_params", {uid}); render(); }
 let interacting = false;
@@ -141,7 +145,7 @@ function renderDetail() {
     <section><h2>${assigned?'Identity':'Assign'}</h2><div class="assign"><label>name <input id="assign-name" type="text" value="${esc(assigned?(d.name||''):(assignmentDraft.name??''))}" placeholder="planter-nw"></label><label>ID <input id="assign-id" type="number" min="0" step="1" value="${assigned?d.id:(assignmentDraft.id??nextFreeId())}"></label><button id="assign-send">${assigned?'Apply':'Assign'}</button>${assigned?'':'<button data-identify>Identify</button>'}</div>${assigned?'':'<p class="dim">New device: identify to flash the box, name it, assign, then drag it onto the map.</p>'}</section>
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
     <section><h2>Patch</h2><p class="dim">current: <b>${esc(d.report?.patch ?? '—')}</b></p><div class="assign"><label>switch to <input id="patch-name" type="text" placeholder="wind_chimes"></label><button id="patch-switch">Switch</button><button id="patch-pull">Pull latest</button><button data-action="get_samples">Get samples</button></div><div class="assign"><label>add from GitHub <input id="patch-user" type="text" placeholder="user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repo"></label><button id="patch-add">Add</button></div></section>
-    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples","aloha"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
+    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","update","get_samples"].map(v=>`<button data-action="${v}">${v.replace('_',' ')}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d);
 }
@@ -185,4 +189,12 @@ function bindControls(d) {
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
 }
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};
+{
+  const input = $("#master");
+  let last = 0, timer;
+  const send = () => { master = Number(input.value); ws.send("set_master", {value: master}); renderHeader(); };
+  input.oninput = () => { const now = performance.now(); if (now-last >= 33) { last=now; send(); } else { clearTimeout(timer); timer=setTimeout(send, 33-(now-last)); } };
+  input.onchange = send;
+  input.onpointerup = send;
+}
 document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(["reboot","update"].includes(verb)&&!confirm(`${verb} all devices?`))return;ws.send("action",{uid:"all",verb});});

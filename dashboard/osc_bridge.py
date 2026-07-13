@@ -199,10 +199,7 @@ class OSCBridge:
 
     def action(self, selector, verb):
         wire_verb = "getsamples" if verb == "get_samples" else verb
-        if wire_verb == "aloha":
-            self.send(f"/{selector}/aloha", [1])
-        else:
-            self.send(f"/{selector}/os/{wire_verb}")
+        self.send(f"/{selector}/os/{wire_verb}")
 
     def request(self, uid, member):
         device = self.state.devices.get(uid)

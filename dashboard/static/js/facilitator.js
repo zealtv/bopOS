@@ -1,4 +1,4 @@
-// Facilitator view: promoted params, master, silence/resume, sound check, presets.
+// Facilitator view: promoted params, master, silence/resume, and presets.
 // Everything technical stays in / (proposal Q6 scope guard).
 const ws = new BopSocket("/ws");
 let installation = {devices: {}};
@@ -139,4 +139,3 @@ function renderCommands() {
   master_.onpointerup = send;
 }
 $("#silence").onclick = () => { muted = !muted; ws.send("mute_all", {value: muted ? 1 : 0}); renderControls(); };
-$("#soundcheck").onclick = () => ws.send("action", {uid: "all", verb: "aloha"});

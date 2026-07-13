@@ -7,7 +7,7 @@ import os
 
 DURABLE = ("id", "name", "pos1", "pos2", "patch")
 FACILITATOR_COMMANDS = frozenset(("restart-engine", "update", "reboot", "shutdown",
-                                  "get_samples", "aloha"))
+                                  "get_samples"))
 
 
 class InstallationState:

@@ -32,7 +32,7 @@ Then open:
   management, discovery/assignment, synced named cues, venues, presets.
 - **<http://localhost:8080/facilitator>** — facilitator view: device cards
   with the patch's promoted (`facilitator: true`) params as labelled controls,
-  master, Silence All, Sound check, preset picker. On an iPad, "Add to Home
+  master, Silence All, preset picker. On an iPad, "Add to Home
   Screen" launches it fullscreen.
 
 Useful simfleet variations: `--unassigned 2` (exercise discovery/assign),
