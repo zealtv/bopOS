@@ -6,7 +6,7 @@ becomes "author three seats and let sim-mode bind them" — same audible
 sequence, updated harness vocabulary.)
 
 Run the final real-engine listening gate for the tied listener-puck preview.
-This stitch may commit Bob's current `patches/default/main.pd` edit, which
+This stitch may commit Bob's current `patches/demo-pd/main.pd` edit, which
 provides two distinguishable element voices; agents must not edit that file.
 
 ## Owned interactive harness

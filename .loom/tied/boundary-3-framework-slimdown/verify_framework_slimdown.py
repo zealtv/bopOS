@@ -136,7 +136,7 @@ def removed_surface_checks():
         os.path.join(REPO, "dashboard", "state.py"),
         os.path.join(REPO, "dashboard", "static", "js", "dashboard.js"),
         os.path.join(REPO, "dashboard", "static", "js", "facilitator.js"),
-        os.path.join(REPO, "patches", "default", "bopos.patch.json"),
+        os.path.join(REPO, "patches", "demo-pd", "bopos.patch.json"),
     ]
     text = "\n".join(open(path).read() for path in paths)
     for removed in ("meter_loop", "METER_INTERVAL", 'role === "meter"',

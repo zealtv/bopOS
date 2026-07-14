@@ -105,8 +105,8 @@ def pd_static_test():
 
 
 def sc_static_test():
-    source = (ROOT / "templates" / "supercollider-bopos" / "main.scd").read_text()
-    readme = (ROOT / "templates" / "supercollider-bopos" / "README.md").read_text()
+    source = (ROOT / "patches" / "demo-sc" / "main.scd").read_text()
+    readme = (ROOT / "patches" / "demo-sc" / "README.md").read_text()
 
     for spelling in (
         "auditionMatrix: [1.0, 0.0, 0.0, 1.0]",

@@ -1,4 +1,4 @@
-/* bopOS SuperCollider starter patch.
+/* bopOS SuperCollider demo patch.
 
    One sclang process owns one scsynth server and clones one Synth per output
    element. See README.md for the wire seam and deployment assumptions.
@@ -142,7 +142,7 @@ s.waitForBoot {
         };
     }, '/audition/matrix', recvPort: ~bopos.enginePort);
 
-    // The bopos.point twin. State is keyed by [pointId, element]. This starter
+    // The bopos.point twin. State is keyed by [pointId, element]. This demo
     // voice demonstrates point 0 as amplitude; authors can read any key and
     // map it to any synthesis parameter.
     OSCdef(\boposPoint, { |message|
@@ -186,7 +186,7 @@ s.waitForBoot {
         };
     }.play(AppClock);
 
-    ("bopOS SuperCollider template ready — run " ++ ~bopos.runId
+    ("bopOS SuperCollider demo ready — run " ++ ~bopos.runId
         ++ " seed " ++ ~bopos.seed
         ++ " port " ++ ~bopos.enginePort).postln;
 };

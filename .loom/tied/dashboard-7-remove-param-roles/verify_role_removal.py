@@ -78,7 +78,7 @@ def unit_checks():
               error is None and any("facilitator" in note for note in notes),
               str(error) + repr(notes))
 
-        loaded, error = manifest.load(os.path.join(REPO, "patches", "default"))
+        loaded, error = manifest.load(os.path.join(REPO, "patches", "demo-pd"))
         check("default patch manifest is valid with no role key",
               error is None and not any("role" in param for param in loaded["params"]),
               str(error))

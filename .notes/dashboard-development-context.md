@@ -97,13 +97,11 @@ pkill python
 │   └── bop/                  # Shared PD abstractions library
 ├── patches/
 │   ├── active_patch.txt      # Single line: name of current patch
-│   └── default/
-│       ├── main.pd           # Patch entry point (REQUIRED)
-│       ├── bopos.config      # Patch config (e.g. SAMPLEPACKSURL)
-│       └── start.sh          # Optional patch-specific init script
+│   ├── demo-pd/              # Copyable Pure Data demo
+│   └── demo-sc/              # Copyable SuperCollider demo
 ├── bopos.devices             # MAC → hostname/ID/position mapping
 ├── DASHBOARD.pd              # Current laptop dashboard (to be replaced)
-└── MAIN.pd                   # (legacy, not used — patches/default/main.pd is the entrypoint)
+└── MAIN.pd                   # legacy, not used
 ```
 
 

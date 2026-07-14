@@ -52,7 +52,7 @@ pass/fail; stop at the first failure and fix it before moving on.
    default in `bash/start-engine.sh`) and restart the stack
    (`bash/stop-engine.sh && bash/start-engine.sh`, or `/os/restart-engine`
    from the dashboard).
-4. **Prove sound:** the default patch through the dashboard, or
+4. **Prove sound:** the `demo-pd` patch through the dashboard, or
    `speaker-test -D hw:<name> -c 2 -t wobble` before involving jack. If
    jack fails to start, its log line in the engine output names the device
    it tried.

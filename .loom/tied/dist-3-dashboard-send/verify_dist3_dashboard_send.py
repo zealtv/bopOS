@@ -121,7 +121,7 @@ def main():
             "engine": "test", "entrypoint": "main.bin",
             "params": [], "caps": [], "slots": [],
         }, separators=(",", ":"))
-        for name, payload in (("default", b"active"), ("mirror-a", b"mirror")):
+        for name, payload in (("demo-pd", b"active"), ("mirror-a", b"mirror")):
             write(os.path.join(patches, name, "main.bin"), payload)
             write(os.path.join(patches, name, "bopos.patch.json"), patch_manifest)
 
@@ -208,7 +208,7 @@ def main():
                 page.wait_for_selector("#distribution", timeout=5000)
                 page.wait_for_function(
                     "() => [...document.querySelectorAll('#patch-select option')]"
-                    ".some(option => option.value === 'default')", timeout=5000)
+                    ".some(option => option.value === 'demo-pd')", timeout=5000)
 
                 # Keep a history across detail re-renders so both progress phases
                 # are proved rather than merely checking the terminal state.
@@ -226,7 +226,7 @@ def main():
 
                 options = page.locator("#patch-select option").all_inner_texts()
                 check("patch dropdown populated from /os/patches",
-                      any("default" in option for option in options), repr(options))
+                      any("demo-pd" in option for option in options), repr(options))
                 check("typed patch input removed", page.locator("#patch-name").count() == 0)
 
                 asset = row(page, "asset", "pack-a")
@@ -269,9 +269,9 @@ def main():
                       and "asset:pack-a:in sync" in history, repr(history))
 
                 before_dialogs = len(dialogs)
-                active = row(page, "patch", "default")
+                active = row(page, "patch", "demo-pd")
                 active.locator("[data-send]").click()
-                wait_status(page, "patch", "default", "in sync", timeout=8000)
+                wait_status(page, "patch", "demo-pd", "in sync", timeout=8000)
                 active_dialogs = dialogs[before_dialogs:]
                 check("active patch Send is confirm-gated",
                       len(active_dialogs) == 1
@@ -285,7 +285,7 @@ def main():
                     before_sync = source.read()
                 page.click("#sync-all")
                 expected_sync = {
-                    f"fetch {BASE_URL}/patches/default/.manifest.json patch:default",
+                    f"fetch {BASE_URL}/patches/demo-pd/.manifest.json patch:demo-pd",
                     f"fetch {BASE_URL}/patches/mirror-a/.manifest.json patch:mirror-a",
                     f"fetch {BASE_URL}/assets/pack-a/.manifest.json pack-a",
                 }
@@ -300,7 +300,7 @@ def main():
                 check("Sync all iterates every patch and asset exactly once",
                       all(sync_delta.count(line) == 1 for line in expected_sync),
                       sync_delta[-1600:])
-                for kind, name in (("patch", "default"), ("patch", "mirror-a"),
+                for kind, name in (("patch", "demo-pd"), ("patch", "mirror-a"),
                                    ("asset", "pack-a")):
                     wait_status(page, kind, name, "in sync", timeout=12000)
 

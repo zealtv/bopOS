@@ -33,7 +33,7 @@ from pythonosc import osc_message, osc_message_builder
 
 
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
+DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 
 # the sim decomposes /pt with the same module the real helper uses, so the
 # two can never drift (contract sec 4.1)
@@ -107,9 +107,9 @@ class Device:
         self.gain2 = 0.0
         self.backing = 0.0
         self.params = {}
-        self.active_patch = "default"
+        self.active_patch = "demo-pd"
         self.patches = {
-            "default": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None}
+            "demo-pd": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None}
         }
         self.asset_slots = set()
         self.reports = {}
@@ -810,7 +810,7 @@ def parse_args():
     parser.add_argument("--cmd-port", type=int, default=6660)
     parser.add_argument("--protocol", choices=("v1",), default="v1")
     parser.add_argument("--manifest",
-                        help="bopos.patch.json served on /os/params (default: patches/default)")
+                        help="bopos.patch.json served on /os/params (default: patches/demo-pd)")
     parser.add_argument("--sync-skew-ms", type=float, default=0.0,
                         help="max abs fake clock skew vs leader, random +/- per device")
     parser.add_argument("--sync-jitter-ms", type=float, default=0.0,

@@ -202,9 +202,9 @@ legal.
 
 Pure Data patches receive the surface through `[bopos]` (`pd/bopos.pd`) and
 normally finish through `[bopos.out~]`, which applies master and the private
-audition preview safely at the output boundary. A SuperCollider starter with
-the equivalent adapters lives in
-[`templates/supercollider-bopos/`](templates/supercollider-bopos/).
+audition preview safely at the output boundary. The tracked
+[`demo-pd`](patches/demo-pd/) and [`demo-sc`](patches/demo-sc/) patches are
+copyable starting points for the two engines.
 
 Framework-owned run context is delivered atomically at launch: reproducible
 seed, opaque run ID, patch name, asset root, and engine port. Engines never need
@@ -268,7 +268,7 @@ behind one fleet command socket:
 ~/.venvs/bopos/bin/python dashboard/server.py --osc-target 127.0.0.1
 ~/.venvs/bopos/bin/python tools/audition.py --devices 3 \
   --bind 127.0.0.1 --target 127.0.0.1 \
-  --manifest patches/default/bopos.patch.json
+  --manifest patches/demo-pd/bopos.patch.json
 ```
 
 On macOS it defaults to CoreAudio; on Linux it defaults to JACK. Drag the white
@@ -294,7 +294,6 @@ docs/        OSC contract, hardware, performance, and verification guides
 patches/     active patch selection and installed patch repositories
 pd/          bopOS Pure Data adapters and the bop submodule
 python/      node service, persistence, sync, spatial math, and I2C bridge
-templates/   starter patches for non-PD engines
 tools/       simfleet, audible audition rig, sync and performance harnesses
 .loom/       live work tracker and retained stitch evidence
 .notes/      current design and handoff notes

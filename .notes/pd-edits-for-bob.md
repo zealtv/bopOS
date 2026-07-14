@@ -29,6 +29,30 @@ complete but is now superseded by the ratified engine boundary in
 `.loom/tied/engine-boundary-ratification/ratification.md`. Agents must not edit
 `.pd` files.
 
+## 2026-07-14 — demo-pd asset-context landing
+
+`patches/demo-pd/main.pd` already receives `bopos-context`, but it does not yet
+route or demonstrate the launch-delivered asset root. Make that context visible
+without restoring the retired patch-level `bopos.config`/`SAMPLEPACKSURL`
+mechanism:
+
+- connect `[r bopos-context]` to `[route seed run-id patch assets id]`;
+- take the `assets` outlet as a symbol containing the framework-owned assets
+  root (the parent directory whose children are the sent asset slots);
+- store/publish that symbol under an explicit patch-local name such as
+  `demo-assets-root`, and demonstrate constructing
+  `<assets-root>/<slot>/<file>` before passing a media path to a loader;
+- do not assume a `samplepacks` slot or recreate
+  `patches/<patch>/bop/samplepacks`; `demo-pd` currently declares `"slots": []`
+  because its shipped synthesis needs no assets;
+- preserve the other context terms for demonstration: seed and run-id are
+  opaque launch facts, patch is the active patch name, and id is the resolved
+  device identity.
+
+Bob should choose the concrete media loader and example asset only when the
+demo has a real teaching asset to ship. Until then, routing and exposing the
+root is sufficient; no fake file path should be baked into the patch.
+
 ## Gate status
 
 - Python relays the common selector-stripped 6661 surface to PD: proven.
@@ -138,7 +162,7 @@ leave a compatibility copy named `bopos.osc.pd`.
 
 ## C. Rewrite the reference patch
 
-Apply these edits to `patches/default/main.pd`; use the resulting spellings in
+Apply these edits to `patches/demo-pd/main.pd`; use the resulting spellings in
 future PD starter patches.
 
 - Instantiate `[bopos]`, not `[bopos.osc]`.

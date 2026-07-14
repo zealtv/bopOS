@@ -60,7 +60,7 @@ import manifest
 REPO = helper.BOPOS_DIR
 
 # --- A. manifest loader and CLI ----------------------------------------------
-default_patch = os.path.join(REPO, "patches", "default")
+default_patch = os.path.join(REPO, "patches", "demo-pd")
 loaded, error = manifest.load(default_patch)
 check("manifest.load valid default", loaded is not None and error is None)
 

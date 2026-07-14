@@ -3,6 +3,8 @@
 # Except these files
 !.gitignore
 !README.md
-!default/
-!default/**
+!demo-pd/
+!demo-pd/**
+!demo-sc/
+!demo-sc/**
 !active_patch.txt

@@ -1,6 +1,6 @@
 # friction-1-starter-kit
 
-**Rewritten 2026-07-13** after the patch-asset-sync ratification
+**Rewritten 2026-07-13 and aligned with dist-4 on 2026-07-14** after the patch-asset-sync ratification
 (`.loom/tied/dist-0-proposal/`): the starter kit **is the demo patches**
 (`patches/demo-pd`, `patches/demo-sc`) — there is no separate template repo
 and no `templates/` directory (Q6 superseded the 2026-07-08 "template lives
@@ -23,5 +23,5 @@ Scope once dist-4 lands the demos:
 - [ ] Verify: copy-a-demo → rename → Send patch → runs, walked on simfleet
       and recorded here.
 
-Blocked by `dist-4-demos` (the demos must exist first) — this stitch waits;
-resume once dist-4 ties.
+`dist-4-demos` creates and validates the demos. Resume this stitch after
+dist-4 ties; its remaining external gate is Bob's `main.pd` teaching edit.

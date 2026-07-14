@@ -21,7 +21,7 @@ while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
         raise SystemExit("cannot locate bopOS repo")
     REPO = parent
 
-ENTRYPOINT = os.path.join(REPO, "templates", "supercollider-bopos", "main.scd")
+ENTRYPOINT = os.path.join(REPO, "patches", "demo-sc", "main.scd")
 
 
 def main():
@@ -48,7 +48,7 @@ def main():
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             text = "".join(lines)
-            if "bopOS SuperCollider template ready" in text:
+            if "bopOS SuperCollider demo ready" in text:
                 break
             if process.poll() is not None:
                 raise RuntimeError("sclang exited before template ready")
@@ -82,7 +82,7 @@ def main():
                          and math.isclose(float(match.group(3)), 330.0, rel_tol=1e-6))
         checks = {
             "scsynth server ready": "SuperCollider 3 server ready" in text,
-            "template startup reached": "bopOS SuperCollider template ready" in text,
+            "demo startup reached": "bopOS SuperCollider demo ready" in text,
             "identity OSC received": "bopOS device id: 7" in text,
             "scheduled cue OSC received": "bopOS cue: ping" in text,
             "helper-relayed local state reached SC": relayed_state,

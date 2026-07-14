@@ -31,7 +31,7 @@ def assert_true(condition, message):
 
 def main():
     pd_dir = os.path.join(REPO, "pd")
-    patch_dir = os.path.join(REPO, "patches", "default")
+    patch_dir = os.path.join(REPO, "patches", "demo-pd")
     helper_path = os.path.join(REPO, "python", "bopos.py")
     bopos_path = os.path.join(pd_dir, "bopos.pd")
     point_path = os.path.join(pd_dir, "bopos.point.pd")

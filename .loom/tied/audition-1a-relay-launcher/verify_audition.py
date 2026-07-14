@@ -220,7 +220,7 @@ def pd_command_test():
     args = audition.parse_args(["--devices", "2", "--audio-backend", "coreaudio"])
     rig = object.__new__(audition.AuditionRig)
     rig.args = args
-    patch_dir = ROOT / "patches" / "default"
+    patch_dir = ROOT / "patches" / "demo-pd"
     loaded, error = audition.patch_manifest.load(str(patch_dir))
     assert error is None
     nodes = [

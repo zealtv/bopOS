@@ -299,9 +299,9 @@ def test_audition_runtime():
 def test_engine_command_send_string():
     audition = load_module("audition_launch_context_verify2",
                             os.path.join(REPO, "tools", "audition.py"))
-    patch_dir = os.path.join(REPO, "patches", "default")
+    patch_dir = os.path.join(REPO, "patches", "demo-pd")
     loaded, error = audition.patch_manifest.load(patch_dir)
-    check("default patch manifest loads", error is None and loaded is not None)
+    check("demo-pd manifest loads", error is None and loaded is not None)
     if loaded is None:
         return
 
@@ -314,7 +314,7 @@ def test_engine_command_send_string():
     send_string = command[send_index]
 
     for token in ("BOPOS_ENGINE_PORT", "bopos-context seed ", "bopos-context run-id ",
-                  "bopos-context patch default", "bopos-context assets "):
+                  "bopos-context patch demo-pd", "bopos-context assets "):
         check(f"-send string contains {token!r}", token in send_string)
     for legacy in (" ID ", "RANDOM", "STARTTIME", "STARTDATE", "ACTIVEPATCH", "; ASSETS"):
         check(f"-send string does not contain legacy token {legacy!r}",
@@ -352,7 +352,7 @@ def test_bash_launchers():
 # ---------------------------------------------------------------------------
 
 def test_main_scd():
-    path = os.path.join(REPO, "templates", "supercollider-bopos", "main.scd")
+    path = os.path.join(REPO, "patches", "demo-sc", "main.scd")
     with open(path) as source:
         text = source.read()
     for token in ('"BOPOS_ENGINE_PORT".getenv', "openUDPPort",

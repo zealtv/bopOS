@@ -30,7 +30,7 @@ while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
         raise SystemExit("cannot locate bopOS repo")
     REPO = parent
 
-TEMPLATE = os.path.join(REPO, "templates", "supercollider-bopos")
+TEMPLATE = os.path.join(REPO, "patches", "demo-sc")
 FAILURES = []
 
 

@@ -1,7 +1,7 @@
-# bopOS SuperCollider starter patch
+# bopOS SuperCollider demo
 
-This is the text-native twin of the Pure Data starter kit. Copy this directory
-into `patches/<name>/`, select the patch, and bopOS launches it as:
+This is the text-native twin of the Pure Data demo. Copy `patches/demo-sc/` to
+`patches/<name>/`, give the copy its own name, and bopOS launches it as:
 
 ```sh
 sclang patches/<name>/main.scd
@@ -20,15 +20,15 @@ The engine listens on its assigned port: `BOPOS_ENGINE_PORT` from the
 environment, defaulting to 6661 (the production value). Audition instances
 each get their own port, so no instance attempts a fixed shared bind.
 
-| Message | Template behavior |
+| Message | Demo behavior |
 |---|---|
 | `/os/master <0..1>` | Smooths and multiplies the final mix in `boposOut`, immediately before hardware output. |
 | `/audition/matrix <l0> <l1> <r0> <r1>` | Applies the private fixed-stereo preview matrix with 20 ms smoothing before master. Exactly four finite numeric gains in `[0,1]` are required; a malformed frame leaves the last valid matrix active. |
 | `/p/<name> <value>` | Updates the manifest-declared patch parameter. |
-| `/id <id>` | Reports the resolved device identity to the patch. The template retries `/config` on 7770 every two seconds until this lands. |
+| `/id <id>` | Reports the resolved device identity to the patch. The demo retries `/config` on 7770 every two seconds until this lands. |
 | `/pt <pointId> <element> <value>` | Stores the shaped scalar by point and 0-based element. The example maps point 0 to element amplitude. |
 | `/cue <cueId>` | Runs a named action after the framework has handled absolute clock synchronization. |
-| `/notify <event>` | Framework notifications (e.g. `identify`); the template logs them. |
+| `/notify <event>` | Framework notifications (e.g. `identify`); the demo logs them. |
 
 Port 6660 is the LAN control port, owned solely by the framework process.
 It matches the fleet selector and relays the selector-stripped engine surface
@@ -42,7 +42,7 @@ at launch through the environment: `BOPOS_SEED` (an integer, at most six
 digits), `BOPOS_RUN_ID` (an opaque launch identifier — never parse civil time
 out of it), `BOPOS_ACTIVEPATCH`, and `BOPOS_ASSETS`. A standalone
 `sclang main.scd` run degrades to a self-generated seed and a
-`standalone-*` run id rather than silence. The template seeds sclang's
+`standalone-*` run id rather than silence. The demo seeds sclang's
 thread RNG from `BOPOS_SEED` so a fleet launch can be reproduced.
 
 `main.scd` runs one engine instance per device. It creates element Synths lazily
@@ -85,6 +85,6 @@ below the patch and requires no SC handler.
   proximity to filter, density, spatialization, or another patch concern.
 - Use `BOPOS_ASSETS` from the environment for framework-landed media.
 
-The pending PD equivalents (`bopos.out~`, `bopos.point`, and `/cue`) remain in
+The Bob-owned PD follow-ups remain in
 [`../../.notes/pd-edits-for-bob.md`](../../.notes/pd-edits-for-bob.md); agents do
 not edit `.pd` files.

@@ -24,7 +24,7 @@ import audition_matrix  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
 
-DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "default", "bopos.patch.json")
+DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
 
 

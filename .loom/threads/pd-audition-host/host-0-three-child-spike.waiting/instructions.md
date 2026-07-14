@@ -11,7 +11,7 @@ OSC drivers, capture/measurement scripts, and results, but never edit `.pd`.
 ## Spike
 
 - Parent starts three `[pd~ -noutsig 2]` children, each opening the unchanged
-  `patches/default/main.pd` with a distinct id, run context, and engine port.
+  `patches/demo-pd/main.pd` with a distinct id, run context, and engine port.
 - Parent exposes six distinguishable raw signals: child 0 L/R, child 1 L/R,
   child 2 L/R. It alone opens CoreAudio and makes a temporary stereo monitor.
 - Run the current audition relay/dashboard against the three child ports.
