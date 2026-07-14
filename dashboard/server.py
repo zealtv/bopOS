@@ -372,6 +372,8 @@ class Dashboard:
                 return
             self.state.seats[str(seat_id)] = seat
             self.state.save_debounced()
+            if self.state.data["simulation"].get("active"):
+                await self.restart_simulation()
             await self.broadcast("state", self.state.public())
         elif kind == "update_seat":
             seat = self.state.seats.get(str(data.get("id")))
@@ -392,6 +394,8 @@ class Dashboard:
             seat = self.state.seats.pop(str(data.get("id")), None)
             if seat is not None:
                 self.state.save_debounced()
+                if self.state.data["simulation"].get("active"):
+                    await self.restart_simulation()
                 await self.broadcast("state", self.state.public())
         elif kind == "bind_seat":
             seat = self.state.seats.get(str(data.get("id")))
@@ -491,6 +495,7 @@ class Dashboard:
                         self.osc.request(seat["bound"], "patches")
                 self.osc.send_audition_listener()
                 await self.broadcast("state", self.state.public())
+                await self.broadcast("venue_rebind", self.state.last_venue_rebind)
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
         elif kind == "list_venues":
@@ -551,6 +556,15 @@ class Dashboard:
         if uid in self.state.devices:
             self.osc.assign(uid, seat["id"], seat["name"], seat["positions"])
             self.state.devices[uid]["params"] = dict(seat["params"])
+        if self.state.data["simulation"].get("active"):
+            for virtual_uid, device in self.state.devices.items():
+                if (device.get("virtual")
+                        and str(device.get("seat_id")) == str(seat["id"])):
+                    self.osc.assign(virtual_uid, seat["id"], seat["name"], seat["positions"])
+
+    async def restart_simulation(self):
+        await self.stop_simulation()
+        await self.start_simulation()
 
     async def start_simulation(self):
         if self.sim_process is not None or not self.state.seats:

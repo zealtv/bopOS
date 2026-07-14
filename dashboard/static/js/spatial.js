@@ -6,10 +6,10 @@
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
   const POINT_COLOURS = ["#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2", "#45d483"];
-  let deviceDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
+  let seatDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
   let last = null;
   let selectedPoint = null;
-  let lastClick = {uid: null, time: 0};
+  let lastClick = {seatId: null, time: 0};
   let pointFrame = {};
   let lastPointSend = 0;
   let lastListenerSend = 0;
@@ -35,7 +35,7 @@
 
   function render(installation, selected, select, ws) {
     last = [installation, selected, select, ws];
-    if (deviceDrag || pointDrag || listenerDrag || headingDrag) return;
+    if (seatDrag || pointDrag || listenerDrag || headingDrag) return;
     const svg = document.getElementById("spatial");
     if (!svg) return;
     const room = installation.room || {width: 10, depth: 8};
@@ -71,7 +71,7 @@
     for (const seat of seats) {
       const d = Object.values(devices).find(item=>item.virtual&&Number(item.seat_id)===Number(seat.id)) || devices[seat.bound];
       const occupancy = d?.virtual ? "sim" : d?.online ? "online" : "offline";
-      const node = el("g", {class: `node ${occupancy}${d?.uid === selected ? " selected" : ""}`,
+      const node = el("g", {class: `node ${occupancy}${Number(seat.id) === Number(selected) ? " selected" : ""}`,
                             "data-uid": d?.uid || "", "data-seat-id": seat.id}, svg);
       const positions = (seat.positions || []).filter(Array.isArray);
       if (!positions.length) {
@@ -87,7 +87,7 @@
         const circle = el("circle", {r: ELEMENT_R, class: `element-dot ${index === 0 ? "p1" : "p2"}`,
                                      fill: ELEMENT_COLOURS[index % ELEMENT_COLOURS.length],
                                      "fill-opacity": 0.9,
-                                     "data-point": index === 0 ? "pos1" : "pos2"}, g);
+                                     "data-point": index}, g);
         circle.dataset.baseRadius = ELEMENT_R;
         el("text", {x: 0, y: 0.09, class: "element-number"}, g).textContent = seat.id;
       });
@@ -122,6 +122,14 @@
   }
 
   function bindMap(svg, W, D) {
+    svg.onclick = event => {
+      if (!event.target.matches("rect.room")) return;
+      let [x, y] = toSvg(svg, event);
+      x = Math.min(Math.max(round(x), 0), W); y = Math.min(Math.max(round(y), 0), D);
+      const used = new Set(Object.values(last[0].seats || {}).map(seat => Number(seat.id)));
+      let id = 0; while (used.has(id)) id++;
+      last[3].send("add_seat", {id, name:`Seat ${id}`, positions:[[x, y]]});
+    };
     svg.onpointerdown = event => {
       const headingHandle = event.target.closest(".listener-tip");
       if (headingHandle) {
@@ -148,10 +156,10 @@
         return;
       }
       const circle = event.target.closest("circle[data-point]");
-      const node = circle && circle.closest("g[data-uid]");
+      const node = circle && circle.closest("g[data-seat-id]");
       const element = circle && circle.closest("g.element");
       if (!node || !element) return;
-      deviceDrag = {uid: node.dataset.uid, point: circle.dataset.point, moved: false, g: element,
+      seatDrag = {seatId:Number(node.dataset.seatId), index:Number(circle.dataset.point), moved:false, g:element,
                     start: toSvg(svg, event)};
       svg.setPointerCapture(event.pointerId);
       event.preventDefault();
@@ -205,15 +213,15 @@
         updateDisplay(last[0]);
         return;
       }
-      if (!deviceDrag) return;
+      if (!seatDrag) return;
       let [x, y] = toSvg(svg, event);
-      if (!deviceDrag.moved && Math.hypot(x - deviceDrag.start[0], y - deviceDrag.start[1]) < MOVE_MIN) return;
-      deviceDrag.moved = true;
+      if (!seatDrag.moved && Math.hypot(x - seatDrag.start[0], y - seatDrag.start[1]) < MOVE_MIN) return;
+      seatDrag.moved = true;
       const inTray = y > D + TRAY_GAP / 2;
       x = Math.min(Math.max(x, 0), W);
       if (!inTray) y = Math.min(Math.max(y, 0), D);
-      deviceDrag.at = [x, y];
-      deviceDrag.g.setAttribute("transform", `translate(${x} ${y})`);
+      seatDrag.at = [x, y];
+      seatDrag.g.setAttribute("transform", `translate(${x} ${y})`);
     };
     svg.onpointerup = () => {
       if (headingDrag) {
@@ -234,26 +242,27 @@
         render(...last);
         return;
       }
-      if (!deviceDrag) return;
+      if (!seatDrag) return;
       const [installation, , select, ws] = last;
-      const device = installation.devices[deviceDrag.uid];
-      if (!deviceDrag.moved) {
+      const seat = installation.seats?.[String(seatDrag.seatId)] || installation.seats?.[seatDrag.seatId];
+      if (!seatDrag.moved) {
         const now = performance.now();
-        if (device && deviceDrag.uid === lastClick.uid && now - lastClick.time < 400) togglePos2(device, ws, W);
-        else select(deviceDrag.uid);
-        lastClick = {uid: deviceDrag.uid, time: now};
-      } else if (device && deviceDrag.at) {
-        const [x, y] = deviceDrag.at;
+        if (seat && seatDrag.seatId === lastClick.seatId && now - lastClick.time < 400) toggleSecondElement(seat, ws, W);
+        else select(seatDrag.seatId);
+        lastClick = {seatId:seatDrag.seatId, time:now};
+      } else if (seat && seatDrag.at) {
+        const [x, y] = seatDrag.at;
+        const positions = clone(seat.positions || []);
         if (y > D + TRAY_GAP / 2) {
-          ws.send("set_position", {uid: deviceDrag.uid, pos1: null, pos2: null});
-          device.pos1 = device.pos2 = null;
+          positions.splice(seatDrag.index, 1);
         } else {
           const pos = [round(x), round(y)];
-          ws.send("set_position", {uid: deviceDrag.uid, [deviceDrag.point]: pos});
-          device[deviceDrag.point] = pos;
+          positions[seatDrag.index] = pos;
         }
+        seat.positions = positions;
+        ws.send("update_seat", {id:seat.id, positions});
       }
-      deviceDrag = null;
+      seatDrag = null;
       render(...last);
     };
   }
@@ -365,13 +374,14 @@
     if (last) updateDisplay(last[0]);
   }
 
-  function togglePos2(device, ws, W) {
-    if (!Array.isArray(device.pos1)) return;
-    const pos2 = Array.isArray(device.pos2) ? null
-      : [Math.min(round(device.pos1[0] + 0.8), W), device.pos1[1]];
-    ws.send("set_position", {uid: device.uid, pos2}); device.pos2 = pos2;
+  function toggleSecondElement(seat, ws, W) {
+    if (!Array.isArray(seat.positions?.[0])) return;
+    const positions = clone(seat.positions);
+    if (positions.length > 1) positions.splice(1, 1);
+    else positions.push([Math.min(round(positions[0][0] + 0.8), W), positions[0][1]]);
+    ws.send("update_seat", {id:seat.id, positions}); seat.positions = positions;
     render(...last);
   }
 
-  window.Spatial = {render, frame, get dragging() { return deviceDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null; }};
+  window.Spatial = {render, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null; }};
 })();

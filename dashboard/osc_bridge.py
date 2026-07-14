@@ -326,6 +326,8 @@ class OSCBridge:
             old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
             advertised_id = int(args[1])
             seat = self.state.seat_for_uid(uid)
+            if device.get("virtual") and device.get("seat_id") is not None:
+                seat = self.state.seats.get(str(device["seat_id"]))
             configured = seat is not None
             configured_id = int(seat["id"]) if configured else advertised_id
             mismatch = configured and advertised_id != configured_id
@@ -354,6 +356,8 @@ class OSCBridge:
                 self.broadcast("device_update", device)
             if first_seen or not old["online"]:
                 self.state.save_debounced()
+                if first_seen:
+                    self.request(uid, "report")
                 if configured:
                     self.request(uid, "params")
                     self.request(uid, "patches")

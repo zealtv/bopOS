@@ -299,13 +299,18 @@ class InstallationState:
                 or not isinstance(loaded.get("seats"), dict)):
             return False
         rebuilt = {}
+        rebound, waiting = [], []
         for key, value in loaded["seats"].items():
             seat = self.clean_seat(value)
             if seat is None or str(seat["id"]) != str(key):
                 return False
             uid = seat.get("bound")
             if uid not in self.devices or not self.devices[uid].get("online"):
+                if uid:
+                    waiting.append({"id": seat["id"], "uid": uid})
                 seat["bound"] = None
+            elif uid:
+                rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
         self.data["name"] = loaded.get("name", name)
         room = self.clean_room(loaded.get("room"))
@@ -318,6 +323,7 @@ class InstallationState:
         self.data["listener"] = (self.clean_listener(loaded.get("listener"))
                                  or self.default_listener())
         self.data["seats"] = rebuilt
+        self.last_venue_rebind = {"rebound": rebound, "waiting": waiting}
         self.save()
         return True
 
