@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -114,6 +115,8 @@ class Dashboard:
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
                              args.send_port, args.osc_target)
         self.tasks = set()
+        self.sim_process = None
+        self.performance_target = args.osc_target
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
         os.makedirs(self.assets_dir, exist_ok=True)
@@ -135,6 +138,7 @@ class Dashboard:
         return task
 
     async def stop(self):
+        await self.stop_simulation()
         for task in self.tasks:
             task.cancel()
         if self.tasks:
@@ -350,6 +354,12 @@ class Dashboard:
             self.state.data["muted"] = bool(value)
             self.osc.os_command("all", "mute", [value])
             await self.broadcast("mute_all", {"value": value})
+        elif kind == "set_simulation":
+            if bool(data.get("active")):
+                await self.start_simulation()
+            else:
+                await self.stop_simulation()
+            await self.broadcast("state", self.state.public())
         elif kind == "add_seat":
             try:
                 seat_id = int(data.get("id"))
@@ -542,6 +552,43 @@ class Dashboard:
             self.osc.assign(uid, seat["id"], seat["name"], seat["positions"])
             self.state.devices[uid]["params"] = dict(seat["params"])
 
+    async def start_simulation(self):
+        if self.sim_process is not None or not self.state.seats:
+            return
+        simulation = self.state.data["simulation"]
+        simulation.update(active=True, status="starting")
+        self.osc.set_target("127.0.0.1")
+        command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),
+            "--devices", str(len(self.state.seats)), "--bind", "127.0.0.1",
+            "--target", "127.0.0.1", "--cmd-port", str(self.args.send_port),
+            "--report-port", str(self.args.listen_port), "--hb-interval", "0.5",
+            "--audio-backend", getattr(self.args, "sim_audio_backend", "none")]
+        if getattr(self.args, "sim_no_engine", False):
+            command.append("--no-engine")
+        self.sim_process = subprocess.Popen(command, cwd=REPO_DIR,
+                                            stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL)
+        simulation["status"] = "running"
+        self.osc.send_audition_listener()
+
+    async def stop_simulation(self):
+        process, self.sim_process = self.sim_process, None
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                await asyncio.to_thread(process.wait, 5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                await asyncio.to_thread(process.wait)
+        for uid in [uid for uid, device in self.state.devices.items()
+                    if device.get("virtual")]:
+            del self.state.devices[uid]
+        self.state.data["simulation"].update(active=False, status="off")
+        self.osc.set_target(self.performance_target)
+        for seat in self.state.seats.values():
+            if seat.get("bound") in self.state.devices:
+                self.assign_seat(seat)
+
     @staticmethod
     def device_elements(device):
         return list(device.get("positions", ()))
@@ -606,6 +653,10 @@ def parse_args():
     parser.add_argument("--assets-dir", default=os.path.join(REPO_DIR, "assets"))
     parser.add_argument("--patches-dir", default=os.path.join(REPO_DIR, "patches"))
     parser.add_argument("--public-url", help="dashboard URL nodes use for patch/asset fetches")
+    parser.add_argument("--sim-audio-backend", choices=("coreaudio", "jack", "none"),
+                        default="coreaudio" if sys.platform == "darwin" else "jack")
+    parser.add_argument("--sim-no-engine", action="store_true",
+                        help="test simulation lifecycle without launching audio engines")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()

@@ -79,13 +79,33 @@ function renderPresets() {
 
 function render() {
   const devices = Object.values(installation.devices || {});
-  const assigned = devices.filter(d => Number(d.id) >= 0).sort((a,b) => a.id-b.id);
-  const unassigned = devices.filter(d => Number(d.id) < 0);
-  $("#assigned").innerHTML = assigned.map(row).join("");
+  const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
+  const bound = new Set(seats.map(s => s.bound).filter(Boolean));
+  const unassigned = devices.filter(d => !d.virtual && !bound.has(d.uid));
+  $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
   $("#unassigned").innerHTML = unassigned.map(row).join("") || '<p class="dim">None</p>';
   document.querySelectorAll(".device-row").forEach(el => el.onclick = () => select(el.dataset.uid));
+  renderSimulation(devices);
   Spatial.render(installation, selected, select, ws); renderRoom();
   renderHeader(); renderDetail();
+}
+function occupant(seat) {
+  const devices=Object.values(installation.devices||{});
+  return devices.find(d=>d.virtual&&Number(d.seat_id)===Number(seat.id)) || installation.devices?.[seat.bound];
+}
+function seatRow(seat) {
+  const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
+  const uid=d?.uid||"";
+  return `<button class="device-row seat-row ${uid===selected?'selected':''}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" ${uid?'':'disabled'}><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i><span><strong>${esc(seat.name||`Seat ${seat.id}`)}</strong><small>ID ${seat.id} · ${state}</small></span></button>`;
+}
+function renderSimulation(devices) {
+  const sim=installation.simulation||{active:false,status:'off'}, button=$("#simulate-toggle");
+  if (!button) return;
+  button.textContent=sim.active?'Stop simulation':'Start simulation';
+  button.onclick=()=>ws.send("set_simulation",{active:!sim.active});
+  $("#simulate-status").textContent=sim.status||'off';
+  const real=devices.filter(d=>!d.virtual&&d.online).length;
+  $("#simulate-real-note").textContent=sim.active&&real?`${real} real device${real===1?'':'s'} online (not driven)`:'';
 }
 function row(d) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";

@@ -65,12 +65,15 @@
                     "data-radius-id": point.id}, fields);
     }
 
-    const devices = Object.values(installation.devices || {}).filter(d => Number(d.id) >= 0);
+    const devices = installation.devices || {};
+    const seats = Object.values(installation.seats || {}).sort((a,b)=>Number(a.id)-Number(b.id));
     let slot = 0;
-    for (const d of devices) {
-      const node = el("g", {class: `node ${status(d)}${d.uid === selected ? " selected" : ""}`,
-                            "data-uid": d.uid}, svg);
-      const positions = [d.pos1, d.pos2].filter(Array.isArray);
+    for (const seat of seats) {
+      const d = Object.values(devices).find(item=>item.virtual&&Number(item.seat_id)===Number(seat.id)) || devices[seat.bound];
+      const occupancy = d?.virtual ? "sim" : d?.online ? "online" : "offline";
+      const node = el("g", {class: `node ${occupancy}${d?.uid === selected ? " selected" : ""}`,
+                            "data-uid": d?.uid || "", "data-seat-id": seat.id}, svg);
+      const positions = (seat.positions || []).filter(Array.isArray);
       if (!positions.length) {
         positions.push([0.7 + 1.7 * slot++, D + TRAY_GAP + TRAY_H * 0.62]);
       }
@@ -86,12 +89,12 @@
                                      "fill-opacity": 0.9,
                                      "data-point": index === 0 ? "pos1" : "pos2"}, g);
         circle.dataset.baseRadius = ELEMENT_R;
-        el("text", {x: 0, y: 0.09, class: "element-number"}, g).textContent = d.id;
+        el("text", {x: 0, y: 0.09, class: "element-number"}, g).textContent = seat.id;
       });
     }
 
     const listener = installation.listener;
-    if (listener) {
+    if (listener && installation.simulation?.active) {
       const heading = Number(listener.heading) * Math.PI / 180;
       const hx = Math.sin(heading) * 0.72, hy = -Math.cos(heading) * 0.72;
       const g = el("g", {class: "listener-puck", "data-listener": "true",

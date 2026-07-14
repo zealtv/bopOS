@@ -123,6 +123,9 @@ class OSCBridge:
     def send(self, address, args=()):
         self.sender.sendto(self._datagram(address, args), self.destination)
 
+    def set_target(self, host):
+        self.destination = (str(host), self.destination[1])
+
     @staticmethod
     def _datagram(address, args=()):
         builder = OscMessageBuilder(address=address)
@@ -135,6 +138,8 @@ class OSCBridge:
     def send_audition_listener(self):
         """Send the private listener frame only to the local audition relay."""
         listener = self.state.data.get("listener")
+        if not self.state.data.get("simulation", {}).get("active"):
+            return
         room = self.state.data.get("room") or {}
         if not listener or self.sender is None:
             return
@@ -309,6 +314,15 @@ class OSCBridge:
             uid = str(args[0])
             first_seen = uid not in self.state.devices
             device = self.state.ensure(uid)
+            sim_active = bool(self.state.data.get("simulation", {}).get("active"))
+            if sim_active and uid.startswith("audition-"):
+                try:
+                    index = int(uid.rsplit("-", 1)[1]) - 1
+                    seats = sorted(self.state.seats.values(), key=lambda item: item["id"])
+                    device["virtual"] = True
+                    device["seat_id"] = seats[index]["id"] if 0 <= index < len(seats) else None
+                except (ValueError, IndexError):
+                    device["seat_id"] = None
             old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
             advertised_id = int(args[1])
             seat = self.state.seat_for_uid(uid)
@@ -317,7 +331,8 @@ class OSCBridge:
             mismatch = configured and advertised_id != configured_id
             now = time.monotonic()
             last_replay = self._assign_replayed.get(uid, float("-inf"))
-            reassign = configured and (not old["online"] or
+            allow_replay = not sim_active or device.get("virtual")
+            reassign = configured and allow_replay and (not old["online"] or
                                        (mismatch and now - last_replay >=
                                         ASSIGN_REPLAY_MIN_SECONDS))
             if configured and not mismatch:

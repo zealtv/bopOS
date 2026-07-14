@@ -21,6 +21,7 @@ class InstallationState:
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
                      "facilitator_commands": [],
                      "listener": None,
+                     "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
         self._load()
@@ -161,6 +162,9 @@ class InstallationState:
                 "bound": str(bound) if bound else None}
 
     def seat_for_uid(self, uid):
+        device = self.devices.get(uid)
+        if device and device.get("virtual") and device.get("seat_id") is not None:
+            return self.seats.get(str(device["seat_id"]))
         return next((seat for seat in self.seats.values() if seat.get("bound") == uid), None)
 
     def default_listener(self):
