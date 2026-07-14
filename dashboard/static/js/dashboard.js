@@ -8,10 +8,10 @@ let master = 1.0;
 const heartbeats = new Map();
 const assignmentDrafts = new Map();
 const bindingSeatDrafts = new Map();
-const patchChoices = new Map();
+let fleetPatchChoice = null;
+let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
 let distributionAll = false;
-let patchAll = false;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -105,6 +105,7 @@ function render() {
     rebind.textContent=venueRebind ? `Rebound: ${labels(venueRebind.rebound)} · Waiting: ${labels(venueRebind.waiting)}` : '';
   }
   renderSimulation(devices);
+  renderFleetPatch();
   Spatial.render(installation, selectedSeat, selectSeat, ws); renderRoom();
   renderHeader(); renderDetail();
 }
@@ -116,7 +117,38 @@ function seatRow(seat) {
   const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
   const uid=d?.uid||"";
   const heartbeatAt=heartbeats.get(uid);
-  return `<div class="device-row seat-row ${Number(seat.id)===Number(selectedSeat)?'selected':''}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" role="button" tabindex="0"><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i>${uid?`<i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i>`:''}<span><input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(seat.name||`Seat ${seat.id}`)}"><small>ID ${seat.id} · ${state}</small></span></div>`;
+  return `<div class="device-row seat-row ${Number(seat.id)===Number(selectedSeat)?'selected':''} ${badgeTone(d?.patch_badge)}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" role="button" tabindex="0"><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i>${uid?`<i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i>`:''}<span><input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(seat.name||`Seat ${seat.id}`)}"><small>ID ${seat.id} · ${state}</small></span>${d?patchBadge(d.patch_badge):''}</div>`;
+}
+const PATCH_BADGE_LABELS = {unset:"not set",unknown:"unknown / last seen",switching:"switching",missing:"missing",mismatch:"mismatch",stale:"stale",stale_unverified:"stale (unverified)",current:"current"};
+const PATCH_BADGE_ORDER = ["current","switching","missing","mismatch","stale","stale_unverified","unknown","unset"];
+function patchBadge(value) {
+  const badge=value||"unknown", label=PATCH_BADGE_LABELS[badge]||badge.replaceAll("_"," ");
+  return `<span class="patch-badge patch-badge-${esc(badge)}" title="Fleet patch: ${esc(label)}">${esc(label)}</span>`;
+}
+function badgeTone(value) { return value && !["current","unset"].includes(value) ? "patch-exception" : ""; }
+function renderFleetPatch() {
+  const select=$("#patch-select"), set=$("#patch-switch"), revert=$("#fleet-patch-revert");
+  if (!select || !set || !revert) return;
+  const patches=(distribution.patches||[]).filter(item=>item.valid);
+  const desired=installation.fleet_patch?.name||"";
+  if (desired!==renderedFleetDesired) {
+    fleetPatchChoice=patches.some(item=>item.name===desired)?desired:(patches[0]?.name||null);
+    renderedFleetDesired=desired;
+  } else if (!patches.some(item=>item.name===fleetPatchChoice)) {
+    fleetPatchChoice=patches.some(item=>item.name===desired)?desired:(patches[0]?.name||null);
+  }
+  select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===fleetPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
+  select.disabled=!patches.length;
+  set.disabled=!fleetPatchChoice;
+  revert.disabled=!installation.fleet_patch?.previous?.name;
+  select.onchange=()=>{fleetPatchChoice=select.value;};
+  set.onclick=()=>{const name=select.value;if(name&&confirm(`Set "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});};
+  revert.onclick=()=>{const name=installation.fleet_patch?.previous?.name;if(name&&confirm(`Revert the fleet to patch "${name}"? The dashboard will use the same convergence and engine restart flow.`))ws.send("revert_fleet_patch",{confirmed:true});};
+  $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
+  const assigned=Object.values(installation.seats||{}).map(occupant).filter(Boolean);
+  const counts=new Map(); assigned.forEach(device=>counts.set(device.patch_badge||"unknown",(counts.get(device.patch_badge||"unknown")||0)+1));
+  const summary=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
+  $("#fleet-patch-summary").textContent=summary||(desired?"No assigned devices":"No fleet patch set");
 }
 function renderSimulation(devices) {
   const sim=installation.simulation||{active:false,status:'off'}, button=$("#simulate-toggle");
@@ -130,7 +162,7 @@ function renderSimulation(devices) {
 function row(d) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
   const heartbeatAt = heartbeats.get(d.uid);
-  return `<button class="device-row ${d.uid===selected?'selected':''}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.hostname || d.uid)}</strong><small>${esc(d.uid)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span></button>`;
+  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.hostname || d.uid)}</strong><small>${esc(d.uid)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span>${patchBadge(d.patch_badge)}</button>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -185,6 +217,24 @@ let interacting = false;
 document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input, #detail select")) interacting = true; });
 document.addEventListener("pointerup", () => { interacting = false; });
 
+function patchDiagnostics(d, allowRemediation) {
+  const installed=Array.isArray(d.patches)?d.patches:[];
+  const active=installed.find(patch=>patch.active)||installed.find(patch=>patch.name===d.report?.patch);
+  const desired=installation.fleet_patch||{};
+  const fetchPhase=desired.name?(d.fetch||{})[`patch:${desired.name}`]:null;
+  const rows=installed.map(patch=>`<tr><td>${patch.git?'◆ ':''}${esc(patch.name)}</td><td>${patch.active?'active':'inactive'}</td><td>${patch.manifest?'valid':'invalid'}</td><td>${patch.git?'git-managed':'host-mirrored'}</td><td><code>${esc(patch.fingerprint||'unreported')}</code></td></tr>`).join("");
+  const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch"].includes(d.patch_badge)
+    ? `<button id="fleet-patch-retry">${d.patch_badge==="mismatch"?'Re-switch':'Retry'}</button>`:"";
+  const pull=d.online&&active?.git?'<button id="patch-pull">Pull latest</button>':"";
+  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired fleet patch</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd><code>${esc(desired.fingerprint||'—')}</code></dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Reported content identity</dt><dd><code>${esc(active?.fingerprint||'unreported')}</code></dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull?`<div class="actions patch-remediation">${remediation}${pull}</div>`:''}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
+}
+function bindPatchDiagnostics(d) {
+  const retry=$("#fleet-patch-retry");
+  if(retry) retry.onclick=()=>ws.send("retry_fleet_patch",{uid:d.uid});
+  const pull=$("#patch-pull");
+  if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:d.uid});};
+}
+
 function renderDetail() {
   const seat = installation.seats?.[String(selectedSeat)] || installation.seats?.[selectedSeat];
   const runtime = installation.devices[selected] || (seat && occupant(seat));
@@ -192,11 +242,12 @@ function renderDetail() {
     if(!runtime) { $("#detail").innerHTML='<section><p class="dim">Select a seat or device.</p></section>'; return; }
     const empty=Object.values(installation.seats||{}).filter(s=>!s.bound);
     const draft=bindingSeatDrafts.get(runtime.uid);
-    $("#detail").innerHTML=`<section><h2>Unbound device</h2><dl><dt>UID</dt><dd>${esc(runtime.uid)}</dd><dt>Hostname</dt><dd>${esc(runtime.hostname||runtime.uid)}</dd><dt>Status</dt><dd>${runtime.online?'online':'offline'}</dd></dl><div class="assign"><label>empty seat <select id="device-seat">${empty.map(s=>`<option value="${s.id}" ${Number(s.id)===Number(draft)?'selected':''}>${esc(s.name||`Seat ${s.id}`)}</option>`).join('')}</select></label><button id="device-bind" ${empty.length?'':'disabled'}>Bind</button><button id="device-forget">Forget</button><button data-identify>Identify</button></div></section>`;
+    $("#detail").innerHTML=`<section><h2>Unbound device</h2><dl><dt>UID</dt><dd>${esc(runtime.uid)}</dd><dt>Hostname</dt><dd>${esc(runtime.hostname||runtime.uid)}</dd><dt>Status</dt><dd>${runtime.online?'online':'offline'}</dd></dl><div class="assign"><label>empty seat <select id="device-seat">${empty.map(s=>`<option value="${s.id}" ${Number(s.id)===Number(draft)?'selected':''}>${esc(s.name||`Seat ${s.id}`)}</option>`).join('')}</select></label><button id="device-bind" ${empty.length?'':'disabled'}>Bind</button><button id="device-forget">Forget</button><button data-identify>Identify</button></div></section>${patchDiagnostics(runtime,false)}`;
     $("#device-seat").onchange=()=>bindingSeatDrafts.set(runtime.uid,Number($("#device-seat").value));
     $("#device-bind").onclick=()=>{const id=Number($("#device-seat").value);bindingSeatDrafts.delete(runtime.uid);bindDeviceToSeat(id,runtime);};
     $("#device-forget").onclick=()=>{const recent=Date.now()/1000-Number(runtime.last_seen||0)<30;if(!recent||confirm(`Forget recently seen ${runtime.hostname||runtime.uid}?`))ws.send("forget_device",{uid:runtime.uid});};
     document.querySelectorAll("[data-identify]").forEach(b=>b.onclick=()=>ws.send("identify",{uid:runtime.uid}));
+    bindPatchDiagnostics(runtime);
     return;
   }
   const d = runtime ? {...runtime, id:seat?.id, name:seat?.name,
@@ -227,26 +278,18 @@ function renderDetail() {
     const y = Array.isArray(position) ? Math.round((position[1] - origin[1]) * 100) / 100 : "";
     return `<div class="position-row" data-position-key="${key}"><strong>element ${index}</strong><label>x <input class="position-coordinate" data-axis="x" type="number" step="0.01" min="${-origin[0]}" max="${(room.width??10)-origin[0]}" value="${x}"></label><label>y <input class="position-coordinate" data-axis="y" type="number" step="0.01" min="${-origin[1]}" max="${(room.depth??8)-origin[1]}" value="${y}"></label><span class="dim">m from origin</span></div>`;
   }).join("");
-  const installed = Array.isArray(d.patches) ? d.patches : [];
-  const activePatch = installed.find(p => p.active) || installed.find(p => p.name === d.report?.patch);
-  const rememberedPatch = patchChoices.get(d.uid);
-  const chosenName = (installed.some(p => p.name === rememberedPatch) ? rememberedPatch : null)
-    || activePatch?.name || installed[0]?.name || "";
-  if (chosenName) patchChoices.set(d.uid, chosenName); else patchChoices.delete(d.uid);
-  const chosenPatch = installed.find(p => p.name === chosenName);
-  const patchOptions = installed.map(p => `<option value="${esc(p.name)}" ${p.name===chosenName?'selected':''}>${p.git?'◆ ':''}${esc(p.name)}${p.manifest?'':' (invalid manifest)'}</option>`).join("");
   const simulating = !!installation.simulation?.active && !!d.virtual;
-  const patchRows = distribution.patches.map(item => distributionRow(d, item)).join("");
   const assetRows = distribution.assets.map(item => distributionRow(d, item)).join("");
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>Seat</h2><div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat?.name||'')}"></label><label>ID <input type="number" value="${seat?.id}" disabled></label><button id="seat-rename">Apply</button><button id="seat-remove">Remove seat</button></div><div class="assign"><label>device <select id="seat-device"><option value="">unbound</option>${Object.values(installation.devices||{}).filter(x=>!x.virtual).map(x=>`<option value="${esc(x.uid)}" ${seat?.bound===x.uid?'selected':''}>${esc(x.hostname||x.uid)}</option>`).join('')}</select></label><button id="seat-bind">${seat?.bound?'Rebind':'Bind'}</button>${seat?.bound?'<button id="seat-unbind">Unbind</button>':''}</div></section>
     <section><h2>Position</h2><div class="position-grid">${positions}</div></section>
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
-    <section><div class="section-head"><h2>Patch</h2>${simulating?'<span class="dim">Host-backed simulated fleet</span>':'<span class="dim">◆ Git-managed</span>'}</div><p class="dim">current: <b>${esc(activePatch?.name ?? d.report?.patch ?? '—')}</b>${d.patch_switch?` · switching to <b>${esc(d.patch_switch.patch)}</b>…`:''}</p><div class="assign"><label>${simulating?'host patches':'installed'} <select id="patch-select">${patchOptions || `<option disabled>${d.patches===null?'loading…':'No patches installed'}</option>`}</select></label><button id="patch-switch" ${!chosenPatch||!chosenPatch.manifest||d.patch_switch?'disabled':''}>${d.patch_switch?'Switching…':'Switch'}</button>${!simulating&&activePatch?.git?'<button id="patch-pull">Pull latest</button>':''}${simulating?'':`<button id="patch-drop" ${!chosenPatch||chosenPatch.active?'disabled':''}>Delete from device</button><label><input id="patch-all" type="checkbox" ${patchAll?'checked':''}> target all compatible devices</label>`}</div>${simulating?'<p class="dim">All simulated devices use this patch. Switching restarts the managed engine fleet; host patches need no Send step.</p>':'<div class="assign git-add"><label>add Git patch <input id="patch-user" type="text" placeholder="GitHub user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repository"></label><button id="patch-add">Add</button></div>'}</section>
-    ${simulating?'':`<section id="distribution"><div class="section-head"><h2>Send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. The installed dropdown lists only patches acknowledged by this device; a successful Send adds a new patch there.</p><div class="distribution-actions"><button id="sync-all">Sync all</button><button id="refresh-distribution">Refresh host folders</button></div><h3>Patches</h3><div class="distribution-grid">${patchRows || '<p class="dim">No host patches.</p>'}</div><h3>Assets</h3><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>`}
+    ${patchDiagnostics(d,true)}
+    ${simulating?'':`<section id="distribution"><div class="section-head"><h2>Asset send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host asset folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. Fleet patch distribution is controlled only by the global fleet patch panel.</p><div class="distribution-actions"><button id="sync-all">Sync all assets</button></div><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>`}
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d, seat);
+  bindPatchDiagnostics(d);
 }
 function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
 function bindDeviceToSeat(id, device) {
@@ -302,7 +345,6 @@ function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; cons
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
 function bindControls(d, seat) {
-  const simulating=!!installation.simulation?.active&&!!d.virtual;
   let last=0, timer;
   document.querySelectorAll("[data-param]").forEach(input => {
     const send = () => {
@@ -338,45 +380,17 @@ function bindControls(d, seat) {
   const remove=$("#seat-remove"); if(remove) remove.onclick=()=>{if(confirm(`Remove seat ${seat.id}?`))ws.send("remove_seat",{id:seat.id});};
   const bind=$("#seat-bind"); if(bind) bind.onclick=()=>{const uid=$("#seat-device").value;if(uid)bindDeviceToSeat(seat.id,installation.devices[uid]);};
   const unbind=$("#seat-unbind"); if(unbind) unbind.onclick=()=>ws.send("unbind_seat",{id:seat.id});
-  const patchSwitch=$("#patch-switch"); if(patchSwitch){
-    const patchTarget=()=>patchAll?"all":d.uid;
-    const patchAllInput=$("#patch-all"); if(patchAllInput) patchAllInput.onchange=()=>{patchAll=patchAllInput.checked;renderDetail();};
-    const patchSelect=$("#patch-select");
-    patchSelect.onchange=()=>{ patchChoices.set(d.uid, patchSelect.value); renderDetail(); };
-    patchSwitch.onclick=()=>{const p=patchSelect.value,target=simulating?'the simulated fleet':(patchAll?'all compatible devices':d.name||d.uid),effect=simulating?'The managed engines restart.':'Only the audio engine restarts; the device stays online.'; if(p&&confirm(`Switch ${target} to patch "${p}"? ${effect}`))ws.send("switch_patch",{uid:simulating?'all':patchTarget(),patch:p,confirmed:true});};
-    const pull=$("#patch-pull"); if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${patchAll?'all Git-managed devices':d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:patchTarget()});};
-    const patchDrop=$("#patch-drop"); if(patchDrop) patchDrop.onclick=()=>{const p=patchSelect.value;if(p&&confirm(`Delete patch "${p}" from ${patchAll?'all devices where it is inactive':d.name||d.uid}?`))ws.send("drop_distribution",{uid:patchTarget(),kind:"patch",name:p});};
-    const patchAdd=$("#patch-add"); if(patchAdd) patchAdd.onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:patchTarget(),user:u,repo:r});};
-  }
   const distributionTarget=$("#distribution-all");
   if(distributionTarget) distributionTarget.onchange=()=>{ distributionAll=distributionTarget.checked; renderDetail(); };
   const distributionTargetUid=()=>distributionAll?"all":d.uid;
-  const needsRestartConfirmation = item => {
-    if (item.kind !== "patch") return false;
-    const targets = distributionAll ? Object.values(installation.devices || {}).filter(device=>Number(device.id)>=0) : [d];
-    return targets.some(device => !Array.isArray(device.patches) || !device.patches.length || device.patches.some(p=>p.active&&p.name===item.name));
-  };
-  const sendItem = item => {
-    let confirmedActive = false;
-    if (needsRestartConfirmation(item)) {
-      confirmedActive = confirm(`Sending active patch "${item.name}" will stop and restart the engine on the target device(s). Continue?`);
-      if (!confirmedActive) return;
-    }
-    ws.send("send_distribution", {uid:distributionTargetUid(),kind:item.kind,name:item.name,confirmed_active:confirmedActive});
-  };
   document.querySelectorAll(".distribution-item").forEach(row => {
-    const item = [...distribution.patches, ...distribution.assets].find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
-    const send=row.querySelector("[data-send]"); if(send&&!send.disabled) send.onclick=()=>sendItem(item);
+    const item = distribution.assets.find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
+    const send=row.querySelector("[data-send]"); if(send&&!send.disabled) send.onclick=()=>ws.send("send_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name,confirmed_active:false});
     const drop=row.querySelector("[data-drop-asset]"); if(drop) drop.onclick=()=>{if(confirm(`Remove asset slot "${item.name}" from ${distributionAll?'all devices':d.name||d.uid}?`))ws.send("drop_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name});};
   });
   const syncAll=$("#sync-all"); if(syncAll) syncAll.onclick=()=>{
-    const patchItems=distribution.patches || [];
-    const restart=patchItems.some(needsRestartConfirmation);
-    let confirmedActive=false;
-    if(restart){confirmedActive=confirm("Sync all includes active patches. Their engines will stop and restart on the target device(s). Continue?");if(!confirmedActive)return;}
-    ws.send("sync_distribution",{uid:distributionTargetUid(),confirmed_active:confirmedActive});
+    (distribution.assets||[]).forEach(item=>ws.send("send_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name,confirmed_active:false}));
   };
-  const refreshDistribution=$("#refresh-distribution"); if(refreshDistribution) refreshDistribution.onclick=()=>ws.send("refresh_distribution",{});
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
 }
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};

@@ -56,6 +56,7 @@ class InstallationState:
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
                      "facilitator_commands": [],
                      "fleet_patch": None,
+                     "params_patch": None,
                      "listener": None,
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
@@ -93,6 +94,10 @@ class InstallationState:
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+                params_patch = loaded.get("params_patch")
+                self.data["params_patch"] = (params_patch.strip()
+                                             if isinstance(params_patch, str)
+                                             and params_patch.strip() else None)
                 if self.data["fleet_patch"]:
                     # simulation["patch"] is a read-through of the fleet choice
                     self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
@@ -163,6 +168,7 @@ class InstallationState:
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
+                "params_patch": self.data.get("params_patch"),
                 "listener": dict(self.data["listener"]),
                 "seats": {str(seat["id"]): dict(seat)
                           for seat in self.seats.values()}}
@@ -275,6 +281,23 @@ class InstallationState:
         # simulation["patch"] is a read-through of the fleet choice (fp-0 sec 1)
         self.data["simulation"]["patch"] = name
         return self.data["fleet_patch"]
+
+    def reset_fleet_params(self, patch_name, defaults):
+        """Replace the one fleet schema on a patch-name transition.
+
+        Patch parameters are fleet-scoped authoring state even though their
+        values live per seat.  A new patch name means a new manifest schema:
+        old keys and coincidentally same-named values must not leak across it.
+        Runtime mirrors are updated with the same full replacement so the UI
+        cannot briefly present the previous schema while engines converge.
+        """
+        values = dict(defaults)
+        for seat in self.seats.values():
+            seat["params"] = dict(values)
+        for device in self.devices.values():
+            if self.seat_for_uid(device["uid"]) is not None:
+                device["params"] = dict(values)
+        self.data["params_patch"] = patch_name
 
     @staticmethod
     def clean_facilitator_commands(value):
@@ -403,6 +426,10 @@ class InstallationState:
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))
         self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+        params_patch = loaded.get("params_patch")
+        self.data["params_patch"] = (params_patch.strip()
+                                     if isinstance(params_patch, str)
+                                     and params_patch.strip() else None)
         if self.data["fleet_patch"]:
             self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
         else:

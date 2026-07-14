@@ -225,7 +225,7 @@ class Dashboard:
                     item = await self.catalog_patch(name)
                     if item is None:
                         return
-                    self.state.stage_fleet_patch(name, item["fingerprint"])
+                    self.stage_catalog_patch(item)
                     self.state.save_debounced()
                     await self.restart_simulation()
                     await self.broadcast("state", self.state.public())
@@ -575,6 +575,21 @@ class Dashboard:
         return next((item for item in catalog["patches"]
                      if item["name"] == name and item["valid"]), None)
 
+    def stage_catalog_patch(self, item):
+        """Stage one validated catalog patch and apply its fleet schema."""
+        current = self.state.data.get("fleet_patch") or {}
+        if (current.get("name") != item["name"]
+                or self.state.data.get("params_patch") != item["name"]):
+            manifest, error = patch_manifest.load(
+                os.path.join(self.patches_dir, item["name"]))
+            if manifest is None:  # catalog validity and this load should agree
+                raise ValueError(error)
+            defaults = {declaration["name"]: declaration["default"]
+                        for declaration in manifest.get("params", ())
+                        if "default" in declaration}
+            self.state.reset_fleet_params(item["name"], defaults)
+        return self.state.stage_fleet_patch(item["name"], item["fingerprint"])
+
     async def live_fleet_patch(self):
         staged = self.state.data.get("fleet_patch")
         if not staged:
@@ -594,6 +609,11 @@ class Dashboard:
     async def public_state(self):
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
+        # The durable record captures the identity staged by the operator, but
+        # host edits make the live catalog identity the desired convergence
+        # target.  Expose the same resolved identity used for row badges so UI
+        # diagnostics never show an old digest beside an honestly stale row.
+        public["fleet_patch"] = desired
         public["devices"] = {uid: await self.public_device(device, desired)
                              for uid, device in self.state.devices.items()}
         return public
@@ -618,7 +638,7 @@ class Dashboard:
                 return False
 
         generation = self.supersede_fleet_operation()
-        self.state.stage_fleet_patch(name, item["fingerprint"])
+        self.stage_catalog_patch(item)
         self.state.save_debounced()
         await self.broadcast("state", self.state.public())
         await self.broadcast("distribution", await self.catalog())
@@ -860,7 +880,7 @@ class Dashboard:
             patch_name, manifest_path = "demo-pd", fallback
         item = next((item for item in valid_items if item["name"] == patch_name), None)
         if item is not None:
-            self.state.stage_fleet_patch(patch_name, item["fingerprint"])
+            self.stage_catalog_patch(item)
             self.state.save_debounced()
         else:
             simulation["patch"] = patch_name
