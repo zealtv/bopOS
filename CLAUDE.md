@@ -40,7 +40,7 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (audited 2026-07-14)
+## Thread ordering (audited 2026-07-14 PM, after the fleet-patch / ui-tabs / patch-editor staging session with Bob)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.3** (2026-07-07 base + seam amendment + engine-boundary revision +
@@ -56,14 +56,19 @@ facilitator controls come only from `facilitator: true`.
 takes precedence over `./.loom/loom.sh next`'s alphabetical listing;
 in-thread, numeric prefixes are the order:
 
-1. **`dashboard/d8-1..3`** — the seats model, ratified 2026-07-13 (record:
-   `.loom/tied/dashboard-8-identity-sim-design/`): state model (d8-1), then
-   simulate toggle (d8-2) and binding UX (d8-3) — both need d8-1 tied;
-   d8-3 last so its sidebar restructure absorbs ui-0's blips and dist-2's
-   hostname field.
-2. **`patch-workflow-friction/friction-0..1`** — both are unblocked now that
-   distribution and the tracked demos are tied. Take them after d8-3 so the
-   composer guide and demo teaching copy describe the final seats-based UI.
+1. **`fleet-patch/fp-0-design-proposal`** — the fleet-wide-patch model
+   (brief: `.notes/handoff-2026-07-14-fleetwide-patch-next.md`). Proposal
+   only; Bob ratifies before implementation children exist.
+2. **`patch-editor/pe-0-design-proposal`** — patch-editor design (seam and
+   cue decisions already made 2026-07-14; see the goal stitch). May be
+   drafted in parallel with fp-0, but surface ratifications one at a time.
+3. **`ui-tabs/tabs-0..2`** — all `.waiting`: tabs-0 (IA proposal) unblocks
+   when fp-0 is ratified; tabs-1 (skeleton) needs tabs-0 ratified; tabs-2 is
+   the live UI review session with Bob inside the real tabs.
+4. **`patch-workflow-friction/friction-0..1`** — re-parked `.waiting`
+   2026-07-14: the docs must describe the tabbed UI and the patch-editor
+   manifest flow, so they resume after tabs-2 and patch-editor
+   implementation land.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 

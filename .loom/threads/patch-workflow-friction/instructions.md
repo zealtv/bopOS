@@ -29,6 +29,16 @@ patch is the ratified equivalent); `bopos.config` (patch-level) is retired.
 The `patch-asset-sync` goal tied on 2026-07-14. Both current children are now
 claimable: `friction-0-docs` owns the composer guide + network recipe, and
 `friction-1-starter-kit` owns demo teaching polish plus the precise Bob-owned
-PD skeleton follow-up. Work them after dashboard `d8-1..3` so the docs describe
-the final seats-based UI. This goal ties when a musician can go from nothing to
+PD skeleton follow-up. This goal ties when a musician can go from nothing to
 sound on a device using only the doc + dashboard.
+
+---
+**2026-07-14 update — both children re-parked as `.waiting`.** d8-1..3 tied,
+but Bob staged three new upstream threads that reshape what these docs must
+describe: `fleet-patch` (one fleet-wide patch + convergence badges), `ui-tabs`
+(the dashboard becomes tabbed: overview / spatial / fleet management / patch
+editor), and `patch-editor` (composer-helper tab that also removes manual
+manifest editing — it changes the composer workflow these docs teach). Resume
+friction-0/1 after `ui-tabs/tabs-2-review-session` and the `patch-editor`
+implementation land, so the guide describes the final tabbed UI and the
+editor-assisted manifest flow.
