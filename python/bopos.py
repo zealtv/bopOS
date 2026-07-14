@@ -218,6 +218,14 @@ def process_is_pd(pid):
     return process_is(pid, "pd")
 
 
+def jack_alive():
+    try:
+        with open(os.path.join(BOPOS_DIR, "run", "jackd.pid")) as source:
+            return 1 if process_is(int(source.read().strip()), "jackd") else 0
+    except (OSError, ValueError):
+        return 0
+
+
 def expected_engine_name():
     try:
         with open(os.path.join(BOPOS_DIR, "run", "engine.name")) as source:
@@ -235,6 +243,11 @@ def expected_engine_name():
 
 
 def engine_alive():
+    # The engine is not usable without the framework-owned JACK server. This
+    # also keeps heartbeat convergence honest when PD survives a failed audio
+    # backend restart.
+    if jack_alive() != 1:
+        return 0
     name = expected_engine_name()
     try:
         with open(os.path.join(BOPOS_DIR, "run", "engine.pid")) as source:

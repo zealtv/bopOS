@@ -6,6 +6,25 @@ RUN_DIR="$BOPOS_DIR/run"
 mkdir -p "$RUN_DIR"
 
 SOUNDCARD="${SOUNDCARD:-DigiAMP}"
+JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
+JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
+
+stop_failed_jack() {
+    pid="$1"
+    kill "$pid" 2>/dev/null || true
+    elapsed=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ "$elapsed" -ge "$JACK_STOP_TIMEOUT" ]; then
+            echo "WARNING: Jack did not stop within ${JACK_STOP_TIMEOUT}s; killing it" >&2
+            kill -KILL "$pid" 2>/dev/null || true
+            break
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    wait "$pid" 2>/dev/null || true
+    rm -f "$RUN_DIR/jackd.pid"
+}
 
 # Determine active patch
 ACTIVE_PATCH=$(cat "$BOPOS_DIR/patches/active_patch.txt")
@@ -60,26 +79,34 @@ fi
 #Start Jack
 echo "------------------- Starting Jack..."
 jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 2 -r 44100 -s -P& #44.1khz
-echo $! > "$RUN_DIR/jackd.pid"
+JACK_PID=$!
+echo $JACK_PID > "$RUN_DIR/jackd.pid"
 # jackd -P80 -t2000 -d alsa -dhw:$SOUNDCARD -p 1024 -n 2 -r 22050 -s -P& #22khz
 
-# Wait up to 15 seconds for Jack, allow skip by key press
-WAIT_TIME=5
-SKIP=0
-printf "Waiting %ds for Jack (press any key to skip)...\n" "$WAIT_TIME"
-if [ -t 0 ]; then stty -echo -icanon time 0 min 0; fi
-for ((i=0; i<$WAIT_TIME; i++)); do
-    [ -t 0 ] && read -t 1 -n 1 key && SKIP=1 && break
-    printf "."
+# Wait for the server itself, not a fixed delay. JACK_NO_START_SERVER prevents
+# the readiness probe from spawning a different default server.
+echo "Waiting up to ${JACK_START_TIMEOUT}s for Jack readiness..."
+JACK_READY=0
+for ((i=0; i<=JACK_START_TIMEOUT; i++)); do
+    if ! kill -0 "$JACK_PID" 2>/dev/null; then
+        wait "$JACK_PID" 2>/dev/null || true
+        rm -f "$RUN_DIR/jackd.pid"
+        echo "ERROR: Jack exited before becoming ready" >&2
+        exit 1
+    fi
+    if JACK_NO_START_SERVER=1 jack_lsp >/dev/null 2>&1; then
+        JACK_READY=1
+        break
+    fi
+    [ "$i" -lt "$JACK_START_TIMEOUT" ] || break
     sleep 1
 done
-if [ -t 0 ]; then stty sane; fi
-echo ""
-if [ $SKIP -eq 1 ]; then
-    echo "Wait for Jack skipped by key press."
-else
-    echo "Wait for Jack complete."
+if [ "$JACK_READY" -ne 1 ]; then
+    echo "ERROR: Jack did not become ready within ${JACK_START_TIMEOUT}s" >&2
+    stop_failed_jack "$JACK_PID"
+    exit 1
 fi
+echo "Jack is ready."
 
 export BOPOS_ASSETS="$BOPOS_DIR/assets"
 if [ "$ENGINE" = "pd" ]; then
