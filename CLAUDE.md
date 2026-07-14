@@ -6,8 +6,9 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.2: 2026-07-07 base +
-   the 2026-07-11 seam amendment + the 2026-07-12 engine-boundary revision):
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.3: 2026-07-07 base +
+   the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision, and
+   2026-07-13 patch/asset distribution amendment):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -39,31 +40,30 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (audited 2026-07-13)
+## Thread ordering (audited 2026-07-14)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.2** (2026-07-07 base + seam amendment + engine-boundary revision);
-`engine-boundary-design`, `patch-seam`, `clock-sync` (sync-0..3), spatial
-software (spatial-1/2), the dashboard's four phases + UI review, and the audition
-preview stack (Stage 0 + preview-0..3) are **all tied**. `bopos.py`
+**v1.3** (2026-07-07 base + seam amendment + engine-boundary revision +
+distribution amendment); `engine-boundary-design`, `patch-seam`, `clock-sync`
+(sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
+review, the audition preview stack (Stage 0 + preview-0..3), and
+`patch-asset-sync` (dist-0..4) are **all tied**. `bopos.py`
 (ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
 surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
 **The workable queue for autonomous sessions.** This recommended order
-takes precedence over `./.loom/loom.sh next`'s alphabetical listing (which
-serves `d8-1` first); in-thread, numeric prefixes are the order:
+takes precedence over `./.loom/loom.sh next`'s alphabetical listing;
+in-thread, numeric prefixes are the order:
 
-1. **`patch-asset-sync/dist-1..4`** — ratified 2026-07-13 (record:
-   `.loom/tied/dist-0-proposal/`): contract v1.3 text first (dist-1), node
-   side (dist-2), then dashboard Send/Sync UI (dist-3) and demo patches
-   (dist-4) — 3/4 need 1/2 tied. Tying dist-2+3 unblocks
-   `friction-0-docs`; dist-4 unblocks `friction-1`.
-2. **`dashboard/d8-1..3`** — the seats model, ratified 2026-07-13 (record:
+1. **`dashboard/d8-1..3`** — the seats model, ratified 2026-07-13 (record:
    `.loom/tied/dashboard-8-identity-sim-design/`): state model (d8-1), then
    simulate toggle (d8-2) and binding UX (d8-3) — both need d8-1 tied;
    d8-3 last so its sidebar restructure absorbs ui-0's blips and dist-2's
    hostname field.
+2. **`patch-workflow-friction/friction-0..1`** — both are unblocked now that
+   distribution and the tracked demos are tied. Take them after d8-3 so the
+   composer guide and demo teaching copy describe the final seats-based UI.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 

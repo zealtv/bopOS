@@ -26,8 +26,9 @@ no longer canonical-for-composers — the main flow is author in `patches/`,
 Send from the dashboard (host↔Pi mirror); git survives as the advanced path
 (own doc section per Bob). The "zip upload" consideration is resolved (Send
 patch is the ratified equivalent); `bopos.config` (patch-level) is retired.
-Current children: `friction-0-docs.waiting` (composer doc; resumes when
-dist-2/3 land) and `friction-1-starter-kit.waiting` (rewritten — the starter
-kit is the demo patches; blocked on dist-4). The network-recipe item remains
-live inside friction-0. This goal ties when a musician can go from nothing
-to sound on a device using only the doc + dashboard.
+The `patch-asset-sync` goal tied on 2026-07-14. Both current children are now
+claimable: `friction-0-docs` owns the composer guide + network recipe, and
+`friction-1-starter-kit` owns demo teaching polish plus the precise Bob-owned
+PD skeleton follow-up. Work them after dashboard `d8-1..3` so the docs describe
+the final seats-based UI. This goal ties when a musician can go from nothing to
+sound on a device using only the doc + dashboard.
