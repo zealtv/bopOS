@@ -2,6 +2,7 @@
 """Run several audible bopOS virtual nodes behind one LAN command socket."""
 
 import argparse
+import heapq
 import ipaddress
 import math
 import os
@@ -11,7 +12,7 @@ import socket
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pythonosc import osc_message, osc_message_builder
 
@@ -21,6 +22,7 @@ sys.path.insert(0, os.path.join(REPO_DIR, "python"))
 import manifest as patch_manifest  # noqa: E402
 import audition_geometry  # noqa: E402
 import audition_matrix  # noqa: E402
+import pointfield  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
 
@@ -62,6 +64,7 @@ class VirtualNode:
     engine_port: int
     name: str = ""
     positions: tuple = ()
+    points: dict = field(default_factory=dict)
     process: subprocess.Popen | None = None
 
     def engine_alive(self, no_engine):
@@ -87,6 +90,7 @@ class AuditionRig:
         self.local_target = args.engine_host
         self.report_target = (args.target, args.report_port)
         self.listener = None
+        self.pending_cues = []
 
     def _load_patch(self):
         path = os.path.realpath(self.args.manifest)
@@ -199,6 +203,60 @@ class AuditionRig:
         self.sock.sendto(osc_float_datagram(frame[0], frame[1:]),
                          (self.local_target, node.engine_port))
 
+    def send_engine(self, node, address, args=()):
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        for value in args:
+            builder.add_arg(value)
+        self.sock.sendto(builder.build().dgram,
+                         (self.local_target, node.engine_port))
+
+    def send_point_values(self, node, changed, removed=()):
+        if not node.positions:
+            return
+        entries = pointfield.decompose(changed, node.positions)
+        for point_id in sorted(removed):
+            for index in range(len(node.positions)):
+                entries.append((point_id, index, 0.0))
+        for point_id, element, value in entries:
+            self.send_engine(node, "/pt", (int(point_id), int(element), float(value)))
+
+    def apply_points(self, parts, params):
+        parsed = pointfield.parse_wire(parts, params)
+        if parsed is None:
+            return
+        kind, payload = parsed
+        for node in self.nodes:
+            if kind == "frame":
+                removed = set(node.points) - set(payload)
+                node.points = dict(payload)
+                changed = payload
+            elif kind == "set":
+                point_id, point = payload
+                node.points[point_id] = point
+                removed = set()
+                changed = {point_id: point}
+            else:
+                removed = {payload} if payload in node.points else set()
+                node.points.pop(payload, None)
+                changed = {}
+            self.send_point_values(node, changed, removed)
+
+    def schedule_cue(self, params):
+        if len(params) < 2:
+            return
+        try:
+            deadline = int(str(params[1]))
+        except (TypeError, ValueError):
+            return
+        heapq.heappush(self.pending_cues, (deadline, str(params[0])))
+
+    def dispatch_due_cues(self):
+        now = time.monotonic_ns()
+        while self.pending_cues and self.pending_cues[0][0] <= now:
+            _deadline, cue_id = heapq.heappop(self.pending_cues)
+            for node in self.nodes:
+                self.send_engine(node, "/cue", (cue_id,))
+
     def send_ids(self):
         for node in self.nodes:
             self.send_id(node)
@@ -256,6 +314,7 @@ class AuditionRig:
             node.positions = positions
             self.send_id(node)
             self.send_matrix(node)
+            self.send_point_values(node, node.points)
             self.send_heartbeat(node)
 
     def apply_listener(self, params, source):
@@ -280,6 +339,12 @@ class AuditionRig:
         parts = [part for part in message.address.split("/") if part]
         if parts == ["audition", "listener"]:
             self.apply_listener(message.params, source)
+            return
+        if parts == ["cue"]:
+            self.schedule_cue(message.params)
+            return
+        if parts and parts[0] == "pt":
+            self.apply_points(parts, message.params)
             return
         if len(parts) != 3:
             return
@@ -349,17 +414,24 @@ class AuditionRig:
             ids_sent = False
             while self.running:
                 now = time.monotonic()
+                self.dispatch_due_cues()
                 if now >= next_hb:
                     self.send_heartbeats()
                     next_hb = now + self.args.hb_interval
                 if not ids_sent and now - self.started >= self.args.catchup_secs:
                     self.send_ids()
                     ids_sent = True
+                timeout = 0.1
+                if self.pending_cues:
+                    until_cue = (self.pending_cues[0][0] - time.monotonic_ns()) / 1e9
+                    timeout = max(0.001, min(timeout, until_cue))
+                self.sock.settimeout(timeout)
                 try:
                     datagram, source = self.sock.recvfrom(65535)
                     self.relay(datagram, source)
                 except socket.timeout:
                     pass
+                self.dispatch_due_cues()
         finally:
             self.stop()
 

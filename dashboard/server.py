@@ -576,7 +576,8 @@ class Dashboard:
             "--devices", str(len(self.state.seats)), "--bind", "127.0.0.1",
             "--target", "127.0.0.1", "--cmd-port", str(self.args.send_port),
             "--report-port", str(self.args.listen_port), "--hb-interval", "0.5",
-            "--audio-backend", getattr(self.args, "sim_audio_backend", "none")]
+            "--audio-backend", getattr(self.args, "sim_audio_backend", "none"),
+            "--engine-port-base", str(getattr(self.args, "sim_engine_port_base", 16661))]
         if getattr(self.args, "sim_no_engine", False):
             command.append("--no-engine")
         self.sim_process = subprocess.Popen(command, cwd=REPO_DIR,
@@ -671,6 +672,8 @@ def parse_args():
                         default="coreaudio" if sys.platform == "darwin" else "jack")
     parser.add_argument("--sim-no-engine", action="store_true",
                         help="test simulation lifecycle without launching audio engines")
+    parser.add_argument("--sim-engine-port-base", type=int, default=16661,
+                        help=argparse.SUPPRESS)
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--debug", action="store_true")
     return parser.parse_args()

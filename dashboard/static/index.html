@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#101316"><title>bopOS</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
-  <header><h1>bopOS</h1><span id="online-count">0 / 0 online</span><label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
+  <header><a href="/facilitator" id="facilitator-link" class="view-link">Facilitator view</a><h1>bopOS</h1><span id="online-count">0 / 0 online</span><label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
   <div class="layout">
     <section id="spatial-section">
       <div class="section-head"><h2>Spatial</h2><span class="dim spatial-dimensions">listener <output id="listener-heading-readout">0°</output> · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m · origin <input id="origin-x" type="number" min="0" step="0.1">, <input id="origin-y" type="number" min="0" step="0.1"></span></div>
@@ -26,7 +26,7 @@
       <section id="simulate-panel"><h3>Simulate</h3><button id="simulate-toggle">Start simulation</button><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
       <footer><button data-all="reboot">Reboot All</button><button data-all="updatebopos">Update bopOS</button>
         <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
-        <div id="preset-bar"><h3>Presets</h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button><a href="/facilitator" id="facilitator-link">facilitator view →</a></div>
+        <div id="preset-bar"><h3>Presets</h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button></div>
       </footer>
     </aside>
     <main>

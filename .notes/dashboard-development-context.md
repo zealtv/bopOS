@@ -20,6 +20,14 @@ knowledge to modify.
 browser, supports iPad facilitator use, and speaks the exact same OSC protocol
 so no Pi-side changes are needed.
 
+**Deferred simulation complication (2026-07-14):** a real installation may
+have seats whose devices run different engine families or patches. The current
+managed audition mode intentionally launches one homogeneous manifest/engine
+across every simulated seat. Future work must decide how seat patch metadata,
+engine availability, compatible provided terms, and mixed launch commands map
+into one audition session. This is recorded as a constraint, not a request to
+add mixed-engine policy now.
+
 
 ## 2. Existing System Architecture
 
