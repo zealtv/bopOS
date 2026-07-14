@@ -299,12 +299,10 @@ class OSCBridge:
             # A relay restart can be faster than the normal offline threshold.
             # Its private ready frame requests the complete dashboard-owned
             # assignments and listener without weakening heartbeat rate limits.
-            for uid, device in self.state.devices.items():
-                if (uid.startswith("audition-") and int(device.get("id", -1)) >= 0
-                        and device.get("name")):
-                    elements = [position for position in
-                                (device.get("pos1"), device.get("pos2")) if position]
-                    self.assign(uid, int(device["id"]), device["name"], elements)
+            for seat in self.state.seats.values():
+                uid = seat.get("bound")
+                if uid and uid.startswith("audition-") and uid in self.state.devices:
+                    self.assign(uid, seat["id"], seat["name"], seat["positions"])
             self.send_audition_listener()
             return
         if address == "/hb" and len(args) >= 4:
@@ -313,9 +311,9 @@ class OSCBridge:
             device = self.state.ensure(uid)
             old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
             advertised_id = int(args[1])
-            configured = (not first_seen and int(device.get("id", -1)) >= 0
-                          and bool(str(device.get("name", "")).strip()))
-            configured_id = int(device["id"]) if configured else advertised_id
+            seat = self.state.seat_for_uid(uid)
+            configured = seat is not None
+            configured_id = int(seat["id"]) if configured else advertised_id
             mismatch = configured and advertised_id != configured_id
             now = time.monotonic()
             last_replay = self._assign_replayed.get(uid, float("-inf"))
@@ -333,9 +331,7 @@ class OSCBridge:
                 # nodes' ordered positions after the relay restarts. The ack
                 # heartbeat advertises configured_id while already online, so
                 # it cannot form a resend loop.
-                elements = [position for position in
-                            (device.get("pos1"), device.get("pos2")) if position]
-                self.assign(uid, configured_id, device["name"], elements)
+                self.assign(uid, configured_id, seat["name"], seat["positions"])
                 self._assign_replayed[uid] = now
             self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
             new = {key: device.get(key) for key in old}
@@ -343,7 +339,7 @@ class OSCBridge:
                 self.broadcast("device_update", device)
             if first_seen or not old["online"]:
                 self.state.save_debounced()
-                if device["id"] >= 0:
+                if configured:
                     self.request(uid, "params")
                     self.request(uid, "patches")
             return
@@ -363,20 +359,25 @@ class OSCBridge:
                 declarations = LEGACY_DECLARATIONS
                 device["undeclared"] = True
             device["declared"] = declarations
+            seat = self.state.seat_for_uid(device["uid"])
+            if seat is not None:
+                device["params"] = dict(seat.get("params", {}))
             for declaration in declarations:
                 name = declaration.get("name")
                 if name and name not in device["params"] and "default" in declaration:
                     device["params"][name] = declaration["default"]
+                    if seat is not None:
+                        seat["params"][name] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
             # device offline during a preset load converges on reconnect);
             # master rides along per the contract sec 4.1 catch-up rule
-            if int(device["id"]) >= 0:
+            if seat is not None:
                 for declaration in declarations:
                     name = declaration.get("name")
                     if name and name in device["params"]:
-                        self.set_param(int(device["id"]), name, device["params"][name])
-                self.send_master(int(device["id"]))
+                        self.set_param(int(seat["id"]), name, device["params"][name])
+                self.send_master(int(seat["id"]))
                 if self.state.data.get("points"):
                     self.send_points_frame()
             self.broadcast("params_declaration", device)
@@ -389,6 +390,8 @@ class OSCBridge:
             device = self._device_for_reply("report", ip, report)
             if device:
                 device["report"] = report
+                if isinstance(report.get("hostname"), str):
+                    device["hostname"] = report["hostname"]
                 self.broadcast("report", device)
             return
         if address == "/os/patches" and args:
@@ -512,7 +515,8 @@ class OSCBridge:
         except (TypeError, ValueError):
             return
         device = self.state.devices.get(uid)
-        if device is None or int(device["id"]) < 0:
+        seat = self.state.seat_for_uid(uid)
+        if device is None or seat is None:
             return  # only assigned devices are synced and pushed
         rtt = leader_now - send_time
         if rtt < 0 or rtt > SYNC_RTT_CEILING_NS:
@@ -527,7 +531,7 @@ class OSCBridge:
         device["sync"] = {"offset": estimate, "rtt": rtt, "min_rtt": min(window["rtts"]),
                           "samples": len(window["offsets"]), "at": time.time()}
         if len(window["offsets"]) >= SYNC_MIN_SAMPLES:
-            self.send(f"/{int(device['id'])}/sync/offset", [str(estimate)])
+            self.send(f"/{int(seat['id'])}/sync/offset", [str(estimate)])
         now = time.time()
         if now - self._sync_sent.get(uid, 0) >= 0.2:
             self._sync_sent[uid] = now

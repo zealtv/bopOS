@@ -175,7 +175,7 @@ class Dashboard:
         await ws.send_json({"type": "venues", "data": {"venues": self.state.list_venues(),
                                                        "current": self.state.data.get("name")}})
         for device_uid, device in self.state.devices.items():
-            if int(device.get("id", -1)) >= 0 and device.get("online"):
+            if self.state.seat_for_uid(device_uid) and device.get("online"):
                 self.osc.request(device_uid, "patches")
         try:
             while True:
@@ -197,6 +197,9 @@ class Dashboard:
             targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
             for device in targets:
                 device["params"][name] = value
+                seat = self.state.seat_for_uid(device["uid"])
+                if seat is not None:
+                    seat["params"][name] = value
             self.osc.set_param(selector, name, value)
             self.state.save_debounced()
             for device in targets:
@@ -314,11 +317,10 @@ class Dashboard:
                 return
             # partial state by construction: params + master only, never
             # positions or assignments (facilitator proposal Q5)
-            devices = {uid: dict(device["params"])
-                       for uid, device in self.state.devices.items()
-                       if int(device["id"]) >= 0}
+            seats = {str(seat["id"]): dict(seat["params"])
+                     for seat in self.state.seats.values()}
             self.state.data["presets"][name] = {"master": self.state.data.get("master", 1.0),
-                                                "devices": devices}
+                                                "seats": seats}
             self.state.save_debounced()
             await self.broadcast("presets", {"names": sorted(self.state.data["presets"])})
         elif kind == "load_preset":
@@ -328,14 +330,18 @@ class Dashboard:
             master = self.state.clean_master(preset.get("master"))
             self.state.data["master"] = master
             await self.broadcast("master", {"value": master})
-            values = preset.get("devices") if isinstance(preset.get("devices"), dict) else {}
-            for preset_uid, params in values.items():
-                device = self.state.devices.get(preset_uid)
-                if device is None or int(device["id"]) < 0 or not isinstance(params, dict):
+            values = preset.get("seats") if isinstance(preset.get("seats"), dict) else {}
+            for seat_id, params in values.items():
+                seat = self.state.seats.get(str(seat_id))
+                if seat is None or not isinstance(params, dict):
+                    continue
+                seat["params"].update(params)
+                device = self.state.devices.get(seat.get("bound"))
+                if device is None:
                     continue
                 for name, value in params.items():
                     device["params"][str(name)] = value
-                    self.osc.set_param(int(device["id"]), str(name), value)
+                    self.osc.set_param(int(seat["id"]), str(name), value)
                 await self.broadcast("device_update", device)
             self.osc.send_master()
             self.state.save_debounced()
@@ -344,25 +350,71 @@ class Dashboard:
             self.state.data["muted"] = bool(value)
             self.osc.os_command("all", "mute", [value])
             await self.broadcast("mute_all", {"value": value})
-        elif kind == "set_position":
-            device = self.state.devices.get(uid)
-            if not device:
+        elif kind == "add_seat":
+            try:
+                seat_id = int(data.get("id"))
+            except (TypeError, ValueError):
                 return
-            for key in ("pos1", "pos2"):
-                if key not in data:
-                    continue
-                value = data[key]
-                try:
-                    device[key] = ([float(value[0]), float(value[1])]
-                                   if value is not None else None)
-                except (TypeError, ValueError, IndexError):
-                    return
+            seat = self.state.clean_seat({"id": seat_id, "name": data.get("name", ""),
+                "positions": data.get("positions", []), "patch": data.get("patch", "demo-pd"),
+                "params": data.get("params", {}), "bound": None})
+            if seat is None or str(seat_id) in self.state.seats:
+                return
+            self.state.seats[str(seat_id)] = seat
             self.state.save_debounced()
-            if int(device["id"]) >= 0 and device.get("name"):
-                # positions ride /os/assign so the node persists them too
-                self.osc.assign(uid, device["id"], device["name"],
-                                self.device_elements(device))
-            await self.broadcast("device_update", device)
+            await self.broadcast("state", self.state.public())
+        elif kind == "update_seat":
+            seat = self.state.seats.get(str(data.get("id")))
+            if seat is None:
+                return
+            candidate = dict(seat)
+            for key in ("name", "positions", "patch", "params"):
+                if key in data:
+                    candidate[key] = data[key]
+            cleaned = self.state.clean_seat(candidate)
+            if cleaned is None:
+                return
+            self.state.seats[str(cleaned["id"])] = cleaned
+            self.assign_seat(cleaned)
+            self.state.save_debounced()
+            await self.broadcast("state", self.state.public())
+        elif kind == "remove_seat":
+            seat = self.state.seats.pop(str(data.get("id")), None)
+            if seat is not None:
+                self.state.save_debounced()
+                await self.broadcast("state", self.state.public())
+        elif kind == "bind_seat":
+            seat = self.state.seats.get(str(data.get("id")))
+            bind_uid = str(data.get("uid", ""))
+            if seat is None or bind_uid not in self.state.devices:
+                return
+            for other in self.state.seats.values():
+                if other.get("bound") == bind_uid:
+                    other["bound"] = None
+            seat["bound"] = bind_uid
+            self.assign_seat(seat)
+            self.state.save_debounced()
+            await self.broadcast("state", self.state.public())
+        elif kind == "unbind_seat":
+            seat = self.state.seats.get(str(data.get("id")))
+            if seat is not None:
+                seat["bound"] = None
+                self.state.save_debounced()
+                await self.broadcast("state", self.state.public())
+        elif kind == "forget_device":
+            forget_uid = str(data.get("uid", ""))
+            for seat in self.state.seats.values():
+                if seat.get("bound") == forget_uid:
+                    seat["bound"] = None
+            if self.state.devices.pop(forget_uid, None) is not None:
+                self.state.save_debounced()
+                await self.broadcast("state", self.state.public())
+        elif kind == "forget_offline_unbound":
+            bound = {seat.get("bound") for seat in self.state.seats.values()}
+            for device_uid in list(self.state.devices):
+                if device_uid not in bound and not self.state.devices[device_uid].get("online"):
+                    del self.state.devices[device_uid]
+            await self.broadcast("state", self.state.public())
         elif kind == "set_listener":
             listener = self.state.clean_listener(data)
             if listener is None:
@@ -414,33 +466,6 @@ class Dashboard:
                 await self.broadcast("listener", listener)
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
-        elif kind == "assign_device":
-            device = self.state.devices.get(uid)
-            error = None
-            try:
-                new_id = int(data.get("id"))
-            except (TypeError, ValueError):
-                new_id = -1
-            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:32]
-            if device is None:
-                error = "unknown device"
-            elif new_id < 0:
-                error = "ID must be a non-negative integer"
-            elif not name:
-                error = "name required (letters, digits, - or _)"
-            else:
-                taken = next((other for other_uid, other in self.state.devices.items()
-                              if other_uid != uid and int(other["id"]) == new_id), None)
-                if taken:
-                    error = f"ID {new_id} is already {taken.get('name') or taken['uid']}"
-            if error:
-                if ws is not None:
-                    await ws.send_json({"type": "error", "data": {"message": error}})
-                return
-            device["id"], device["name"] = new_id, name
-            self.osc.assign(uid, new_id, name, self.device_elements(device))
-            self.state.save_debounced()
-            await self.broadcast("device_update", device)
         elif kind == "save_venue":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if name:
@@ -450,11 +475,10 @@ class Dashboard:
         elif kind == "load_venue":
             name = str(data.get("name", "")).strip()
             if name and self.state.load_venue(name):
-                for assigned_uid, device in self.state.devices.items():
-                    if int(device["id"]) >= 0 and device.get("name"):
-                        self.osc.assign(assigned_uid, device["id"], device["name"],
-                                        self.device_elements(device))
-                        self.osc.request(assigned_uid, "patches")
+                for seat in self.state.seats.values():
+                    if seat.get("bound"):
+                        self.assign_seat(seat)
+                        self.osc.request(seat["bound"], "patches")
                 self.osc.send_audition_listener()
                 await self.broadcast("state", self.state.public())
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
@@ -468,13 +492,13 @@ class Dashboard:
             self.osc.request(uid, "report")
 
     def selector(self, uid):
-        device = self.state.devices.get(uid)
-        return int(device["id"]) if device else None
+        seat = self.state.seat_for_uid(uid)
+        return int(seat["id"]) if seat else None
 
     def distribution_targets(self, uid):
         if uid == "all":
             return [device_uid for device_uid, device in self.state.devices.items()
-                    if int(device.get("id", -1)) >= 0 and device.get("online")]
+                    if self.state.seat_for_uid(device_uid) and device.get("online")]
         return ([uid] if uid in self.state.devices and self.selector(uid) is not None
                 and self.state.devices[uid].get("online") else [])
 
@@ -512,11 +536,15 @@ class Dashboard:
         if uid in self.state.devices:
             self.osc.request(uid, "patches")
 
+    def assign_seat(self, seat):
+        uid = seat.get("bound")
+        if uid in self.state.devices:
+            self.osc.assign(uid, seat["id"], seat["name"], seat["positions"])
+            self.state.devices[uid]["params"] = dict(seat["params"])
+
     @staticmethod
     def device_elements(device):
-        # pos1/pos2 are the dashboard's two element slots today; the wire
-        # takes true N pairs, pair order = element index (contract sec 5)
-        return [pos for pos in (device.get("pos1"), device.get("pos2")) if pos]
+        return list(device.get("positions", ()))
 
 
 def create_app(args):
@@ -540,14 +568,10 @@ def create_app(args):
     async def devices_export():
         # bopos.devices is a seed/export format now, not the source of truth
         lines = ["uid, name, id, pos1, pos2"]
-        assigned = (device for device in dashboard.state.devices.values()
-                    if int(device["id"]) >= 0)
-        for device in sorted(assigned, key=lambda item: int(item["id"])):
-            row = [device["uid"], device.get("name") or "", str(int(device["id"]))]
-            if device.get("pos1"):
-                row.append(" ".join(format(value, "g") for value in device["pos1"]))
-                if device.get("pos2"):
-                    row.append(" ".join(format(value, "g") for value in device["pos2"]))
+        for seat in sorted(dashboard.state.seats.values(), key=lambda item: item["id"]):
+            row = [seat.get("bound") or "", seat.get("name") or "", str(seat["id"])]
+            for position in seat.get("positions", [])[:2]:
+                row.append(" ".join(format(value, "g") for value in position))
             lines.append(", ".join(row))
         return PlainTextResponse("\n".join(lines) + "\n")
 
