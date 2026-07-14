@@ -1,9 +1,13 @@
 # pe-1-contract-v1.4
 
 Land the cues manifest amendment, ratified 2026-07-14 (record:
-`.lore/items/2026-07-14-patch-editor-design-ratified/`, proposal §6). v1.4
-carries **cues only** — Bob explicitly kept the single-object §4.2 amendment
-for its own later revision.
+`.lore/items/2026-07-14-patch-editor-design-ratified/`, proposal §6). Bob
+kept the single-object §4.2 amendment for its own later revision, but later
+the same day ratified folding the fleet-patch `/os/patches` fingerprint key
+into v1.4 too (fp-0 Q4, "fold in") — so **v1.4 = cues + fingerprint**.
+Coordinate with `fleet-patch/fp-1-identity-module`: whichever stitch is
+claimed first writes the v1.4 header bump; the other adds its amendment
+text to the same revision.
 
 - Amend `docs/OSC-CONTRACT.md` §8 with the ratified wording: optional
   `"cues": [{"id", "label"?, "description"?}]`; `id` is the exact string

@@ -56,9 +56,10 @@ facilitator controls come only from `facilitator: true`.
 takes precedence over `./.loom/loom.sh next`'s alphabetical listing;
 in-thread, numeric prefixes are the order:
 
-1. **`fleet-patch/fp-0-design-proposal`** — the fleet-wide-patch model
-   (brief: `.notes/handoff-2026-07-14-fleetwide-patch-next.md`). Proposal
-   only; Bob ratifies before implementation children exist.
+1. **`fleet-patch/fp-1..3`** — design ratified and fp-0 tied 2026-07-14
+   (record: `.lore/items/2026-07-14-fleet-patch-design-ratified/`). Numeric
+   order; fp-4 is the hardware gate (waiting). fp-1 and pe-1 share the one
+   v1.4 contract bump (cues + /os/patches fingerprint) — coordinate.
 2. **`patch-editor/pe-1..4`** — design ratified and pe-0 tied 2026-07-14
    (record: `.lore/items/2026-07-14-patch-editor-design-ratified/`). Numeric
    order; pe-1 (contract v1.4 cues amendment + validator) is standalone and

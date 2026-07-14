@@ -9,9 +9,12 @@ not just name.
 Framing and constraints live in
 `.notes/handoff-2026-07-14-fleetwide-patch-next.md` (2026-07-14). Key rules:
 
-- Design before implementation — do **not** start by building per-device patch
-  selection. fp-0 produces the proposal; Bob ratifies before any children are
-  implemented.
+- **Design ratified 2026-07-14** — fp-0 tied; the record is
+  `.lore/items/2026-07-14-fleet-patch-design-ratified/` (also in the tied
+  stitch). Bob's Q1–Q4: seat `patch` field deleted; Set fleet patch is one
+  confirmed converge-then-switch action; stale retry is operator-triggered;
+  the fingerprint amendment folds into v1.4 with pe-1's cues.
+- Work fp-1..3 in numeric order; fp-4 is the hardware gate (waiting).
 - Any wire addition must be additive to contract v1.3 and mirrored in simfleet
   and managed audition in the same stitch.
 - Heterogeneous per-device patches remain an explicit future bridge, not latent
