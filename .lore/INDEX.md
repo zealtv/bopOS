@@ -1,5 +1,6 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-07-14-patch-editor-design-ratified](items/2026-07-14-patch-editor-design-ratified/) — Patch editor design — ratified (pe-0) — Ratified design record for the dashboard's patch-editor tab: a composer-helper
 - [2026-07-13-seats-identity-sim-proposal](items/2026-07-13-seats-identity-sim-proposal/) — Seats — device identity, binding, and dashboard-managed simulation (dashboard-8 proposal) — Design proposal awaiting Bob's ratification: `installation.json` splits into
 - [2026-07-13-patch-asset-sync-proposal](items/2026-07-13-patch-asset-sync-proposal/) — Unified patch + asset distribution proposal (dist-0) — Design proposal awaiting Bob's ratification: the bopOS host's `patches/` and
 - [2026-07-13-composer-experience-brain-dump](items/2026-07-13-composer-experience-brain-dump/) — Composer & patch-author experience — raw brain dump — Bob's verbatim observations from reviewing the bopOS web interface on
