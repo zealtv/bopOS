@@ -34,6 +34,7 @@ from pythonosc import osc_message, osc_message_builder
 
 
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+PATCHES_DIR = os.path.join(REPO_DIR, "patches")
 DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 
 # the sim decomposes /pt with the same module the real helper uses, so the
@@ -63,7 +64,7 @@ def host_patch_fingerprint(name):
     # host held when it converged, so a later host edit reads as stale.
     # Purely fake patches (git installs the sim never fetches) get a stable
     # fake identity so dashboards can still exercise match/mismatch.
-    path = os.path.join(REPO_DIR, "patches", name)
+    path = os.path.join(PATCHES_DIR, name)
     if os.path.isdir(path) and not os.path.islink(path):
         try:
             return identity.fingerprint(path)
@@ -330,7 +331,7 @@ class SimFleet:
             job["device"].engine_restart_until = float("inf")
         for source in job["requesters"]:
             self.send_fetch_state(source, job["slot"], "fetching")
-        self.schedule(0.9, self.finish_fetch, key)
+        self.schedule(getattr(self.args, "fetch_seconds", 0.9), self.finish_fetch, key)
 
     def finish_fetch(self, key):
         job = self.fetch_jobs.pop(key, None)
@@ -830,12 +831,16 @@ def parse_args():
     parser.add_argument("--devices-file")
     parser.add_argument("--hb-interval", type=float, default=10.0)
     parser.add_argument("--boot-secs", type=float, default=15.0)
+    parser.add_argument("--fetch-seconds", type=float, default=0.9,
+                        help="simulated duration of one patch/asset fetch")
     parser.add_argument("--target", default="255.255.255.255")
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)
     parser.add_argument("--protocol", choices=("v1",), default="v1")
     parser.add_argument("--manifest",
                         help="bopos.patch.json served on /os/params (default: patches/demo-pd)")
+    parser.add_argument("--patches-dir", default=PATCHES_DIR,
+                        help="host patch root used for simulated content fingerprints")
     parser.add_argument("--sync-skew-ms", type=float, default=0.0,
                         help="max abs fake clock skew vs leader, random +/- per device")
     parser.add_argument("--sync-jitter-ms", type=float, default=0.0,
@@ -848,6 +853,7 @@ def parse_args():
     if not 0.0 <= args.drop <= 1.0:
         parser.error("--drop must be between 0 and 1")
     if (args.jitter_ms < 0 or args.hb_interval <= 0 or args.boot_secs < 0
+            or args.fetch_seconds < 0
             or args.sync_skew_ms < 0 or args.sync_jitter_ms < 0):
         parser.error("timing values must be non-negative (heartbeat interval must be positive)")
     if args.version is None:
@@ -859,7 +865,9 @@ def parse_args():
 
 
 def main():
+    global PATCHES_DIR
     args = parse_args()
+    PATCHES_DIR = os.path.realpath(args.patches_dir)
     try:
         devices = load_devices(args)
     except (OSError, ValueError) as error:

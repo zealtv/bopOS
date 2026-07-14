@@ -405,6 +405,8 @@ class InstallationState:
         self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
         if self.data["fleet_patch"]:
             self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
+        else:
+            self.data["simulation"].pop("patch", None)
         self.data["listener"] = (self.clean_listener(loaded.get("listener"))
                                  or self.default_listener())
         self.data["seats"] = rebuilt

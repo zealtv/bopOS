@@ -18,8 +18,8 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 import points
-from osc_bridge import OSCBridge
-from state import InstallationState
+from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
+from state import InstallationState, patch_badge
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
@@ -93,6 +93,9 @@ class Dashboard:
                              args.send_port, args.osc_target)
         self.tasks = set()
         self.sim_process = None
+        self.fleet_operation = None
+        self.fleet_retries = {}
+        self.fleet_generation = 0
         self.performance_target = args.osc_target
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
@@ -127,6 +130,17 @@ class Dashboard:
         asyncio.create_task(self.broadcast(message_type, data))
 
     async def broadcast(self, message_type, data):
+        if message_type == "state":
+            data = await self.public_state()
+        elif (message_type in {"device_update", "patches", "report",
+                               "params_declaration", "rev"}
+              and isinstance(data, dict) and data.get("uid") in self.state.devices):
+            data = await self.public_device(self.state.devices[data["uid"]])
+        elif message_type == "device_offline" and isinstance(data, dict):
+            device = self.state.devices.get(data.get("uid"))
+            if device is not None:
+                data = dict(data)
+                data["patch_badge"] = patch_badge(device, await self.live_fleet_patch())
         message = {"type": message_type, "data": data}
         dead = []
         for client in tuple(self.clients):
@@ -148,7 +162,7 @@ class Dashboard:
     async def websocket(self, ws):
         await ws.accept()
         self.clients.add(ws)
-        await ws.send_json({"type": "state", "data": self.state.public()})
+        await ws.send_json({"type": "state", "data": await self.public_state()})
         await ws.send_json({"type": "distribution", "data": await self.catalog()})
         # A browser reconnect is another full-state convergence edge. Replaying
         # the private listener is idempotent in the audition relay.
@@ -199,13 +213,20 @@ class Dashboard:
             name = str(data.get("patch", "")).strip()
             if re.fullmatch(r"[\w.-]+", name):
                 if self.state.data["simulation"].get("active"):
+                    if ws is not None and data.get("confirmed") is not True:
+                        await self.ws_error(ws, "Switching the simulated fleet requires confirmation.")
+                        return
                     manifest, error = patch_manifest.load(os.path.join(self.patches_dir, name))
                     if manifest is None:
                         if ws is not None:
                             await ws.send_json({"type": "error", "data": {"message":
                                 f"Cannot simulate patch {name!r}: {error}"}})
                         return
-                    self.state.data["simulation"]["patch"] = name
+                    item = await self.catalog_patch(name)
+                    if item is None:
+                        return
+                    self.state.stage_fleet_patch(name, item["fingerprint"])
+                    self.state.save_debounced()
                     await self.restart_simulation()
                     await self.broadcast("state", self.state.public())
                     return
@@ -220,6 +241,23 @@ class Dashboard:
                     await self.broadcast("device_update", device)
                     self.osc.os_command(self.selector(device_uid), "patch", [name])
                     self.spawn(self.refresh_patch_state_later(device_uid, 8.0))
+        elif kind == "set_fleet_patch":
+            if data.get("confirmed") is not True:
+                await self.ws_error(ws, "Setting the fleet patch requires confirmation.")
+                return
+            await self.stage_and_converge(str(data.get("patch", "")).strip(), ws)
+        elif kind == "revert_fleet_patch":
+            if data.get("confirmed") is not True:
+                await self.ws_error(ws, "Reverting the fleet patch requires confirmation.")
+                return
+            current = self.state.data.get("fleet_patch") or {}
+            previous = current.get("previous") or {}
+            if not previous.get("name"):
+                await self.ws_error(ws, "There is no previous fleet patch to revert to.")
+                return
+            await self.stage_and_converge(previous["name"], ws)
+        elif kind == "retry_fleet_patch":
+            await self.retry_fleet_patch(uid, ws)
         elif kind == "add_patch":
             user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
             selector = "all" if uid in (None, "all") else self.selector(uid)
@@ -298,6 +336,9 @@ class Dashboard:
                 self.state.save_debounced()
         elif kind == "refresh_distribution":
             await self.broadcast("distribution", await self.catalog())
+            # Host edits can change the live desired fingerprint without a node
+            # event. Re-emit state so per-device badges immediately expose drift.
+            await self.broadcast("state", self.state.public())
         elif kind == "set_master":
             master = self.state.clean_master(data.get("value"))
             self.state.data["master"] = master
@@ -527,6 +568,194 @@ class Dashboard:
                 return patch
         return None
 
+    async def catalog_patch(self, name):
+        if NAME_RE.fullmatch(name or "") is None:
+            return None
+        catalog = await self.catalog()
+        return next((item for item in catalog["patches"]
+                     if item["name"] == name and item["valid"]), None)
+
+    async def live_fleet_patch(self):
+        staged = self.state.data.get("fleet_patch")
+        if not staged:
+            return None
+        desired = dict(staged)
+        item = await self.catalog_patch(desired["name"])
+        if item is not None:
+            desired["fingerprint"] = item["fingerprint"]
+        return desired
+
+    async def public_device(self, device, desired=None):
+        desired = desired if desired is not None else await self.live_fleet_patch()
+        public = dict(device)
+        public["patch_badge"] = patch_badge(device, desired)
+        return public
+
+    async def public_state(self):
+        desired = await self.live_fleet_patch()
+        public = dict(self.state.public())
+        public["devices"] = {uid: await self.public_device(device, desired)
+                             for uid, device in self.state.devices.items()}
+        return public
+
+    @staticmethod
+    async def ws_error(ws, message):
+        if ws is not None:
+            await ws.send_json({"type": "error", "data": {"message": message}})
+
+    async def stage_and_converge(self, name, ws):
+        item = await self.catalog_patch(name)
+        if item is None:
+            await self.ws_error(ws, f"Cannot set fleet patch {name!r}: no valid host patch.")
+            return False
+        targets = self.distribution_targets("all")
+        base_urls = {}
+        if not self.state.data["simulation"].get("active"):
+            try:
+                base_urls = {uid: self.public_url(ws, uid) for uid in targets}
+            except ValueError as error:
+                await self.ws_error(ws, str(error))
+                return False
+
+        generation = self.supersede_fleet_operation()
+        self.state.stage_fleet_patch(name, item["fingerprint"])
+        self.state.save_debounced()
+        await self.broadcast("state", self.state.public())
+        await self.broadcast("distribution", await self.catalog())
+        if generation != self.fleet_generation:
+            return False
+        if self.state.data["simulation"].get("active"):
+            await self.restart_simulation()
+            await self.broadcast("state", self.state.public())
+            return True
+
+        self.fleet_operation = self.spawn(
+            self.converge_fleet_patch(
+                name, item["fingerprint"], targets, base_urls, generation))
+        return True
+
+    def supersede_fleet_operation(self):
+        self.fleet_generation += 1
+        if self.fleet_operation is not None and not self.fleet_operation.done():
+            self.fleet_operation.cancel()
+        self.fleet_operation = None
+        for task in self.fleet_retries.values():
+            if not task.done():
+                task.cancel()
+        self.fleet_retries.clear()
+        return self.fleet_generation
+
+    async def converge_fleet_patch(self, name, fingerprint, targets, base_urls,
+                                   generation):
+        """Converge bytes first, then switch every ready online target together."""
+        waiting, ready = set(), set()
+        slot = "patch:" + name
+        for uid in targets:
+            if generation != self.fleet_generation:
+                return
+            device = self.state.devices.get(uid)
+            if not device or not device.get("online"):
+                continue
+            entry = self.device_patch(uid, name)
+            # Content convergence and active-patch convergence are separate:
+            # an inactive copy with the exact desired fingerprint needs only
+            # the fleet switch, not a redundant fetch/restart cycle.
+            if (entry and entry.get("manifest")
+                    and entry.get("fingerprint") == fingerprint):
+                ready.add(uid)
+                continue
+            if entry and entry.get("git"):
+                continue
+            uri = f"{base_urls[uid]}/patches/{name}/.manifest.json"
+            if (self.osc.fetch(uid, uri, slot, fingerprint)
+                    or self.osc.fetch_matches(uid, slot, fingerprint)):
+                waiting.add(uid)
+
+        deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS + 1.0
+        while (waiting and generation == self.fleet_generation
+               and time.monotonic() < deadline):
+            for uid in tuple(waiting):
+                device = self.state.devices.get(uid)
+                if not device or not device.get("online"):
+                    waiting.remove(uid)
+                    continue
+                entry = self.device_patch(uid, name)
+                if (entry and entry.get("manifest")
+                        and entry.get("fingerprint") == fingerprint):
+                    waiting.remove(uid)
+                    ready.add(uid)
+                elif (device.get("fetch") or {}).get(slot) in ("err", "timeout"):
+                    waiting.remove(uid)
+            if waiting:
+                await asyncio.sleep(0.1)
+
+        if generation != self.fleet_generation:
+            return
+
+        # One fleet operation, no staged waves: devices that could not prove the
+        # desired bytes retain honest missing/stale/unknown badges.
+        switched = []
+        for uid in ready:
+            if generation != self.fleet_generation:
+                return
+            device = self.state.devices.get(uid)
+            if not device or not device.get("online"):
+                continue
+            device["patch_switch"] = {"patch": name, "at": time.time()}
+            self.osc.os_command(self.selector(uid), "patch", [name])
+            self.spawn(self.refresh_patch_state_later(uid, 8.0))
+            switched.append(device)
+        for device in switched:
+            await self.broadcast("device_update", device)
+
+        # Force a final badge broadcast for nodes that did not converge too.
+        for uid in targets:
+            if uid in self.state.devices:
+                await self.broadcast("device_update", self.state.devices[uid])
+
+    async def retry_fleet_patch(self, uid, ws):
+        if uid not in self.distribution_targets(uid):
+            return
+        item = await self.catalog_patch((self.state.data.get("fleet_patch") or {}).get("name"))
+        if item is None:
+            await self.ws_error(ws, "The desired fleet patch is not available on the host.")
+            return
+        generation = self.fleet_generation
+        # A Set/Revert already owns convergence for the whole fleet. Retrying
+        # one row must not cancel or duplicate that coordinator.
+        if self.fleet_operation is not None and not self.fleet_operation.done():
+            return
+        previous_retry = self.fleet_retries.get(uid)
+        if previous_retry is not None and not previous_retry.done():
+            previous_retry.cancel()
+        self.state.stage_fleet_patch(item["name"], item["fingerprint"])
+        self.state.save_debounced()
+        desired = {"name": item["name"], "fingerprint": item["fingerprint"]}
+        badge = patch_badge(self.state.devices[uid], desired)
+        if badge == "mismatch":
+            await self.switch_fleet_device(uid, item["name"], generation)
+        elif badge in ("missing", "stale", "stale_unverified"):
+            try:
+                base_url = self.public_url(ws, uid)
+            except ValueError as error:
+                await self.ws_error(ws, str(error))
+                return
+            self.fleet_retries[uid] = self.spawn(self.converge_fleet_patch(
+                item["name"], item["fingerprint"], [uid], {uid: base_url}, generation))
+        await self.broadcast("state", self.state.public())
+
+    async def switch_fleet_device(self, uid, name, generation):
+        if generation != self.fleet_generation:
+            return
+        device = self.state.devices.get(uid)
+        selector = self.selector(uid)
+        if not device or not device.get("online") or selector is None:
+            return
+        device["patch_switch"] = {"patch": name, "at": time.time()}
+        self.osc.os_command(selector, "patch", [name])
+        self.spawn(self.refresh_patch_state_later(uid, 8.0))
+        await self.broadcast("device_update", device)
+
     def public_url(self, ws, device_uid=None):
         configured = getattr(self.args, "public_url", None)
         if configured:
@@ -614,7 +843,8 @@ class Dashboard:
             return
         simulation = self.state.data["simulation"]
         catalog = await self.catalog()
-        valid_patches = [item["name"] for item in catalog["patches"] if item["valid"]]
+        valid_items = [item for item in catalog["patches"] if item["valid"]]
+        valid_patches = [item["name"] for item in valid_items]
         patch_name = simulation.get("patch")
         if patch_name not in valid_patches:
             patch_name = "demo-pd" if "demo-pd" in valid_patches else (
@@ -628,7 +858,12 @@ class Dashboard:
                 simulation.update(active=False, status="no valid host patches")
                 return
             patch_name, manifest_path = "demo-pd", fallback
-        simulation["patch"] = patch_name
+        item = next((item for item in valid_items if item["name"] == patch_name), None)
+        if item is not None:
+            self.state.stage_fleet_patch(patch_name, item["fingerprint"])
+            self.state.save_debounced()
+        else:
+            simulation["patch"] = patch_name
         simulation.update(active=True, status="starting")
         self.osc.set_target("127.0.0.1")
         command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),

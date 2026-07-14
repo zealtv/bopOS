@@ -233,6 +233,15 @@ class OSCBridge:
         self.broadcast("device_update", device)
         return True
 
+    def fetch_matches(self, uid, slot, fingerprint):
+        """Whether an existing generation is already fetching these bytes.
+
+        A superseding fleet operation may observe an identical in-flight
+        generation, but must never relabel or attach to different bytes.
+        """
+        return any(record["uid"] == uid and record["fingerprint"] == fingerprint
+                   for record in self.fetch_pending.get(slot, ()))
+
     def request(self, uid, member):
         device = self.state.devices.get(uid)
         if not device:
