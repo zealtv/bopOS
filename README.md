@@ -78,9 +78,10 @@ cd ~/bopOS
 sudo bash/update.sh
 ```
 
-`update.sh` installs the current `rc.local` boot entry and reboots. It also
-restores the repository checkout before pulling, so do not keep uncommitted
-work on an installation node.
+`update.sh` installs the current `rc.local` boot entry, the narrow sudoers rule
+that permits the unprivileged bopOS helper to reboot or power off the node, and
+then reboots. It also restores the repository checkout before pulling, so do
+not keep uncommitted work on an installation node.
 
 Before relying on audio, set the ALSA card name used by JACK. The current
 default is `DigiAMP` in `bash/start-engine.sh`:

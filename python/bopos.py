@@ -941,19 +941,27 @@ def update_bopos_callback(path='', tags='', args='', source=''):
     print("UPDATE BOPOS!")
     os.system(update_script)
 
+def request_power_action(action):
+    status = run_command(["/usr/bin/sudo", "-n", "/usr/bin/systemctl", action])
+    if status != 0:
+        print("ERROR: {} authorization failed; install systemd/bopos-power.sudoers".format(action))
+        return False
+    return True
+
+
 def shutdown_callback(path='', tags='', args='', source=''):
     msg = OSCMessage("/notify")
     msg.append("shutdown", 's')
     send_to_engine(msg)
     print("SHUTDOWN!")
-    os.system("systemctl poweroff")
+    return request_power_action("poweroff")
 
 def reboot_callback(path='', tags='', args='', source=''):
     msg = OSCMessage("/notify")
     msg.append("reboot", 's')
     send_to_engine(msg)
     print("REBOOTING")
-    os.system("systemctl reboot")
+    return request_power_action("reboot")
 
 def checkout_callback(path, tags, args, source):
     msg = OSCMessage("/notify")
