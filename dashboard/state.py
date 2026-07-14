@@ -3,10 +3,45 @@ import csv
 import json
 import math
 import os
+import re
+import time
 
 
 SCHEMA = 1
 FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "shutdown"))
+FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def patch_badge(device, desired):
+    """Derive one device's fleet-patch convergence badge (fp-0 sec 3).
+
+    `desired` is {"name", "fingerprint"} — the staged fleet patch, with the
+    fingerprint resolved against the live host catalog when the host still
+    carries the patch — or None when no fleet patch is staged. Unset outranks
+    everything: with nothing staged there is nothing to converge on. Badges
+    are derived on every broadcast and never stored as a verdict.
+    """
+    if not desired or not desired.get("name"):
+        return "unset"
+    name = desired["name"]
+    if not device.get("online") or device.get("patches") is None:
+        return "unknown"
+    fetch_phase = (device.get("fetch") or {}).get("patch:" + name)
+    if device.get("patch_switch") or fetch_phase in ("sent", "queued", "fetching"):
+        return "switching"
+    listing = device["patches"]
+    entry = next((patch for patch in listing if patch.get("name") == name), None)
+    if entry is None:
+        return "missing"
+    active = next((patch.get("name") for patch in listing if patch.get("active")), None)
+    if active != name:
+        return "mismatch"
+    node_fingerprint = entry.get("fingerprint")
+    if not node_fingerprint or not desired.get("fingerprint"):
+        return "stale_unverified"  # names match but identity cannot be checked
+    if node_fingerprint != desired["fingerprint"]:
+        return "stale"
+    return "current"
 
 
 class InstallationState:
@@ -20,6 +55,7 @@ class InstallationState:
                      "devices": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
                      "facilitator_commands": [],
+                     "fleet_patch": None,
                      "listener": None,
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
@@ -56,6 +92,10 @@ class InstallationState:
                     self.data["presets"] = loaded["presets"]
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
+                self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+                if self.data["fleet_patch"]:
+                    # simulation["patch"] is a read-through of the fleet choice
+                    self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
                 listener = self.clean_listener(loaded.get("listener"))
                 if listener is not None:
                     self.data["listener"] = listener
@@ -105,8 +145,7 @@ class InstallationState:
                         except ValueError:
                             pass
                 self.seats[str(device_id)] = {"id": device_id, "name": name,
-                    "positions": positions, "patch": "demo-pd", "params": {},
-                    "bound": uid}
+                    "positions": positions, "params": {}, "bound": uid}
 
     def ensure(self, uid):
         if uid not in self.devices:
@@ -123,6 +162,7 @@ class InstallationState:
                 "presets": self.data.get("presets", {}),
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
+                "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
                 "listener": dict(self.data["listener"]),
                 "seats": {str(seat["id"]): dict(seat)
                           for seat in self.seats.values()}}
@@ -155,11 +195,12 @@ class InstallationState:
         if seat_id < 0 or positions is None:
             return None
         name = str(value.get("name", "")).strip()[:32]
-        patch = str(value.get("patch", "demo-pd")).strip() or "demo-pd"
+        # no per-seat patch: the desired patch is fleet-scoped (fp-0, Bob Q1);
+        # a "patch" key in an older state file is dropped silently here
         params = value.get("params", {})
         bound = value.get("bound")
         return {"id": seat_id, "name": name, "positions": positions,
-                "patch": patch, "params": dict(params) if isinstance(params, dict) else {},
+                "params": dict(params) if isinstance(params, dict) else {},
                 "bound": str(bound) if bound else None}
 
     def seat_for_uid(self, uid):
@@ -194,6 +235,46 @@ class InstallationState:
         return {"x": min(max(fields[0], 0.0), width),
                 "y": min(max(fields[1], 0.0), depth),
                 "heading": fields[2] % 360.0}
+
+    @staticmethod
+    def clean_fleet_patch(value):
+        # one fleet-wide desired patch record (fp-0 sec 1): {name, fingerprint,
+        # staged_at, previous}. Anything malformed collapses to None (unset).
+        if not isinstance(value, dict):
+            return None
+        name = str(value.get("name", "")).strip()
+        if not name:
+            return None
+
+        def fingerprint(raw):
+            return raw if isinstance(raw, str) and FINGERPRINT_RE.fullmatch(raw) else None
+
+        try:
+            staged_at = float(value.get("staged_at"))
+        except (TypeError, ValueError):
+            staged_at = None
+        previous = value.get("previous")
+        if isinstance(previous, dict) and str(previous.get("name", "")).strip():
+            previous = {"name": str(previous["name"]).strip(),
+                        "fingerprint": fingerprint(previous.get("fingerprint"))}
+        else:
+            previous = None
+        return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
+                "staged_at": staged_at, "previous": previous}
+
+    def stage_fleet_patch(self, name, fingerprint):
+        # rotate `previous` only on a name change: re-staging the same patch
+        # (host edit, simulation restart) refreshes fingerprint/staged_at in
+        # place so Revert keeps pointing at the last *different* patch
+        current = self.data.get("fleet_patch")
+        previous = current.get("previous") if current else None
+        if current and current.get("name") != name:
+            previous = {"name": current["name"], "fingerprint": current.get("fingerprint")}
+        self.data["fleet_patch"] = {"name": name, "fingerprint": fingerprint,
+                                    "staged_at": time.time(), "previous": previous}
+        # simulation["patch"] is a read-through of the fleet choice (fp-0 sec 1)
+        self.data["simulation"]["patch"] = name
+        return self.data["fleet_patch"]
 
     @staticmethod
     def clean_facilitator_commands(value):
@@ -321,6 +402,9 @@ class InstallationState:
         self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))
+        self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+        if self.data["fleet_patch"]:
+            self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
         self.data["listener"] = (self.clean_listener(loaded.get("listener"))
                                  or self.default_listener())
         self.data["seats"] = rebuilt
