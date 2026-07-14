@@ -17,9 +17,11 @@ convergence path with assets; patch manifests are mandatory; the legacy
 `/os/updatebopos`. The deployed fleets adopt these hard breaks in lockstep.
 Amended to v1.4 2026-07-14 by the fleet-patch fingerprint amendment (record in
 `.loom/tied/fp-0-design-proposal/`): each `/os/patches` entry may carry the
-patch's content `fingerprint` (§7), additive. v1.4 is a shared revision: the
-patch-editor cues-manifest amendment (pe-1) folds into this same bump (Bob,
-2026-07-14, Q4 "fold in").
+patch's content `fingerprint` (§7), additive, and by the patch-editor cues
+manifest amendment (record in
+`.lore/items/2026-07-14-patch-editor-design-ratified/`): patches may document
+the cue IDs they handle (§8), also additive. Bob ratified folding both into
+this shared revision (2026-07-14, Q4 "fold in").
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -396,6 +398,8 @@ A patch ships **`bopos.patch.json`** in its patch root:
     {"name":"gain",    "type":"f", "min":0, "max":1, "default":0.75, "group":"mix", "facilitator":true},
     {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8,  "group":"mix"},
     {"name":"echo",    "type":"i", "min":0, "max":1, "default":0,    "group":"fx"} ],
+  "cues": [
+    {"id":"snap", "label":"Snap", "description":"Fire the snap gesture"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
 ```
 
@@ -431,6 +435,13 @@ A patch ships **`bopos.patch.json`** in its patch root:
   convergence verbs (updatebopos/checkout/reboot/shutdown) at minimum
   hold-to-confirm. The patch promotes its params; the venue promotes its
   verbs.
+- **`cues` (optional; additive, v1.4):** a list of cue declarations the patch
+  responds to: `{"id": <string>, "label": <string, optional>,
+  "description": <string, optional>}`. `id` is the exact string delivered as
+  the bare relative fire `/cue <id>` (§3.1 unchanged: engines never see
+  absolute time). Declarations are documentation and UI surface only — the
+  framework neither filters undeclared cue IDs nor schedules anything from
+  the manifest. Duplicate IDs are invalid. An absent `cues` key is valid.
 
 ## 9. Distribution and landing
 

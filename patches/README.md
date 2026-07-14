@@ -37,10 +37,17 @@ least the engine and entry point, so the entry point is not required to be
   "engine": "pd",
   "entrypoint": "main.pd",
   "params": [],
+  "cues": [],
   "caps": [],
   "slots": []
 }
 ```
+
+`params` declares the controls the dashboard can render. Optional `cues`
+documents named actions the patch handles; each item requires a string `id`
+and may include string `label` and `description` fields. The ID is delivered
+unchanged as `/cue <id>`. Declarations do not filter cue traffic, so composers
+can still try undeclared IDs; duplicate declared IDs are invalid.
 
 Missing or invalid manifests fail launch loudly. Patch-level `bopos.config`
 and its `SAMPLEPACKSURL` workflow are retired.

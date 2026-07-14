@@ -80,6 +80,23 @@ def load(patch_path):
         if facilitator is not None and not isinstance(facilitator, bool):
             return None, f"param {name}: facilitator must be true or false"
 
+    cues = manifest.get("cues", [])
+    if not isinstance(cues, list):
+        return None, "cues must be a list"
+    cue_ids = set()
+    for cue in cues:
+        if not isinstance(cue, dict):
+            return None, f"cue {cue!r} must be an object"
+        cue_id = cue.get("id")
+        if not isinstance(cue_id, str):
+            return None, f"cue id {cue_id!r} must be a string"
+        if cue_id in cue_ids:
+            return None, f"duplicate cue id {cue_id!r}"
+        cue_ids.add(cue_id)
+        for field in ("label", "description"):
+            if field in cue and not isinstance(cue[field], str):
+                return None, f"cue {cue_id!r}: {field} must be a string"
+
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])
         if not isinstance(values, list) or any(not isinstance(v, str) for v in values):

@@ -6,6 +6,9 @@
     {"name": "gain1", "type": "f", "min": 0, "max": 1, "default": 0.8,  "group": "mix", "facilitator": true},
     {"name": "echo",    "type": "i", "min": 0, "max": 1, "default": 0,    "group": "fx"}
   ],
+  "cues": [
+    {"id": "snap", "label": "Snap", "description": "Trigger a short noise snap"}
+  ],
   "caps": [],
   "slots": []
 }
