@@ -3,10 +3,12 @@ import argparse
 import asyncio
 import contextlib
 import hashlib
+import ipaddress
 import json
 import logging
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -221,6 +223,17 @@ class Dashboard:
         elif kind == "switch_patch":
             name = str(data.get("patch", "")).strip()
             if re.fullmatch(r"[\w.-]+", name):
+                if self.state.data["simulation"].get("active"):
+                    manifest, error = patch_manifest.load(os.path.join(self.patches_dir, name))
+                    if manifest is None:
+                        if ws is not None:
+                            await ws.send_json({"type": "error", "data": {"message":
+                                f"Cannot simulate patch {name!r}: {error}"}})
+                        return
+                    self.state.data["simulation"]["patch"] = name
+                    await self.restart_simulation()
+                    await self.broadcast("state", self.state.public())
+                    return
                 targets = self.distribution_targets(uid)
                 if uid == "all":
                     targets = [device_uid for device_uid in targets
@@ -246,6 +259,12 @@ class Dashboard:
             if uid in self.state.devices:
                 self.osc.request(uid, "patches")
         elif kind in ("send_distribution", "sync_distribution"):
+            if self.state.data["simulation"].get("active"):
+                if ws is not None:
+                    await ws.send_json({"type": "error", "data": {"message":
+                        "Simulation uses host patches directly; choose a patch and Switch "
+                        "the simulated fleet instead of sending files."}})
+                return
             catalog = await self.catalog()
             await self.broadcast("distribution", catalog)
             targets = self.distribution_targets(uid)
@@ -265,7 +284,14 @@ class Dashboard:
                     await ws.send_json({"type": "error", "data": {"message":
                         "Sending an active patch requires stop/restart confirmation."}})
                 return
-            base_url = self.public_url(ws)
+            base_urls = {}
+            try:
+                for device_uid in targets:
+                    base_urls[device_uid] = self.public_url(ws, device_uid)
+            except ValueError as error:
+                if ws is not None:
+                    await ws.send_json({"type": "error", "data": {"message": str(error)}})
+                return
             for device_uid in targets:
                 for item in requested:
                     if (item["kind"] == "patch"
@@ -273,7 +299,7 @@ class Dashboard:
                         continue
                     path = "patches" if item["kind"] == "patch" else "assets"
                     slot = "patch:" + item["name"] if item["kind"] == "patch" else item["name"]
-                    uri = f"{base_url}/{path}/{item['name']}/.manifest.json"
+                    uri = f"{base_urls[device_uid]}/{path}/{item['name']}/.manifest.json"
                     self.osc.fetch(device_uid, uri, slot, item["fingerprint"])
         elif kind == "drop_distribution":
             targets = self.distribution_targets(uid)
@@ -523,13 +549,45 @@ class Dashboard:
                 return patch
         return None
 
-    def public_url(self, ws):
+    def public_url(self, ws, device_uid=None):
         configured = getattr(self.args, "public_url", None)
         if configured:
             return configured.rstrip("/")
         scheme = "https" if ws is not None and ws.url.scheme == "wss" else "http"
         host = ws.headers.get("host") if ws is not None else None
-        return f"{scheme}://{host or '127.0.0.1:' + str(self.args.port)}"
+        request_hostname = ws.url.hostname if ws is not None else None
+        loopback = request_hostname in (None, "localhost")
+        if request_hostname not in (None, "localhost"):
+            try:
+                loopback = ipaddress.ip_address(request_hostname).is_loopback
+            except ValueError:
+                loopback = False
+        if not loopback:
+            return f"{scheme}://{host}"
+
+        device = self.state.devices.get(device_uid, {})
+        target = str(device.get("ip") or "")
+        try:
+            target_ip = ipaddress.ip_address(target)
+        except ValueError as error:
+            raise ValueError(
+                "Cannot determine a device-reachable patch URL. Reopen the dashboard "
+                "using its LAN address or start it with --public-url http://<LAN-IP>:8080."
+            ) from error
+        if target_ip.is_loopback:
+            return f"http://127.0.0.1:{self.args.port}"
+        family = socket.AF_INET6 if target_ip.version == 6 else socket.AF_INET
+        try:
+            with socket.socket(family, socket.SOCK_DGRAM) as route:
+                route.connect((target, 9))
+                local = route.getsockname()[0]
+        except OSError as error:
+            raise ValueError(
+                f"Cannot find a LAN route to {target}. Start the dashboard with "
+                "--public-url http://<LAN-IP>:8080."
+            ) from error
+        authority = f"[{local}]" if ":" in local else local
+        return f"http://{authority}:{self.args.port}"
 
     def requires_active_confirmation(self, target_uids, items):
         patch_names = {item["name"] for item in items if item["kind"] == "patch"}
@@ -570,6 +628,22 @@ class Dashboard:
         if self.sim_process is not None or not self.state.seats:
             return
         simulation = self.state.data["simulation"]
+        catalog = await self.catalog()
+        valid_patches = [item["name"] for item in catalog["patches"] if item["valid"]]
+        patch_name = simulation.get("patch")
+        if patch_name not in valid_patches:
+            patch_name = "demo-pd" if "demo-pd" in valid_patches else (
+                valid_patches[0] if valid_patches else None)
+        manifest_path = (os.path.join(self.patches_dir, patch_name, "bopos.patch.json")
+                         if patch_name is not None else None)
+        if patch_name is None:
+            fallback = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
+            loaded, _error = patch_manifest.load(os.path.dirname(fallback))
+            if loaded is None:
+                simulation.update(active=False, status="no valid host patches")
+                return
+            patch_name, manifest_path = "demo-pd", fallback
+        simulation["patch"] = patch_name
         simulation.update(active=True, status="starting")
         self.osc.set_target("127.0.0.1")
         command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),
@@ -577,7 +651,9 @@ class Dashboard:
             "--target", "127.0.0.1", "--cmd-port", str(self.args.send_port),
             "--report-port", str(self.args.listen_port), "--hb-interval", "0.5",
             "--audio-backend", getattr(self.args, "sim_audio_backend", "none"),
-            "--engine-port-base", str(getattr(self.args, "sim_engine_port_base", 16661))]
+            "--engine-port-base", str(getattr(self.args, "sim_engine_port_base", 16661)),
+            "--manifest", manifest_path,
+            "--patches-dir", self.patches_dir]
         if getattr(self.args, "sim_no_engine", False):
             command.append("--no-engine")
         self.sim_process = subprocess.Popen(command, cwd=REPO_DIR,

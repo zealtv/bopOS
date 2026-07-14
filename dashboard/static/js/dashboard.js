@@ -123,7 +123,7 @@ function renderSimulation(devices) {
   if (!button) return;
   button.textContent=sim.active?'Stop simulation':'Start simulation';
   button.onclick=()=>ws.send("set_simulation",{active:!sim.active});
-  $("#simulate-status").textContent=sim.status||'off';
+  $("#simulate-status").textContent=sim.active&&sim.patch?`${sim.status||'running'} · ${sim.patch}`:(sim.status||'off');
   const real=devices.filter(d=>!d.virtual&&d.online).length;
   $("#simulate-real-note").textContent=sim.active&&real?`${real} real device${real===1?'':'s'} online (not driven)`:'';
 }
@@ -235,14 +235,15 @@ function renderDetail() {
   if (chosenName) patchChoices.set(d.uid, chosenName); else patchChoices.delete(d.uid);
   const chosenPatch = installed.find(p => p.name === chosenName);
   const patchOptions = installed.map(p => `<option value="${esc(p.name)}" ${p.name===chosenName?'selected':''}>${p.git?'◆ ':''}${esc(p.name)}${p.manifest?'':' (invalid manifest)'}</option>`).join("");
+  const simulating = !!installation.simulation?.active && !!d.virtual;
   const patchRows = distribution.patches.map(item => distributionRow(d, item)).join("");
   const assetRows = distribution.assets.map(item => distributionRow(d, item)).join("");
   $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
     <section><h2>Seat</h2><div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat?.name||'')}"></label><label>ID <input type="number" value="${seat?.id}" disabled></label><button id="seat-rename">Apply</button><button id="seat-remove">Remove seat</button></div><div class="assign"><label>device <select id="seat-device"><option value="">unbound</option>${Object.values(installation.devices||{}).filter(x=>!x.virtual).map(x=>`<option value="${esc(x.uid)}" ${seat?.bound===x.uid?'selected':''}>${esc(x.hostname||x.uid)}</option>`).join('')}</select></label><button id="seat-bind">${seat?.bound?'Rebind':'Bind'}</button>${seat?.bound?'<button id="seat-unbind">Unbind</button>':''}</div></section>
     <section><h2>Position</h2><div class="position-grid">${positions}</div></section>
     ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
-    <section><div class="section-head"><h2>Patch</h2><span class="dim">◆ Git-managed</span></div><p class="dim">current: <b>${esc(activePatch?.name ?? d.report?.patch ?? '—')}</b></p><div class="assign"><label>installed <select id="patch-select">${patchOptions || `<option disabled>${d.patches===null?'loading…':'No patches installed'}</option>`}</select></label><button id="patch-switch" ${!chosenPatch||!chosenPatch.manifest?'disabled':''}>Switch</button>${activePatch?.git?'<button id="patch-pull">Pull latest</button>':''}<button id="patch-drop" ${!chosenPatch||chosenPatch.active?'disabled':''}>Delete from device</button><label><input id="patch-all" type="checkbox" ${patchAll?'checked':''}> target all compatible devices</label></div><div class="assign git-add"><label>add Git patch <input id="patch-user" type="text" placeholder="GitHub user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repository"></label><button id="patch-add">Add</button></div></section>
-    <section id="distribution"><div class="section-head"><h2>Send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. Status is known after this dashboard receives a completed send; Refresh detects later host edits.</p><div class="distribution-actions"><button id="sync-all">Sync all</button><button id="refresh-distribution">Refresh host folders</button></div><h3>Patches</h3><div class="distribution-grid">${patchRows || '<p class="dim">No host patches.</p>'}</div><h3>Assets</h3><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>
+    <section><div class="section-head"><h2>Patch</h2>${simulating?'<span class="dim">Host-backed simulated fleet</span>':'<span class="dim">◆ Git-managed</span>'}</div><p class="dim">current: <b>${esc(activePatch?.name ?? d.report?.patch ?? '—')}</b></p><div class="assign"><label>${simulating?'host patches':'installed'} <select id="patch-select">${patchOptions || `<option disabled>${d.patches===null?'loading…':'No patches installed'}</option>`}</select></label><button id="patch-switch" ${!chosenPatch||!chosenPatch.manifest?'disabled':''}>Switch</button>${!simulating&&activePatch?.git?'<button id="patch-pull">Pull latest</button>':''}${simulating?'':`<button id="patch-drop" ${!chosenPatch||chosenPatch.active?'disabled':''}>Delete from device</button><label><input id="patch-all" type="checkbox" ${patchAll?'checked':''}> target all compatible devices</label>`}</div>${simulating?'<p class="dim">All simulated devices use this patch. Switching restarts the managed engine fleet; host patches need no Send step.</p>':'<div class="assign git-add"><label>add Git patch <input id="patch-user" type="text" placeholder="GitHub user"></label><label>&nbsp;<input id="patch-repo" type="text" placeholder="repository"></label><button id="patch-add">Add</button></div>'}</section>
+    ${simulating?'':`<section id="distribution"><div class="section-head"><h2>Send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. The installed dropdown lists only patches acknowledged by this device; a successful Send adds a new patch there.</p><div class="distribution-actions"><button id="sync-all">Sync all</button><button id="refresh-distribution">Refresh host folders</button></div><h3>Patches</h3><div class="distribution-grid">${patchRows || '<p class="dim">No host patches.</p>'}</div><h3>Assets</h3><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>`}
     <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
   bindControls(d, seat);
@@ -301,6 +302,7 @@ function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; cons
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
 function bindControls(d, seat) {
+  const simulating=!!installation.simulation?.active&&!!d.virtual;
   let last=0, timer;
   document.querySelectorAll("[data-param]").forEach(input => {
     const send = () => {
@@ -338,13 +340,13 @@ function bindControls(d, seat) {
   const unbind=$("#seat-unbind"); if(unbind) unbind.onclick=()=>ws.send("unbind_seat",{id:seat.id});
   const patchSwitch=$("#patch-switch"); if(patchSwitch){
     const patchTarget=()=>patchAll?"all":d.uid;
-    const patchAllInput=$("#patch-all"); patchAllInput.onchange=()=>{patchAll=patchAllInput.checked;renderDetail();};
+    const patchAllInput=$("#patch-all"); if(patchAllInput) patchAllInput.onchange=()=>{patchAll=patchAllInput.checked;renderDetail();};
     const patchSelect=$("#patch-select");
     patchSelect.onchange=()=>{ patchChoices.set(d.uid, patchSelect.value); renderDetail(); };
-    patchSwitch.onclick=()=>{const p=patchSelect.value; if(p&&confirm(`Switch ${patchAll?'all compatible devices':d.name||d.uid} to patch "${p}"? The device reboots.`))ws.send("switch_patch",{uid:patchTarget(),patch:p});};
+    patchSwitch.onclick=()=>{const p=patchSelect.value,target=simulating?'the simulated fleet':(patchAll?'all compatible devices':d.name||d.uid),effect=simulating?'The managed engines restart.':'The device reboots.'; if(p&&confirm(`Switch ${target} to patch "${p}"? ${effect}`))ws.send("switch_patch",{uid:simulating?'all':patchTarget(),patch:p});};
     const pull=$("#patch-pull"); if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${patchAll?'all Git-managed devices':d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:patchTarget()});};
-    $("#patch-drop").onclick=()=>{const p=patchSelect.value;if(p&&confirm(`Delete patch "${p}" from ${patchAll?'all devices where it is inactive':d.name||d.uid}?`))ws.send("drop_distribution",{uid:patchTarget(),kind:"patch",name:p});};
-    $("#patch-add").onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:patchTarget(),user:u,repo:r});};
+    const patchDrop=$("#patch-drop"); if(patchDrop) patchDrop.onclick=()=>{const p=patchSelect.value;if(p&&confirm(`Delete patch "${p}" from ${patchAll?'all devices where it is inactive':d.name||d.uid}?`))ws.send("drop_distribution",{uid:patchTarget(),kind:"patch",name:p});};
+    const patchAdd=$("#patch-add"); if(patchAdd) patchAdd.onclick=()=>{const u=$("#patch-user").value.trim(),r=$("#patch-repo").value.trim(); if(u&&r)ws.send("add_patch",{uid:patchTarget(),user:u,repo:r});};
   }
   const distributionTarget=$("#distribution-all");
   if(distributionTarget) distributionTarget.onchange=()=>{ distributionAll=distributionTarget.checked; renderDetail(); };

@@ -47,6 +47,16 @@ where the audition relay derives and forwards fixed-stereo matrices. This
 private preview state is never broadcast onto the installation LAN and is not
 part of the fleet OSC contract.
 
+The dashboard's **Start simulation** control manages this audition rig directly:
+every valid folder under `patches/` is already available, and one selected patch
+runs across the whole simulated fleet. Use the Patch dropdown and **Switch** to
+restart the managed engines into another host patch. Send/Sync is intentionally
+absent in this mode because there is no remote filesystem to converge.
+
+`tools/simfleet.py` is different: it is the protocol-only remote-node harness.
+It retains `/os/fetch` queue and receipt behaviour so distribution itself can be
+tested without hardware.
+
 ## Real fleet
 
 On the installation LAN the defaults already match the OSC contract (listen
@@ -84,13 +94,16 @@ Sim spread is a single-machine floor; the honest number is the hardware run.
 out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
 `--state-file` installation.json path · `--assets-dir` host asset folders served
 at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
-`--public-url` URL nodes should fetch from (normally unnecessary when the
-dashboard is opened by its LAN hostname or address).
+`--public-url` URL nodes should fetch from. When the dashboard is opened through
+`localhost`, it derives the LAN source address from each real device's route;
+the explicit flag remains useful on multi-interface or proxied installations.
 
 The defaults are the repository's `assets/` and `patches/` directories. Select
 a device, then Send one folder or Sync all folders. A successful receipt marks
 that host manifest in sync; after editing a host folder, Refresh host folders
 marks the prior receipt stale.
+The installed Patch dropdown is node-reported inventory, not the host catalog:
+a new host patch appears there only after its Send completes successfully.
 Sending a device's active patch is confirmation-gated because its engine stops
 and restarts. A ◆ marker identifies Git-managed device patches: update those
 with Pull latest; host-mirrored patches use Send.

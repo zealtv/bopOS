@@ -4,6 +4,7 @@
 import argparse
 import heapq
 import ipaddress
+import json
 import math
 import os
 import shlex
@@ -101,6 +102,34 @@ class AuditionRig:
         if loaded is None:
             raise ValueError(error)
         return patch_dir, loaded
+
+    def patch_listing(self):
+        """Return the host-backed inventory exposed by every virtual node."""
+        active_dir, _loaded = self._load_patch()
+        active_name = os.path.basename(active_dir)
+        listing = []
+        try:
+            names = sorted(os.listdir(self.args.patches_dir))
+        except OSError:
+            names = []
+        for name in names:
+            path = os.path.join(self.args.patches_dir, name)
+            if not os.path.isdir(path) or os.path.islink(path):
+                continue
+            manifest, _error = patch_manifest.load(path)
+            if manifest is None:
+                continue
+            listing.append({
+                "name": name,
+                "active": name == active_name,
+                "git": False,
+                "manifest": True,
+            })
+        if not any(item["name"] == active_name for item in listing):
+            listing.append({"name": active_name, "active": True, "git": False,
+                            "manifest": True})
+            listing.sort(key=lambda item: item["name"])
+        return listing
 
     def engine_command(self, node, patch_dir, loaded, context=None):
         entrypoint = os.path.join(patch_dir, loaded["entrypoint"])
@@ -363,6 +392,14 @@ class AuditionRig:
                 if matches(selector, node.device_id):
                     self.sock.sendto(packet, (reply_host, self.args.report_port))
             return
+        if parts[1:] == ["os", "patches"]:
+            packet = osc_datagram("/os/patches", json.dumps(
+                self.patch_listing(), separators=(",", ":")))
+            reply_host = source[0] if source is not None else self.args.target
+            for node in self.nodes:
+                if matches(selector, node.device_id):
+                    self.sock.sendto(packet, (reply_host, self.args.report_port))
+            return
         if parts[1:] == ["os", "identify"]:
             uid = str(message.params[0]) if message.params else None
             packet = osc_datagram("/notify", "identify")
@@ -443,6 +480,7 @@ def parse_args(argv=None):
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)
     parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
+    parser.add_argument("--patches-dir", default=os.path.join(REPO_DIR, "patches"))
     parser.add_argument("--bind", default="")
     parser.add_argument("--id-base", type=int, default=1)
     parser.add_argument("--engine-host", default="127.0.0.1")
