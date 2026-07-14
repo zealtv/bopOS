@@ -82,6 +82,9 @@ def policy_checks():
     check("installer validates policy before and after installation",
           '"$VISUDO" -cf "$SOURCE"' in installer
           and 'as_root "$VISUDO" -cf /etc/sudoers' in installer)
+    check("later unprivileged updates reuse installed authorization",
+          "sudo -n -l /usr/bin/systemctl reboot" in installer
+          and "sudo -n -l /usr/bin/systemctl poweroff" in installer)
     updater = open(os.path.join(REPO, "bash", "update.sh"), encoding="utf-8").read()
     check("fresh-node update installs power authorization",
           '"$SCRIPT_DIR/install-power-control.sh"' in updater)
@@ -90,7 +93,7 @@ def policy_checks():
 def main():
     callback_checks()
     policy_checks()
-    total = 8
+    total = 9
     print("\n{}/{} passed".format(total - len(FAILURES), total))
     return 1 if FAILURES else 0
 

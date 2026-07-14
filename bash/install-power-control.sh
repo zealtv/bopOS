@@ -15,6 +15,16 @@ as_root() {
     fi
 }
 
+# Framework updates run as the unprivileged helper after initial provisioning.
+# If both exact commands are already authorized, no privileged rewrite is
+# necessary (and sudo must not try to prompt on the helper's background tty).
+if [ "${EUID:-$(id -u)}" -ne 0 ] \
+        && sudo -n -l /usr/bin/systemctl reboot >/dev/null 2>&1 \
+        && sudo -n -l /usr/bin/systemctl poweroff >/dev/null 2>&1; then
+    echo "bopOS power authorization is already installed"
+    exit 0
+fi
+
 if [ ! -x "$VISUDO" ]; then
     echo "ERROR: visudo not found at $VISUDO" >&2
     exit 1
