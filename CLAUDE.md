@@ -59,9 +59,11 @@ in-thread, numeric prefixes are the order:
 1. **`fleet-patch/fp-0-design-proposal`** — the fleet-wide-patch model
    (brief: `.notes/handoff-2026-07-14-fleetwide-patch-next.md`). Proposal
    only; Bob ratifies before implementation children exist.
-2. **`patch-editor/pe-0-design-proposal`** — patch-editor design (seam and
-   cue decisions already made 2026-07-14; see the goal stitch). May be
-   drafted in parallel with fp-0, but surface ratifications one at a time.
+2. **`patch-editor/pe-1..4`** — design ratified and pe-0 tied 2026-07-14
+   (record: `.lore/items/2026-07-14-patch-editor-design-ratified/`). Numeric
+   order; pe-1 (contract v1.4 cues amendment + validator) is standalone and
+   claimable anytime; pe-2..4 build the editor UI, which tabs-1 later
+   rehomes.
 3. **`ui-tabs/tabs-0..2`** — all `.waiting`: tabs-0 (IA proposal) unblocks
    when fp-0 is ratified; tabs-1 (skeleton) needs tabs-0 ratified; tabs-2 is
    the live UI review session with Bob inside the real tabs.

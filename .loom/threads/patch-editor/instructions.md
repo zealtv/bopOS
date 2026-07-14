@@ -33,6 +33,13 @@ Constraints:
   [bopos]+[bopos.out~]) should be examined in this thread's design work — the
   editor walkthrough is the live composer-workflow context it was waiting for.
 
-Ordering: design (pe-0) may be drafted alongside `ui-tabs`; implementation
-lands in the Patch editor tab after tabs-1. Before
-`patch-workflow-friction` — the composer guide should teach this workflow.
+**Design ratified 2026-07-14** — pe-0 tied; the full record is
+`.lore/items/2026-07-14-patch-editor-design-ratified/` (also in the tied
+stitch). Bob's Q1–Q4 rulings: v1.4 = cues only; New patch copies a
+Bob-provided `main.pd` template verbatim; editor points are session-only;
+master is the editor's only global.
+
+Ordering: pe-1..4 in numeric order (pe-1 is standalone doc+validator work,
+claimable anytime; pe-2..4 build the UI, which `ui-tabs/tabs-1` later rehomes
+into its reserved tab). Before `patch-workflow-friction` — the composer
+guide should teach this workflow.
