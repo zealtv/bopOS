@@ -18,6 +18,7 @@ message bytes live only in LegacyProtocol so the v1 contract can swap in there.
 
 import argparse
 import csv
+import hashlib
 import heapq
 import itertools
 import json
@@ -38,6 +39,7 @@ DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patc
 # the sim decomposes /pt with the same module the real helper uses, so the
 # two can never drift (contract sec 4.1)
 sys.path.append(os.path.join(REPO_DIR, "python"))
+import identity  # noqa: E402
 import pointfield  # noqa: E402
 
 
@@ -54,6 +56,20 @@ def load_manifest(path):
 
 
 DEFAULT_MANIFEST_TEXT, _DEFAULT_DECLARED_PARAMS = load_manifest(DEFAULT_MANIFEST_PATH)
+
+
+def host_patch_fingerprint(name):
+    # captured *now*, not at listing time: a device's copy is whatever the
+    # host held when it converged, so a later host edit reads as stale.
+    # Purely fake patches (git installs the sim never fetches) get a stable
+    # fake identity so dashboards can still exercise match/mismatch.
+    path = os.path.join(REPO_DIR, "patches", name)
+    if os.path.isdir(path) and not os.path.islink(path):
+        try:
+            return identity.fingerprint(path)
+        except OSError:
+            pass
+    return hashlib.sha256(name.encode()).hexdigest()
 
 
 class ContractProtocol:
@@ -109,7 +125,8 @@ class Device:
         self.params = {}
         self.active_patch = "demo-pd"
         self.patches = {
-            "demo-pd": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None}
+            "demo-pd": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None,
+                        "fingerprint": host_patch_fingerprint("demo-pd")}
         }
         self.asset_slots = set()
         self.reports = {}
@@ -283,15 +300,17 @@ class SimFleet:
             print(f"simfleet: rev reply failed: {error}", file=sys.stderr)
 
     def send_patch_list(self, device, source):
-        listing = [
-            {
+        listing = []
+        for name, facts in sorted(device.patches.items()):
+            entry = {
                 "name": name,
                 "active": name == device.active_patch,
                 "git": facts["git"],
                 "manifest": facts["manifest"],
             }
-            for name, facts in sorted(device.patches.items())
-        ]
+            if facts.get("fingerprint"):
+                entry["fingerprint"] = facts["fingerprint"]
+            listing.append(entry)
         builder = osc_message_builder.OscMessageBuilder(address="/os/patches")
         builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
@@ -324,7 +343,9 @@ class SimFleet:
         if ok:
             if slot.startswith("patch:"):
                 name = slot.split(":", 1)[1]
-                device.patches[name] = {"git": False, "manifest": True}
+                # fetch converged the copy to the host's current content
+                device.patches[name] = {"git": False, "manifest": True,
+                                        "fingerprint": host_patch_fingerprint(name)}
             else:
                 device.asset_slots.add(slot)
         for source in job["requesters"]:
@@ -404,7 +425,8 @@ class SimFleet:
             device.engine_restart_until = float("inf")
             self.schedule(2.0, self.finish_patch_switch, device, source)
         elif member == "addpatch" and len(args) >= 2:
-            device.patches[str(args[1])] = {"git": True, "manifest": True}
+            device.patches[str(args[1])] = {"git": True, "manifest": True,
+                                            "fingerprint": host_patch_fingerprint(str(args[1]))}
             self.schedule(1.0, self.send_rev, device, source)
         elif member == "pullpatch":
             self.schedule(1.0, self.send_rev, device, source)
@@ -689,7 +711,7 @@ class SimFleet:
                     "uptime": int(time.monotonic() - self.start_monotonic),
                     "git_rev": device.version,
                     "update_model": "ephemeral" if device.ephemeral else "persistent",
-                    "contract_version": "1.3",
+                    "contract_version": "1.4",
                 }
                 builder = osc_message_builder.OscMessageBuilder(address="/os/report")
                 builder.add_arg(json.dumps(report), arg_type="s")

@@ -21,6 +21,7 @@ from pythonosc import osc_message, osc_message_builder
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(REPO_DIR, "python"))
 import manifest as patch_manifest  # noqa: E402
+import identity  # noqa: E402
 import audition_geometry  # noqa: E402
 import audition_matrix  # noqa: E402
 import pointfield  # noqa: E402
@@ -119,15 +120,26 @@ class AuditionRig:
             manifest, _error = patch_manifest.load(path)
             if manifest is None:
                 continue
-            listing.append({
+            entry = {
                 "name": name,
                 "active": name == active_name,
                 "git": False,
                 "manifest": True,
-            })
+            }
+            try:
+                # real host directories, so the real identity (contract sec 7, v1.4)
+                entry["fingerprint"] = identity.fingerprint(path)
+            except OSError:
+                pass
+            listing.append(entry)
         if not any(item["name"] == active_name for item in listing):
-            listing.append({"name": active_name, "active": True, "git": False,
-                            "manifest": True})
+            entry = {"name": active_name, "active": True, "git": False,
+                     "manifest": True}
+            try:
+                entry["fingerprint"] = identity.fingerprint(active_dir)
+            except OSError:
+                pass
+            listing.append(entry)
             listing.sort(key=lambda item: item["name"])
         return listing
 

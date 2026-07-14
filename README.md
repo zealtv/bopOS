@@ -304,7 +304,7 @@ tools/       simfleet, audible audition rig, sync and performance harnesses
 ## Further reading
 
 - [Dashboard guide](dashboard/README.md)
-- [OSC contract v1.3](docs/OSC-CONTRACT.md)
+- [OSC contract v1.4](docs/OSC-CONTRACT.md)
 - [Audio hardware onboarding](docs/HARDWARE.md)
 - [Verification matrix](docs/VERIFICATION.md)
 - [Performance measurement](docs/PERF.md)

@@ -2,7 +2,6 @@
 import argparse
 import asyncio
 import contextlib
-import hashlib
 import ipaddress
 import json
 import logging
@@ -25,10 +24,10 @@ from state import InstallationState
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
+from python import identity
 from python import manifest as patch_manifest
 
 
-_file_hashes = {}
 NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
 
 
@@ -47,37 +46,14 @@ class DistributionStaticFiles(StaticFiles):
 
 
 def directory_manifest(root_dir, name):
+    # the walk/fingerprint itself lives in python/identity.py so nodes report
+    # the identical identity; the HTTP-facing name/path guards stay here
     if NAME_RE.fullmatch(name) is None:
         raise HTTPException(status_code=404)
     root = os.path.join(root_dir, name)
     if os.path.islink(root) or not os.path.isdir(root):
         raise HTTPException(status_code=404)
-    files = []
-    for directory, dirs, names in os.walk(root):
-        dirs[:] = sorted(name for name in dirs
-                         if not name.startswith(".")
-                         and not os.path.islink(os.path.join(directory, name)))
-        for name in sorted(names):
-            if (name.startswith(".") or name.endswith(".part")
-                    or os.path.islink(os.path.join(directory, name))):
-                continue
-            path = os.path.join(directory, name)
-            stat = os.stat(path)
-            signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-            cached = _file_hashes.get(path)
-            if cached is None or cached[0] != signature:
-                hasher = hashlib.sha256()
-                with open(path, "rb") as source:
-                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                        hasher.update(chunk)
-                digest = hasher.hexdigest()
-                _file_hashes[path] = (signature, digest)
-            else:
-                digest = cached[1]
-            files.append({"path": os.path.relpath(path, root).replace(os.sep, "/"),
-                          "size": stat.st_size, "sha256": digest})
-    files.sort(key=lambda item: item["path"])
-    return {"files": files}
+    return identity.directory_manifest(root)
 
 
 def directory_info(root_dir, name, kind):
@@ -87,14 +63,13 @@ def directory_info(root_dir, name, kind):
     modified = os.stat(root).st_mtime
     for item in files:
         modified = max(modified, os.stat(os.path.join(root, item["path"])).st_mtime)
-    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     valid, error = True, None
     if kind == "patch":
         _loaded, error = patch_manifest.load(root)
         valid = error is None
     return {"kind": kind, "name": name, "files": len(files),
             "bytes": sum(item["size"] for item in files), "modified": modified,
-            "fingerprint": hashlib.sha256(canonical).hexdigest(),
+            "fingerprint": identity.manifest_fingerprint(manifest),
             "valid": valid, "error": error}
 
 

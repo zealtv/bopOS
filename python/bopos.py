@@ -18,6 +18,7 @@ import uuid
 import queue
 
 from store import Store
+import identity
 import manifest
 import fetcher
 import pointfield
@@ -666,12 +667,19 @@ def installed_patches():
         if not os.path.isdir(patch_path):
             continue
         patch_manifest, _error = manifest.load(patch_path)
-        result.append({
+        entry = {
             "name": name,
             "active": name == active_name,
             "git": os.path.lexists(os.path.join(patch_path, ".git")),
             "manifest": patch_manifest is not None,
-        })
+        }
+        try:
+            # same walker as the host catalog (contract sec 7, v1.4); the
+            # stat-signature cache keeps repeat listings cheap on a Zero
+            entry["fingerprint"] = identity.fingerprint(patch_path)
+        except OSError:
+            pass  # unreadable content: honest listing without an identity
+        result.append(entry)
     return result
 
 
@@ -812,7 +820,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             "uptime": uptime,
             "git_rev": state.version,
             "update_model": state.update_model,
-            "contract_version": "1.3",
+            "contract_version": "1.4",
         }
         msg = OSCMessage("/os/report")
         msg.append(json.dumps(report), 's')

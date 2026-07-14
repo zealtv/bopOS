@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-Version 1.3 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
+Version 1.4 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
 (seam council 2026-07-10 + Bob's ratification; record in
 `.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
 2026-07-12 by Bob's removal of the param `role` concept (§8; record in
@@ -15,6 +15,11 @@ Revised to v1.3 2026-07-13 by the patch-distribution ratification (record in
 convergence path with assets; patch manifests are mandatory; the legacy
 `gdrive:` and `getsamples` paths are removed; and `/os/update` is renamed
 `/os/updatebopos`. The deployed fleets adopt these hard breaks in lockstep.
+Amended to v1.4 2026-07-14 by the fleet-patch fingerprint amendment (record in
+`.loom/tied/fp-0-design-proposal/`): each `/os/patches` entry may carry the
+patch's content `fingerprint` (§7), additive. v1.4 is a shared revision: the
+patch-editor cues-manifest amendment (pe-1) folds into this same bump (Bob,
+2026-07-14, Q4 "fold in").
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -369,6 +374,11 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
 - `/<id>/os/patches` → `/os/patches <json>` (unicast) lists installed
   patches as objects `{name, active, git, manifest}`. The three flags are
   booleans; `manifest` means `bopos.patch.json` is present and valid.
+  Each entry may also carry `fingerprint` (v1.4, additive): the 64-hex
+  sha256 of the canonical directory-manifest JSON — identical to the host
+  catalog fingerprint for the same bytes (dot-entries, symlinks, and `.part`
+  files excluded from the walk). Absent from pre-v1.4 nodes, and from an
+  entry whose content cannot be read; every consumer tolerates absence.
 - `/os/droppatch <name>` removes an inactive patch and refuses the active
   patch. `/os/dropassets <slot>` removes an asset slot.
 - **Every provisioning verb replies** `/os/rev <sha> <model>` (unicast) so the

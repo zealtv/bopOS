@@ -427,10 +427,15 @@ class OSCBridge:
             for patch in listing:
                 if not isinstance(patch, dict) or not isinstance(patch.get("name"), str):
                     continue
-                cleaned.append({"name": patch["name"],
-                                "active": bool(patch.get("active")),
-                                "git": bool(patch.get("git")),
-                                "manifest": bool(patch.get("manifest"))})
+                entry = {"name": patch["name"],
+                         "active": bool(patch.get("active")),
+                         "git": bool(patch.get("git")),
+                         "manifest": bool(patch.get("manifest"))}
+                # v1.4 additive content identity; absent (old node) stays absent
+                fingerprint = patch.get("fingerprint")
+                if isinstance(fingerprint, str) and re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+                    entry["fingerprint"] = fingerprint
+                cleaned.append(entry)
             device["patches"] = cleaned
             self.broadcast("patches", device)
             return
