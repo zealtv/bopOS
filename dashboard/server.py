@@ -240,8 +240,11 @@ class Dashboard:
                                if self.device_patch(device_uid, name)
                                and self.device_patch(device_uid, name).get("manifest")]
                 for device_uid in targets:
+                    device = self.state.devices[device_uid]
+                    device["patch_switch"] = {"patch": name, "at": time.time()}
+                    await self.broadcast("device_update", device)
                     self.osc.os_command(self.selector(device_uid), "patch", [name])
-                    self.spawn(self.refresh_patches_later(device_uid, 2.25))
+                    self.spawn(self.refresh_patch_state_later(device_uid, 8.0))
         elif kind == "add_patch":
             user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
             selector = "all" if uid in (None, "all") else self.selector(uid)
@@ -608,6 +611,13 @@ class Dashboard:
         await asyncio.sleep(delay)
         if uid in self.state.devices:
             self.osc.request(uid, "patches")
+
+    async def refresh_patch_state_later(self, uid, delay=0.25):
+        """Fallback refresh when a provisioning receipt is lost on UDP."""
+        await asyncio.sleep(delay)
+        if uid in self.state.devices:
+            for member in ("patches", "params", "report"):
+                self.osc.request(uid, member)
 
     def assign_seat(self, seat):
         uid = seat.get("bound")

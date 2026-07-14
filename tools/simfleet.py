@@ -366,6 +366,10 @@ class SimFleet:
         else:
             self.fetch_pending.setdefault(device.mac, []).append(key)
 
+    def finish_patch_switch(self, device, source):
+        device.engine_restart_until = 0.0
+        self.send_rev(device, source)
+
     def admin_verb(self, device, member, args, source):
         # bopos.py owns these, so a dead engine still answers
         self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
@@ -397,9 +401,8 @@ class SimFleet:
                 self.send_rev(device, source)
                 return
             device.active_patch = name
-            self.set_state(device, "updating")
-            self.schedule(2.0, self.send_rev, device, source)
-            self.schedule(5.0, self.reboot_after_silence, device, False)
+            device.engine_restart_until = float("inf")
+            self.schedule(2.0, self.finish_patch_switch, device, source)
         elif member == "addpatch" and len(args) >= 2:
             device.patches[str(args[1])] = {"git": True, "manifest": True}
             self.schedule(1.0, self.send_rev, device, source)

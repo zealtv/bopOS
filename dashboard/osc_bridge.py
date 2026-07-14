@@ -478,8 +478,10 @@ class OSCBridge:
                 log.warning("unattributable /os/rev from %s: %r", ip, args)
                 return
             device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
+            device["patch_switch"] = None
             self.broadcast("rev", device)
-            self.request(device["uid"], "patches")
+            for member in ("patches", "params", "report"):
+                self.request(device["uid"], member)
             return
         if address == "/sync/pong" and len(args) >= 4:
             self.handle_pong(args)

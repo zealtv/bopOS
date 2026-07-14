@@ -363,6 +363,9 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
   or honestly no-op. The old `/os/update` spelling has no alias.
 - `/os/checkout <branch>`, `/os/patch <name>`, `/os/addpatch <user> <repo>`,
   `/os/pullpatch` — as today, renamed.
+- `/os/patch <name>` keeps the OS and helper online: stop the current engine
+  stack, select the validated installed patch, launch its engine, then send the
+  provisioning receipt. It never reboots the device.
 - `/<id>/os/patches` → `/os/patches <json>` (unicast) lists installed
   patches as objects `{name, active, git, manifest}`. The three flags are
   booleans; `manifest` means `bopos.patch.json` is present and valid.

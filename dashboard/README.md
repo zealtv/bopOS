@@ -107,6 +107,10 @@ a new host patch appears there only after its Send completes successfully.
 Sending a device's active patch is confirmation-gated because its engine stops
 and restarts. A ◆ marker identifies Git-managed device patches: update those
 with Pull latest; host-mirrored patches use Send.
+Selecting an installed patch with **Switch** also restarts only the engine stack;
+the helper, dashboard connection, and operating system stay online. After the
+replacement starts, the dashboard refreshes the active report and parameter
+declarations from the node.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
 visual coordinate origin, listener, master, presets). The technical view lets

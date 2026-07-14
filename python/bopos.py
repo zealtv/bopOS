@@ -971,15 +971,26 @@ def switch_patch_callback(path='', tags='', args='', source=''):
     if not os.path.isdir(patch_path) or patch_manifest is None:
         print(f"Patch '{patch_name}' not found or has no valid bopos.patch.json")
         return
-    current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else 'None'
+    current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else None
     print(f"Switching patch: {current} -> {patch_name}")
-    try:
-        with open(active_patch_file, 'w') as target:
-            target.write(patch_name + '\n')
-    except Exception as error:
-        print(f"Failed to write active_patch.txt: {error}")
-        return
-    os.system(os.path.join(BOPOS_DIR, "bash/stop-engine.sh"))
+
+    def select(name):
+        temporary = active_patch_file + ".tmp"
+        try:
+            with open(temporary, 'w') as target:
+                target.write(name + '\n')
+            os.replace(temporary, active_patch_file)
+            return True
+        except Exception as error:
+            print(f"Failed to write active_patch.txt: {error}")
+            try:
+                os.remove(temporary)
+            except OSError:
+                pass
+            return False
+
+    # Updating an inactive target need not interrupt the currently playing
+    # engine. Host-mirrored patches have already converged through /os/fetch.
     if os.path.isdir(os.path.join(patch_path, '.git')):
         print(f"Pulling latest for {patch_name}...")
         try:
@@ -990,8 +1001,28 @@ def switch_patch_callback(path='', tags='', args='', source=''):
                 print(f"git pull failed: {result.stderr.decode()}")
         except Exception as error:
             print(f"git pull failed: {error}")
-    print("Rebooting...")
-    os.system("systemctl reboot")
+
+    stop_script = os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")
+    start_script = os.path.join(BOPOS_DIR, "bash", "start-engine.sh")
+    if run_command(["bash", stop_script]) != 0:
+        print("Patch switch aborted: failed to stop current engine")
+        return False
+    hb_wake.set()
+    if not select(patch_name):
+        run_command(["bash", start_script], wait_for_start=True)
+        hb_wake.set()
+        return False
+    if run_command(["bash", start_script], wait_for_start=True) == 0 and engine_alive() == 1:
+        print(f"Patch switch complete: {patch_name}")
+        hb_wake.set()
+        return True
+
+    print(f"Patch switch failed to start {patch_name}; restoring {current}")
+    run_command(["bash", stop_script])
+    if current and select(current):
+        run_command(["bash", start_script], wait_for_start=True)
+    hb_wake.set()
+    return False
 
 
 def add_patch_callback(path='', tags='', args='', source=''):

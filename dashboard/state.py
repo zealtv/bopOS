@@ -79,6 +79,7 @@ class InstallationState:
             # exposes: the node receipts success but does not report a hash.
             "distribution": {},
             "fetch": {},  # runtime phase by slot: queued/fetching/ok/err
+            "patch_switch": None,  # runtime {patch, at}; cleared by /os/rev
             "patches": None,  # runtime /os/patches listing; None = not queried
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
             "params": {},  # runtime declaration/catch-up mirror; durable values live on seat

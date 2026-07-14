@@ -144,7 +144,8 @@ This is deliberate:
   reconfigure, or query peripherals at runtime; nothing is locked in at boot.
 
 A patch typically issues its `/io/create` calls on `loadbang`. Peripherals persist until
-replaced or until the bridge restarts (e.g. on a patch switch / reboot).
+replaced or until the bridge restarts (for example, on a device reboot or framework
+update). An engine-only patch switch leaves the bridge running.
 
 
 ## Dependencies
