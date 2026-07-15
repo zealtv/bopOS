@@ -98,10 +98,24 @@ ws.on("master", data => { master = Number(data.value); renderHeader(); });
 ws.on("room", data => { installation.room = data; render(); });
 ws.on("listener", data => { installation.listener = data; render(); });
 ws.on("points", data => { installation.points = data.points || {}; render(); });
+ws.on("editor_points", data => {
+  if (!installation.editor) return;
+  installation.editor.points=data.points||{};
+  Spatial.renderEditor(installation.editor,ws);
+});
+ws.on("editor_point_element", data => {
+  if (!installation.editor) return;
+  installation.editor.point_element=Number(data.element)||0;
+  Spatial.renderEditor(installation.editor,ws);
+});
 ws.on("point_frame", data => Spatial.frame(data.points || {}));
 ws.on("cue_scheduled", data => {
   const status = $("#cue-status"); if (!status) return;
   status.value = `${data.cue_id} fires in ${data.lead_ms} ms`;
+});
+ws.on("editor_cue_fired", data => {
+  const status = $("#editor-cue-status"); if (!status) return;
+  status.value = `${data.cue_id} fired`;
 });
 ws.on("error", data => {
   if (manifestFeedback.endsWith("…")) {
@@ -344,6 +358,24 @@ function editorControl(declaration, value) {
   if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(declaration.name)}" type="checkbox" ${value?'checked':''}></label>`;
   return `<label><span>${name}</span><output>${esc(value)}</output><input data-editor-param="${esc(declaration.name)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
 }
+function renderEditorPreview(editor) {
+  Spatial.renderEditor(editor,ws);
+  const cues=$("#editor-declared-cues"), free=$("#editor-cue-id"), fire=$("#editor-cue-fire");
+  if (!cues || !free || !fire || !editor.active) return;
+  cues.innerHTML=(editor.cues||[]).map(cue=>{
+    const label=cue.label||cue.id;
+    const description=cue.description?`<small>${esc(cue.description)}</small>`:"";
+    return `<button data-editor-cue="${esc(cue.id)}" title="Fire ${esc(cue.id)}">${esc(label)}${description}</button>`;
+  }).join("");
+  const send=cueId=>{
+    if (!cueId) return;
+    ws.send("fire_editor_cue",{cue_id:cueId});
+    $("#editor-cue-status").value=`Firing ${cueId}…`;
+  };
+  cues.querySelectorAll("[data-editor-cue]").forEach(button=>button.onclick=()=>send(button.dataset.editorCue));
+  fire.onclick=()=>send(free.value.trim());
+  free.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();fire.click();}};
+}
 function renderEditor() {
   const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}}, mode=installation.supervisor?.mode||"off";
   const patches=(distribution.patches||[]).filter(item=>item.valid);
@@ -394,6 +426,7 @@ function renderEditor() {
   const focused=document.activeElement;
   const source=manifestSource(editor,patches,editorPatchChoice);
   if (!$("#manifest-editor").contains(focused)) renderManifestEditor(source);
+  renderEditorPreview(editor);
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;
   const groups=[];

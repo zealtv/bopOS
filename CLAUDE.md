@@ -42,7 +42,7 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (reconciled 2026-07-15 after the fleet-patch gate and patch-editor PE-3)
+## Thread ordering (reconciled 2026-07-15 after patch-editor PE-4/PE-4b)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.4** (2026-07-07 base + seam amendment + engine-boundary revision +
@@ -50,26 +50,26 @@ distribution amendment + fleet-patch fingerprint amendment; pe-1's cues
 amendment folds into the same v1.4 bump); `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
-`patch-asset-sync` (dist-0..4) are **all tied**. `bopos.py`
+`patch-asset-sync` (dist-0..4), fleet-patch (fp-0..4), and patch-editor
+(pe-0..4 plus the PE-4b delivery/element-target follow-up) are **all tied**. `bopos.py`
 (ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
 surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
-**The workable queue for autonomous sessions.** Fleet-patch fp-1..4 and
-patch-editor pe-1..3 are tied; fp-4 passed on bop000, and the PE-3b launch-race
-regression also passed an audible simulator gate. This recommended order takes
-precedence over `./.loom/loom.sh next`'s alphabetical listing:
+**The workable queue for autonomous sessions.** Fleet-patch and patch-editor
+are tied; fp-4 passed on bop000, the PE-3b launch-race regression passed an
+audible simulator gate, and Bob confirmed PE-4/PE-4b point and cue delivery
+from the live editor. This recommended order takes precedence over
+`./.loom/loom.sh next`'s alphabetical listing:
 
-1. **`patch-editor/pe-4-points-and-cues-ui`** — the sole loose end. Add the
-   session-only point scratch setup and declared/free-text cue firing through
-   the normal `/pt` and `/cue` paths.
-2. **`ui-tabs/tabs-0-ia-proposal`** — resume the short IA proposal after PE-4;
-   its old fp-0 dependency is satisfied. It returns to `.waiting` for Bob's
+1. **`ui-tabs/tabs-0-ia-proposal`** — the sole loose end. Bob will give the
+   clean context additional notes before it begins; incorporate those notes,
+   then produce the short IA proposal. It returns to `.waiting` for Bob's
    ratification.
-3. **`ui-tabs/tabs-1-skeleton`** — implement only after tabs-0 is ratified.
-4. **`ui-tabs/tabs-2-review-session`** — the hands-on interactive UI/touch
+2. **`ui-tabs/tabs-1-skeleton`** — implement only after tabs-0 is ratified.
+3. **`ui-tabs/tabs-2-review-session`** — the hands-on interactive UI/touch
    audit with Bob inside the real tabs. Split and complete findings from there.
-5. **`patch-workflow-friction/friction-0..1`** — resume after tabs-2 so the
+4. **`patch-workflow-friction/friction-0..1`** — resume after tabs-2 so the
    docs and starter-kit copy describe the finished editor and tab structure.
 
 Everything else is `.waiting` for a reason stated in its stitch:

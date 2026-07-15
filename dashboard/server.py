@@ -112,7 +112,8 @@ class Dashboard:
         self.state.data["editor"] = {
             "active": False, "status": "off", "patch": None,
             "engine_alive": None, "generation": 0, "params": {},
-            "declarations": [], "cues": [], "engine": None,
+            "declarations": [], "cues": [], "points": {},
+            "point_element": 0, "engine": None,
         }
         self.fleet_operation = None
         self.fleet_retries = {}
@@ -252,6 +253,40 @@ class Dashboard:
                 editor.setdefault("params", {})[name] = cleaned
                 self.osc.set_param(0, name, cleaned)
                 await self.broadcast("state", self.state.public())
+        elif kind == "set_editor_point":
+            if self.supervisor_mode != "edit":
+                return
+            point = points.sanitize_point(data.get("point"))
+            if point is None:
+                return
+            editor = self.state.data["editor"]
+            editor.setdefault("points", {})[point["id"]] = point
+            self.osc.send_editor_point(point)
+            await self.broadcast("editor_points", {"points": editor["points"]})
+        elif kind == "clear_editor_point":
+            if self.supervisor_mode != "edit":
+                return
+            try:
+                point_id = int(data.get("id"))
+            except (TypeError, ValueError):
+                return
+            editor = self.state.data["editor"]
+            if editor.setdefault("points", {}).pop(point_id, None) is not None:
+                self.osc.clear_editor_point(point_id)
+                await self.broadcast("editor_points", {"points": editor["points"]})
+        elif kind == "set_editor_point_element":
+            if self.supervisor_mode != "edit":
+                return
+            try:
+                element = int(data.get("element"))
+            except (TypeError, ValueError):
+                return
+            if element not in (0, 1):
+                return
+            editor = self.state.data["editor"]
+            editor["point_element"] = element
+            self.osc.send_editor_element(element)
+            await self.broadcast("editor_point_element", {"element": element})
         elif kind == "save_patch_manifest":
             await self.save_patch_manifest(data, ws)
         elif kind == "create_patch":
@@ -418,6 +453,16 @@ class Dashboard:
             await self.broadcast("cue_scheduled", {"cue_id": cue_id,
                                                     "shared_time_ns": str(shared_time_ns),
                                                     "lead_ms": lead_ms})
+        elif kind == "fire_editor_cue":
+            if self.supervisor_mode != "edit":
+                return
+            cue_id = data.get("cue_id") if isinstance(data.get("cue_id"), str) else ""
+            if patch_manifest.CUE_ID.fullmatch(cue_id) is None:
+                await self.ws_error(ws, "cue name: use 1–64 characters without newlines")
+                return
+            shared_time_ns = self.osc.fire_cue_now(cue_id)
+            await self.broadcast("editor_cue_fired", {
+                "cue_id": cue_id, "shared_time_ns": str(shared_time_ns)})
         elif kind == "save_preset":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if not name:
@@ -484,9 +529,21 @@ class Dashboard:
         elif kind in ("restart_edit", "relaunch_edit"):
             async with self.supervisor_lock:
                 if self.supervisor_mode == "edit":
-                    patch_name = self.state.data["editor"].get("patch")
+                    editor = self.state.data["editor"]
+                    patch_name = editor.get("patch")
+                    scratch_points = dict(editor.get("points", {}))
+                    point_element = int(editor.get("point_element", 0))
                     await self.stop_edit()
                     await self.start_edit(patch_name)
+                    # Restart/relaunch is still the same edit session. Restore
+                    # its scratch geometry to the fresh relay without making
+                    # it durable or joining installation-wide point state.
+                    if self.supervisor_mode == "edit":
+                        self.state.data["editor"]["points"] = scratch_points
+                        self.state.data["editor"]["point_element"] = point_element
+                        self.osc.send_editor_element(point_element)
+                        for point in scratch_points.values():
+                            self.osc.send_editor_point(point)
                     await self.broadcast("state", self.state.public())
         elif kind == "add_seat":
             try:
@@ -1272,6 +1329,8 @@ class Dashboard:
                               for item in declarations},
                       declarations=declarations,
                       cues=list(manifest.get("cues", ())),
+                      points={},
+                      point_element=0,
                       engine=manifest.get("engine"))
         self.set_supervisor_mode("edit")
         self.osc.set_target("127.0.0.1")
@@ -1296,7 +1355,7 @@ class Dashboard:
         await self.terminate_supervisor_process()
         self.clear_audition_devices()
         editor = self.state.data["editor"]
-        editor.update(active=False, status="off", engine_alive=None)
+        editor.update(active=False, status="off", engine_alive=None, points={})
         self.set_supervisor_mode("off")
         self.osc.set_target(self.performance_target)
         for seat in self.state.seats.values():

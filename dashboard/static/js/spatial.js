@@ -13,6 +13,10 @@
   let pointFrame = {};
   let lastPointSend = 0;
   let lastListenerSend = 0;
+  let editorLast = null;
+  let editorPointDrag = null;
+  let selectedEditorPoint = null;
+  let lastEditorPointSend = 0;
   const drafts = new Map();
 
   function el(name, attrs, parent) {
@@ -383,5 +387,139 @@
     render(...last);
   }
 
-  window.Spatial = {render, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null; }};
+  function renderEditor(editor, ws) {
+    editorLast = [editor, ws];
+    const panel = document.getElementById("editor-preview");
+    const svg = document.getElementById("editor-spatial");
+    if (!panel || !svg) return;
+    panel.hidden = !editor.active;
+    if (!editor.active || editorPointDrag) return;
+    const authored = editor.points || (editor.points = {});
+    if (selectedEditorPoint !== null && !authored[selectedEditorPoint] && !authored[String(selectedEditorPoint)]) {
+      selectedEditorPoint = null;
+    }
+    const W = 5, D = 4, P = 0.55;
+    svg.setAttribute("viewBox", `${-W-P} ${-D-P} ${2*(W+P)} ${2*(D+P)}`);
+    svg.replaceChildren();
+    const defs = el("defs", {}, svg);
+    const clip = el("clipPath", {id: "editor-room-clip"}, defs);
+    el("rect", {x: -W, y: -D, width: 2*W, height: 2*D}, clip);
+    el("rect", {x: -W, y: -D, width: 2*W, height: 2*D, class: "editor-room"}, svg);
+    const fields = el("g", {"clip-path": "url(#editor-room-clip)"}, svg);
+    for (const point of Object.values(authored)) {
+      el("circle", {cx: point.x, cy: point.y, r: point.r,
+                    class: "editor-point-radius", "data-editor-radius-id": point.id,
+                    style: `--point-colour:${pointColour(point.id)}`}, fields);
+    }
+    const origin = el("g", {class: "editor-origin", "data-editor-origin": "true"}, svg);
+    el("line", {x1: -.48, y1: 0, x2: .48, y2: 0}, origin);
+    el("line", {x1: 0, y1: -.48, x2: 0, y2: .48}, origin);
+    el("circle", {r: .28}, origin);
+    el("text", {x: 0, y: .07}, origin).textContent = "E";
+    const handles = el("g", {"clip-path": "url(#editor-room-clip)"}, svg);
+    for (const point of Object.values(authored)) {
+      const group = el("g", {class: "editor-spatial-point",
+        "data-editor-point-id": point.id, transform: `translate(${point.x} ${point.y})`,
+        style: `--point-colour:${pointColour(point.id)}`}, handles);
+      el("circle", {r: .25, class: "editor-point-handle"}, group);
+      el("text", {x: 0, y: .07, class: "editor-point-label"}, group).textContent = `P${point.id}`;
+    }
+    renderEditorPointList(authored);
+    bindEditorPointControls(authored, ws);
+    svg.onpointerdown = event => {
+      const group = event.target.closest("g[data-editor-point-id]");
+      if (!group) return;
+      selectedEditorPoint = Number(group.dataset.editorPointId);
+      editorPointDrag = {id: selectedEditorPoint, group};
+      svg.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    };
+    svg.onpointermove = event => {
+      if (!editorPointDrag) return;
+      let [x, y] = toSvg(svg, event);
+      x = Math.min(Math.max(x, -W), W); y = Math.min(Math.max(y, -D), D);
+      editorPointDrag.at = [round(x), round(y)];
+      editorPointDrag.group.setAttribute("transform", `translate(${x} ${y})`);
+      const ring = svg.querySelector(`[data-editor-radius-id="${editorPointDrag.id}"]`);
+      if (ring) { ring.setAttribute("cx", x); ring.setAttribute("cy", y); }
+      sendEditorPoint(editorPointDrag.id, x, y, false);
+    };
+    svg.onpointerup = () => {
+      if (!editorPointDrag) return;
+      if (editorPointDrag.at) sendEditorPoint(editorPointDrag.id, ...editorPointDrag.at, true);
+      editorPointDrag = null;
+      renderEditor(...editorLast);
+    };
+  }
+
+  function editorPoint(authored, id) {
+    return authored[id] || authored[String(id)];
+  }
+
+  function sendEditorPoint(id, x, y, final) {
+    if (!editorLast) return;
+    const [editor, ws] = editorLast;
+    const point = editorPoint(editor.points || {}, id);
+    if (!point) return;
+    point.x = round(x); point.y = round(y);
+    const now = performance.now();
+    if (final || now - lastEditorPointSend >= 40) {
+      lastEditorPointSend = now;
+      ws.send("set_editor_point", {point: clone(point)});
+    }
+  }
+
+  function renderEditorPointList(authored) {
+    const list = document.getElementById("editor-point-list");
+    list.innerHTML = Object.values(authored).sort((a,b)=>Number(a.id)-Number(b.id)).map(point =>
+      `<button class="point-list-button${Number(point.id)===selectedEditorPoint?' selected':''}" data-editor-point-select="${Number(point.id)}" style="--point-colour:${pointColour(point.id)}"><i></i>Point ${Number(point.id)}</button>`).join("");
+    list.querySelectorAll("[data-editor-point-select]").forEach(button => button.onclick = () => {
+      selectedEditorPoint = Number(button.dataset.editorPointSelect);
+      renderEditor(...editorLast);
+    });
+  }
+
+  function bindEditorPointControls(authored, ws) {
+    const controls = document.getElementById("editor-point-controls");
+    const editor = editorLast?.[0] || {};
+    document.querySelectorAll('input[name="editor-point-element"]').forEach(input => {
+      input.checked = Number(input.value) === Number(editor.point_element || 0);
+      input.onchange = () => {
+        if (!input.checked) return;
+        editor.point_element = Number(input.value);
+        ws.send("set_editor_point_element", {element: editor.point_element});
+      };
+    });
+    const active = editorPoint(authored, selectedEditorPoint);
+    controls.hidden = !active;
+    document.getElementById("editor-point-add").onclick = () => {
+      const used = new Set(Object.keys(authored).map(Number));
+      let id = 0; while (used.has(id)) id++;
+      const point = {id, x: -2, y: 0, r: 3, falloff: 1};
+      authored[id] = point; selectedEditorPoint = id;
+      ws.send("set_editor_point", {point: clone(point)});
+      renderEditor(...editorLast);
+    };
+    if (!active) return;
+    document.getElementById("editor-point-title").textContent = `Point ${active.id}`;
+    if (!controls.contains(document.activeElement)) {
+      document.getElementById("editor-point-radius").value = active.r;
+      document.getElementById("editor-point-falloff").value = active.falloff;
+    }
+    const sendEdit = () => {
+      active.r = Number(document.getElementById("editor-point-radius").value);
+      active.falloff = Number(document.getElementById("editor-point-falloff").value);
+      ws.send("set_editor_point", {point: clone(active)});
+      renderEditor(...editorLast);
+    };
+    document.getElementById("editor-point-radius").onchange = sendEdit;
+    document.getElementById("editor-point-falloff").onchange = sendEdit;
+    document.getElementById("editor-point-delete").onclick = () => {
+      const id = Number(active.id);
+      delete authored[id]; delete authored[String(id)]; selectedEditorPoint = null;
+      ws.send("clear_editor_point", {id}); renderEditor(...editorLast);
+    };
+  }
+
+  window.Spatial = {render, renderEditor, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null || editorPointDrag !== null; }};
 })();

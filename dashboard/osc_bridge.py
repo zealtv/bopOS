@@ -185,6 +185,9 @@ class OSCBridge:
         ])
         self.sender.sendto(packet, ("127.0.0.1", self.destination[1]))
 
+    def send_editor_element(self, element):
+        self.send("/audition/editor-element", [int(element)])
+
     def set_param(self, selector, name, value):
         self.send(f"/{selector}/p/{name}", [value])
 
@@ -201,6 +204,12 @@ class OSCBridge:
         shared_time_ns = time.monotonic_ns() + lead_ms * 1_000_000
         self.send("/cue", [str(cue_id), str(shared_time_ns)])
         return shared_time_ns, lead_ms
+
+    def fire_cue_now(self, cue_id):
+        """Fire through the normal cue scheduler at its earliest deadline."""
+        shared_time_ns = time.monotonic_ns()
+        self.send("/cue", [str(cue_id), str(shared_time_ns)])
+        return shared_time_ns
 
     def _points_elapsed(self):
         return time.monotonic() - self._points_started
@@ -225,6 +234,14 @@ class OSCBridge:
             point["motion"]["started"] = self._points_elapsed()
         self.state.data.setdefault("points", {})[point["id"]] = point
         self.send("/pt", points.sparse_args(point, self._points_elapsed()))
+
+    def send_editor_point(self, point):
+        # Editor scratch uses the same /pt seam without joining the durable or
+        # installation-wide point model. The edit supervisor owns the relay.
+        self.send("/pt", points.sparse_args(point, 0.0))
+
+    def clear_editor_point(self, point_id):
+        self.send("/pt/clear", [int(point_id)])
 
     def clear_point(self, point_id):
         if (self.state.data.get("points") or {}).pop(point_id, None) is not None:
@@ -416,6 +433,14 @@ class OSCBridge:
                 self.state.save_debounced()
                 if first_seen:
                     self.request(uid, "report")
+                if device.get("editor"):
+                    # The one edit instance is the mini-map's sole element.
+                    # Its (0, 0) coordinate renders at the centre of that map.
+                    self.assign(uid, 0, "Patch editor", ((0.0, 0.0),))
+                    editor = self.state.data.get("editor", {})
+                    self.send_editor_element(editor.get("point_element", 0))
+                    for point in editor.get("points", {}).values():
+                        self.send_editor_point(point)
                 if configured or device.get("editor"):
                     self.request(uid, "params")
                     self.request(uid, "patches")

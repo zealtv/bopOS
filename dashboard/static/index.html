@@ -60,6 +60,30 @@
           <output id="manifest-feedback" class="dim" aria-live="polite"></output>
         </section>
         <div id="editor-params" class="params"></div>
+        <section id="editor-preview" aria-labelledby="editor-preview-title" hidden>
+          <div class="section-head"><div><h3 id="editor-preview-title">Points and cues</h3><p class="dim">Session-only scratch controls for the running edit instance.</p></div></div>
+          <div class="editor-preview-grid">
+            <div class="editor-point-preview">
+              <div class="manifest-subhead"><h3>Point preview</h3><button id="editor-point-add">Add point</button></div>
+              <div id="editor-point-list" class="point-list" aria-label="Editor points"></div>
+              <fieldset id="editor-point-target"><legend>send point values to</legend><label><input type="radio" name="editor-point-element" value="0" checked> element 0</label><label><input type="radio" name="editor-point-element" value="1"> element 1</label></fieldset>
+              <div id="editor-point-controls" hidden>
+                <strong id="editor-point-title">Point</strong>
+                <label>radius <input id="editor-point-radius" type="number" min="0.01" max="1000" step="0.1"> m</label>
+                <label>falloff <select id="editor-point-falloff"><option value="0">linear</option><option value="1">smooth</option><option value="2">gauss</option></select></label>
+                <button id="editor-point-delete" class="danger">Delete</button>
+              </div>
+              <p class="dim editor-preview-help">The edit instance is pinned at the centre. Drag points around it to preview proximity.</p>
+              <svg id="editor-spatial" aria-label="Editor point preview"></svg>
+            </div>
+            <div class="editor-cue-preview">
+              <h3>Fire cues</h3>
+              <div id="editor-declared-cues" class="editor-cue-buttons"></div>
+              <label class="editor-free-cue">try an undeclared ID <span><input id="editor-cue-id" type="text" maxlength="64" autocomplete="off"><button id="editor-cue-fire">Fire</button></span></label>
+              <output id="editor-cue-status" class="dim" aria-live="polite">Cues fire immediately in the edit instance.</output>
+            </div>
+          </div>
+        </section>
       </section>
       <div id="detail"><p class="empty">Select a device.</p></div>
     </main>

@@ -92,6 +92,7 @@ class AuditionRig:
         self.local_target = args.engine_host
         self.report_target = (args.target, args.report_port)
         self.listener = None
+        self.editor_element = 0
         self.pending_cues = []
 
     def _load_patch(self):
@@ -258,11 +259,34 @@ class AuditionRig:
         if not node.positions:
             return
         entries = pointfield.decompose(changed, node.positions)
-        for point_id in sorted(removed):
-            for index in range(len(node.positions)):
-                entries.append((point_id, index, 0.0))
+        if self.args.edit:
+            entries = [(point_id, self.editor_element, value)
+                       for point_id, _element, value in entries]
+            entries += [(point_id, self.editor_element, 0.0)
+                        for point_id in sorted(removed)]
+        else:
+            for point_id in sorted(removed):
+                for index in range(len(node.positions)):
+                    entries.append((point_id, index, 0.0))
         for point_id, element, value in entries:
             self.send_engine(node, "/pt", (int(point_id), int(element), float(value)))
+
+    def set_editor_element(self, params, source):
+        if not self.args.edit or not self._loopback(source) or not params:
+            return
+        try:
+            element = int(params[0])
+        except (TypeError, ValueError):
+            return
+        if element not in (0, 1) or element == self.editor_element:
+            return
+        previous = self.editor_element
+        for node in self.nodes:
+            for point_id in sorted(node.points):
+                self.send_engine(node, "/pt", (int(point_id), previous, 0.0))
+        self.editor_element = element
+        for node in self.nodes:
+            self.send_point_values(node, node.points)
 
     def apply_points(self, parts, params):
         parsed = pointfield.parse_wire(parts, params)
@@ -383,6 +407,9 @@ class AuditionRig:
         parts = [part for part in message.address.split("/") if part]
         if parts == ["audition", "listener"]:
             self.apply_listener(message.params, source)
+            return
+        if parts == ["audition", "editor-element"]:
+            self.set_editor_element(message.params, source)
             return
         if parts == ["cue"]:
             self.schedule_cue(message.params)
