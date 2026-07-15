@@ -81,31 +81,40 @@ from the live editor. This recommended order takes precedence over
    expected well under 5 GB — see lore `2026-07-15-asset-transfer-scale-reference`)
    and 11a/11b were specced to implement autonomously without a further
    design gate. Fleet-wide bulk asset rollout is deferred on the separate
-   `asset-fleet-distribution` thread. Then continue with 12 Dashboard live
-   controls, 13 diagnostic density, and 14 the device-alias design gate.
+   `asset-fleet-distribution` thread. Bob then ratified and made ready the
+   nested `parameter-addresses` and lowercase `seat-groups` work, and clarified
+   that no 11a implementation had begun—the Assets tab is still empty—so it has
+   no sunk-work priority. The revised order is: land the parameter
+   contract/model/relay and dashboard/editor foundation first; send the
+   Seat-group spatial-membership UX to its review gate early; complete
+   Seat-group core while that review waits; then finish group authoring and map
+   visualization once ratified. Assets 11a/11b remain ready, independent fallback
+   work if the UX gate is still waiting, and otherwise follow the group
+   foundation. Continue with 12 as the **single** All / Group / Seat nested
+   live-controls integration point, followed by 13 diagnostic density and 14
+   the device-alias design gate.
 5. **`patch-workflow-friction/friction-0..1`** — resume after the full next sweep so the
    docs and starter-kit copy describe the finished editor and tab structure.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 
 - **Bob + hardware gates:** `sync-4` (rig jitter measurement),
-  `spatial-3-rig-sweep`, `preview-4-mac-linux-audible-gate` (ears, both
-  platforms), `dashboard-6-rig-adoption` (the dashboard goal's tie gate),
-  `zero-1` (claimable in any session that confirms bop000 reachable),
-  `input-1`.
+  `spatial-3-rig-sweep`, and `zero-1` (claimable in any session that confirms
+  bop000 reachable).
 - **Bob-gated decisions/pauses:** `scene-sequencing` (whole thread paused
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
-  (SC strategy is co-design), `audio-input` (deferred 2026-07-08),
-  `pd-audition-host` (deferred until a concrete multichannel/DAW need),
-  `parameter-addresses` (nested custom `/p/...` path design, parked until Bob
-  resumes it after the UI-tabs runway), and `framework-version-management`
-  (device framework-currentness/update design, parked on the same basis).
+  (SC strategy is co-design), and `framework-version-management` (device
+  framework-currentness/update design, parked on the UI-tabs-runway basis).
+  `parameter-addresses` and
+  `seat-groups` are no longer parked: Bob ratified and made their implementation
+  leaves ready on 2026-07-15, with the ordering recorded above.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
 (confirm in-session; don't bake gremlin-ask steps into instructions);
-audition rig is Linux-first but **macOS is the likely performance
-platform**; the 2026-07-08 "template lives in `templates/`" ruling is
+the audition software stack is retained, but the combined Mac/Linux audible
+gate—particularly Linux auditioning—is no longer actively tracked; the
+2026-07-08 "template lives in `templates/`" ruling is
 **superseded** (Q6, 2026-07-13 — demos live in `patches/`).
 Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
 (`bopos-uptodate`) — coordinate, don't duplicate.

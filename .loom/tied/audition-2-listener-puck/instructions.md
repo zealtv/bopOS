@@ -90,3 +90,11 @@ The same real patch instances used by Stage 0 produce a stable listener-relative
 stereo preview on macOS and Linux without JACK/taps/aggregate devices; normal
 output is unchanged; position/element edits and listener motion converge
 immediately; and no new abstraction or channel-count configuration is required.
+
+## 2026-07-15 closure boundary
+
+The software implementation through preview-3 is tied. Bob classified the
+combined Mac/Linux audible gate—particularly Linux auditioning—as someday-maybe
+work and removed it from the active loom. This stitch therefore closes as a
+software-complete listener-puck stack, not as evidence that the audible “Done”
+claims above were exercised on either platform.

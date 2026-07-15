@@ -34,12 +34,14 @@ Constraints / notes:
   loop (write scene → trigger → hear the space → iterate). Design demos around that.
 
 ---
-**2026-07-13 status:** Stage 0 and the whole listener-puck software stack are
+**2026-07-15 closure:** Stage 0 and the whole listener-puck software stack are
 **tied** (`preview-0..3`; `tools/audition.py` is the relay-launcher, uid
 scheme `audition-<n>`). The old gating constraints are resolved history:
 the port spike passed, heartbeat identity landed, uids (not IPs) correlate
-devices — no `--sim` flag exists or is needed. The only remaining child is
-`preview-4-mac-linux-audible-gate.waiting` (Bob's ears + both platforms).
+devices — no `--sim` flag exists or is needed. Bob removed the remaining
+combined Mac/Linux audible gate from active tracking as someday-maybe work.
+The software tool remains available; this closure does not claim an audible
+platform verification.
 Forward coupling: the ratified seats model (`.loom/tied/
 dashboard-8-identity-sim-design/`, implementation deferred) makes the
 dashboard spawn this rig itself as the Simulate mode, sending loopback-only

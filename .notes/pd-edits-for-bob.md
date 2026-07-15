@@ -1,5 +1,31 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-15 — nested patch parameter routes
+
+The parameter-address design now preserves true nested OSC from the fleet into
+the engine. The target behavior is:
+
+```text
+/all/p/track1/fx/distortion 0.5   fleet input
+/p/track1/fx/distortion 0.5       selector-stripped engine input
+p track1 fx distortion 0.5        after [oscparse]
+track1 fx distortion 0.5          bopos-param after [route p]
+```
+
+`pd/bopos.pd` already appears to have the correct framework behavior: its
+existing `[oscparse] -> [route p] -> [s bopos-param]` chain preserves every
+parameter path segment after removing only the `p` plane. Do not flatten the
+path into one symbol.
+
+When a concrete patch adopts a nested manifest declaration, update its consumer
+from a flat route such as `[route distortion]` to the corresponding hierarchy,
+for example `[route track1] -> [route fx] -> [route distortion]`. Existing flat
+manifest parameters and routes remain unchanged.
+
+Audible verification should send the exact nested address above to the engine
+port and confirm the final parameter changes. No `.pd` edit is required merely
+to amend the contract; Bob chooses and edits the first concrete nested patch.
+
 ## 2026-07-13 — audition matrix validator follow-up
 
 `pd/bopos.audition~.pd` previously reset only the final `[spigot]` before
