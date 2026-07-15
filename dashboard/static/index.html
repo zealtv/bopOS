@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#101316"><title>bopOS</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
-  <header><h1>bopOS</h1><span id="mode-status" class="mode-status">live fleet</span><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
+  <header><h1>bopOS</h1><div id="execution-target" role="group" aria-label="Execution target"><span class="execution-copy"><small>execution target</small><output id="mode-status" class="mode-status" aria-live="polite">live fleet</output></span><span class="execution-options"><button data-execution-target="off" aria-pressed="true">Live fleet</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch edit</button></span></div><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
   <nav id="primary-tabs" class="primary-tabs" aria-label="bopOS views" role="tablist">
     <button id="tab-button-dashboard" role="tab" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard">Dashboard</button>
     <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
@@ -50,7 +50,7 @@
     </section>
       <aside class="seat-sidebar">
         <h2>Seats</h2><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div>
-        <section id="simulate-panel"><h3>Simulate</h3><div class="mode-actions"><button id="simulate-toggle">Start simulation</button><button id="edit-sim-patch" hidden>Edit this patch</button></div><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
+        <section id="simulate-panel"><h3>Simulation status</h3><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
         <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
       </aside>
     </section>

@@ -270,24 +270,49 @@ function renderFleetPatch() {
   $("#fleet-patch-summary").textContent=summary||(desired?"No assigned devices":"No fleet patch set");
 }
 function renderSimulation(devices) {
-  const sim=installation.simulation||{active:false,status:'off'}, button=$("#simulate-toggle");
-  if (!button) return;
-  button.textContent=sim.active?'Stop simulation':'Start simulation';
-  button.onclick=()=>{
-    if (sim.active && !confirm("Stop the running simulation?")) return;
-    ws.send("set_simulation",{active:!sim.active,confirmed:sim.active});
-  };
+  const sim=installation.simulation||{active:false,status:'off'};
   $("#simulate-status").textContent=sim.active&&sim.patch?`${sim.status||'running'} · ${sim.patch}`:(sim.status||'off');
   const real=devices.filter(d=>!d.virtual&&d.online).length;
   $("#simulate-real-note").textContent=sim.active&&real?`${real} real device${real===1?'':'s'} online (not driven)`:'';
-  const edit=$("#edit-sim-patch");
-  edit.hidden=!sim.active;
-  edit.onclick=()=>{
-    const patch=sim.patch;
-    if (patch && confirm(`Stop the running simulation and edit "${patch}"?`)) {
-      ws.send("set_edit",{active:true,patch,confirmed:true});
+}
+
+function contextualExecutionPatch() {
+  const editor=installation.editor||{}, sim=installation.simulation||{};
+  if (editor.active&&editor.patch) return editor.patch;
+  if (activeTab==="patches"&&editorPatchChoice) return editorPatchChoice;
+  return sim.patch||installation.fleet_patch?.name||editorPatchChoice||null;
+}
+
+function setExecutionTarget(target) {
+  const mode=installation.supervisor?.mode||"off";
+  if (target==="off") {
+    if (mode==="simulate") {
+      if (!confirm("Stop Simulation and return audio control to the Live fleet?")) return;
+      ws.send("set_simulation",{active:false,confirmed:true});
+    } else if (mode==="edit") {
+      if (!confirm("Stop Patch edit and return audio control to the Live fleet?")) return;
+      ws.send("set_edit",{active:false,confirmed:true});
     }
-  };
+    return;
+  }
+  if (target==="simulate") {
+    if (mode==="simulate") return;
+    const patch=contextualExecutionPatch();
+    const question=mode==="edit"
+      ? `Stop Patch edit and hear "${patch||"the selected patch"}" in Simulation?`
+      : `Run "${patch||"the selected patch"}" in Simulation? Live fleet devices will not be driven.`;
+    if (!confirm(question)) return;
+    ws.send("set_simulation",{active:true,patch,confirmed:true});
+    return;
+  }
+  if (target==="edit") {
+    if (mode==="simulate") {
+      if (!confirm("Stop Simulation and choose a patch to edit?")) return;
+      ws.send("set_simulation",{active:false,confirmed:true});
+    }
+    activateTab("patches");
+    requestAnimationFrame(()=>$("#editor-patch")?.focus());
+  }
 }
 
 function manifestSource(editor, patches, patch) {
@@ -453,8 +478,13 @@ function renderEditor() {
   launch.onclick=()=>{
     const patch=select.value;
     if (!patch) return;
-    if (mode==="simulate" && !confirm(`Stop the running simulation and edit "${patch}"?`)) return;
-    ws.send("set_edit",{active:true,patch,confirmed:mode==="simulate"});
+    if (mode!=="edit") {
+      const question=mode==="simulate"
+        ? `Stop the running Simulation and edit "${patch}"?`
+        : `Open "${patch}" in Patch edit? Live fleet devices will not be driven.`;
+      if (!confirm(question)) return;
+    }
+    ws.send("set_edit",{active:true,patch,confirmed:mode!=="edit"});
   };
   $("#editor-status").textContent=editor.active?`${editor.status||"running"} · ${editor.patch}`:(editor.status||"off");
   const closed=editor.active&&editor.engine_alive!=null&&Number(editor.engine_alive)===0;
@@ -467,8 +497,16 @@ function renderEditor() {
     ? `${closed?'<button id="editor-relaunch">Relaunch</button>':''}<button id="editor-restart">Restart</button><button id="editor-hear-sim">Hear it in the sim</button><button id="editor-stop">Stop</button>`:"";
   $("#editor-relaunch")?.addEventListener("click",()=>ws.send("relaunch_edit",{}));
   $("#editor-restart")?.addEventListener("click",()=>ws.send("restart_edit",{}));
-  $("#editor-hear-sim")?.addEventListener("click",()=>ws.send("set_simulation",{active:true,patch:editor.patch}));
-  $("#editor-stop")?.addEventListener("click",()=>ws.send("set_edit",{active:false}));
+  $("#editor-hear-sim")?.addEventListener("click",()=>{
+    if (confirm(`Stop Patch edit and hear "${editor.patch}" in Simulation?`)) {
+      ws.send("set_simulation",{active:true,patch:editor.patch,confirmed:true});
+    }
+  });
+  $("#editor-stop")?.addEventListener("click",()=>{
+    if (confirm("Stop Patch edit and return audio control to the Live fleet?")) {
+      ws.send("set_edit",{active:false,confirmed:true});
+    }
+  });
   const focused=document.activeElement;
   const source=manifestSource(editor,patches,editorPatchChoice);
   if (!$("#manifest-editor").contains(focused)) renderManifestEditor(source);
@@ -535,7 +573,11 @@ function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
   const mode=installation.supervisor?.mode||"off";
-  $("#mode-status").textContent=mode==="simulate"?"simulation":mode==="edit"?`editing ${installation.editor?.patch||"patch"}`:"live fleet";
+  $("#mode-status").textContent=mode==="simulate"?"simulation":mode==="edit"?"patch edit":"live fleet";
+  document.querySelectorAll("[data-execution-target]").forEach(button=>{
+    const active=button.dataset.executionTarget===mode;
+    button.setAttribute("aria-pressed",active?"true":"false");
+  });
   $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
@@ -744,3 +786,4 @@ $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});r
   input.onpointerup = send;
 }
 document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(["reboot","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} all devices?`))return;ws.send("action",{uid:"all",verb});});
+document.querySelectorAll("[data-execution-target]").forEach(button=>button.onclick=()=>setExecutionTarget(button.dataset.executionTarget));

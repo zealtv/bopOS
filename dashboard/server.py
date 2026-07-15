@@ -517,6 +517,13 @@ class Dashboard:
         elif kind == "set_simulation":
             async with self.supervisor_lock:
                 if bool(data.get("active")):
+                    if (ws is not None and self.supervisor_mode != "simulate"
+                            and data.get("confirmed") is not True):
+                        message = ("Leaving Patch edit for Simulation requires confirmation."
+                                   if self.supervisor_mode == "edit" else
+                                   "Starting Simulation requires confirmation.")
+                        await self.ws_error(ws, message)
+                        return
                     await self.start_simulation(str(data.get("patch", "")).strip() or None)
                 else:
                     if (ws is not None and self.supervisor_mode == "simulate"
@@ -529,9 +536,16 @@ class Dashboard:
         elif kind == "set_edit":
             async with self.supervisor_lock:
                 active = bool(data.get("active"))
-                if (active and self.supervisor_mode == "simulate"
+                if (active and ws is not None and self.supervisor_mode != "edit"
                         and data.get("confirmed") is not True):
-                    await self.ws_error(ws, "Leaving a running simulation for edit mode requires confirmation.")
+                    message = ("Leaving a running simulation for Patch edit requires confirmation."
+                               if self.supervisor_mode == "simulate" else
+                               "Starting Patch edit requires confirmation.")
+                    await self.ws_error(ws, message)
+                    return
+                if (not active and ws is not None and self.supervisor_mode == "edit"
+                        and data.get("confirmed") is not True):
+                    await self.ws_error(ws, "Stopping Patch edit requires confirmation.")
                     return
                 if active:
                     await self.start_edit(str(data.get("patch", "")).strip() or None)
@@ -1289,7 +1303,6 @@ class Dashboard:
         catalog = await self.catalog()
         valid_items = [item for item in catalog["patches"] if item["valid"]]
         valid_patches = [item["name"] for item in valid_items]
-        explicit_patch = patch_name is not None
         patch_name = patch_name or simulation.get("patch")
         if patch_name not in valid_patches:
             patch_name = "demo-pd" if "demo-pd" in valid_patches else (
@@ -1303,12 +1316,9 @@ class Dashboard:
                 simulation.update(active=False, status="no valid host patches")
                 return
             patch_name, manifest_path = "demo-pd", fallback
-        item = next((item for item in valid_items if item["name"] == patch_name), None)
-        if item is not None and not explicit_patch:
-            self.stage_catalog_patch(item)
-            self.state.save_debounced()
-        else:
-            simulation["patch"] = patch_name
+        # Simulation is a private runtime target. Choosing its fallback must
+        # never stage or change the desired Live fleet deployment.
+        simulation["patch"] = patch_name
         simulation.update(active=True, status="starting")
         self.set_supervisor_mode("simulate")
         self.osc.set_target("127.0.0.1")
