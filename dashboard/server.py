@@ -156,8 +156,19 @@ class Dashboard:
             data = await self.public_state()
         elif (message_type in {"device_update", "patches", "report",
                                "params_declaration", "rev"}
-              and isinstance(data, dict) and data.get("uid") in self.state.devices):
-            data = await self.public_device(self.state.devices[data["uid"]])
+              and isinstance(data, dict)):
+            # OSC callbacks cross into the asyncio loop through queued tasks.
+            # A supervisor stop can remove its virtual device before an older
+            # task runs; never let that stale payload recreate a browser card.
+            device = self.state.devices.get(data.get("uid"))
+            if device is None:
+                return
+            uid = data["uid"]
+            data = await self.public_device(device)
+            # Enrichment resolves the live host catalog asynchronously. The
+            # supervisor may remove (or replace) this uid while it awaits.
+            if self.state.devices.get(uid) is not device:
+                return
         elif message_type == "device_offline" and isinstance(data, dict):
             device = self.state.devices.get(data.get("uid"))
             if device is not None:
@@ -1179,6 +1190,16 @@ class Dashboard:
                     if device.get("virtual")]:
             del self.state.devices[uid]
 
+    def restore_live_state(self):
+        """Retarget and replay dashboard-owned state after private audition."""
+        self.osc.set_target(self.performance_target)
+        for seat in self.state.seats.values():
+            if seat.get("bound") in self.state.devices:
+                self.assign_seat(seat)
+        self.osc.send_master()
+        self.osc.os_command("all", "mute", [
+            int(bool(self.state.data.get("muted", False)))])
+
     async def supervisor_exited(self, process, mode, generation):
         await asyncio.to_thread(process.wait)
         if self.sim_process is not process or generation != self.supervisor_generation:
@@ -1191,7 +1212,7 @@ class Dashboard:
             self.state.data["editor"].update(active=False, status="stopped unexpectedly",
                                               engine_alive=None)
         self.set_supervisor_mode("off")
-        self.osc.set_target(self.performance_target)
+        self.restore_live_state()
         await self.broadcast("state", self.state.public())
 
     async def launch_supervisor(self, command, mode):
@@ -1204,7 +1225,7 @@ class Dashboard:
         except OSError:
             self.clear_audition_devices()
             self.set_supervisor_mode("off")
-            self.osc.set_target(self.performance_target)
+            self.restore_live_state()
             return False
         self.sim_process = process
         self.spawn(self.supervisor_exited(process, mode, generation))
@@ -1218,7 +1239,7 @@ class Dashboard:
         else:
             await self.terminate_supervisor_process()
             self.clear_audition_devices()
-            self.osc.set_target(self.performance_target)
+            self.restore_live_state()
 
     async def restart_simulation(self):
         patch_name = self.state.data["simulation"].get("patch")
@@ -1283,10 +1304,7 @@ class Dashboard:
         if desired:
             self.state.data["simulation"]["patch"] = desired
         self.set_supervisor_mode("off")
-        self.osc.set_target(self.performance_target)
-        for seat in self.state.seats.values():
-            if seat.get("bound") in self.state.devices:
-                self.assign_seat(seat)
+        self.restore_live_state()
 
     async def start_edit(self, patch_name=None):
         if self.supervisor_mode == "simulate":
@@ -1357,10 +1375,7 @@ class Dashboard:
         editor = self.state.data["editor"]
         editor.update(active=False, status="off", engine_alive=None, points={})
         self.set_supervisor_mode("off")
-        self.osc.set_target(self.performance_target)
-        for seat in self.state.seats.values():
-            if seat.get("bound") in self.state.devices:
-                self.assign_seat(seat)
+        self.restore_live_state()
 
     @staticmethod
     def device_elements(device):
