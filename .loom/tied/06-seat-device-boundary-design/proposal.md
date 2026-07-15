@@ -1,6 +1,6 @@
 # Proposal: finish the Seat / Device boundary
 
-**Status: awaiting Bob's ratification.** This is the design gate before
+**Status: ratified by Bob on 2026-07-15.** This is the design gate before
 `07-seats-workspace`, `08-unbound-admin-seam`, and `09-devices-workspace`.
 It refines the already-ratified seats-first model; it does not reopen it.
 
@@ -155,14 +155,14 @@ together.
   actions for bound and unbound rows, Identify, fleet-wide shutdown, drift and
   repair. No seat geometry, seat naming or mix parameters.
 
-## Ratification questions
+## Ratified decisions
 
-1. Accept the single `seat.bound` edge and one device roster, with both setup
-   journeys calling the same confirmed binding operation?
-2. Accept atomic Seat ID reindex across the seat key, embedded ID and every
-   current preset reference, while saved venues remain explicit snapshots?
-3. Ratify `/all/os/to <uid> <verb> [args...]`, the six existing admin verbs plus
+1. The single `seat.bound` edge and one device roster, with both setup journeys
+   calling the same confirmed binding operation.
+2. Atomic Seat ID reindex across the seat key, embedded ID and every current
+   preset reference, while saved venues remain explicit snapshots.
+3. `/all/os/to <uid> <verb> [args...]`, the six existing admin verbs plus
    `unassign`, and attributable `/os/rev <sha> <model> <uid>` receipts as the
-   UID-targeted admin seam?
-4. Accept the safety dependency **08 before completion of 07**, despite the
-   existing stitch numbering?
+   UID-targeted admin seam.
+4. The safety dependency **08 before completion of 07**, despite the existing
+   stitch numbering.
