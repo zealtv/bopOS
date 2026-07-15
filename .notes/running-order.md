@@ -14,8 +14,9 @@ managed simulation, and fleet-wide patch software is complete. Patch-editor
 design and its v1.4 cue contract amendment are also complete.
 
 The bop000 fleet gate is complete and audibly confirmed. `pe-2-edit-mode` is
-also tied, including its real GUI-PD gate. `pe-3-manifest-editor` is tied too;
-the next implementation stitch is `pe-4-points-and-cues-ui`.
+also tied, including its real GUI-PD gate. `pe-3-manifest-editor` is tied too.
+The follow-up `pe-3b-simulator-param-catchup` regression is tied and audibly
+confirmed; the next implementation stitch is `pe-4-points-and-cues-ui`.
 
 ## Running order
 
@@ -27,23 +28,26 @@ the next implementation stitch is `pe-4-points-and-cues-ui`.
    explicit relaunch/restart behavior.
 3. **Complete:** `patch-editor/pe-3-manifest-editor` — validated atomic param/cue editing and
    New patch flow using Bob's `main.pd` template verbatim when available.
-4. `patch-editor/pe-4-points-and-cues-ui` — session-only point preview and cue
+4. **Complete:** `patch-editor/pe-3b-simulator-param-catchup` — bounded post-launch
+   parameter replay fixes silent managed Pd starts caused by the initial gain
+   catch-up arriving before the patch receive graph is ready.
+5. `patch-editor/pe-4-points-and-cues-ui` — session-only point preview and cue
    firing through the normal `/pt` and `/cue` paths.
-5. `ui-tabs/tabs-0-ia-proposal` — short Overview / Spatial / Fleet management /
+6. `ui-tabs/tabs-0-ia-proposal` — short Overview / Spatial / Fleet management /
    Patch editor information architecture proposal.
-6. Bob ratifies the tabs-0 information architecture.
-7. `ui-tabs/tabs-1-skeleton` — implement the ratified tab structure without
+7. Bob ratifies the tabs-0 information architecture.
+8. `ui-tabs/tabs-1-skeleton` — implement the ratified tab structure without
    redesigning behavior.
-8. `ui-tabs/tabs-2-review-session` — hands-on review with Bob inside the real
-   tabbed dashboard; split and complete any resulting fixes.
-9. `patch-workflow-friction/friction-0-docs` — the simple composer workflow
+9. `ui-tabs/tabs-2-review-session` — hands-on interactive UI/touch audit with
+   Bob inside the real tabbed dashboard; split and complete any resulting
+   fixes.
+10. `patch-workflow-friction/friction-0-docs` — the simple composer workflow
    guide, written against the finished editor and tabs.
-10. `patch-workflow-friction/friction-1-starter-kit` — finish the starter-kit
-    path and teaching copy.
+11. `patch-workflow-friction/friction-1-starter-kit` — finish the starter-kit
+   path and teaching copy.
 
-If bop000 or Bob is unavailable, leave `fp-4` waiting and continue the autonomous
-sequence at `pe-2`. Other hardware and co-design waits remain outside this runway
-until explicitly resumed.
+Other hardware and co-design waits remain outside this runway until explicitly
+resumed.
 
 ## Source chain
 
@@ -51,4 +55,5 @@ until explicitly resumed.
 - `.notes/handoff-2026-07-13-dashboard-ui.md`
 - `.notes/handoff-2026-07-14.md`
 - `.notes/handoff-2026-07-14-fleetwide-patch-next.md`
+- `.notes/handoff-2026-07-15-patch-editor-next.md`
 - ratified fleet-patch and patch-editor records under `.lore/items/`

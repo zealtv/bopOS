@@ -42,7 +42,7 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (audited 2026-07-14 PM, after the fleet-patch / ui-tabs / patch-editor staging session with Bob)
+## Thread ordering (reconciled 2026-07-15 after the fleet-patch gate and patch-editor PE-3)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.4** (2026-07-07 base + seam amendment + engine-boundary revision +
@@ -55,26 +55,22 @@ review, the audition preview stack (Stage 0 + preview-0..3), and
 surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
-**The workable queue for autonomous sessions.** This recommended order
-takes precedence over `./.loom/loom.sh next`'s alphabetical listing;
-in-thread, numeric prefixes are the order:
+**The workable queue for autonomous sessions.** Fleet-patch fp-1..4 and
+patch-editor pe-1..3 are tied; fp-4 passed on bop000, and the PE-3b launch-race
+regression also passed an audible simulator gate. This recommended order takes
+precedence over `./.loom/loom.sh next`'s alphabetical listing:
 
-1. **`fleet-patch/fp-1..3`** — design ratified and fp-0 tied 2026-07-14
-   (record: `.lore/items/2026-07-14-fleet-patch-design-ratified/`). Numeric
-   order; fp-4 is the hardware gate (waiting). fp-1 and pe-1 share the one
-   v1.4 contract bump (cues + /os/patches fingerprint) — coordinate.
-2. **`patch-editor/pe-1..4`** — design ratified and pe-0 tied 2026-07-14
-   (record: `.lore/items/2026-07-14-patch-editor-design-ratified/`). Numeric
-   order; pe-1 (contract v1.4 cues amendment + validator) is standalone and
-   claimable anytime; pe-2..4 build the editor UI, which tabs-1 later
-   rehomes.
-3. **`ui-tabs/tabs-0..2`** — all `.waiting`: tabs-0 (IA proposal) unblocks
-   when fp-0 is ratified; tabs-1 (skeleton) needs tabs-0 ratified; tabs-2 is
-   the live UI review session with Bob inside the real tabs.
-4. **`patch-workflow-friction/friction-0..1`** — re-parked `.waiting`
-   2026-07-14: the docs must describe the tabbed UI and the patch-editor
-   manifest flow, so they resume after tabs-2 and patch-editor
-   implementation land.
+1. **`patch-editor/pe-4-points-and-cues-ui`** — the sole loose end. Add the
+   session-only point scratch setup and declared/free-text cue firing through
+   the normal `/pt` and `/cue` paths.
+2. **`ui-tabs/tabs-0-ia-proposal`** — resume the short IA proposal after PE-4;
+   its old fp-0 dependency is satisfied. It returns to `.waiting` for Bob's
+   ratification.
+3. **`ui-tabs/tabs-1-skeleton`** — implement only after tabs-0 is ratified.
+4. **`ui-tabs/tabs-2-review-session`** — the hands-on interactive UI/touch
+   audit with Bob inside the real tabs. Split and complete findings from there.
+5. **`patch-workflow-friction/friction-0..1`** — resume after tabs-2 so the
+   docs and starter-kit copy describe the finished editor and tab structure.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 
