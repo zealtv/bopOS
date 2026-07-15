@@ -76,6 +76,7 @@ class OSCBridge:
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
         self._assign_replayed = {}  # uid -> monotonic time of last full replay
+        self._unassign_replayed = {}  # stale unbound uid -> last repair send
         self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
         self._audition_param_replays = set()
 
@@ -289,6 +290,8 @@ class OSCBridge:
             return bool(await asyncio.shield(existing))
         waiter = asyncio.get_running_loop().create_future()
         self._unassign_waiters[uid] = waiter
+        device["revoking_assignment"] = True
+        self.broadcast("device_update", device)
         self.uid_command(uid, "unassign")
         try:
             return bool(await asyncio.wait_for(waiter, timeout))
@@ -439,17 +442,38 @@ class OSCBridge:
                 device["virtual"] = True
                 device["editor"] = True
                 device["seat_id"] = None
-            old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
+            old = {key: device.get(key) for key in (
+                "id", "ip", "version", "engine_alive", "rssi", "online",
+                "revoking_assignment")}
             advertised_id = int(args[1])
             seat = self.state.seat_for_uid(uid)
             if device.get("virtual") and device.get("seat_id") is not None:
                 seat = self.state.seats.get(str(device["seat_id"]))
             unassign_waiter = self._unassign_waiters.get(uid)
             revoking = unassign_waiter is not None
-            configured = seat is not None and not revoking
-            configured_id = int(seat["id"]) if configured else advertised_id
-            mismatch = configured and advertised_id != configured_id
             now = time.monotonic()
+            stale_unbound = (seat is None and not device.get("virtual")
+                             and advertised_id != -1)
+            pending_offline_revoke = (bool(device.get("revoking_assignment"))
+                                      and unassign_waiter is None)
+            if ((stale_unbound or pending_offline_revoke)
+                    and advertised_id != -1 and unassign_waiter is None):
+                last_unassign = self._unassign_replayed.get(uid, float("-inf"))
+                if now - last_unassign >= ASSIGN_REPLAY_MIN_SECONDS:
+                    self.uid_command(uid, "unassign")
+                    self._unassign_replayed[uid] = now
+                device["revoking_assignment"] = True
+                revoking = True
+            elif advertised_id == -1:
+                device["revoking_assignment"] = False
+                self._unassign_replayed.pop(uid, None)
+            elif (seat is not None and unassign_waiter is None
+                    and not pending_offline_revoke):
+                # A timed-out transaction leaves durable binding authoritative.
+                device["revoking_assignment"] = False
+            configured = seat is not None and not revoking
+            configured_id = int(seat["id"]) if configured else (-1 if revoking else advertised_id)
+            mismatch = configured and advertised_id != configured_id
             last_replay = self._assign_replayed.get(uid, float("-inf"))
             allow_replay = not sim_active or device.get("virtual")
             reassign = configured and allow_replay and (not old["online"] or

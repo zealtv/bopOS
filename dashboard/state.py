@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import csv
 import json
 import math
@@ -107,10 +108,13 @@ class InstallationState:
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
+        self._load_invalid = False
+        self.last_venue_rebind = {"rebound": [], "waiting": []}
         self._load()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
-        if not self.data["seats"] and devices_file and os.path.exists(devices_file):
+        if (not self._load_invalid and not self.data["seats"] and devices_file
+                and os.path.exists(devices_file)):
             self._import_seed(devices_file)
             self.save()
 
@@ -130,6 +134,10 @@ class InstallationState:
             # migrated or partially honoured.
             if (isinstance(loaded, dict) and loaded.get("schema") == SCHEMA
                     and isinstance(loaded.get("seats"), dict)):
+                rebuilt = self.clean_seats(loaded["seats"])
+                if rebuilt is None:
+                    self._load_invalid = True
+                    return
                 self.data["name"] = loaded.get("name", "bopOS")
                 room = self.clean_room(loaded.get("room"))
                 if room is not None:
@@ -150,12 +158,13 @@ class InstallationState:
                 listener = self.clean_listener(loaded.get("listener"))
                 if listener is not None:
                     self.data["listener"] = listener
-                for key, value in loaded["seats"].items():
-                    seat = self.clean_seat(value)
-                    if seat is not None and str(seat["id"]) == str(key):
-                        self.seats[str(seat["id"])] = seat
-        except (OSError, ValueError, TypeError):
+                self.data["seats"] = rebuilt
+            else:
+                self._load_invalid = True
+        except FileNotFoundError:
             pass
+        except (OSError, ValueError, TypeError):
+            self._load_invalid = True
 
     def _runtime_device(self, uid, values=None, virtual=False):
         values = values or {}
@@ -163,6 +172,7 @@ class InstallationState:
             "uid": uid, "id": values.get("id", -1),
             "hostname": values.get("hostname", ""), "virtual": bool(virtual),
             "online": False, "last_seen": None, "ip": None, "version": None,
+            "revoking_assignment": False,
             "engine_alive": None, "rssi": None, "report": None,
             "declared": None, "undeclared": False, "rev": None,
             # Last host-manifest fingerprint acknowledged by this node for each
@@ -186,9 +196,8 @@ class InstallationState:
                 if len(row) < 3:
                     continue
                 uid, name = row[0].strip(), row[1].strip()
-                try:
-                    device_id = int(float(row[2]))
-                except ValueError:
+                device_id = self.clean_seat_id(row[2].strip())
+                if device_id is None or not uid:
                     continue
                 positions = []
                 for key, index in (("pos1", 3), ("pos2", 4)):
@@ -197,6 +206,9 @@ class InstallationState:
                             positions.append([float(item) for item in row[index].split()])
                         except ValueError:
                             pass
+                if (device_id < 0 or str(device_id) in self.seats
+                        or any(seat.get("bound") == uid for seat in self.seats.values())):
+                    continue
                 self.seats[str(device_id)] = {"id": device_id, "name": name,
                     "positions": positions, "params": {}, "bound": uid}
 
@@ -241,9 +253,8 @@ class InstallationState:
     def clean_seat(self, value):
         if not isinstance(value, dict):
             return None
-        try:
-            seat_id = int(value.get("id"))
-        except (TypeError, ValueError):
+        seat_id = self.clean_seat_id(value.get("id"))
+        if seat_id is None:
             return None
         positions = self.clean_positions(value.get("positions", []))
         if seat_id < 0 or positions is None:
@@ -253,9 +264,105 @@ class InstallationState:
         # a "patch" key in an older state file is dropped silently here
         params = value.get("params", {})
         bound = value.get("bound")
+        if bound is not None:
+            if not isinstance(bound, str) or not bound.strip():
+                return None
+            bound = bound.strip()
         return {"id": seat_id, "name": name, "positions": positions,
                 "params": dict(params) if isinstance(params, dict) else {},
-                "bound": str(bound) if bound else None}
+                "bound": bound}
+
+    @staticmethod
+    def clean_seat_id(value):
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if value >= 0 else None
+        if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value.strip()):
+            return int(value.strip())
+        return None
+
+    def clean_seats(self, value):
+        if not isinstance(value, dict):
+            return None
+        rebuilt, bound = {}, set()
+        for key, raw in value.items():
+            seat = self.clean_seat(raw)
+            if seat is None or str(seat["id"]) != str(key) or str(seat["id"]) in rebuilt:
+                return None
+            uid = seat.get("bound")
+            if uid and uid in bound:
+                return None
+            uid and bound.add(uid)
+            rebuilt[str(seat["id"])] = seat
+        return rebuilt
+
+    def reindex_seat(self, old_id, new_id):
+        old_id, new_id = self.clean_seat_id(old_id), self.clean_seat_id(new_id)
+        if old_id is None or new_id is None:
+            return None, "Seat IDs must be non-negative integers."
+        old_key, new_key = str(old_id), str(new_id)
+        if old_key not in self.seats:
+            return None, "Seat no longer exists."
+        if old_id == new_id:
+            return self.seats[old_key], None
+        if new_key in self.seats:
+            return None, f"Seat ID {new_id} already exists."
+        seats = copy.deepcopy(self.seats)
+        presets = copy.deepcopy(self.data.get("presets", {}))
+        if not isinstance(presets, dict):
+            return None, "Seat presets are malformed; no changes were made."
+        for preset in presets.values():
+            if not isinstance(preset, dict):
+                return None, "Seat presets are malformed; no changes were made."
+            values = preset.get("seats")
+            if values is None:
+                continue
+            if not isinstance(values, dict):
+                return None, "Seat presets are malformed; no changes were made."
+            if new_key in values:
+                return None, f"A preset already contains Seat ID {new_id}."
+            if old_key in values:
+                values[new_key] = values.pop(old_key)
+        seat = seats.pop(old_key)
+        seat["id"] = new_id
+        seats[new_key] = seat
+        if self.clean_seats(seats) is None:
+            return None, "The reindexed Seat would make the installation invalid."
+        previous_seats, previous_presets = self.data["seats"], self.data.get("presets", {})
+        self.data["seats"], self.data["presets"] = seats, presets
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["seats"], self.data["presets"] = previous_seats, previous_presets
+            return None, "Could not save the reindexed Seat; no changes were made."
+        return seat, None
+
+    def delete_seat(self, seat_id):
+        key = str(seat_id)
+        if key not in self.seats:
+            return None
+        seats = copy.deepcopy(self.seats)
+        presets = copy.deepcopy(self.data.get("presets", {}))
+        seat = seats.pop(key)
+        if not isinstance(presets, dict):
+            return None
+        for preset in presets.values():
+            if not isinstance(preset, dict):
+                return None
+            values = preset.get("seats")
+            if values is not None and not isinstance(values, dict):
+                return None
+            if values is not None:
+                values.pop(key, None)
+        previous_seats, previous_presets = self.data["seats"], self.data.get("presets", {})
+        self.data["seats"], self.data["presets"] = seats, presets
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["seats"], self.data["presets"] = previous_seats, previous_presets
+            return None
+        return seat
 
     def seat_for_uid(self, uid):
         device = self.devices.get(uid)
@@ -435,37 +542,49 @@ class InstallationState:
         # runtime liveness is not part of a venue (presets land here once the
         # facilitator stitch adds them to durable())
         path = os.path.join(self.venues_dir(), name + ".json")
-        with open(path, "w", encoding="utf-8") as target:
-            json.dump(self.durable(), target, indent=2, sort_keys=True)
+        temporary = path + ".tmp"
+        snapshot = self.durable()
+        snapshot["name"] = name
+        with open(temporary, "w", encoding="utf-8") as target:
+            json.dump(snapshot, target, indent=2, sort_keys=True)
             target.write("\n")
+        os.replace(temporary, path)
 
-    def load_venue(self, name):
-        # replace the current installation with a saved venue; keeps live
-        # runtime fields (online/ip/…) only for devices the venue also knows
+    def read_venue(self, name):
         path = os.path.join(self.venues_dir(), name + ".json")
         try:
             with open(path, encoding="utf-8") as source:
                 loaded = json.load(source)
         except (OSError, ValueError):
-            return False
+            return None, None
         if (not isinstance(loaded, dict) or loaded.get("schema") != SCHEMA
                 or not isinstance(loaded.get("seats"), dict)):
+            return None, None
+        rebuilt = self.clean_seats(loaded["seats"])
+        return (loaded, rebuilt) if rebuilt is not None else (None, None)
+
+    def load_venue(self, name, prepared=None):
+        # replace the current installation with a saved venue; keeps live
+        # runtime fields (online/ip/…) only for devices the venue also knows
+        loaded, source_seats = prepared or self.read_venue(name)
+        if loaded is None:
             return False
         rebuilt = {}
         rebound, waiting = [], []
-        for key, value in loaded["seats"].items():
-            seat = self.clean_seat(value)
-            if seat is None or str(seat["id"]) != str(key):
-                return False
+        for key, source_seat in source_seats.items():
+            seat = dict(source_seat)
             uid = seat.get("bound")
             if uid not in self.devices or not self.devices[uid].get("online"):
                 if uid:
                     waiting.append({"id": seat["id"], "uid": uid})
-                seat["bound"] = None
             elif uid:
                 rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
-        self.data["name"] = loaded.get("name", name)
+        keys = ("name", "room", "master", "presets", "facilitator_commands",
+                "fleet_patch", "params_patch", "listener", "seats", "simulation")
+        previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
+        previous_rebind = copy.deepcopy(self.last_venue_rebind)
+        self.data["name"] = name
         room = self.clean_room(loaded.get("room"))
         if room is not None:
             self.data["room"] = room
@@ -486,7 +605,13 @@ class InstallationState:
                                  or self.default_listener())
         self.data["seats"] = rebuilt
         self.last_venue_rebind = {"rebound": rebound, "waiting": waiting}
-        self.save()
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            for key, value in previous.items():
+                self.data[key] = value
+            self.last_venue_rebind = previous_rebind
+            return False
         return True
 
     async def close(self):

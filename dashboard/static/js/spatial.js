@@ -133,6 +133,7 @@
       const used = new Set(Object.values(last[0].seats || {}).map(seat => Number(seat.id)));
       let id = 0; while (used.has(id)) id++;
       last[3].send("add_seat", {id, name:`Seat ${id}`, positions:[[x, y]]});
+      last[2](id);  // keep the new map-first Seat selected as state arrives
     };
     svg.onpointerdown = event => {
       const headingHandle = event.target.closest(".listener-tip");

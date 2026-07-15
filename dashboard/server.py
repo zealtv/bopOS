@@ -227,8 +227,9 @@ class Dashboard:
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
             "save_preset", "load_preset", "mute_all", "add_seat", "update_seat",
-            "remove_seat", "bind_seat", "unbind_seat", "forget_device",
-            "forget_offline_unbound",
+            "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
+            "forget_device", "forget_offline_unbound", "set_room", "set_points",
+            "set_point", "clear_point", "save_venue", "load_venue",
         }
         if self.supervisor_mode == "edit" and kind in fleet_mutations:
             await self.ws_error(ws, "Fleet controls are unavailable while patch edit mode owns the audio relay.")
@@ -571,14 +572,18 @@ class Dashboard:
                             self.osc.send_editor_point(point)
                     await self.broadcast("state", self.state.public())
         elif kind == "add_seat":
-            try:
-                seat_id = int(data.get("id"))
-            except (TypeError, ValueError):
+            seat_id = self.state.clean_seat_id(data.get("id"))
+            if seat_id is None:
+                await self.ws_error(ws, "Seat IDs must be non-negative integers.")
                 return
             seat = self.state.clean_seat({"id": seat_id, "name": data.get("name", ""),
                 "positions": data.get("positions", []), "patch": data.get("patch", "demo-pd"),
                 "params": data.get("params", {}), "bound": None})
-            if seat is None or str(seat_id) in self.state.seats:
+            if seat is None:
+                await self.ws_error(ws, "Seat IDs must be non-negative integers.")
+                return
+            if str(seat_id) in self.state.seats:
+                await self.ws_error(ws, f"Seat ID {seat_id} already exists.")
                 return
             self.state.seats[str(seat_id)] = seat
             self.state.save_debounced()
@@ -586,6 +591,18 @@ class Dashboard:
                 if self.supervisor_mode == "simulate":
                     await self.restart_simulation()
             await self.broadcast("state", self.state.public())
+        elif kind == "reindex_seat":
+            seat, error = self.state.reindex_seat(data.get("id"), data.get("new_id"))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            self.assign_seat(seat)
+            if self.state.data["simulation"].get("active"):
+                if self.supervisor_mode == "simulate":
+                    await self.restart_simulation()
+            await self.broadcast("state", self.state.public())
+            await self.broadcast("seat_reindexed", {
+                "old_id": data.get("id"), "new_id": seat["id"]})
         elif kind == "update_seat":
             seat = self.state.seats.get(str(data.get("id")))
             if seat is None:
@@ -602,38 +619,93 @@ class Dashboard:
             self.state.save_debounced()
             await self.broadcast("state", self.state.public())
         elif kind == "remove_seat":
-            seat = self.state.seats.pop(str(data.get("id")), None)
-            if seat is not None:
-                self.state.save_debounced()
-                if self.state.data["simulation"].get("active"):
-                    if self.supervisor_mode == "simulate":
-                        await self.restart_simulation()
-                await self.broadcast("state", self.state.public())
+            seat = self.state.seats.get(str(data.get("id")))
+            if seat is None:
+                return
+            removed_uid = seat.get("bound")
+            if not await self.revoke_online(removed_uid, ws, "remove this Seat"):
+                return
+            if self.state.delete_seat(seat["id"]) is None:
+                self.replay_current_assignments()
+                await self.ws_error(ws, "Could not remove the Seat; no changes were made.")
+                return
+            self.mark_offline_revoking(removed_uid)
+            if self.state.data["simulation"].get("active"):
+                if self.supervisor_mode == "simulate":
+                    await self.restart_simulation()
+            await self.broadcast("state", self.state.public())
         elif kind == "bind_seat":
             seat = self.state.seats.get(str(data.get("id")))
             bind_uid = str(data.get("uid", ""))
-            if seat is None or bind_uid not in self.state.devices:
+            device = self.state.devices.get(bind_uid)
+            if (seat is None or device is None or device.get("virtual")
+                    or device.get("revoking_assignment")):
+                await self.ws_error(ws, "Choose a physical device for this Seat.")
                 return
-            for other in self.state.seats.values():
-                if other.get("bound") == bind_uid:
-                    other["bound"] = None
+            source = next((other for other in self.state.seats.values()
+                           if other.get("bound") == bind_uid and other is not seat), None)
+            displaced_uid = seat.get("bound") if seat.get("bound") != bind_uid else None
+            if (source is not None or displaced_uid) and data.get("confirmed") is not True:
+                await self.ws_error(
+                    ws, "This assignment replaces an existing Seat binding; confirm it first.")
+                return
+            for changed_uid in (displaced_uid, bind_uid if source is not None else None):
+                if not await self.revoke_online(changed_uid, ws, "replace this Seat binding"):
+                    self.replay_current_assignments()
+                    return
+            previous = {key: item.get("bound") for key, item in self.state.seats.items()}
+            if source is not None:
+                source["bound"] = None
             seat["bound"] = bind_uid
+            try:
+                self.state.save()
+            except (OSError, TypeError, ValueError):
+                for key, bound_uid in previous.items():
+                    self.state.seats[key]["bound"] = bound_uid
+                self.replay_current_assignments()
+                await self.ws_error(ws, "Could not save the Seat assignment; no changes were made.")
+                return
+            self.mark_offline_revoking(displaced_uid)
+            if source is not None:
+                self.mark_offline_revoking(bind_uid)
             self.assign_seat(seat)
-            self.state.save_debounced()
             await self.broadcast("state", self.state.public())
         elif kind == "unbind_seat":
             seat = self.state.seats.get(str(data.get("id")))
             if seat is not None:
+                if not await self.revoke_online(seat.get("bound"), ws, "unassign this Seat"):
+                    return
+                previous = seat.get("bound")
                 seat["bound"] = None
-                self.state.save_debounced()
+                try:
+                    self.state.save()
+                except (OSError, TypeError, ValueError):
+                    seat["bound"] = previous
+                    self.replay_current_assignments()
+                    await self.ws_error(ws, "Could not save the unassignment; no changes were made.")
+                    return
+                self.mark_offline_revoking(previous)
                 await self.broadcast("state", self.state.public())
         elif kind == "forget_device":
             forget_uid = str(data.get("uid", ""))
-            for seat in self.state.seats.values():
-                if seat.get("bound") == forget_uid:
-                    seat["bound"] = None
+            device = self.state.devices.get(forget_uid)
+            seat = next((item for item in self.state.seats.values()
+                         if item.get("bound") == forget_uid), None)
+            if seat is not None and not await self.revoke_online(
+                    forget_uid, ws, "forget this bound device"):
+                return
+            if seat is not None:
+                seat["bound"] = None
             if self.state.devices.pop(forget_uid, None) is not None:
-                self.state.save_debounced()
+                try:
+                    self.state.save()
+                except (OSError, TypeError, ValueError):
+                    self.state.devices[forget_uid] = device
+                    if seat is not None:
+                        seat["bound"] = forget_uid
+                    self.replay_current_assignments()
+                    await self.ws_error(ws, "Could not forget the device; no changes were made.")
+                    return
                 await self.broadcast("state", self.state.public())
         elif kind == "forget_offline_unbound":
             bound = {seat.get("bound") for seat in self.state.seats.values()}
@@ -695,12 +767,36 @@ class Dashboard:
         elif kind == "save_venue":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if name:
-                self.state.save_venue(name)
+                try:
+                    self.state.save_venue(name)
+                except (OSError, TypeError, ValueError):
+                    await self.ws_error(ws, "The venue snapshot could not be saved.")
+                    return
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
         elif kind == "load_venue":
             name = str(data.get("name", "")).strip()
-            if name and self.state.load_venue(name):
+            loaded, desired_seats = (self.state.read_venue(name)
+                                     if name in self.state.list_venues() else (None, None))
+            if loaded is None:
+                await self.ws_error(ws, "That venue could not be loaded.")
+                return
+            desired = {seat.get("bound"): seat["id"] for seat in desired_seats.values()
+                       if seat.get("bound")}
+            changed_uids = []
+            for current in self.state.seats.values():
+                current_uid = current.get("bound")
+                if current_uid and desired.get(current_uid) != current["id"]:
+                    changed_uids.append(current_uid)
+                    if not await self.revoke_online(current_uid, ws, "load this venue"):
+                        self.replay_current_assignments()
+                        return
+            if self.state.load_venue(name, (loaded, desired_seats)):
+                for changed_uid in changed_uids:
+                    self.mark_offline_revoking(changed_uid)
+                if (self.state.data["simulation"].get("active")
+                        and self.supervisor_mode == "simulate"):
+                    await self.restart_simulation()
                 for seat in self.state.seats.values():
                     if seat.get("bound"):
                         self.assign_seat(seat)
@@ -710,6 +806,9 @@ class Dashboard:
                 await self.broadcast("venue_rebind", self.state.last_venue_rebind)
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
+            else:
+                self.replay_current_assignments()
+                await self.ws_error(ws, "The venue could not be saved as current; no dashboard state changed.")
         elif kind == "list_venues":
             await self.broadcast("venues", {"venues": self.state.list_venues(),
                                             "current": self.state.data.get("name")})
@@ -717,6 +816,23 @@ class Dashboard:
             self.osc.request(uid, "params")
         elif kind == "request_report":
             self.osc.request(uid, "report")
+
+    async def revoke_online(self, uid, ws, action):
+        """Make an online physical node acknowledge id=-1 before mutation."""
+        device = self.state.devices.get(uid)
+        if not uid or device is None or device.get("virtual") or not device.get("online"):
+            return True
+        if await self.osc.unassign(uid):
+            return True
+        await self.ws_error(
+            ws, f"Could not {action}: {device.get('hostname') or uid} did not acknowledge unassignment. No dashboard state changed.")
+        return False
+
+    def mark_offline_revoking(self, uid):
+        device = self.state.devices.get(uid)
+        if (uid and device is not None and not device.get("virtual")
+                and not device.get("online")):
+            device["revoking_assignment"] = True
 
     def selector(self, uid):
         seat = self.state.seat_for_uid(uid)
@@ -1206,11 +1322,19 @@ class Dashboard:
         if uid in self.state.devices:
             self.osc.assign(uid, seat["id"], seat["name"], seat["positions"])
             self.state.devices[uid]["params"] = dict(seat["params"])
+            if self.state.devices[uid].get("online"):
+                self.state.devices[uid]["revoking_assignment"] = False
         if self.state.data["simulation"].get("active"):
             for virtual_uid, device in self.state.devices.items():
                 if (device.get("virtual")
                         and str(device.get("seat_id")) == str(seat["id"])):
                     self.osc.assign(virtual_uid, seat["id"], seat["name"], seat["positions"])
+
+    def replay_current_assignments(self):
+        for seat in self.state.seats.values():
+            uid = seat.get("bound")
+            if uid in self.state.devices and self.state.devices[uid].get("online"):
+                self.assign_seat(seat)
 
     @property
     def supervisor_mode(self):

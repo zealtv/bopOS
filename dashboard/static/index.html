@@ -45,11 +45,12 @@
           <button id="point-delete" class="danger">Delete</button>
         </div>
       </div>
-      <p class="dim spatial-help">Drag the listener puck to move it; drag the green heading handle to turn it. Device dot colour is element index and number is device ID. Each point's coloured dashed field shows its reach.</p>
+      <p class="dim spatial-help">Drag the listener puck to move it; drag the green heading handle to turn it. Seat dot colour is element index and the number is Seat ID. Each point's coloured dashed field shows its reach.</p>
       <svg id="spatial"></svg>
     </section>
       <aside class="seat-sidebar">
-        <h2>Seats</h2><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div>
+        <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div>
+        <div id="seat-detail"><p class="dim">Select a Seat on the map or in the list.</p></div>
         <section id="simulate-panel"><h3>Simulation status</h3><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
         <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
       </aside>

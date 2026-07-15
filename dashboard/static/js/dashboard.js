@@ -6,8 +6,7 @@ let venueRebind = null;
 let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
-const assignmentDrafts = new Map();
-const bindingSeatDrafts = new Map();
+const seatBindingDrafts = new Map();
 let fleetPatchChoice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
@@ -62,7 +61,6 @@ function mergeDevice(device) {
       installation.editor.engine_alive = Number(device.engine_alive || 0);
       installation.editor.status = device.engine_alive ? "running" : "engine closed";
     }
-    if (Number(device.id) >= 0) assignmentDrafts.delete(device.uid);
   }
   render();
 }
@@ -161,6 +159,9 @@ ws.on("error", data => {
 let venues = {venues: [], current: null};
 ws.on("venues", data => { venues = data; renderVenues(); });
 ws.on("venue_rebind", data => { venueRebind = data; render(); });
+ws.on("seat_reindexed", data => {
+  selectedSeat=Number(data.new_id); selected=occupant(installation.seats?.[String(selectedSeat)])?.uid||null; render();
+});
 function renderVenues() {
   const select = $("#venue-select"); if (!select) return;
   const options = venues.venues.map(name => `<option ${name===venues.current?'selected':''}>${esc(name)}</option>`).join("");
@@ -190,7 +191,7 @@ function render() {
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
   const bound = new Set(seats.map(s => s.bound).filter(Boolean));
-  const unassigned = devices.filter(d => !d.virtual && !bound.has(d.uid));
+  const unassigned = devices.filter(d => !d.virtual && !d.revoking_assignment && !bound.has(d.uid));
   $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
   $("#device-roster").innerHTML = devices.filter(d=>!d.virtual).sort((a,b)=>Number(b.online)-Number(a.online)||(Number(b.last_seen)||0)-(Number(a.last_seen)||0)).map(row).join("") || '<p class="dim">No devices seen</p>';
   $("#unassigned").innerHTML = (unassigned.map(row).join("") || '<p class="dim">None</p>') + '<button id="forget-offline">Forget all offline unbound</button>';
@@ -201,6 +202,10 @@ function render() {
   });
   document.querySelectorAll(".device-row:not(.seat-row)").forEach(el => el.onclick = () => select(el.dataset.uid));
   $("#forget-offline").onclick=()=>ws.send("forget_offline_unbound",{});
+  $("#seat-add").onclick=()=>{
+    const id=nextFreeId(); selectedSeat=id; selected=null;
+    ws.send("add_seat",{id,name:`Seat ${id}`,positions:[]});
+  };
   const rebind=$("#venue-rebind");
   if (rebind) {
     rebind.hidden=!venueRebind;
@@ -214,7 +219,7 @@ function render() {
   renderEditor();
   renderFleetPatch();
   Spatial.render(installation, selectedSeat, selectSeat, ws); renderRoom();
-  renderHeader(); renderDetail();
+  renderHeader(); renderSeatDetail(); renderDeviceDetail();
 }
 function occupant(seat) {
   const devices=Object.values(installation.devices||{});
@@ -622,68 +627,85 @@ function bindPatchDiagnostics(d) {
   if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:d.uid});};
 }
 
-function renderDetail() {
-  const seat = installation.seats?.[String(selectedSeat)] || installation.seats?.[selectedSeat];
-  const runtime = installation.devices[selected] || (seat && occupant(seat));
-  if (!seat) {
-    if(!runtime) { $("#detail").innerHTML='<section><p class="dim">Select a seat or device.</p></section>'; return; }
-    const empty=Object.values(installation.seats||{}).filter(s=>!s.bound);
-    const draft=bindingSeatDrafts.get(runtime.uid);
-    $("#detail").innerHTML=`<section><h2>Unbound device</h2><dl><dt>UID</dt><dd>${esc(runtime.uid)}</dd><dt>Hostname</dt><dd>${esc(runtime.hostname||runtime.uid)}</dd><dt>Status</dt><dd>${runtime.online?'online':'offline'}</dd></dl><div class="assign"><label>empty seat <select id="device-seat">${empty.map(s=>`<option value="${s.id}" ${Number(s.id)===Number(draft)?'selected':''}>${esc(s.name||`Seat ${s.id}`)}</option>`).join('')}</select></label><button id="device-bind" ${empty.length?'':'disabled'}>Bind</button><button id="device-forget">Forget</button><button data-identify>Identify</button></div></section>${patchDiagnostics(runtime,false)}<section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}</div></section><section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(runtime.report)}</section>`;
-    $("#device-seat").onchange=()=>bindingSeatDrafts.set(runtime.uid,Number($("#device-seat").value));
-    $("#device-bind").onclick=()=>{const id=Number($("#device-seat").value);bindingSeatDrafts.delete(runtime.uid);bindDeviceToSeat(id,runtime);};
-    $("#device-forget").onclick=()=>{const recent=Date.now()/1000-Number(runtime.last_seen||0)<30;if(!recent||confirm(`Forget recently seen ${runtime.hostname||runtime.uid}?`))ws.send("forget_device",{uid:runtime.uid});};
-    document.querySelectorAll("[data-identify]").forEach(b=>b.onclick=()=>ws.send("identify",{uid:runtime.uid}));
-    document.querySelectorAll("[data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(["reboot","shutdown","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} ${runtime.hostname||runtime.uid}?`))return;ws.send("action",{uid:runtime.uid,verb});});
-    $("#refresh-report").onclick=()=>ws.send("request_report",{uid:runtime.uid});
-    bindPatchDiagnostics(runtime);
-    return;
-  }
-  const d = runtime ? {...runtime, id:seat?.id, name:seat?.name,
-    pos1:seat?.positions?.[0], pos2:seat?.positions?.[1],
-    params:seat?.params||runtime.params} : {uid:"",id:seat.id,name:seat.name,
-    pos1:seat.positions?.[0],pos2:seat.positions?.[1],params:seat.params,
-    online:false,patches:[],declared:[]};
-  // never rebuild the panel out from under a drag or mid-typing
-  const active = document.activeElement;
-  if (interacting || ($("#detail").contains(active) && active.matches('input[type="text"],input[type="number"],select'))) return;
-  const declarations = d.declared || [];
-  let previousGroup = null;
-  const controls = declarations.map(p => {
-    const group = p.group || "parameters", label = group !== previousGroup ? `<h3>${esc(group)}</h3>` : ""; previousGroup=group;
-    const value = d.params?.[p.name] ?? p.default ?? "";
-    if (p.type === "s") return `${label}<label>${esc(p.name)}<input data-param="${esc(p.name)}" type="text" value="${esc(value)}"></label>`;
-    if (p.type === "i" && p.min===0 && p.max===1) return `${label}<label class="toggle">${esc(p.name)}<input data-param="${esc(p.name)}" type="checkbox" ${value?'checked':''}></label>`;
-    return `${label}<label>${esc(p.name)} <output>${esc(value)}</output><input data-param="${esc(p.name)}" type="range" min="${p.min??0}" max="${p.max??1}" step="${p.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
-  }).join("");
-  const assigned = !!runtime;
-  const assignmentDraft = assignmentDrafts.get(d.uid) || {};
-  const positionKeys = ["pos1", "pos2"].filter(key => Array.isArray(d[key]));
-  if (!positionKeys.length) positionKeys.push("pos1");
-  const room = installation.room || {}; const origin = room.origin || [0, 0];
-  const positions = positionKeys.map((key, index) => {
-    const position = d[key];
-    const x = Array.isArray(position) ? Math.round((position[0] - origin[0]) * 100) / 100 : "";
-    const y = Array.isArray(position) ? Math.round((position[1] - origin[1]) * 100) / 100 : "";
-    return `<div class="position-row" data-position-key="${key}"><strong>element ${index}</strong><label>x <input class="position-coordinate" data-axis="x" type="number" step="0.01" min="${-origin[0]}" max="${(room.width??10)-origin[0]}" value="${x}"></label><label>y <input class="position-coordinate" data-axis="y" type="number" step="0.01" min="${-origin[1]}" max="${(room.depth??8)-origin[1]}" value="${y}"></label><span class="dim">m from origin</span></div>`;
-  }).join("");
-  const simulating = !!installation.simulation?.active && !!d.virtual;
-  const assetRows = distribution.assets.map(item => distributionRow(d, item)).join("");
-  $("#detail").innerHTML = `<section><h2>${esc(d.name || d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>ID</dt><dd>${esc(d.id)}</dd><dt>Status</dt><dd>${d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl></section>
-    <section><h2>Seat</h2><div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat?.name||'')}"></label><label>ID <input type="number" value="${seat?.id}" disabled></label><button id="seat-rename">Apply</button><button id="seat-remove">Remove seat</button></div><div class="assign"><label>device <select id="seat-device"><option value="">unbound</option>${Object.values(installation.devices||{}).filter(x=>!x.virtual).map(x=>`<option value="${esc(x.uid)}" ${seat?.bound===x.uid?'selected':''}>${esc(x.hostname||x.uid)}</option>`).join('')}</select></label><button id="seat-bind">${seat?.bound?'Rebind':'Bind'}</button>${seat?.bound?'<button id="seat-unbind">Unbind</button>':''}</div></section>
-    <section><h2>Position</h2><div class="position-grid">${positions}</div></section>
-    ${assigned?`<section><div class="section-head"><h2>Params</h2><label><input id="broadcast" type="checkbox"> broadcast to all</label></div><div class="params">${controls || '<p class="dim">Loading declaration…</p>'}</div></section>
+function renderSeatDetail() {
+  const panel=$("#seat-detail");
+  if (!panel) return;
+  const seat=installation.seats?.[String(selectedSeat)]||installation.seats?.[selectedSeat];
+  if (!seat) { panel.innerHTML='<p class="dim">Select a Seat on the map or in the list.</p>'; return; }
+  const active=document.activeElement;
+  if (interacting || (panel.contains(active) && active.matches('input,select'))) return;
+  const devices=Object.values(installation.devices||{}).filter(device=>!device.virtual);
+  const boundElsewhere=new Set(Object.values(installation.seats||{})
+    .filter(other=>Number(other.id)!==Number(seat.id)).map(other=>other.bound).filter(Boolean));
+  const available=devices.filter(device=>!device.revoking_assignment&&(!boundElsewhere.has(device.uid)||device.uid===seat.bound));
+  if (seatBindingDrafts.get(seat.id)===seat.bound) seatBindingDrafts.delete(seat.id);
+  const bindingChoice=seatBindingDrafts.get(seat.id)??seat.bound??"";
+  const currentKnown=devices.find(device=>device.uid===seat.bound);
+  const options=[];
+  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(seat.bound)} · remembered offline</option>`);
+  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(currentKnown.hostname||currentKnown.uid)} · clearing old assignment</option>`);
+  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(device.hostname||device.uid)} · ${device.online?'online':'offline'}</option>`));
+  if (!seat.bound) options.unshift(`<option value="" ${bindingChoice?'':'selected'}>Choose a device</option>`);
+  const room=installation.room||{}, origin=room.origin||[0,0];
+  const positions=(seat.positions||[]).map((position,index)=>`<div class="position-row" data-seat-element="${index}"><strong>element ${index}</strong><label>x <input data-axis="x" type="number" step="0.01" value="${Math.round((position[0]-origin[0])*100)/100}"></label><label>y <input data-axis="y" type="number" step="0.01" value="${Math.round((position[1]-origin[1])*100)/100}"></label><button data-remove-element="${index}" class="danger">Remove</button></div>`).join('');
+  const binding=seat.bound ? installation.devices?.[seat.bound] : null;
+  const choiceRevoking=!!devices.find(device=>device.uid===bindingChoice)?.revoking_assignment;
+  panel.innerHTML=`<h3>Seat workspace</h3>
+    <div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat.name||'')}"></label><button id="seat-rename">Apply name</button></div>
+    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
+    <h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add">Add element</button>
+    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(seat.bound)} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
+    <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div>`;
+  const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws);};
+  panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
+    const row=input.closest('[data-seat-element]'), index=Number(row.dataset.seatElement);
+    const x=Number(row.querySelector('[data-axis="x"]').value), y=Number(row.querySelector('[data-axis="y"]').value);
+    if (!Number.isFinite(x)||!Number.isFinite(y)) return;
+    const next=structuredClone(seat.positions||[]); next[index]=[Math.round((x+origin[0])*100)/100,Math.round((y+origin[1])*100)/100]; savePositions(next);
+  });
+  panel.querySelectorAll('[data-remove-element]').forEach(button=>button.onclick=()=>{const next=structuredClone(seat.positions||[]);next.splice(Number(button.dataset.removeElement),1);savePositions(next);});
+  $("#seat-element-add").onclick=()=>savePositions([...(seat.positions||[]),[Number(origin[0])||0,Number(origin[1])||0]]);
+  $("#seat-rename").onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
+  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Current presets follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
+  $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its current preset entries will also be removed.`))ws.send("remove_seat",{id:seat.id});};
+  const chosen=()=>$("#seat-device").value;
+  $("#seat-device").onchange=()=>seatBindingDrafts.set(seat.id,chosen());
+  $("#seat-identify").onclick=()=>{const uid=chosen();if(uid&&installation.devices?.[uid])ws.send("identify",{uid});};
+  $("#seat-bind").onclick=()=>{const uid=chosen();if(!uid)return;const replacing=seat.bound&&seat.bound!==uid;if(!replacing||confirm(`Replace ${seat.bound} with ${uid} on Seat ${seat.id}?`))ws.send("bind_seat",{id:seat.id,uid,confirmed:!!replacing});};
+  const unbind=$("#seat-unbind");if(unbind)unbind.onclick=()=>{if(confirm(`Unassign ${seat.bound} from Seat ${seat.id}?`))ws.send("unbind_seat",{id:seat.id});};
+}
+
+function renderDeviceDetail() {
+  const d=installation.devices?.[selected];
+  if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
+  const active=document.activeElement;
+  if ($("#detail").contains(active) && active.matches('input,select')) return;
+  const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
+  const assetRows=distribution.assets.map(item=>distributionRow(d,item)).join("");
+  $("#detail").innerHTML=`<section><h2>${esc(d.hostname||d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Status</dt><dd>${d.revoking_assignment?'clearing stale assignment':d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace.</p></section>
     ${patchDiagnostics(d,true)}
-    ${simulating?'':`<section id="distribution"><div class="section-head"><h2>Asset send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><p class="dim">Host asset folders mirror onto ${distributionAll?'all online devices':esc(d.name||d.uid)}. Fleet patch distribution is controlled only by the global fleet patch panel.</p><div class="distribution-actions"><button id="sync-all">Sync all assets</button></div><div class="distribution-grid">${assetRows || '<p class="dim">No host assets.</p>'}</div></section>`}
-    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button></div></section>`:''}
+    <section id="distribution"><div class="section-head"><h2>Asset send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><div class="distribution-actions"><button id="sync-all">Sync all assets</button></div><div class="distribution-grid">${assetRows||'<p class="dim">No host assets.</p>'}</div></section>
+    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button>${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
-  bindControls(d, seat);
-  bindPatchDiagnostics(d);
+  bindDeviceDetailControls(d); bindPatchDiagnostics(d);
 }
+
+function bindDeviceDetailControls(d) {
+  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(["reboot","shutdown","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} ${d.hostname||d.uid}?`))return;ws.send("action",{uid:d.uid,verb});});
+  document.querySelectorAll("#detail [data-identify]").forEach(button=>button.onclick=()=>ws.send("identify",{uid:d.uid}));
+  const forget=$("#device-forget");if(forget)forget.onclick=()=>{if(confirm(`Forget ${d.hostname||d.uid}?`))ws.send("forget_device",{uid:d.uid});};
+  $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
+  const target=$("#distribution-all");if(target)target.onchange=()=>{distributionAll=target.checked;renderDeviceDetail();};
+  const targetUid=()=>distributionAll?"all":d.uid;
+  document.querySelectorAll("#detail .distribution-item").forEach(row=>{
+    const item=distribution.assets.find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
+    const send=row.querySelector("[data-send]");if(send&&!send.disabled)send.onclick=()=>ws.send("send_distribution",{uid:targetUid(),kind:"asset",name:item.name,confirmed_active:false});
+    const drop=row.querySelector("[data-drop-asset]");if(drop)drop.onclick=()=>{if(confirm(`Remove asset slot "${item.name}"?`))ws.send("drop_distribution",{uid:targetUid(),kind:"asset",name:item.name});};
+  });
+  const sync=$("#sync-all");if(sync)sync.onclick=()=>distribution.assets.forEach(item=>ws.send("send_distribution",{uid:targetUid(),kind:"asset",name:item.name,confirmed_active:false}));
+}
+
 function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
-function bindDeviceToSeat(id, device) {
-  ws.send("bind_seat", {id, uid:device.uid});
-}
 function itemSlot(item) { return item.kind === "patch" ? `patch:${item.name}` : item.name; }
 function deviceDistributionStatus(d, item) {
   const slot = itemSlot(item), phase = d.fetch?.[slot], sent = d.distribution?.[slot];
@@ -729,55 +751,6 @@ function nextFreeId() { const used = new Set(Object.values(installation.seats||{
 function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
-function bindControls(d, seat) {
-  let last=0, timer;
-  document.querySelectorAll("[data-param]").forEach(input => {
-    const send = () => {
-      let value=input.type==='checkbox'?(input.checked?1:0):input.value; if(input.type==='range') value=Number(value);
-      ws.send("set_param", {uid:d.uid,name:input.dataset.param,value,broadcast:!!$("#broadcast")?.checked});
-      // optimistic local update so the post-drag re-render shows the sent value,
-      // not the last server echo; re-sends are safe (idempotent full-state)
-      const local = installation.devices[d.uid]; if (local) local.params[input.dataset.param] = value;
-      if (seat) seat.params[input.dataset.param] = value;
-    };
-    input.oninput = () => { input.previousElementSibling?.tagName==='OUTPUT' && (input.previousElementSibling.value=input.value); const now=performance.now(); if(now-last>=33){last=now;send();} else {clearTimeout(timer);timer=setTimeout(send,33-(now-last));} };
-    input.onchange=send;
-    // fires target-phase, before the document pointerup re-render can detach
-    // the input and strand the final change event on a dead node
-    input.onpointerup=send;
-  });
-  document.querySelectorAll("[data-action]").forEach(button => button.onclick=()=>{ const verb=button.dataset.action; if(["reboot","shutdown","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} ${d.name||d.uid}?`))return; ws.send("action",{uid:d.uid,verb}); });
-  document.querySelectorAll("[data-identify]").forEach(button => button.onclick=()=>ws.send("identify",{uid:d.uid}));
-  document.querySelectorAll(".position-coordinate").forEach(input => input.onchange = () => {
-    const row = input.closest("[data-position-key]");
-    const x = Number(row.querySelector('[data-axis="x"]').value);
-    const y = Number(row.querySelector('[data-axis="y"]').value);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    const origin = installation.room?.origin || [0, 0];
-    const position = [Math.round((x + origin[0]) * 100) / 100,
-                      Math.round((y + origin[1]) * 100) / 100];
-    const index = Number(row.dataset.positionKey === "pos2");
-    seat.positions[index] = position;
-    ws.send("update_seat", {id:seat.id, positions:seat.positions});
-    Spatial.render(installation, selectedSeat, selectSeat, ws);
-  });
-  const rename=$("#seat-rename"); if(rename) rename.onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
-  const remove=$("#seat-remove"); if(remove) remove.onclick=()=>{if(confirm(`Remove seat ${seat.id}?`))ws.send("remove_seat",{id:seat.id});};
-  const bind=$("#seat-bind"); if(bind) bind.onclick=()=>{const uid=$("#seat-device").value;if(uid)bindDeviceToSeat(seat.id,installation.devices[uid]);};
-  const unbind=$("#seat-unbind"); if(unbind) unbind.onclick=()=>ws.send("unbind_seat",{id:seat.id});
-  const distributionTarget=$("#distribution-all");
-  if(distributionTarget) distributionTarget.onchange=()=>{ distributionAll=distributionTarget.checked; renderDetail(); };
-  const distributionTargetUid=()=>distributionAll?"all":d.uid;
-  document.querySelectorAll(".distribution-item").forEach(row => {
-    const item = distribution.assets.find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
-    const send=row.querySelector("[data-send]"); if(send&&!send.disabled) send.onclick=()=>ws.send("send_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name,confirmed_active:false});
-    const drop=row.querySelector("[data-drop-asset]"); if(drop) drop.onclick=()=>{if(confirm(`Remove asset slot "${item.name}" from ${distributionAll?'all devices':d.name||d.uid}?`))ws.send("drop_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name});};
-  });
-  const syncAll=$("#sync-all"); if(syncAll) syncAll.onclick=()=>{
-    (distribution.assets||[]).forEach(item=>ws.send("send_distribution",{uid:distributionTargetUid(),kind:"asset",name:item.name,confirmed_active:false}));
-  };
-  $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
-}
 $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});renderHeader();};
 {
   const input = $("#master");
