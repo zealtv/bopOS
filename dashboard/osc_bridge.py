@@ -38,6 +38,7 @@ SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
 ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
 FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must still recover
 REQUEST_TIMEOUT_SECONDS = 5.0
+AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -73,6 +74,7 @@ class OSCBridge:
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
         self._assign_replayed = {}  # uid -> monotonic time of last full replay
+        self._audition_param_replays = set()
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -105,6 +107,36 @@ class OSCBridge:
                 record.get("timeout") and record["timeout"].cancel()
         for timeout in self.pending_timeouts.values():
             timeout.cancel()
+        for replay in self._audition_param_replays:
+            replay.cancel()
+        self._audition_param_replays.clear()
+
+    def schedule_audition_param_replay(self, uid):
+        """Replay dashboard-owned controls after a managed patch can receive.
+
+        Process-alive heartbeats precede Pd patch graph readiness on macOS.
+        The immediate declaration exchange remains the fast path; two bounded
+        retries converge both ordinary and slower-loading patches without a
+        permanent control stream.
+        """
+        loop = asyncio.get_running_loop()
+        expected_device = self.state.devices.get(uid)
+        for delay in AUDITION_PARAM_REPLAY_SECONDS:
+            holder = {}
+
+            def replay(device_uid=uid, device_generation=expected_device,
+                       replay_holder=holder):
+                self._audition_param_replays.discard(replay_holder["handle"])
+                device = self.state.devices.get(device_uid)
+                mode = self.state.data.get("supervisor", {}).get("mode", "off")
+                if device is device_generation \
+                        and device.get("virtual") and device.get("online") \
+                        and mode in {"simulate", "edit"}:
+                    self.request(device_uid, "params")
+
+            handle = loop.call_later(delay, replay)
+            holder["handle"] = handle
+            self._audition_param_replays.add(handle)
 
     async def sync_ping_loop(self):
         # leader broadcasts /sync/ping ~2 Hz, jittered so N nodes don't pong in
@@ -387,6 +419,8 @@ class OSCBridge:
                 if configured or device.get("editor"):
                     self.request(uid, "params")
                     self.request(uid, "patches")
+                    if first_seen and device.get("virtual"):
+                        self.schedule_audition_param_replay(uid)
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)
