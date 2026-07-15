@@ -76,10 +76,13 @@ from the live editor. This recommended order takes precedence over
 4. **In progress:** `ui-tabs/tabs-3-next-sweep` — 01, 02, 03, 05, 06, 08, 07,
    09, and 10 are complete. Stitch 11 was narrowed with Bob on 2026-07-15 to
    **`11-assets-device-workflow`**: first establish device asset inventory,
-   then manage assets on exactly one device at a time. Fleet-wide bulk asset
-   rollout is deferred on the separate `asset-fleet-distribution` thread. Then
-   continue with 12 Dashboard live controls, 13 diagnostic density, and 14 the
-   device-alias design gate.
+   then manage assets on exactly one device at a time. Later the same day the
+   scale premise was revised (Belief System pack measured at 1.15 GB; packs
+   expected well under 5 GB — see lore `2026-07-15-asset-transfer-scale-reference`)
+   and 11a/11b were specced to implement autonomously without a further
+   design gate. Fleet-wide bulk asset rollout is deferred on the separate
+   `asset-fleet-distribution` thread. Then continue with 12 Dashboard live
+   controls, 13 diagnostic density, and 14 the device-alias design gate.
 5. **`patch-workflow-friction/friction-0..1`** — resume after the full next sweep so the
    docs and starter-kit copy describe the finished editor and tab structure.
 

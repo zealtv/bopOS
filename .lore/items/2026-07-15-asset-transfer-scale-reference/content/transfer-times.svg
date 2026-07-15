@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="580" viewBox="0 0 940 580" role="img" aria-label="Total transfer wall time versus asset pack size, one line per fleet size">
+<rect width="940" height="580" fill="#fcfcfb" stroke="rgba(11,11,11,0.10)"/>
+<text x="70.0" y="34.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="16" fill="#0b0b0b" text-anchor="start" font-weight="600">Fleet asset transfer time on 2.4 GHz Wi-Fi</text>
+<text x="70.0" y="54.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">Total wall time to send one asset pack to every device at 20 Mbps effective aggregate goodput</text>
+<text x="70.0" y="70.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">(shared airtime, so concurrency does not add throughput). Halve times at 40 Mbps, double at 10 Mbps.</text>
+<rect x="70.0" y="84" width="10" height="10" rx="2" fill="#86b6ef"/>
+<text x="84.0" y="93.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">1 device</text>
+<rect x="166.0" y="84" width="10" height="10" rx="2" fill="#5598e7"/>
+<text x="180.0" y="93.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">5 devices</text>
+<rect x="270.0" y="84" width="10" height="10" rx="2" fill="#2a78d6"/>
+<text x="284.0" y="93.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">10 devices</text>
+<rect x="382.0" y="84" width="10" height="10" rx="2" fill="#1c5cab"/>
+<text x="396.0" y="93.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">20 devices</text>
+<rect x="494.0" y="84" width="10" height="10" rx="2" fill="#0d366b"/>
+<text x="508.0" y="93.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">50 devices</text>
+<line x1="70.0" y1="116" x2="70.0" y2="516" stroke="#e1e0d9"/>
+<text x="70.0" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">0.25</text>
+<line x1="195.9" y1="116" x2="195.9" y2="516" stroke="#e1e0d9"/>
+<text x="195.9" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">0.5</text>
+<line x1="321.8" y1="116" x2="321.8" y2="516" stroke="#e1e0d9"/>
+<text x="321.8" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">1</text>
+<line x1="447.7" y1="116" x2="447.7" y2="516" stroke="#e1e0d9"/>
+<text x="447.7" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">2</text>
+<line x1="614.1" y1="116" x2="614.1" y2="516" stroke="#e1e0d9"/>
+<text x="614.1" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">5</text>
+<line x1="740.0" y1="116" x2="740.0" y2="516" stroke="#e1e0d9"/>
+<text x="740.0" y="534.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">10</text>
+<line x1="70" y1="491.0" x2="740" y2="491.0" stroke="#e1e0d9"/>
+<text x="62.0" y="494.5" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">2 min</text>
+<line x1="70" y1="446.0" x2="740" y2="446.0" stroke="#e1e0d9"/>
+<text x="62.0" y="449.5" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">5 min</text>
+<line x1="70" y1="392.2" x2="740" y2="392.2" stroke="#e1e0d9"/>
+<text x="62.0" y="395.7" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">15 min</text>
+<line x1="70" y1="324.2" x2="740" y2="324.2" stroke="#e1e0d9"/>
+<text x="62.0" y="327.7" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">1 h</text>
+<line x1="70" y1="256.3" x2="740" y2="256.3" stroke="#e1e0d9"/>
+<text x="62.0" y="259.8" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">4 h</text>
+<line x1="70" y1="222.3" x2="740" y2="222.3" stroke="#e1e0d9"/>
+<text x="62.0" y="225.8" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">8 h</text>
+<line x1="70" y1="168.5" x2="740" y2="168.5" stroke="#e1e0d9"/>
+<text x="62.0" y="172.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">24 h</text>
+<line x1="70" y1="134.5" x2="740" y2="134.5" stroke="#e1e0d9"/>
+<text x="62.0" y="138.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="end">48 h</text>
+<line x1="70" y1="516" x2="740" y2="516" stroke="#c3c2b7"/>
+<text x="405.0" y="556.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="middle">asset pack size, GB (log scale)</text>
+<text x="16.0" y="106.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#898781" text-anchor="start">total wall time (log scale)</text>
+<line x1="70" y1="222.3" x2="740" y2="222.3" stroke="#898781" stroke-dasharray="4 3"/>
+<text x="76.0" y="216.3" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">overnight window (8 h)</text>
+<line x1="347.2" y1="116" x2="347.2" y2="516" stroke="#898781" stroke-dasharray="4 3"/>
+<text x="353.2" y="130.0" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="11" fill="#52514e" text-anchor="start">Belief System pack (1.15 GB)</text>
+<polyline points="70.0,499.9 195.9,465.9 321.8,431.9 447.7,398.0 614.1,353.1 740.0,319.1" fill="none" stroke="#86b6ef" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="347.2" cy="425.1" r="3" fill="#86b6ef" stroke="#fcfcfb" stroke-width="2"/>
+<line x1="740" y1="319.1" x2="746" y2="319.1" stroke="#86b6ef" stroke-width="2"/>
+<text x="750.0" y="322.6" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">1 device</text>
+<polyline points="70.0,421.0 195.9,387.0 321.8,353.1 447.7,319.1 614.1,274.2 740.0,240.2" fill="none" stroke="#5598e7" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="347.2" cy="346.2" r="3" fill="#5598e7" stroke="#fcfcfb" stroke-width="2"/>
+<line x1="740" y1="240.2" x2="746" y2="240.2" stroke="#5598e7" stroke-width="2"/>
+<text x="750.0" y="243.7" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">5 devices</text>
+<polyline points="70.0,387.0 195.9,353.1 321.8,319.1 447.7,285.1 614.1,240.2 740.0,206.2" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="347.2" cy="312.2" r="3" fill="#2a78d6" stroke="#fcfcfb" stroke-width="2"/>
+<line x1="740" y1="206.2" x2="746" y2="206.2" stroke="#2a78d6" stroke-width="2"/>
+<text x="750.0" y="209.7" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">10 devices</text>
+<polyline points="70.0,353.1 195.9,319.1 321.8,285.1 447.7,251.1 614.1,206.2 740.0,172.2" fill="none" stroke="#1c5cab" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="347.2" cy="278.3" r="3" fill="#1c5cab" stroke="#fcfcfb" stroke-width="2"/>
+<line x1="740" y1="172.2" x2="746" y2="172.2" stroke="#1c5cab" stroke-width="2"/>
+<text x="750.0" y="175.7" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">20 devices</text>
+<polyline points="70.0,308.1 195.9,274.2 321.8,240.2 447.7,206.2 614.1,161.3 740.0,127.3" fill="none" stroke="#0d366b" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="347.2" cy="233.3" r="3" fill="#0d366b" stroke="#fcfcfb" stroke-width="2"/>
+<line x1="740" y1="127.3" x2="746" y2="127.3" stroke="#0d366b" stroke-width="2"/>
+<text x="750.0" y="130.8" font-family="system-ui, -apple-system, &quot;Segoe UI&quot;, sans-serif" font-size="12" fill="#52514e" text-anchor="start">50 devices</text>
+</svg>
