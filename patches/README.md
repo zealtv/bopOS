@@ -14,6 +14,8 @@ The host layout is:
 ```text
 bopOS/
   patches/
+    .templates/
+      bopos-template.pd
     demo-pd/
     demo-sc/
     <composer-name>/
@@ -21,6 +23,13 @@ bopOS/
   assets/
     <slot>/
 ```
+
+`.templates/bopos-template.pd` is Bob's immutable Pure Data stub for the
+dashboard's **New patch** action. The hidden directory is outside patch catalog
+listing. New patch copies that file byte-for-byte to `<name>/main.pd`; dashboard
+code never authors or modifies Pure Data source. If the template is unavailable,
+New patch still writes the manifest and reports that `main.pd` must be supplied
+before the patch can launch.
 
 Composer-owned patch directories may be ordinary folders or independent Git
 repositories. They are ignored by the bopOS repository; only the demos are

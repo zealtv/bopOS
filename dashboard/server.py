@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -29,7 +30,8 @@ from python import identity
 from python import manifest as patch_manifest
 
 
-NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
+NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+PATCH_TEMPLATE = os.path.join(".templates", "bopos-template.pd")
 
 
 class DistributionStaticFiles(StaticFiles):
@@ -64,14 +66,20 @@ def directory_info(root_dir, name, kind):
     modified = os.stat(root).st_mtime
     for item in files:
         modified = max(modified, os.stat(os.path.join(root, item["path"])).st_mtime)
-    valid, error = True, None
+    valid, error, manifest_data = True, None, None
     if kind == "patch":
-        _loaded, error = patch_manifest.load(root)
+        manifest_data, error = patch_manifest.load(root)
         valid = error is None
-    return {"kind": kind, "name": name, "files": len(files),
+    info = {"kind": kind, "name": name, "files": len(files),
             "bytes": sum(item["size"] for item in files), "modified": modified,
             "fingerprint": identity.manifest_fingerprint(manifest),
             "valid": valid, "error": error}
+    if kind == "patch":
+        # The manifest editor needs declarations for a catalog selection that
+        # is not yet the active edit process. Keep distribution identity and
+        # authored manifest data as separate, explicitly named fields.
+        info["manifest"] = manifest_data
+    return info
 
 
 def distribution_catalog(assets_dir, patches_dir):
@@ -95,6 +103,7 @@ class Dashboard:
         self.tasks = set()
         self.sim_process = None
         self.supervisor_lock = asyncio.Lock()
+        self.manifest_lock = asyncio.Lock()
         self.supervisor_generation = 0
         # One managed-audition subprocess owns the loopback command port.  Keep
         # sim_process as the compatibility handle used by the existing focused
@@ -103,7 +112,7 @@ class Dashboard:
         self.state.data["editor"] = {
             "active": False, "status": "off", "patch": None,
             "engine_alive": None, "generation": 0, "params": {},
-            "declarations": [], "engine": None,
+            "declarations": [], "cues": [], "engine": None,
         }
         self.fleet_operation = None
         self.fleet_retries = {}
@@ -179,8 +188,9 @@ class Dashboard:
         # A browser reconnect is another full-state convergence edge. Replaying
         # the private listener is idempotent in the audition relay.
         self.osc.send_audition_listener()
-        await ws.send_json({"type": "venues", "data": {"venues": self.state.list_venues(),
-                                                       "current": self.state.data.get("name")}})
+        await ws.send_json({"type": "venues", "data": {
+            "venues": self.state.list_venues(),
+            "current": self.state.data.get("name")}})
         for device_uid, device in self.state.devices.items():
             if self.state.seat_for_uid(device_uid) and device.get("online"):
                 self.osc.request(device_uid, "patches")
@@ -193,7 +203,8 @@ class Dashboard:
         finally:
             self.clients.discard(ws)
 
-    async def handle_ws(self, message, ws=None, supervisor_locked=False):
+    async def handle_ws(self, message, ws=None, supervisor_locked=False,
+                        manifest_locked=False):
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         fleet_mutations = {
@@ -207,6 +218,11 @@ class Dashboard:
         if self.supervisor_mode == "edit" and kind in fleet_mutations:
             await self.ws_error(ws, "Fleet controls are unavailable while patch edit mode owns the audio relay.")
             return
+        if kind in {"save_patch_manifest", "create_patch"} and not manifest_locked:
+            async with self.manifest_lock:
+                return await self.handle_ws(
+                    message, ws, supervisor_locked=supervisor_locked,
+                    manifest_locked=True)
         if kind in fleet_mutations and not supervisor_locked:
             async with self.supervisor_lock:
                 return await self.handle_ws(message, ws, supervisor_locked=True)
@@ -236,6 +252,10 @@ class Dashboard:
                 editor.setdefault("params", {})[name] = cleaned
                 self.osc.set_param(0, name, cleaned)
                 await self.broadcast("state", self.state.public())
+        elif kind == "save_patch_manifest":
+            await self.save_patch_manifest(data, ws)
+        elif kind == "create_patch":
+            await self.create_patch(data, ws)
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
                                                        "updatebopos"}:
             selector = "all" if uid == "all" else self.selector(uid)
@@ -384,11 +404,11 @@ class Dashboard:
             self.osc.send_master()
             await self.broadcast("master", {"value": master})
         elif kind == "fire_cue":
-            cue_id = str(data.get("cue_id", "")).strip()
-            if re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", cue_id) is None:
+            cue_id = data.get("cue_id") if isinstance(data.get("cue_id"), str) else ""
+            if patch_manifest.CUE_ID.fullmatch(cue_id) is None:
                 if ws is not None:
                     await ws.send_json({"type": "error", "data": {
-                        "message": "cue name: use 1–64 letters, digits, dot, colon, _ or -"}})
+                        "message": "cue name: use 1–64 characters without newlines"}})
                 return
             try:
                 lead_ms = int(data.get("lead_ms", 500))
@@ -721,6 +741,130 @@ class Dashboard:
         if maximum is not None and cleaned > maximum:
             return None
         return cleaned
+
+    def patch_path(self, name):
+        """Return a catalog child path, or None for unsafe names/symlinks."""
+        if NAME_RE.fullmatch(name or "") is None:
+            return None
+        path = os.path.join(self.patches_dir, name)
+        if os.path.islink(path):
+            return None
+        return path
+
+    async def save_patch_manifest(self, data, ws):
+        """Validate and atomically save the editable manifest fields."""
+        name = str(data.get("patch", "")).strip()
+        patch_path = self.patch_path(name)
+        editor = self.state.data["editor"]
+        if (patch_path is None or not os.path.isdir(patch_path)
+                or self.supervisor_mode != "edit" or editor.get("patch") != name):
+            await self.ws_error(ws, "The selected patch is not active in edit mode.")
+            return
+        current, error = patch_manifest.load(patch_path)
+        if current is None:
+            await self.ws_error(ws, f"Cannot edit patch {name!r}: {error}")
+            return
+
+        params, cues = data.get("params"), data.get("cues")
+        if not isinstance(params, list) or not isinstance(cues, list):
+            await self.ws_error(ws, "Manifest params and cues must be lists.")
+            return
+        candidate = dict(current)
+        candidate["params"] = params
+        candidate["cues"] = cues
+        saved, error = await asyncio.to_thread(
+            patch_manifest.write_atomic, patch_path, candidate)
+        if saved is None:
+            await self.ws_error(ws, f"Manifest not saved: {error}")
+            return
+
+        old_names = [item.get("name") for item in current.get("params", ())]
+        new_names = [item.get("name") for item in saved.get("params", ())]
+        removed = [item for item in old_names if item not in new_names]
+        added = [item for item in new_names if item not in old_names]
+        rename_candidates = [
+            {"from": old, "to": new}
+            for old, new in zip(removed, added)
+        ]
+        warning = None
+        if removed:
+            warning = ("Param names were renamed or removed. Update matching "
+                       "Pure Data receive names manually: " + ", ".join(removed))
+
+        # Manifest saves are live declaration changes, never engine restarts.
+        previous_values = editor.get("params", {})
+        declarations = list(saved.get("params", ()))
+        editor["declarations"] = declarations
+        editor["cues"] = list(saved.get("cues", ()))
+        editor["params"] = {
+            declaration["name"]: previous_values.get(
+                declaration["name"], declaration.get("default", ""))
+            for declaration in declarations
+        }
+        response = {
+            "patch": name,
+            "params": declarations,
+            "cues": editor["cues"],
+            "removed_params": removed,
+            "added_params": added,
+            "rename_candidates": rename_candidates,
+            "pd_receive_warning": warning,
+        }
+        if ws is not None:
+            await ws.send_json({"type": "manifest_saved", "data": response})
+        await self.broadcast("distribution", await self.catalog())
+        await self.broadcast("state", self.state.public())
+
+    async def create_patch(self, data, ws):
+        """Create a minimal patch and copy Bob's immutable stub when present."""
+        name = str(data.get("name", "")).strip()
+        patch_path = self.patch_path(name)
+        if patch_path is None:
+            await self.ws_error(ws, "Patch name: start with a letter or digit; then use letters, digits, dot, _ or -.")
+            return
+        try:
+            os.mkdir(patch_path)
+        except FileExistsError:
+            await self.ws_error(ws, f"Patch {name!r} already exists.")
+            return
+        except OSError as error:
+            await self.ws_error(ws, f"Could not create patch {name!r}: {error}")
+            return
+
+        template = os.path.join(self.patches_dir, PATCH_TEMPLATE)
+        entrypoint = os.path.join(patch_path, "main.pd")
+        template_copied = os.path.isfile(template) and not os.path.islink(template)
+        try:
+            if template_copied:
+                await asyncio.to_thread(shutil.copyfile, template, entrypoint)
+            minimal = {"engine": "pd", "entrypoint": "main.pd", "params": [],
+                       "cues": [], "caps": [], "slots": []}
+            saved, error = await asyncio.to_thread(
+                patch_manifest.write_atomic, patch_path, minimal, template_copied)
+            if saved is None:
+                raise OSError(error)
+        except OSError as error:
+            for partial in (entrypoint,
+                            os.path.join(patch_path, patch_manifest.MANIFEST_NAME)):
+                try:
+                    os.unlink(partial)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(patch_path)
+            except OSError:
+                pass
+            await self.ws_error(ws, f"Could not create patch {name!r}: {error}")
+            return
+
+        status = ("Ready: copied .templates/bopos-template.pd verbatim."
+                  if template_copied else
+                  "Manifest created; add main.pd or restore the PD template before launch.")
+        response = {"patch": name, "template_copied": template_copied,
+                    "status": status}
+        if ws is not None:
+            await ws.send_json({"type": "patch_created", "data": response})
+        await self.broadcast("distribution", await self.catalog())
 
     async def stage_and_converge(self, name, ws):
         item = await self.catalog_patch(name)
@@ -1126,7 +1270,9 @@ class Dashboard:
                       engine_alive=None, generation=generation,
                       params={item["name"]: item.get("default", "")
                               for item in declarations},
-                      declarations=declarations, engine=manifest.get("engine"))
+                      declarations=declarations,
+                      cues=list(manifest.get("cues", ())),
+                      engine=manifest.get("engine"))
         self.set_supervisor_mode("edit")
         self.osc.set_target("127.0.0.1")
         command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),

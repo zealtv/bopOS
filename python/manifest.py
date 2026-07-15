@@ -9,13 +9,16 @@ controlled; validation exists so it can't silently drift.
 """
 
 import json
+import math
 import os
 import re
 import sys
+import tempfile
 
 MANIFEST_NAME = "bopos.patch.json"
-PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+$")
+PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+")
 PARAM_TYPES = ("i", "f", "s")
+CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
 
 
 def raw(patch_path):
@@ -27,15 +30,20 @@ def raw(patch_path):
         return None
 
 
-def load(patch_path):
-    """Return (manifest-dict, error-string). Exactly one of them is None."""
-    text = raw(patch_path)
-    if text is None:
-        return None, f"no {MANIFEST_NAME} in {patch_path}"
-    try:
-        manifest = json.loads(text)
-    except ValueError as error:
-        return None, f"{MANIFEST_NAME} is not valid JSON: {error}"
+def validate(candidate, patch_path, require_entrypoint=True):
+    """Validate an in-memory manifest candidate for ``patch_path``.
+
+    The dashboard editor uses this before replacing the on-disk manifest, so
+    the exact same rules govern authored and loaded manifests.  New-patch may
+    set ``require_entrypoint=False`` only when Bob's PD template is absent;
+    the resulting manifest stays structurally valid but the patch catalog
+    correctly reports it unlaunchable until ``main.pd`` is supplied.
+    """
+    if not isinstance(candidate, dict):
+        return None, f"{MANIFEST_NAME} must be a JSON object"
+    # Validation supplies the normalized engine value, but never mutates a
+    # caller-owned dictionary while deciding whether it is safe to write.
+    manifest = dict(candidate)
     if not isinstance(manifest, dict):
         return None, f"{MANIFEST_NAME} must be a JSON object"
 
@@ -47,23 +55,44 @@ def load(patch_path):
     entrypoint = manifest.get("entrypoint")
     if not isinstance(entrypoint, str) or not entrypoint.strip():
         return None, "entrypoint must be a non-empty string"
-    if not os.path.isfile(os.path.join(patch_path, entrypoint)):
+    entrypoint = entrypoint.strip()
+    normalized_entrypoint = os.path.normpath(entrypoint)
+    if (os.path.isabs(entrypoint) or normalized_entrypoint == ".."
+            or normalized_entrypoint.startswith(".." + os.sep)):
+        return None, "entrypoint must stay inside the patch directory"
+    patch_root = os.path.realpath(patch_path)
+    resolved_entrypoint = os.path.realpath(
+        os.path.join(patch_path, normalized_entrypoint))
+    try:
+        contained = os.path.commonpath((patch_root, resolved_entrypoint)) == patch_root
+    except ValueError:
+        contained = False
+    if not contained:
+        return None, "entrypoint must resolve inside the patch directory"
+    manifest["entrypoint"] = entrypoint
+    if (require_entrypoint
+            and not os.path.isfile(os.path.join(patch_path, normalized_entrypoint))):
         return None, f"entrypoint {entrypoint!r} not found in {patch_path}"
 
     params = manifest.get("params", [])
     if not isinstance(params, list):
         return None, "params must be a list"
+    param_names = set()
     for param in params:
         if not isinstance(param, dict):
             return None, f"param {param!r} must be an object"
         name = param.get("name")
-        if not isinstance(name, str) or not PARAM_NAME.match(name):
+        if not isinstance(name, str) or PARAM_NAME.fullmatch(name) is None:
             return None, f"bad param name {name!r}"
+        if name in param_names:
+            return None, f"duplicate param name {name!r}"
+        param_names.add(name)
         if param.get("type") not in PARAM_TYPES:
             return None, f"param {name}: type must be one of {'/'.join(PARAM_TYPES)}"
         low, high, default = param.get("min"), param.get("max"), param.get("default")
         numbers = [v for v in (low, high, default) if v is not None]
-        if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in numbers):
+        if any(not isinstance(v, (int, float)) or isinstance(v, bool)
+               or not math.isfinite(v) for v in numbers):
             return None, f"param {name}: min/max/default must be numbers"
         if low is not None and high is not None and low > high:
             return None, f"param {name}: min {low} > max {high}"
@@ -79,6 +108,8 @@ def load(patch_path):
         facilitator = param.get("facilitator")
         if facilitator is not None and not isinstance(facilitator, bool):
             return None, f"param {name}: facilitator must be true or false"
+        if "group" in param and not isinstance(param["group"], str):
+            return None, f"param {name}: group must be a string"
 
     cues = manifest.get("cues", [])
     if not isinstance(cues, list):
@@ -90,6 +121,8 @@ def load(patch_path):
         cue_id = cue.get("id")
         if not isinstance(cue_id, str):
             return None, f"cue id {cue_id!r} must be a string"
+        if CUE_ID.fullmatch(cue_id) is None:
+            return None, f"cue id {cue_id!r}: use 1–64 characters without newlines"
         if cue_id in cue_ids:
             return None, f"duplicate cue id {cue_id!r}"
         cue_ids.add(cue_id)
@@ -103,6 +136,52 @@ def load(patch_path):
             return None, f"{kind} must be a list of strings"
 
     return manifest, None
+
+
+def load(patch_path):
+    """Return (manifest-dict, error-string). Exactly one of them is None."""
+    text = raw(patch_path)
+    if text is None:
+        return None, f"no {MANIFEST_NAME} in {patch_path}"
+    try:
+        candidate = json.loads(text)
+    except ValueError as error:
+        return None, f"{MANIFEST_NAME} is not valid JSON: {error}"
+    return validate(candidate, patch_path)
+
+
+def write_atomic(patch_path, candidate, require_entrypoint=True):
+    """Validate and atomically replace a patch manifest.
+
+    Returns the normalized manifest and ``None`` on success, or ``None`` and
+    an error without changing the destination.  The temporary file lives in
+    the patch directory so ``os.replace`` is an atomic same-filesystem rename.
+    """
+    manifest, error = validate(candidate, patch_path, require_entrypoint)
+    if manifest is None:
+        return None, error
+    destination = os.path.join(patch_path, MANIFEST_NAME)
+    temporary = None
+    try:
+        fd, temporary = tempfile.mkstemp(
+            prefix=f".{MANIFEST_NAME}.", suffix=".part", dir=patch_path)
+        with os.fdopen(fd, "w", encoding="utf-8") as target:
+            json.dump(manifest, target, indent=2, ensure_ascii=False,
+                      allow_nan=False)
+            target.write("\n")
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary, destination)
+        temporary = None
+        return manifest, None
+    except (OSError, TypeError, ValueError) as write_error:
+        return None, f"could not write {MANIFEST_NAME}: {write_error}"
+    finally:
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
 
 
 def warnings(manifest):

@@ -14,8 +14,8 @@ managed simulation, and fleet-wide patch software is complete. Patch-editor
 design and its v1.4 cue contract amendment are also complete.
 
 The bop000 fleet gate is complete and audibly confirmed. `pe-2-edit-mode` is
-also tied, including its real GUI-PD gate. The next implementation stitch is
-`pe-3-manifest-editor`.
+also tied, including its real GUI-PD gate. `pe-3-manifest-editor` is tied too;
+the next implementation stitch is `pe-4-points-and-cues-ui`.
 
 ## Running order
 
@@ -25,7 +25,7 @@ also tied, including its real GUI-PD gate. The next implementation stitch is
 2. **Complete:** `patch-editor/pe-2-edit-mode` — single-instance GUI edit runtime, exclusive
    `off | simulate | edit` supervisor mode, patch list, live param panel, and
    explicit relaunch/restart behavior.
-3. `patch-editor/pe-3-manifest-editor` — validated atomic param/cue editing and
+3. **Complete:** `patch-editor/pe-3-manifest-editor` — validated atomic param/cue editing and
    New patch flow using Bob's `main.pd` template verbatim when available.
 4. `patch-editor/pe-4-points-and-cues-ui` — session-only point preview and cue
    firing through the normal `/pt` and `/cue` paths.

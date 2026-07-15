@@ -48,8 +48,17 @@
       </section>
       <section id="editor-panel">
         <div class="section-head"><div><h2>Patch editor</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
-        <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button></div>
+        <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>
         <p id="editor-engine-note" class="dim">Launch a valid host patch through the managed audition runtime.</p>
+        <section id="manifest-editor" aria-labelledby="manifest-editor-title">
+          <div class="section-head"><div><h3 id="manifest-editor-title">Manifest</h3><p class="dim">Edit the dashboard-facing declarations. The audio patch is never rewritten here.</p></div><button id="manifest-save">Save manifest</button></div>
+          <div id="manifest-readonly"></div>
+          <div class="manifest-subhead"><h3>Parameters</h3><button id="manifest-add-param">Add parameter</button></div>
+          <div id="manifest-params"></div>
+          <div class="manifest-subhead"><h3>Cues</h3><button id="manifest-add-cue">Add cue</button></div>
+          <div id="manifest-cues"></div>
+          <output id="manifest-feedback" class="dim" aria-live="polite"></output>
+        </section>
         <div id="editor-params" class="params"></div>
       </section>
       <div id="detail"><p class="empty">Select a device.</p></div>

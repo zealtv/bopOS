@@ -13,6 +13,11 @@ let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
 let distributionAll = false;
 let editorPatchChoice = null;
+let manifestDraft = null;
+let manifestBaseline = null;
+let manifestDirty = false;
+let manifestFeedback = "";
+let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -45,7 +50,48 @@ ws.on("heartbeat", data => {
 });
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
 ws.on("patches", mergeDevice);
-ws.on("distribution", data => { distribution = data || {assets: [], patches: []}; render(); });
+ws.on("distribution", data => {
+  distribution=data||{assets:[],patches:[]};
+  if (pendingCreatedPatch && (distribution.patches||[]).some(item=>item.valid&&item.name===pendingCreatedPatch)) {
+    editorPatchChoice=pendingCreatedPatch; pendingCreatedPatch=null;
+  }
+  render();
+});
+ws.on("manifest_saved", data => {
+  const patch=data?.patch||editorPatchChoice;
+  const declarations=data?.declarations||data?.params||[];
+  if (patch && patch===editorPatchChoice) {
+    manifestDraft={patch,params:structuredClone(declarations),cues:structuredClone(data.cues||[])};
+    manifestBaseline=structuredClone(manifestDraft);
+    manifestDirty=false;
+  }
+  if (installation.editor && installation.editor.patch===patch) {
+    installation.editor.declarations=structuredClone(declarations);
+    installation.editor.cues=structuredClone(data.cues||[]);
+  }
+  const warnings=(data?.warnings||[data?.pd_receive_warning]).filter(Boolean);
+  manifestFeedback=warnings.length?`Saved with warning: ${warnings.join(" ")}`:"Manifest saved. Live controls refreshed; the engine was not restarted.";
+  render();
+});
+ws.on("patch_created", data => {
+  if (data?.patch) pendingCreatedPatch=data.patch;
+  manifestDraft=null; manifestBaseline=null; manifestDirty=false;
+  manifestFeedback=data?.template_copied
+    ? `Created ${data.patch} with a manifest and a verbatim copy of Bob's patch template.`
+    : (data?.status||`Created ${data?.patch||"patch"} manifest-only; no template was copied.`);
+  ws.send("refresh_distribution",{});
+  render();
+});
+ws.on("notification", data => {
+  if (data?.scope==="patch_editor" || data?.patch) {
+    manifestFeedback=String(data.message||data.status||""); render();
+  }
+});
+ws.on("status", data => {
+  if (data?.scope==="patch_editor") {
+    manifestFeedback=String(data.message||data.status||""); render();
+  }
+});
 ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
 ws.on("mute_all", data => { muted = !!data.value; renderHeader(); });
 ws.on("master", data => { master = Number(data.value); renderHeader(); });
@@ -57,7 +103,13 @@ ws.on("cue_scheduled", data => {
   const status = $("#cue-status"); if (!status) return;
   status.value = `${data.cue_id} fires in ${data.lead_ms} ms`;
 });
-ws.on("error", data => alert(data.message));
+ws.on("error", data => {
+  if (manifestFeedback.endsWith("…")) {
+    manifestFeedback=`Not saved: ${data.message}`;
+    const feedback=$("#manifest-feedback"); if (feedback) feedback.textContent=manifestFeedback;
+  }
+  alert(data.message);
+});
 let venues = {venues: [], current: null};
 ws.on("venues", data => { venues = data; renderVenues(); });
 ws.on("venue_rebind", data => { venueRebind = data; render(); });
@@ -178,6 +230,113 @@ function renderSimulation(devices) {
   };
 }
 
+function manifestSource(editor, patches, patch) {
+  const item=patches.find(candidate=>candidate.name===patch)||{};
+  const embedded=item.manifest && typeof item.manifest==="object" ? item.manifest : {};
+  const current=editor.patch===patch ? editor : {};
+  const params=current.declarations||embedded.params||item.params||item.declarations;
+  const cues=current.cues||embedded.cues||item.cues;
+  return {
+    engine:current.engine??embedded.engine??item.engine,
+    entrypoint:current.entrypoint??embedded.entrypoint??item.entrypoint,
+    caps:current.caps??embedded.caps??item.caps??[],
+    slots:current.slots??embedded.slots??item.slots??[],
+    params:Array.isArray(params)?params:[],
+    cues:Array.isArray(cues)?cues:[],
+    available:Array.isArray(params)||Array.isArray(cues)||Boolean(current.engine||embedded.engine||item.engine),
+    editable:Boolean(editor.active&&editor.patch===patch),
+  };
+}
+function resetManifestDraft(patch, source) {
+  manifestDraft={patch,params:structuredClone(source.params),cues:structuredClone(source.cues)};
+  manifestBaseline=structuredClone(manifestDraft);
+  manifestDirty=false;
+}
+function manifestValue(value) {
+  if (Array.isArray(value)) return value.length?value.map(item=>typeof item==="string"?item:JSON.stringify(item)).join(", "):"none";
+  return value??"—";
+}
+function paramManifestRow(param, index) {
+  const legacy=param.type==="s", disabled=legacy?"disabled":"";
+  return `<div class="manifest-row manifest-param" data-param-index="${index}">
+    <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off" ${disabled}></label>
+    <label>type<select data-manifest-field="type" ${disabled}><option value="f" ${param.type==="f"?"selected":""}>float</option><option value="i" ${param.type==="i"?"selected":""}>integer</option>${legacy?'<option value="s" selected>string (legacy, read-only)</option>':''}</select></label>
+    <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}" ${disabled}></label>
+    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}" ${disabled}></label>
+    <label>default<input data-manifest-field="default" type="number" step="any" value="${esc(param.default??"")}" ${disabled}></label>
+    <label>group<input data-manifest-field="group" type="text" value="${esc(param.group||"")}" autocomplete="off" ${disabled}></label>
+    <label class="manifest-check"><input data-manifest-field="facilitator" type="checkbox" ${param.facilitator===true?"checked":""} ${disabled}> facilitator</label>
+    <button data-remove-param="${index}" class="danger" title="${legacy?'Legacy string declarations are read-only':'Remove parameter'}" ${disabled}>${legacy?'Read-only':'Remove'}</button>
+  </div>`;
+}
+function cueManifestRow(cue, index) {
+  return `<div class="manifest-row manifest-cue" data-cue-index="${index}">
+    <label>ID<input data-manifest-field="id" type="text" value="${esc(cue.id||"")}" autocomplete="off"></label>
+    <label>label<input data-manifest-field="label" type="text" value="${esc(cue.label||"")}" autocomplete="off"></label>
+    <label>description<input data-manifest-field="description" type="text" value="${esc(cue.description||"")}" autocomplete="off"></label>
+    <button data-remove-cue="${index}" class="danger">Remove</button>
+  </div>`;
+}
+function bindManifestEditor(source) {
+  document.querySelectorAll(".manifest-param").forEach(row=>{
+    const index=Number(row.dataset.paramIndex);
+    row.querySelectorAll("[data-manifest-field]").forEach(input=>{
+      input.oninput=input.onchange=()=>{
+        const field=input.dataset.manifestField;
+        manifestDraft.params[index][field]=input.type==="checkbox"?input.checked:(input.type==="number"?(input.value===""?"":Number(input.value)):input.value);
+        manifestDirty=true;
+      };
+    });
+  });
+  document.querySelectorAll(".manifest-cue").forEach(row=>{
+    const index=Number(row.dataset.cueIndex);
+    row.querySelectorAll("[data-manifest-field]").forEach(input=>input.oninput=input.onchange=()=>{
+      manifestDraft.cues[index][input.dataset.manifestField]=input.value; manifestDirty=true;
+    });
+  });
+  document.querySelectorAll("[data-remove-param]").forEach(button=>button.onclick=()=>{
+    const param=manifestDraft.params[Number(button.dataset.removeParam)];
+    if (!confirm(`Remove parameter "${param?.name||"unnamed"}"? Pure Data receives do not change automatically; update the corresponding [receive] in the patch.`)) return;
+    manifestDraft.params.splice(Number(button.dataset.removeParam),1); manifestDirty=true; renderManifestEditor(source);
+  });
+  document.querySelectorAll("[data-remove-cue]").forEach(button=>button.onclick=()=>{
+    manifestDraft.cues.splice(Number(button.dataset.removeCue),1); manifestDirty=true; renderManifestEditor(source);
+  });
+}
+function renderManifestEditor(source) {
+  const panel=$("#manifest-editor"); if (!panel) return;
+  const patch=editorPatchChoice;
+  panel.hidden=!patch;
+  if (!patch) return;
+  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,cues:source.cues})!==JSON.stringify({params:manifestDraft.params,cues:manifestDraft.cues}))) {
+    resetManifestDraft(patch,source);
+  }
+  $("#manifest-readonly").innerHTML=`<dl><dt>Engine</dt><dd>${esc(manifestValue(source.engine))}</dd><dt>Entrypoint</dt><dd>${esc(manifestValue(source.entrypoint))}</dd><dt>Capabilities</dt><dd>${esc(manifestValue(source.caps))}</dd><dt>Asset slots</dt><dd>${esc(manifestValue(source.slots))}</dd></dl>`;
+  $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
+  $("#manifest-cues").innerHTML=manifestDraft.cues.map(cueManifestRow).join("")||'<p class="dim">No cues declared.</p>';
+  $("#manifest-feedback").textContent=manifestFeedback||(source.editable
+    ? "Renaming or removing a parameter does not update Pure Data: its [receive] name must be changed in the patch too."
+    : "Launch this patch in edit mode to change its manifest.");
+  const addParam=$("#manifest-add-param"), addCue=$("#manifest-add-cue");
+  addParam.disabled=!source.editable; addCue.disabled=!source.editable;
+  addParam.onclick=()=>{manifestDraft.params.push({name:"",type:"f",min:0,max:1,default:0,group:"parameters",facilitator:false});manifestDirty=true;renderManifestEditor(source);};
+  addCue.onclick=()=>{manifestDraft.cues.push({id:"",label:"",description:""});manifestDirty=true;renderManifestEditor(source);};
+  const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
+  save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
+  save.onclick=()=>{
+    const before=(manifestBaseline?.params||[]).map(param=>param.name);
+    const after=manifestDraft.params.map(param=>param.name);
+    const changed=before.filter((name,index)=>name && (after[index]!==name || !after.includes(name)));
+    if (changed.length && !confirm(`Save parameter rename/removal (${changed.join(", ")})? Pure Data receives do not follow manifest changes; update each corresponding [receive] in the patch.`)) return;
+    manifestFeedback="Saving manifest…";
+    ws.send("save_patch_manifest",{patch,params:structuredClone(manifestDraft.params),cues:structuredClone(manifestDraft.cues)});
+    save.blur();
+    $("#manifest-feedback").textContent=manifestFeedback;
+  };
+  bindManifestEditor(source);
+  if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-cues input, #manifest-cues button").forEach(control=>{control.disabled=true;});
+}
+
 function editorControl(declaration, value) {
   const badge=declaration.facilitator?'<b class="badge facilitator-badge">facilitator</b>':'';
   const name=`${esc(declaration.name)} ${badge}`;
@@ -199,7 +358,18 @@ function renderEditor() {
     select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===editorPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
   }
   select.disabled=!patches.length;
-  select.onchange=()=>{editorPatchChoice=select.value;};
+  select.onchange=()=>{
+    editorPatchChoice=select.value; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
+    select.blur(); renderEditor();
+  };
+  const newPatch=$("#editor-new-patch");
+  newPatch.onclick=()=>{
+    const name=prompt("New patch name (letters, numbers, . _ or -):","")?.trim();
+    if (!name) return;
+    manifestFeedback=`Creating ${name}…`;
+    ws.send("create_patch",{name});
+    renderEditor();
+  };
   launch.disabled=!patches.length;
   launch.textContent=editor.active?'Launch selected patch':'Launch editor';
   launch.onclick=()=>{
@@ -222,6 +392,8 @@ function renderEditor() {
   $("#editor-hear-sim")?.addEventListener("click",()=>ws.send("set_simulation",{active:true,patch:editor.patch}));
   $("#editor-stop")?.addEventListener("click",()=>ws.send("set_edit",{active:false}));
   const focused=document.activeElement;
+  const source=manifestSource(editor,patches,editorPatchChoice);
+  if (!$("#manifest-editor").contains(focused)) renderManifestEditor(source);
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;
   const groups=[];
