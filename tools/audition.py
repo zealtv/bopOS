@@ -207,6 +207,49 @@ class AuditionRig:
                               node.engine_alive(self.args.no_engine))
         self.sock.sendto(packet, self.report_target)
 
+    def send_report(self, node, source):
+        patch_dir, loaded = self._load_patch()
+        report = {
+            "uid": node.uid,
+            "hostname": node.name or node.uid,
+            "engine": loaded["engine"],
+            "has_i2c": False,
+            "has_wifi": False,
+            "audio_channels": 2,
+            "screen": "screen" in loaded.get("caps", []),
+            "patch": os.path.basename(patch_dir),
+            "uptime": int(time.monotonic() - self.started),
+            "git_rev": VERSION,
+            "update_model": "ephemeral",
+            "contract_version": "1.5",
+        }
+        self.sock.sendto(osc_datagram("/os/report", json.dumps(report)),
+                         (source[0], self.args.report_port))
+
+    def send_rev(self, node, source):
+        self.sock.sendto(osc_datagram("/os/rev", VERSION, "ephemeral", node.uid),
+                         (source[0], self.args.report_port))
+
+    def uid_admin(self, node, member, args, source):
+        allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
+                   "updatebopos", "unassign"}
+        if member not in allowed or args:
+            return
+        if member == "identify":
+            self.send_engine(node, "/notify", ("identify",))
+        elif member == "report":
+            self.send_report(node, source)
+        elif member == "unassign":
+            node.device_id = -1
+            node.positions = ()
+            self.send_id(node)
+            self.send_matrix(node)
+            self.send_heartbeat(node)
+        else:
+            # Audition nodes are ephemeral processes; model attribution without
+            # ever applying a destructive host lifecycle action.
+            self.send_rev(node, source)
+
     def send_heartbeats(self):
         for node in self.nodes:
             self.send_heartbeat(node)
@@ -416,6 +459,14 @@ class AuditionRig:
             return
         if parts and parts[0] == "pt":
             self.apply_points(parts, message.params)
+            return
+        if parts == ["all", "os", "to"]:
+            if len(message.params) < 2:
+                return
+            uid, member = str(message.params[0]), str(message.params[1])
+            for node in self.nodes:
+                if node.uid == uid:
+                    self.uid_admin(node, member, tuple(message.params[2:]), source)
             return
         if len(parts) != 3:
             return

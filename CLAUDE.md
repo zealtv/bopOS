@@ -6,11 +6,11 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.4: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.5: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
-   fleet-patch fingerprint amendment — a shared revision the pe-1 cues
-   amendment also folds into):
+   fleet-patch fingerprint/cues amendments, plus the 2026-07-15 UID-admin and
+   unassignment revision):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -45,9 +45,9 @@ remain the authority for a particular piece of work.
 ## Thread ordering (reconciled 2026-07-15 after patch-editor PE-4/PE-4b)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.4** (2026-07-07 base + seam amendment + engine-boundary revision +
-distribution amendment + fleet-patch fingerprint amendment; pe-1's cues
-amendment folds into the same v1.4 bump); `engine-boundary-design`, `patch-seam`, `clock-sync`
+**v1.5** (2026-07-07 base + seam amendment + engine-boundary revision +
+distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
+and unassignment revision); `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
 `patch-asset-sync` (dist-0..4), fleet-patch (fp-0..4), and patch-editor

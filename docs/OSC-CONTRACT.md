@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-Version 1.4 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
+Version 1.5 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
 (seam council 2026-07-10 + Bob's ratification; record in
 `.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
 2026-07-12 by Bob's removal of the param `role` concept (§8; record in
@@ -22,6 +22,11 @@ manifest amendment (record in
 `.lore/items/2026-07-14-patch-editor-design-ratified/`): patches may document
 the cue IDs they handle (§8), also additive. Bob ratified folding both into
 this shared revision (2026-07-14, Q4 "fold in").
+Revised to v1.5 2026-07-15 by the Seat / Device boundary ratification (record
+in `.loom/tied/06-seat-device-boundary-design/`): a small allowlisted UID
+administration envelope uniquely reaches physical nodes that all advertise ID
+`-1`; node unassignment and uid-attributable revision receipts make binding
+revocation safe.
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -91,6 +96,20 @@ One rule for every LAN message:
 strips it before anything reaches an engine — engines never see selectors or
 identity routing (v1.2; the old in-patch `route-by-id` is retired). Replies
 carry the request's address, so a stray packet in a log is self-describing.
+
+One v1.5 administrative envelope is the deliberate exception to numeric
+selection:
+
+```
+/all/os/to <uid:string> <verb:string> [args...]
+```
+
+Every node receives it; only the exact opaque uid match dispatches. The uid is
+data, never an OSC address component. Dispatch is direct to an exact zero-arity
+allowlist—`identify`, `report`, `reboot`, `shutdown`, `restart-engine`,
+`updatebopos`, `unassign`—with no recursive address construction. Provided
+terms, patch parameters, probes, persistence storage, content distribution and
+patch switching remain selector-addressed and cannot pass through this envelope.
 
 ### Planes
 
@@ -297,6 +316,12 @@ deferred and unratified.
   computer IDs as many elements as it drives. The matching node applies it,
   sets its hostname, tells the engine its id, and acks by heartbeating with
   the new id.
+- **Unassignment (v1.5)** is `/all/os/to <uid> unassign`. It is idempotent:
+  the exact target replaces its persisted assignment with an explicit `-1`
+  tombstone (so a CSV seed cannot resurrect it), sets framework and engine ID
+  to `-1`, retains hostname, clears element positions and emits an immediate
+  uid-bearing heartbeat. A controller uses that heartbeat as the revocation
+  confirmation before removing or replacing a live binding.
 - **Persistence is required on persistent hosts.** The node stores its assignment
   via the framework persistence store, so a fleet configured over the network runs
   **standalone** after the network is taken down — dashboard-less, network-less
@@ -322,6 +347,12 @@ deferred and unratified.
 /<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
 ```
+
+For one physical device, including an unassigned node, v1.5 uses
+`/all/os/to <uid> report` and `/all/os/to <uid> identify`. Report retains the
+same uid-bearing `/os/report <json>` reply; Identify has no reply. The older
+`/all/os/identify <uid>` spelling remains a compatibility alias while callers
+move to the uniform envelope.
 
 - **`/os/probe` is demand-driven, one-shot inspection** (added by the v1.2
   engine-boundary ratification). It answers from values bopos.py already
@@ -383,8 +414,9 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
   entry whose content cannot be read; every consumer tolerates absence.
 - `/os/droppatch <name>` removes an inactive patch and refuses the active
   patch. `/os/dropassets <slot>` removes an asset slot.
-- **Every provisioning verb replies** `/os/rev <sha> <model>` (unicast) so the
-  dashboard observes convergence, not fire-and-forget. This includes both
+- **Every provisioning verb replies** `/os/rev <sha> <model> <uid>` (unicast;
+  uid additive in v1.5) so the dashboard observes attributable convergence, not
+  fire-and-forget. This includes both
   drop verbs; `/os/patches` is a query and replies with its listing instead.
 - `/os/getsamples` is removed. Assets use `/os/fetch`; there is no alias.
 

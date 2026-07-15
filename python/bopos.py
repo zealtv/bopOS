@@ -574,6 +574,29 @@ def apply_assign(args, state=None):
     return True
 
 
+def apply_unassign(state=None):
+    """Clear the node-side assignment replica without changing its hostname."""
+    state = state or node_state
+    # Persist an explicit -1 tombstone rather than deleting the key: otherwise
+    # boot resolution would fall through to bopos.devices and resurrect a
+    # revoked seed assignment.
+    assignment = state.store.get("assignment") or []
+    name = str(assignment[1]) if len(assignment) > 1 else socket.gethostname()
+    if not state.store.put("assignment", [-1, name]):
+        return False
+    state.id = -1
+    state.elements = []
+    msg = OSCMessage("/id")
+    msg.append(-1, 'f')
+    try:
+        send_to_engine(msg)
+    except Exception:
+        pass
+    hb_wake.set()
+    print(f"UNASSIGNED: {state.uid}")
+    return True
+
+
 def apply_points(parts, args, state=None):
     # /pt plane (contract sec 4.1): selector-less broadcast geometry, like
     # /cue. Helper owns the proximity math; the engine sees only shaped
@@ -633,9 +656,7 @@ admin_lock = threading.Lock()
 
 
 def rev_reply(reply_socket, requester, state=None):
-    # /os/rev <sha> <model> [<uid>] -- the convergence receipt (contract sec 7).
-    # uid is a proposed additive extension: unicast source ip identifies a real
-    # node, but simfleet devices share one ip, so attribution needs the uid.
+    # /os/rev <sha> <model> <uid> -- attributable convergence (v1.5, sec 7).
     state = state or node_state
     state.version = resolve_version()
     msg = OSCMessage("/os/rev")
@@ -695,6 +716,99 @@ def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
             rev_reply(reply_socket, requester, state)
 
 
+def report_reply(reply_socket, requester, state=None):
+    state = state or node_state
+    patch_path = active_patch_path()
+    patch_name = os.path.basename(patch_path) if patch_path else "none"
+    patch_manifest = None
+    if patch_path:
+        patch_manifest, _error = manifest.load(patch_path)
+    engine = None
+    try:
+        with open(os.path.join(BOPOS_DIR, "run", "engine.name")) as source_file:
+            engine = source_file.read().strip() or None
+    except OSError:
+        pass
+    if engine is None and patch_manifest is not None:
+        engine = patch_manifest["engine"]
+    try:
+        has_i2c = bool(sys_i2c.have_bus()) if sys_i2c is not None else False
+    except Exception:
+        has_i2c = False
+    try:
+        with open(os.path.join(PROC_DIR, "net", "wireless")) as source_file:
+            has_wifi = len(source_file.readlines()) > 2
+    except OSError:
+        has_wifi = False
+    try:
+        audio_channels = int(state.config.get("AUDIO_CHANNELS"))
+    except Exception:
+        audio_channels = 2
+    try:
+        with open(os.path.join(PROC_DIR, "uptime")) as source_file:
+            uptime = int(float(source_file.read().split()[0]))
+    except Exception:
+        uptime = 0
+    report = {
+        "uid": state.uid,
+        "hostname": socket.gethostname(),
+        "engine": engine or "pd",
+        "has_i2c": has_i2c,
+        "has_wifi": has_wifi,
+        "audio_channels": audio_channels,
+        "screen": patch_manifest is not None and "screen" in patch_manifest.get("caps", []),
+        "patch": patch_name,
+        "uptime": uptime,
+        "git_rev": state.version,
+        "update_model": state.update_model,
+        "contract_version": "1.5",
+    }
+    msg = OSCMessage("/os/report")
+    msg.append(json.dumps(report), 's')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    return True
+
+
+def dispatch_admin_verb(member, args, state, reply_socket, requester):
+    if member in LIFECYCLE_VERBS:
+        # lifecycle cannot reply after executing -- reply first (contract sec 7)
+        rev_reply(reply_socket, requester, state)
+        threading.Thread(target=run_admin_verb,
+                         args=(LIFECYCLE_VERBS[member], args, state),
+                         daemon=True).start()
+        return True
+    if member in PROVISION_VERBS:
+        if state.update_model != "persistent":
+            # ephemeral: the convergence assertion is an honest no-op (sec 7)
+            rev_reply(reply_socket, requester, state)
+            return True
+        threading.Thread(target=run_admin_verb,
+                         args=(PROVISION_VERBS[member], args, state,
+                               reply_socket, requester),
+                         daemon=True).start()
+        return True
+    return False
+
+
+UID_ADMIN_VERBS = frozenset({
+    "identify", "report", "reboot", "shutdown", "restart-engine",
+    "updatebopos", "unassign",
+})
+
+
+def dispatch_uid_admin(member, args, state, reply_socket, requester):
+    """Dispatch the exact ratified UID envelope allowlist, all zero-arity."""
+    if member not in UID_ADMIN_VERBS or args:
+        return False
+    if member == "identify":
+        return identify(state=state)
+    if member == "report":
+        return report_reply(reply_socket, requester, state)
+    if member == "unassign":
+        return apply_unassign(state)
+    return dispatch_admin_verb(member, args, state, reply_socket, requester)
+
+
 def handle_lan_datagram(datagram, source, reply_socket, state=None):
     state = state or node_state
     try:
@@ -738,6 +852,13 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         except (TypeError, ValueError):
             pass
         return True
+    if parts == ["all", "os", "to"]:
+        if len(args) < 2:
+            return False
+        if str(args[0]) != state.uid:
+            return True
+        return dispatch_uid_admin(str(args[1]), list(args[2:]), state,
+                                  reply_socket, source[0])
     if len(parts) != 3 or parts[1] != "os" or not selector_matches(parts[0], state.id):
         return False
     if parts[2] == "assign":
@@ -777,55 +898,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         reply_socket.sendto(msg.getBinary(), (source[0], 5550))
         return True
     if parts[2] == "report":
-        patch_path = active_patch_path()
-        patch_name = os.path.basename(patch_path) if patch_path else "none"
-        patch_manifest = None
-        if patch_path:
-            patch_manifest, _error = manifest.load(patch_path)
-        engine = None
-        try:
-            with open(os.path.join(BOPOS_DIR, "run", "engine.name")) as source_file:
-                engine = source_file.read().strip() or None
-        except OSError:
-            pass
-        if engine is None and patch_manifest is not None:
-            engine = patch_manifest["engine"]
-        try:
-            has_i2c = bool(sys_i2c.have_bus()) if sys_i2c is not None else False
-        except Exception:
-            has_i2c = False
-        try:
-            with open(os.path.join(PROC_DIR, "net", "wireless")) as source_file:
-                has_wifi = len(source_file.readlines()) > 2
-        except OSError:
-            has_wifi = False
-        try:
-            audio_channels = int(state.config.get("AUDIO_CHANNELS"))
-        except Exception:
-            audio_channels = 2
-        try:
-            with open(os.path.join(PROC_DIR, "uptime")) as source_file:
-                uptime = int(float(source_file.read().split()[0]))
-        except Exception:
-            uptime = 0
-        report = {
-            "uid": state.uid,
-            "hostname": socket.gethostname(),
-            "engine": engine or "pd",
-            "has_i2c": has_i2c,
-            "has_wifi": has_wifi,
-            "audio_channels": audio_channels,
-            "screen": patch_manifest is not None and "screen" in patch_manifest.get("caps", []),
-            "patch": patch_name,
-            "uptime": uptime,
-            "git_rev": state.version,
-            "update_model": state.update_model,
-            "contract_version": "1.4",
-        }
-        msg = OSCMessage("/os/report")
-        msg.append(json.dumps(report), 's')
-        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
-        return True
+        return report_reply(reply_socket, source[0], state)
     if parts[2] == "ping" and args:
         msg = OSCMessage("/os/pong")
         tag = decoded[1][1:2] if str(decoded[1]).startswith(",") else str(decoded[1])[:1]
@@ -863,24 +936,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                 return True
         except (TypeError, ValueError):
             pass
-    if parts[2] in LIFECYCLE_VERBS:
-        # lifecycle can't reply after executing -- reply first (contract sec 7)
-        rev_reply(reply_socket, source[0], state)
-        threading.Thread(target=run_admin_verb,
-                         args=(LIFECYCLE_VERBS[parts[2]], args, state),
-                         daemon=True).start()
-        return True
-    if parts[2] in PROVISION_VERBS:
-        if state.update_model != "persistent":
-            # ephemeral: the convergence assertion is an honest no-op (sec 7)
-            rev_reply(reply_socket, source[0], state)
-            return True
-        threading.Thread(target=run_admin_verb,
-                         args=(PROVISION_VERBS[parts[2]], args, state,
-                               reply_socket, source[0]),
-                         daemon=True).start()
-        return True
-    return False
+    return dispatch_admin_verb(parts[2], args, state, reply_socket, source[0])
 
 
 def lan_listener_loop(state=None):

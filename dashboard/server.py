@@ -307,14 +307,13 @@ class Dashboard:
             await self.create_patch(data, ws)
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
                                                        "updatebopos"}:
-            selector = "all" if uid == "all" else self.selector(uid)
-            if selector is not None:
-                self.osc.action(selector, data["verb"])
+            if uid == "all":
+                self.osc.action("all", data["verb"])
+            elif uid in self.state.devices and not self.state.devices[uid].get("virtual"):
+                self.osc.uid_action(uid, data["verb"])
         elif kind == "identify":
-            # uid-targeted broadcast: an id selector would flash every
-            # unassigned box at once (they all sit at -1)
             if uid in self.state.devices:
-                self.osc.os_command("all", "identify", [str(uid)])
+                self.osc.uid_action(uid, "identify")
         elif kind == "switch_patch":
             name = str(data.get("patch", "")).strip()
             if re.fullmatch(r"[\w.-]+", name):

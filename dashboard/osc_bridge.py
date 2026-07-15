@@ -39,6 +39,7 @@ SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
 ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
 FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must still recover
 REQUEST_TIMEOUT_SECONDS = 5.0
+UNASSIGN_TIMEOUT_SECONDS = 5.0
 AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
 
 
@@ -75,6 +76,7 @@ class OSCBridge:
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
         self._assign_replayed = {}  # uid -> monotonic time of last full replay
+        self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
         self._audition_param_replays = set()
 
     async def start(self):
@@ -108,6 +110,10 @@ class OSCBridge:
                 record.get("timeout") and record["timeout"].cancel()
         for timeout in self.pending_timeouts.values():
             timeout.cancel()
+        for waiter in self._unassign_waiters.values():
+            if not waiter.done():
+                waiter.cancel()
+        self._unassign_waiters.clear()
         for replay in self._audition_param_replays:
             replay.cancel()
         self._audition_param_replays.clear()
@@ -267,6 +273,31 @@ class OSCBridge:
     def action(self, selector, verb):
         self.send(f"/{selector}/os/{verb}")
 
+    def uid_command(self, uid, verb, args=()):
+        self.send("/all/os/to", [str(uid), str(verb), *args])
+
+    def uid_action(self, uid, verb):
+        self.uid_command(uid, verb)
+
+    async def unassign(self, uid, timeout=UNASSIGN_TIMEOUT_SECONDS):
+        """Request id=-1 and hold assignment replay until its heartbeat ack."""
+        device = self.state.devices.get(uid)
+        if not device or device.get("virtual"):
+            return False
+        existing = self._unassign_waiters.get(uid)
+        if existing is not None:
+            return bool(await asyncio.shield(existing))
+        waiter = asyncio.get_running_loop().create_future()
+        self._unassign_waiters[uid] = waiter
+        self.uid_command(uid, "unassign")
+        try:
+            return bool(await asyncio.wait_for(waiter, timeout))
+        except asyncio.TimeoutError:
+            return False
+        finally:
+            if self._unassign_waiters.get(uid) is waiter:
+                self._unassign_waiters.pop(uid, None)
+
     def fetch(self, uid, uri, slot, fingerprint):
         device = self.state.devices.get(uid)
         if not device or int(device.get("id", -1)) < 0:
@@ -301,7 +332,16 @@ class OSCBridge:
         self.pending[member].append(uid)
         self.pending_timeouts[(member, uid)] = asyncio.get_running_loop().call_later(
             REQUEST_TIMEOUT_SECONDS, self._expire_request, member, uid)
-        self.send(f"/{int(device['id'])}/os/{member}")
+        if member == "report":
+            self.uid_command(uid, "report")
+        elif int(device.get("id", -1)) >= 0:
+            self.send(f"/{int(device['id'])}/os/{member}")
+        else:
+            self._finish_request(member, uid)
+            try:
+                self.pending[member].remove(uid)
+            except ValueError:
+                pass
 
     def os_command(self, selector, member, args=()):
         self.send(f"/{selector}/os/{member}", args)
@@ -404,7 +444,9 @@ class OSCBridge:
             seat = self.state.seat_for_uid(uid)
             if device.get("virtual") and device.get("seat_id") is not None:
                 seat = self.state.seats.get(str(device["seat_id"]))
-            configured = seat is not None
+            unassign_waiter = self._unassign_waiters.get(uid)
+            revoking = unassign_waiter is not None
+            configured = seat is not None and not revoking
             configured_id = int(seat["id"]) if configured else advertised_id
             mismatch = configured and advertised_id != configured_id
             now = time.monotonic()
@@ -418,6 +460,9 @@ class OSCBridge:
             device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
                           rssi=args[4] if len(args) > 4 else None, ip=ip, online=True,
                           last_seen=time.time())
+            if (revoking and advertised_id == -1 and unassign_waiter is not None
+                    and not unassign_waiter.done()):
+                unassign_waiter.set_result(True)
             if reassign:
                 # Dashboard durable assignment is authoritative. Replaying its
                 # full state on appearance also restores ephemeral audition

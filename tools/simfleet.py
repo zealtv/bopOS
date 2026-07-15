@@ -289,8 +289,7 @@ class SimFleet:
         self.schedule(duration, self.finish_boot, device, bump_version)
 
     def send_rev(self, device, source):
-        # /os/rev <sha> <model> <uid> -- the convergence receipt (contract sec 7;
-        # trailing uid is the proposed additive extension, see the stitch notes)
+        # /os/rev <sha> <model> <uid> -- attributable convergence (v1.5, sec 7)
         builder = osc_message_builder.OscMessageBuilder(address="/os/rev")
         builder.add_arg(str(device.version), arg_type="s")
         builder.add_arg("ephemeral" if device.ephemeral else "persistent", arg_type="s")
@@ -315,6 +314,44 @@ class SimFleet:
         builder = osc_message_builder.OscMessageBuilder(address="/os/patches")
         builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def send_report(self, device, source):
+        report = {
+            "uid": device.mac,
+            "hostname": device.hostname,
+            "engine": "pd",
+            "has_i2c": False,
+            "has_wifi": not device.wired,
+            "audio_channels": 2,
+            "screen": False,
+            "patch": device.active_patch,
+            "uptime": int(time.monotonic() - self.start_monotonic),
+            "git_rev": device.version,
+            "update_model": "ephemeral" if device.ephemeral else "persistent",
+            "contract_version": "1.5",
+        }
+        builder = osc_message_builder.OscMessageBuilder(address="/os/report")
+        builder.add_arg(json.dumps(report), arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def uid_admin(self, device, member, args, source):
+        allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
+                   "updatebopos", "unassign"}
+        if member not in allowed or args:
+            return
+        if member == "identify":
+            device.ident_until = time.monotonic() + 3.0
+            self.log(device, "identify")
+        elif member == "report":
+            self.send_report(device, source)
+        elif member == "unassign":
+            device.device_id = -1
+            device.elements = []
+            device.save_assignment(self.args.state_dir, [])
+            self.log(device, "unassigned")
+            self.heartbeat(device, reschedule=False)
+        else:
+            self.admin_verb(device, member, [], source)
 
     def send_fetch_state(self, source, slot, state):
         builder = osc_message_builder.OscMessageBuilder(address="/os/fetch-progress")
@@ -591,6 +628,16 @@ class SimFleet:
                     continue
                 self.apply_points(device, parts, args)
             return
+        if parts == ["all", "os", "to"]:
+            if len(args) < 2:
+                return
+            uid, member, member_args = str(args[0]), str(args[1]), list(args[2:])
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or device.mac != uid or random.random() < self.args.drop):
+                    continue
+                self.uid_admin(device, member, member_args, source)
+            return
         if len(parts) != 3 or parts[1] not in ("os", "p"):
             return
         selector, plane, member = parts
@@ -700,23 +747,7 @@ class SimFleet:
                             "droppatch", "dropassets"):
                 self.admin_verb(device, member, list(args), source)
             elif member == "report":
-                report = {
-                    "uid": device.mac,
-                    "hostname": device.hostname,
-                    "engine": "pd",
-                    "has_i2c": False,
-                    "has_wifi": not device.wired,
-                    "audio_channels": 2,
-                    "screen": False,
-                    "patch": device.active_patch,
-                    "uptime": int(time.monotonic() - self.start_monotonic),
-                    "git_rev": device.version,
-                    "update_model": "ephemeral" if device.ephemeral else "persistent",
-                    "contract_version": "1.4",
-                }
-                builder = osc_message_builder.OscMessageBuilder(address="/os/report")
-                builder.add_arg(json.dumps(report), arg_type="s")
-                self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+                self.send_report(device, source)
             elif member == "probe" and args:
                 what = str(args[0])
                 values = device.reports.get(what)
