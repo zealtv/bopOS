@@ -58,6 +58,20 @@ function renderCards() {
   bindCards();
 }
 
+function seatForDevice(d) {
+  if (d.virtual && d.seat_id != null) return installation.seats?.[String(d.seat_id)];
+  return Object.values(installation.seats || {}).find(seat => seat.bound === d.uid);
+}
+
+function cardIdentity(d) {
+  const seat = seatForDevice(d);
+  if (!seat) return {primary: d.hostname || d.uid, secondary: d.uid};
+  const name = seat.name || `Seat ${seat.id}`;
+  const tail = d.uid.length > 8 ? `…${d.uid.slice(-8)}` : d.uid;
+  return {primary: `${name} · ID ${seat.id}`,
+          secondary: [d.hostname, tail].filter(Boolean).join(" · ")};
+}
+
 function card(d) {
   // green = sounding-capable, gray = not; no technical detail (proposal Q1/Q6)
   const ok = d.online && Number(d.engine_alive) !== 0;
@@ -65,7 +79,8 @@ function card(d) {
   const promoted = d.declared
     ? promotedParams(d).map(param => paramControl(d, param)).join("") : "";
   const commands=(installation.facilitator_commands||[]).map(command=>`<button data-device-command="${esc(command)}" data-uid="${esc(d.uid)}" class="${destructiveCommands.has(command)?"hold":""}">${esc(commandLabel(command))}${destructiveCommands.has(command)?" — hold":""}</button>`).join("");
-  return `<div class="card"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name">${esc(d.name || d.uid)}</span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}${commands?`<details class="device-commands" data-command-uid="${esc(d.uid)}" ${openCommandDevices.has(d.uid)?"open":""}><summary>Device setup</summary><div>${commands}</div></details>`:""}</div>`;
+  const identity=cardIdentity(d);
+  return `<div class="card" data-uid="${esc(d.uid)}"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name"><strong>${esc(identity.primary)}</strong><small>${esc(identity.secondary)}</small></span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}${commands?`<details class="device-commands" data-command-uid="${esc(d.uid)}" ${openCommandDevices.has(d.uid)?"open":""}><summary>Device setup</summary><div>${commands}</div></details>`:""}</div>`;
 }
 
 function bindCards() {
@@ -124,7 +139,7 @@ function renderCommands() {
 }
 function bindCommandButton(button,uid) {
   const command=button.dataset.command||button.dataset.deviceCommand;
-  const target=uid==="all"?"all devices":(installation.devices?.[uid]?.name||uid);
+  const target=uid==="all"?"all devices":cardIdentity(installation.devices?.[uid]||{uid}).primary;
   if (!destructiveCommands.has(command)) {
     button.onclick=()=>{if(confirm(`${commandLabel(command)} ${target}?`))ws.send("action",{uid,verb:command});};
     return;

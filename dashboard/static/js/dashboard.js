@@ -67,7 +67,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); renderPresets(); render(); });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -180,7 +180,7 @@ function renderPresets() {
 (function bindPresets() {
   const save = $("#preset-save"), load = $("#preset-load");
   if (save) save.onclick = () => {
-    const name = prompt("Save current params + master as preset:", "");
+    const name = prompt("Save current seat params + master as preset:", "");
     if (name && (!presetNames.includes(name) || confirm(`Overwrite preset "${name}"?`))) ws.send("save_preset", {name});
   };
   if (load) load.onclick = () => { const name = $("#preset-select").value; if (name) ws.send("load_preset", {name}); };
@@ -219,6 +219,17 @@ function render() {
 function occupant(seat) {
   const devices=Object.values(installation.devices||{});
   return devices.find(d=>d.virtual&&Number(d.seat_id)===Number(seat.id)) || installation.devices?.[seat.bound];
+}
+function reconcileSelection() {
+  if (selectedSeat != null) {
+    const seat=installation.seats?.[String(selectedSeat)]||installation.seats?.[selectedSeat];
+    if (!seat) { selectedSeat=null; selected=null; return; }
+    selected=occupant(seat)?.uid||null;
+    return;
+  }
+  if (!selected || !installation.devices?.[selected]) { selected=null; return; }
+  const seat=Object.values(installation.seats||{}).find(item=>item.bound===selected);
+  if (seat) selectedSeat=seat.id;
 }
 function seatRow(seat) {
   const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
@@ -627,10 +638,6 @@ function renderDetail() {
 }
 function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
 function bindDeviceToSeat(id, device) {
-  const seat=installation.seats?.[String(id)]||installation.seats?.[id];
-  if (seat && device?.hostname && (!seat.name || seat.name===`Seat ${seat.id}`)) {
-    ws.send("update_seat", {id:seat.id, name:device.hostname});
-  }
   ws.send("bind_seat", {id, uid:device.uid});
 }
 function itemSlot(item) { return item.kind === "patch" ? `patch:${item.name}` : item.name; }
