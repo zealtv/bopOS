@@ -63,8 +63,9 @@
         <div class="fleet-patch-actions"><button id="patch-switch">Set fleet patch</button><button id="fleet-patch-revert">Revert</button></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
       </section>
-        <h2>Devices</h2><h3>ACTIVE / RECENT DEVICES</h3><div id="device-roster"></div><h3>UNBOUND DEVICES</h3><div id="unassigned"></div>
-        <footer><button data-all="reboot">Reboot All</button><button data-all="updatebopos">Update bopOS</button></footer>
+        <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
+        <div id="device-roster"></div>
+        <footer><button id="forget-offline">Forget offline unbound</button><button data-all="reboot">Reboot All</button><button data-all="shutdown" class="danger">Shutdown All</button><button data-all="updatebopos">Update bopOS</button></footer>
       </aside>
       <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
     </section>

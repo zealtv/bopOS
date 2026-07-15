@@ -11,6 +11,7 @@ let fleetPatchChoice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
 let distributionAll = false;
+let deviceFilter = "all";
 let editorPatchChoice = null;
 let manifestDraft = null;
 let manifestBaseline = null;
@@ -191,17 +192,23 @@ function render() {
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
   const bound = new Set(seats.map(s => s.bound).filter(Boolean));
-  const unassigned = devices.filter(d => !d.virtual && !d.revoking_assignment && !bound.has(d.uid));
+  const physical = devices.filter(d=>!d.virtual).sort((a,b)=>Number(b.online)-Number(a.online)||(Number(b.last_seen)||0)-(Number(a.last_seen)||0));
+  const visible = physical.filter(device=>{
+    if (deviceFilter==="online" || deviceFilter==="offline") return !!device.online===(deviceFilter==="online");
+    if (deviceFilter==="bound" || deviceFilter==="unbound") return bound.has(device.uid)===(deviceFilter==="bound");
+    return true;
+  });
   $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
-  $("#device-roster").innerHTML = devices.filter(d=>!d.virtual).sort((a,b)=>Number(b.online)-Number(a.online)||(Number(b.last_seen)||0)-(Number(a.last_seen)||0)).map(row).join("") || '<p class="dim">No devices seen</p>';
-  $("#unassigned").innerHTML = (unassigned.map(row).join("") || '<p class="dim">None</p>') + '<button id="forget-offline">Forget all offline unbound</button>';
+  $("#device-roster").innerHTML = visible.map(device=>row(device,seats.find(seat=>seat.bound===device.uid))).join("") || '<p class="dim">No matching devices</p>';
   document.querySelectorAll(".seat-row").forEach(el => {
     el.onclick = event => { if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId)); };
     const input = el.querySelector("[data-seat-name]");
     input.onchange = () => ws.send("update_seat", {id:Number(el.dataset.seatId), name:input.value});
   });
   document.querySelectorAll(".device-row:not(.seat-row)").forEach(el => el.onclick = () => select(el.dataset.uid));
-  $("#forget-offline").onclick=()=>ws.send("forget_offline_unbound",{});
+  $("#device-filter").value=deviceFilter;
+  $("#device-filter").onchange=event=>{deviceFilter=event.target.value;render();};
+  $("#forget-offline").onclick=()=>{if(confirm("Forget all offline unbound devices from this runtime roster?"))ws.send("forget_offline_unbound",{});};
   $("#seat-add").onclick=()=>{
     const id=nextFreeId(); selectedSeat=id; selected=null;
     ws.send("add_seat",{id,name:`Seat ${id}`,positions:[]});
@@ -541,10 +548,11 @@ function renderEditor() {
   const editorMaster=$("#editor-master");
   if(editorMaster) editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
 }
-function row(d) {
+function row(d, seat) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
   const heartbeatAt = heartbeats.get(d.uid);
-  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.hostname || d.uid)}</strong><small>${esc(d.uid)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small></span>${patchBadge(d.patch_badge)}</button>`;
+  const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
+  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.hostname || d.uid)}</strong><small>${esc(d.uid)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small><small class="device-binding-badge">${esc(assignment)}</small></span>${patchBadge(d.patch_badge)}</button>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -615,7 +623,7 @@ function patchDiagnostics(d, allowRemediation) {
   const fetchPhase=desired.name?(d.fetch||{})[`patch:${desired.name}`]:null;
   const rows=installed.map(patch=>`<tr><td>${patch.git?'◆ ':''}${esc(patch.name)}</td><td>${patch.active?'active':'inactive'}</td><td>${patch.manifest?'valid':'invalid'}</td><td>${patch.git?'git-managed':'host-mirrored'}</td><td><code>${esc(patch.fingerprint||'unreported')}</code></td></tr>`).join("");
   const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch","failed","timeout"].includes(d.patch_badge)
-    ? `<button id="fleet-patch-retry">${d.patch_badge==="mismatch"?'Re-switch':'Retry'}</button>`:"";
+    ? `<button id="fleet-patch-retry">${d.patch_badge==="mismatch"?'Re-switch':'Repair / Retry'}</button>`:"";
   const pull=allowRemediation&&d.online&&active?.git?'<button id="patch-pull">Pull latest</button>':"";
   const switchAttempt=d.patch_switch||{};
   return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired fleet patch</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd><code>${esc(desired.fingerprint||'—')}</code></dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Reported content identity</dt><dd><code>${esc(active?.fingerprint||'unreported')}</code></dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull?`<div class="actions patch-remediation">${remediation}${pull}</div>`:''}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
@@ -681,18 +689,29 @@ function renderDeviceDetail() {
   const active=document.activeElement;
   if ($("#detail").contains(active) && active.matches('input,select')) return;
   const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
+  const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
+  const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
+  const health=!d.online?'offline':Number(d.engine_alive)===0?'engine stopped':'healthy';
+  const binding=d.revoking_assignment
+    ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
+    : seat
+      ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
+      : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
   const assetRows=distribution.assets.map(item=>distributionRow(d,item)).join("");
-  $("#detail").innerHTML=`<section><h2>${esc(d.hostname||d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Status</dt><dd>${d.revoking_assignment?'clearing stale assignment':d.online?'online':'offline'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${esc(d.rssi)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace.</p></section>
+  $("#detail").innerHTML=`<section><h2>${esc(d.hostname||d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace. Mix parameters live there too.</p></section>
+    ${binding}
     ${patchDiagnostics(d,true)}
     <section id="distribution"><div class="section-head"><h2>Asset send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><div class="distribution-actions"><button id="sync-all">Sync all assets</button></div><div class="distribution-grid">${assetRows||'<p class="dim">No host assets.</p>'}</div></section>
-    <section><h2>Actions</h2><div class="actions">${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}">${actionLabel(v)}</button>`).join('')}<button data-identify>Identify</button>${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
-    <section><div class="section-head"><h2>Report</h2><button id="refresh-report">Refresh report</button></div>${report(d.report)}</section>`;
+    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
+    <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
 }
 
 function bindDeviceDetailControls(d) {
-  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(["reboot","shutdown","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} ${d.hostname||d.uid}?`))return;ws.send("action",{uid:d.uid,verb});});
+  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(!confirm(`${actionLabel(verb)} ${d.hostname||d.uid}?`))return;ws.send("action",{uid:d.uid,verb});});
   document.querySelectorAll("#detail [data-identify]").forEach(button=>button.onclick=()=>ws.send("identify",{uid:d.uid}));
+  const openSeat=$("#device-open-seat");if(openSeat)openSeat.onclick=()=>{const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);if(seat){selectSeat(Number(seat.id));activateTab("seats");}};
+  const bind=$("#device-bind");if(bind)bind.onclick=()=>{const id=Number($("#device-seat").value);if(Number.isInteger(id))ws.send("bind_seat",{id,uid:d.uid,confirmed:false});};
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{if(confirm(`Forget ${d.hostname||d.uid}?`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const target=$("#distribution-all");if(target)target.onchange=()=>{distributionAll=target.checked;renderDeviceDetail();};
@@ -760,5 +779,5 @@ $("#mute-all").onclick=()=>{muted=!muted;ws.send("mute_all",{value:muted?1:0});r
   input.onchange = send;
   input.onpointerup = send;
 }
-document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(["reboot","updatebopos"].includes(verb)&&!confirm(`${actionLabel(verb)} all devices?`))return;ws.send("action",{uid:"all",verb});});
+document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(!confirm(`${actionLabel(verb)} all physical devices?`))return;ws.send("action",{uid:"all",verb});});
 document.querySelectorAll("[data-execution-target]").forEach(button=>button.onclick=()=>setExecutionTarget(button.dataset.executionTarget));
