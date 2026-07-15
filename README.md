@@ -99,8 +99,9 @@ i2cdetect -y 1
 
 ## Run the dashboard
 
-The dashboard has a technical view at `/` and a simplified facilitator view at
-`/facilitator`.
+The dashboard at `/` is organised into Dashboard, Seats, Devices, Patches,
+Assets, and Sequencer tabs. `/facilitator` remains a standalone compatibility
+entry for the touch-first Dashboard surface.
 
 One-time laptop setup:
 
@@ -116,7 +117,7 @@ Run it on the installation LAN:
 ```
 
 Open <http://localhost:8080/>. Nodes appear from their heartbeats; no static
-device list is required. The technical view provides:
+device list is required. The tabbed application provides:
 
 - discovery, identify, naming, ID assignment, and element positioning;
 - manifest-declared patch parameters and master control;
@@ -124,8 +125,9 @@ device list is required. The technical view provides:
 - room, point, listener, venue, and preset authoring;
 - synchronized named cues and engine/device health.
 
-The facilitator view exposes master, safety controls, presets, and only the
-patch parameters explicitly promoted with `"facilitator": true`.
+The Dashboard tab exposes master, safety controls, presets, and only the patch
+parameters explicitly promoted with `"facilitator": true`. Venue-promoted
+framework commands appear at explicit fleet and single-device scopes.
 
 See [dashboard/README.md](dashboard/README.md) for configuration, simulator
 options, venue state, and clock measurement.

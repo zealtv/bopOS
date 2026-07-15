@@ -62,14 +62,21 @@ audible simulator gate, and Bob confirmed PE-4/PE-4b point and cue delivery
 from the live editor. This recommended order takes precedence over
 `./.loom/loom.sh next`'s alphabetical listing:
 
-1. **`ui-tabs/tabs-0-ia-proposal`** — the sole loose end. Bob will give the
-   clean context additional notes before it begins; incorporate those notes,
-   then produce the short IA proposal. It returns to `.waiting` for Bob's
-   ratification.
-2. **`ui-tabs/tabs-1-skeleton`** — implement only after tabs-0 is ratified.
-3. **`ui-tabs/tabs-2-review-session`** — the hands-on interactive UI/touch
-   audit with Bob inside the real tabs. Split and complete findings from there.
-4. **`patch-workflow-friction/friction-0..1`** — resume after tabs-2 so the
+1. **Complete:** `ui-tabs/tabs-0-ia-proposal` — Bob ratified the lore-kept
+   Dashboard / Seats / Devices / Patches / Assets / Sequencer IA, amended so
+   promoted Dashboard admin commands have explicit fleet and single-device
+   action scopes.
+2. **Complete:** `ui-tabs/tabs-1-skeleton` — the ratified six-tab structure,
+   Dashboard compatibility entry, and dual-scope promoted admin commands are
+   implemented and browser-verified.
+3. **Complete:** `ui-tabs/tabs-2-review-session` — Bob's real-dashboard review
+   plus an independent interactive-installation UX review are lore-kept. The
+   resulting correctness-first next sweep is accepted. Bob explicitly dropped
+   venue point persistence; runtime-only production points remain intentional.
+4. **`ui-tabs/tabs-3-next-sweep/01-simulation-transition-coherence`** — the sole
+   loose end; reject late virtual updates and prove clean
+   Simulation/Patch edit → Live transitions without refresh.
+5. **`patch-workflow-friction/friction-0..1`** — resume after the next sweep so the
    docs and starter-kit copy describe the finished editor and tab structure.
 
 Everything else is `.waiting` for a reason stated in its stitch:
@@ -82,7 +89,10 @@ Everything else is `.waiting` for a reason stated in its stitch:
 - **Bob-gated decisions/pauses:** `scene-sequencing` (whole thread paused
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), `audio-input` (deferred 2026-07-08),
-  `pd-audition-host` (deferred until a concrete multichannel/DAW need).
+  `pd-audition-host` (deferred until a concrete multichannel/DAW need),
+  `parameter-addresses` (nested custom `/p/...` path design, parked until Bob
+  resumes it after the UI-tabs runway), and `framework-version-management`
+  (device framework-currentness/update design, parked on the same basis).
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

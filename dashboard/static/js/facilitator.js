@@ -1,11 +1,13 @@
-// Facilitator view: promoted params, master, silence/resume, and presets.
-// Everything technical stays in / (proposal Q6 scope guard).
+// Dashboard live view: promoted params, master, silence/resume, and presets.
+// /facilitator remains the standalone compatibility entry; the tab shell embeds it.
+if (new URLSearchParams(location.search).get("embedded") === "1") document.body.classList.add("embedded");
 const ws = new BopSocket("/ws");
 let installation = {devices: {}};
 let muted = false;
 let master = 1.0;
 let presetNames = [];
 const requested = new Set();
+const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -62,7 +64,8 @@ function card(d) {
   const pending = d.declared ? "" : '<span class="badge dim">…</span>';
   const promoted = d.declared
     ? promotedParams(d).map(param => paramControl(d, param)).join("") : "";
-  return `<div class="card"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name">${esc(d.name || d.uid)}</span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}</div>`;
+  const commands=(installation.facilitator_commands||[]).map(command=>`<button data-device-command="${esc(command)}" data-uid="${esc(d.uid)}" class="${destructiveCommands.has(command)?"hold":""}">${esc(commandLabel(command))}${destructiveCommands.has(command)?" — hold":""}</button>`).join("");
+  return `<div class="card"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name">${esc(d.name || d.uid)}</span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}${commands?`<details class="device-commands" data-command-uid="${esc(d.uid)}" ${openCommandDevices.has(d.uid)?"open":""}><summary>Device setup</summary><div>${commands}</div></details>`:""}</div>`;
 }
 
 function bindCards() {
@@ -87,6 +90,13 @@ function bindCards() {
     };
     input.onchange = send;
   });
+  document.querySelectorAll("[data-device-command]").forEach(button=>bindCommandButton(button,button.dataset.uid));
+  document.querySelectorAll("details[data-command-uid]").forEach(details=>{
+    details.ontoggle=()=>{
+      if(details.open)openCommandDevices.add(details.dataset.commandUid);
+      else openCommandDevices.delete(details.dataset.commandUid);
+    };
+  });
 }
 
 function renderControls() {
@@ -108,26 +118,26 @@ const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);
 function commandLabel(command) { return command === "updatebopos" ? "Update bopOS" : command.replaceAll("-", " ").replaceAll("_", " "); }
 function renderCommands() {
   const commands = installation.facilitator_commands || [];
-  $("#facilitator-commands").innerHTML = commands.map(command =>
-    `<button data-command="${esc(command)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("");
-  document.querySelectorAll("[data-command]").forEach(button => {
-    const command = button.dataset.command;
-    if (!destructiveCommands.has(command)) {
-      button.onclick = () => {
-        if (confirm(`${commandLabel(command)} all devices?`)) ws.send("action", {uid: "all", verb: command});
-      };
-      return;
-    }
-    let timer = null;
-    const cancel = () => { clearTimeout(timer); timer = null; button.classList.remove("holding"); };
-    button.onpointerdown = () => {
-      button.classList.add("holding");
-      timer = setTimeout(() => { timer = null; button.classList.remove("holding"); ws.send("action", {uid: "all", verb: command}); }, 1200);
-    };
-    button.onpointerup = cancel;
-    button.onpointercancel = cancel;
-    button.onpointerleave = cancel;
-  });
+  $("#facilitator-commands").innerHTML = commands.length ? `<span class="command-scope-label">Fleet setup</span>${commands.map(command =>
+    `<button data-command="${esc(command)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("")}` : "";
+  document.querySelectorAll("[data-command]").forEach(button=>bindCommandButton(button,"all"));
+}
+function bindCommandButton(button,uid) {
+  const command=button.dataset.command||button.dataset.deviceCommand;
+  const target=uid==="all"?"all devices":(installation.devices?.[uid]?.name||uid);
+  if (!destructiveCommands.has(command)) {
+    button.onclick=()=>{if(confirm(`${commandLabel(command)} ${target}?`))ws.send("action",{uid,verb:command});};
+    return;
+  }
+  let timer=null;
+  const cancel=()=>{clearTimeout(timer);timer=null;button.classList.remove("holding");};
+  button.onpointerdown=()=>{
+    button.classList.add("holding");
+    timer=setTimeout(()=>{timer=null;button.classList.remove("holding");ws.send("action",{uid,verb:command});},1200);
+  };
+  button.onpointerup=cancel;
+  button.onpointercancel=cancel;
+  button.onpointerleave=cancel;
 }
 
 {

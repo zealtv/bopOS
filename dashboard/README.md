@@ -1,7 +1,8 @@
 # bopOS dashboard
 
-Web control surface for the fleet: tech view at `/`, facilitator view at
-`/facilitator`.
+Web control surface for the fleet: the tabbed application at `/`, with
+`/facilitator` retained as the standalone compatibility entry for the
+touch-first Dashboard surface.
 
 ## Quickstart (laptop, no hardware)
 
@@ -26,12 +27,12 @@ Run a simulated fleet to play against (terminal 2):
 
 Then open:
 
-- **<http://localhost:8080/>** — tech dashboard: device list, spatial map,
-  listener audition puck, point authoring
-  (drag/radius/falloff/two-axis wall bounce), params, patch
-  management, host-to-node patch and asset distribution, discovery/assignment,
-  synced named cues, venues, presets.
-- **<http://localhost:8080/facilitator>** — facilitator view: device cards
+- **<http://localhost:8080/>** — Dashboard, Seats, Devices, Patches, Assets,
+  and Sequencer tabs. The landed controls cover device inspection, spatial
+  authoring, patch editing, host-to-node distribution, discovery/assignment,
+  synced named cues, venues, and presets; Assets and Sequencer are reserved
+  placeholders pending their design stitches.
+- **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
   with the patch's promoted (`facilitator: true`) params as labelled controls,
   master, Silence All, preset picker. On an iPad, "Add to Home
   Screen" launches it fullscreen.
@@ -123,13 +124,13 @@ restores the previous patch with its manifest defaults rather than retaining a
 hidden per-patch parameter history.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
-visual coordinate origin, listener, master, presets). The technical view lets
+visual coordinate origin, listener, master, presets). The Seats and Devices tabs let
 you type each element's x/y relative to that origin; the dashboard converts it
 through the same assignment path used by map dragging. Named snapshots live in
 `dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
 
-The facilitator is fail-closed. Patch parameters appear there only when their
+The Dashboard is fail-closed. Patch parameters appear there only when their
 manifest declaration has `"facilitator": true`. Framework commands default to
 none; a venue may opt in supported fleet-wide commands in its installation
 state, for example:
@@ -139,4 +140,6 @@ state, for example:
 ```
 
 Command controls are confirmation-gated, and destructive commands require a
-hold. The allowlist belongs to the installation, never the patch manifest.
+hold. Each promoted command has a fleet action for fleet setup/operation and a
+single-device action for onboarding/remediation. The allowlist belongs to the
+installation, never the patch manifest.

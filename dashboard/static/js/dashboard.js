@@ -20,6 +20,40 @@ let manifestFeedback = "";
 let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const TAB_NAMES = ["dashboard", "seats", "devices", "patches", "assets", "sequencer"];
+let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
+
+function activateTab(name, updateHash=true) {
+  if (!TAB_NAMES.includes(name)) name="dashboard";
+  activeTab=name;
+  document.querySelectorAll("[data-tab]").forEach(button=>{
+    const active=button.dataset.tab===name;
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.tabIndex=active ? 0 : -1;
+  });
+  document.querySelectorAll("[data-tab-panel]").forEach(panel=>{
+    panel.hidden=panel.dataset.tabPanel!==name;
+  });
+  if (updateHash) history.replaceState(null,"",`#${name}`);
+  window.scrollTo(0,0);
+  if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws));
+}
+document.querySelectorAll("[data-tab]").forEach(button=>{
+  button.onclick=()=>activateTab(button.dataset.tab);
+  button.onkeydown=event=>{
+    if (!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
+    event.preventDefault();
+    let index=TAB_NAMES.indexOf(activeTab);
+    if (event.key==="ArrowLeft") index=(index-1+TAB_NAMES.length)%TAB_NAMES.length;
+    if (event.key==="ArrowRight") index=(index+1)%TAB_NAMES.length;
+    if (event.key==="Home") index=0;
+    if (event.key==="End") index=TAB_NAMES.length-1;
+    activateTab(TAB_NAMES[index]);
+    $(`[data-tab="${TAB_NAMES[index]}"]`)?.focus();
+  };
+});
+window.addEventListener("hashchange",()=>activateTab(location.hash.slice(1),false));
+activateTab(activeTab,false);
 
 function mergeDevice(device) {
   if (device && device.uid) {
@@ -158,6 +192,7 @@ function render() {
   const bound = new Set(seats.map(s => s.bound).filter(Boolean));
   const unassigned = devices.filter(d => !d.virtual && !bound.has(d.uid));
   $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
+  $("#device-roster").innerHTML = devices.filter(d=>!d.virtual).sort((a,b)=>Number(b.online)-Number(a.online)||(Number(b.last_seen)||0)-(Number(a.last_seen)||0)).map(row).join("") || '<p class="dim">No devices seen</p>';
   $("#unassigned").innerHTML = (unassigned.map(row).join("") || '<p class="dim">None</p>') + '<button id="forget-offline">Forget all offline unbound</button>';
   document.querySelectorAll(".seat-row").forEach(el => {
     el.onclick = event => { if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId)); };
@@ -488,6 +523,8 @@ function renderRoom() {
 function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
+  const mode=installation.supervisor?.mode||"off";
+  $("#mode-status").textContent=mode==="simulate"?"simulation":mode==="edit"?`editing ${installation.editor?.patch||"patch"}`:"live fleet";
   $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";

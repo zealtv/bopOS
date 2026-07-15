@@ -2,10 +2,36 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#101316"><title>bopOS</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
-  <header><a href="/facilitator" id="facilitator-link" class="view-link">Facilitator view</a><h1>bopOS</h1><span id="online-count">0 / 0 online</span><label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
-  <div class="layout">
+  <header><h1>bopOS</h1><span id="mode-status" class="mode-status">live fleet</span><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
+  <nav id="primary-tabs" class="primary-tabs" aria-label="bopOS views" role="tablist">
+    <button id="tab-button-dashboard" role="tab" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard">Dashboard</button>
+    <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
+    <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
+    <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
+    <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
+    <button id="tab-button-sequencer" role="tab" aria-controls="tab-sequencer" aria-selected="false" data-tab="sequencer">Sequencer</button>
+  </nav>
+  <div class="tab-stage">
+    <section id="tab-dashboard" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-dashboard" data-tab-panel="dashboard">
+      <div class="dashboard-heading"><div><p class="eyebrow">Live control</p><h2>Dashboard</h2></div><a href="/facilitator" id="facilitator-link" class="view-link">Open standalone dashboard</a></div>
+      <div class="dashboard-controls">
+        <label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label>
+        <div id="preset-bar"><h3>Presets</h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button></div>
+      </div>
+      <section id="cue-section">
+        <div id="cue-panel">
+          <strong>Synced cue</strong>
+          <label>cue / sample name <input id="cue-id" type="text" maxlength="64" value="start"></label>
+          <label>lead <input id="cue-lead" type="number" min="100" max="10000" step="50" value="500"> ms</label>
+          <button id="cue-fire">Fire on all devices</button>
+          <output id="cue-status" class="dim">scheduled against the shared clock</output>
+        </div>
+      </section>
+      <iframe id="dashboard-live-view" src="/facilitator?embedded=1" title="Dashboard live controls"></iframe>
+    </section>
+    <section id="tab-seats" class="tab-panel seats-tab" role="tabpanel" aria-labelledby="tab-button-seats" data-tab-panel="seats" hidden>
     <section id="spatial-section">
-      <div class="section-head"><h2>Spatial</h2><span class="dim spatial-dimensions">listener <output id="listener-heading-readout">0°</output> · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m · origin <input id="origin-x" type="number" min="0" step="0.1">, <input id="origin-y" type="number" min="0" step="0.1"></span></div>
+      <div class="section-head"><h2>Seats</h2><span class="dim spatial-dimensions">listener <output id="listener-heading-readout">0°</output> · room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m · origin <input id="origin-x" type="number" min="0" step="0.1">, <input id="origin-y" type="number" min="0" step="0.1"></span></div>
       <div id="point-toolbar">
         <button id="point-add">Add point</button>
         <div id="point-list" aria-label="Points"></div>
@@ -22,32 +48,28 @@
       <p class="dim spatial-help">Drag the listener puck to move it; drag the green heading handle to turn it. Device dot colour is element index and number is device ID. Each point's coloured dashed field shows its reach.</p>
       <svg id="spatial"></svg>
     </section>
-    <aside>
+      <aside class="seat-sidebar">
+        <h2>Seats</h2><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div>
+        <section id="simulate-panel"><h3>Simulate</h3><div class="mode-actions"><button id="simulate-toggle">Start simulation</button><button id="edit-sim-patch" hidden>Edit this patch</button></div><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
+        <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
+      </aside>
+    </section>
+    <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
+      <aside class="device-sidebar">
       <section id="fleet-patch-panel">
         <div class="section-head"><h2>Fleet patch</h2><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
         <label>desired patch <select id="patch-select" aria-label="Fleet patch"></select></label>
         <div class="fleet-patch-actions"><button id="patch-switch">Set fleet patch</button><button id="fleet-patch-revert">Revert</button></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
       </section>
-      <h2>Seats</h2><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div><h3>UNBOUND DEVICES</h3><div id="unassigned"></div>
-      <section id="simulate-panel"><h3>Simulate</h3><div class="mode-actions"><button id="simulate-toggle">Start simulation</button><button id="edit-sim-patch" hidden>Edit this patch</button></div><output id="simulate-status" class="dim">off</output><p id="simulate-real-note" class="dim"></p></section>
-      <footer><button data-all="reboot">Reboot All</button><button data-all="updatebopos">Update bopOS</button>
-        <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
-        <div id="preset-bar"><h3>Presets</h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button></div>
-      </footer>
-    </aside>
-    <main>
-      <section id="cue-section">
-        <div id="cue-panel">
-          <strong>Synced cue</strong>
-          <label>cue / sample name <input id="cue-id" type="text" maxlength="64" value="start"></label>
-          <label>lead <input id="cue-lead" type="number" min="100" max="10000" step="50" value="500"> ms</label>
-          <button id="cue-fire">Fire on all devices</button>
-          <output id="cue-status" class="dim">scheduled against the shared clock</output>
-        </div>
-      </section>
+        <h2>Devices</h2><h3>ACTIVE / RECENT DEVICES</h3><div id="device-roster"></div><h3>UNBOUND DEVICES</h3><div id="unassigned"></div>
+        <footer><button data-all="reboot">Reboot All</button><button data-all="updatebopos">Update bopOS</button></footer>
+      </aside>
+      <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
+    </section>
+    <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
       <section id="editor-panel">
-        <div class="section-head"><div><h2>Patch editor</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
+        <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
         <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>
         <p id="editor-engine-note" class="dim">Launch a valid host patch through the managed audition runtime.</p>
         <section id="manifest-editor" aria-labelledby="manifest-editor-title">
@@ -85,8 +107,9 @@
           </div>
         </section>
       </section>
-      <div id="detail"><p class="empty">Select a device.</p></div>
-    </main>
+    </section>
+    <section id="tab-assets" class="tab-panel placeholder-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden><p class="eyebrow">Reserved view</p><h2>Assets</h2><p>Host and fleet asset management will land here. Existing per-device asset send controls remain in Devices until that workflow is designed.</p></section>
+    <section id="tab-sequencer" class="tab-panel placeholder-tab" role="tabpanel" aria-labelledby="tab-button-sequencer" data-tab-panel="sequencer" hidden><p class="eyebrow">Reserved view</p><h2>Sequencer</h2><p>The show-control sequence system is a future co-design stitch.</p></section>
   </div>
   <script src="/js/ws.js"></script><script src="/js/spatial.js"></script><script src="/js/dashboard.js"></script>
 </body></html>

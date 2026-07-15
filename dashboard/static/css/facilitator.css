@@ -24,6 +24,7 @@ footer{border-top:1px solid var(--line);background:#14191d;padding:16px 22px;dis
 #buttons{display:grid;grid-template-columns:1fr;gap:12px}
 #facilitator-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 #facilitator-commands:empty{display:none}
+.command-scope-label{grid-column:1/-1;color:var(--dim);font-size:13px;letter-spacing:.1em;text-transform:uppercase}.device-commands{padding-top:10px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}.device-commands summary{cursor:pointer}.device-commands>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}.device-commands button{padding:11px;font-size:14px}
 button{border:1px solid #45515b;background:#273039;color:var(--text);border-radius:10px;padding:16px;font-size:17px;cursor:pointer}
 button.hold{position:relative;overflow:hidden}
 button.hold::after{content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:#ff4e5d33;pointer-events:none}
@@ -40,3 +41,4 @@ button.hold.holding::after{transform:scaleX(1);transition:transform 1.2s linear}
 #presets:empty{display:none}
 .chip{flex:none;border-radius:999px;padding:12px 20px;font-size:15px}
 @media(orientation:landscape) and (min-width:900px){main{grid-template-columns:1fr 1fr}}
+body.embedded header,body.embedded #master-row,body.embedded #buttons{display:none}body.embedded main{padding-top:14px}body.embedded footer{border-top:0;padding-top:6px}body.embedded .empty{margin-top:8vh}

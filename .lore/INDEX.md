@@ -1,5 +1,8 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-07-15-dashboard-tabs-hands-on-expert-review](items/2026-07-15-dashboard-tabs-hands-on-expert-review/) — Dashboard tabs hands-on and expert UX review — Bob's real-dashboard observations, candidate composition and installation workflows, independent interactive-installation UX advice, code diagnosis, and proposed next sweep.
+- [2026-07-15-dashboard-tab-information-architecture-ratified](items/2026-07-15-dashboard-tab-information-architecture-ratified/) — Ratified dashboard tab information architecture — The accepted Dashboard, Seats, Devices, Patches, Assets and Sequencer map, including fleet and single-device scopes for promoted Dashboard admin commands.
+- [2026-07-15-dashboard-tab-information-architecture](items/2026-07-15-dashboard-tab-information-architecture/) — Dashboard tab information architecture proposal — The proposed Dashboard, Seats, Devices, Patches, Assets and Sequencer map incorporating Bob's 2026-07-15 observations and resolving the current control placements.
 - [2026-07-14-patch-editor-design-ratified](items/2026-07-14-patch-editor-design-ratified/) — Patch editor design — ratified (pe-0) — Ratified design record for the dashboard's patch-editor tab: a composer-helper
 - [2026-07-14-fleet-patch-design-ratified](items/2026-07-14-fleet-patch-design-ratified/) — Fleet-wide patch design — ratified (fp-0) — Ratified design record for the single fleet-wide patch model
 - [2026-07-13-seats-identity-sim-proposal](items/2026-07-13-seats-identity-sim-proposal/) — Seats — device identity, binding, and dashboard-managed simulation (dashboard-8 proposal) — Design proposal awaiting Bob's ratification: `installation.json` splits into
