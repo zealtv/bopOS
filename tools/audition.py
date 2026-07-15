@@ -175,7 +175,8 @@ class AuditionRig:
                 f"bopos-context patch {os.path.basename(patch_dir)}; "
                 f"bopos-context assets {os.path.join(REPO_DIR, 'assets')}"
             )
-            return [self.args.pd_bin, "-nogui", *backend, "-path",
+            gui = [] if getattr(self.args, "edit", False) else ["-nogui"]
+            return [self.args.pd_bin, *gui, *backend, "-path",
                     os.path.join(REPO_DIR, "pd"), "-open", entrypoint,
                     "-send", startup]
         return [engine, entrypoint]
@@ -215,7 +216,9 @@ class AuditionRig:
             self.send_matrix(node)
 
     def send_ready(self):
-        self.sock.sendto(osc_datagram("/audition/ready", VERSION),
+        ready = ((VERSION, "edit") if getattr(self.args, "edit", False)
+                 else (VERSION,))
+        self.sock.sendto(osc_datagram("/audition/ready", *ready),
                          ("127.0.0.1", self.args.report_port))
 
     def send_id(self, node):
@@ -432,6 +435,10 @@ class AuditionRig:
                 self.sock.sendto(forwarded, (self.local_target, node.engine_port))
 
     def stop(self):
+        descendants = {}
+        for node in self.nodes:
+            if node.process is not None:
+                descendants[node.process.pid] = self._descendant_pids(node.process.pid)
         for node in self.nodes:
             process = node.process
             if process is not None and process.poll() is None:
@@ -453,7 +460,54 @@ class AuditionRig:
                 except ProcessLookupError:
                     pass
                 process.wait()
+            # Pd's macOS GUI and watchdog may place themselves outside the
+            # engine's process group.  They are still this engine's known
+            # descendants, so reap that captured set without touching other
+            # Pd sessions the operator may have open.
+            for pid in descendants.get(process.pid, ()):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            pending = set(descendants.get(process.pid, ()))
+            deadline = time.monotonic() + 1.0
+            while pending and time.monotonic() < deadline:
+                for pid in tuple(pending):
+                    try:
+                        os.kill(pid, 0)
+                    except ProcessLookupError:
+                        pending.discard(pid)
+                    except PermissionError:
+                        pending.discard(pid)
+                if pending:
+                    time.sleep(0.02)
+            for pid in pending:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
         self.sock.close()
+
+    @staticmethod
+    def _descendant_pids(pid):
+        found, pending = set(), [pid]
+        while pending:
+            parent = pending.pop()
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-P", str(parent)], check=False, text=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            except OSError:
+                break
+            for value in result.stdout.split():
+                try:
+                    child = int(value)
+                except ValueError:
+                    continue
+                if child not in found:
+                    found.add(child)
+                    pending.append(child)
+        return found
 
     def run(self):
         try:
@@ -506,10 +560,14 @@ def parse_args(argv=None):
     parser.add_argument("--audio-backend", choices=("coreaudio", "jack", "none"),
                         default="coreaudio" if sys.platform == "darwin" else "jack")
     parser.add_argument("--no-engine", action="store_true")
+    parser.add_argument("--edit", action="store_true",
+                        help="launch one patch for editing (PD GUI visible)")
     parser.add_argument("--hb-interval", type=float, default=10.0)
     parser.add_argument("--catchup-secs", type=float, default=1.0)
     parser.add_argument("--stop-timeout", type=float, default=3.0)
     args = parser.parse_args(argv)
+    if args.edit:
+        args.devices = 1
     if args.devices < 1:
         parser.error("--devices must be at least 1")
     if not 0 <= args.id_base <= 2_147_483_647 - args.devices + 1:

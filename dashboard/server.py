@@ -5,6 +5,7 @@ import contextlib
 import ipaddress
 import json
 import logging
+import math
 import os
 import re
 import socket
@@ -93,6 +94,17 @@ class Dashboard:
                              args.send_port, args.osc_target)
         self.tasks = set()
         self.sim_process = None
+        self.supervisor_lock = asyncio.Lock()
+        self.supervisor_generation = 0
+        # One managed-audition subprocess owns the loopback command port.  Keep
+        # sim_process as the compatibility handle used by the existing focused
+        # verifies; supervisor.mode is the authority for what that child means.
+        self.state.data["supervisor"] = {"mode": "off"}
+        self.state.data["editor"] = {
+            "active": False, "status": "off", "patch": None,
+            "engine_alive": None, "generation": 0, "params": {},
+            "declarations": [], "engine": None,
+        }
         self.fleet_operation = None
         self.fleet_retries = {}
         self.fleet_generation = 0
@@ -118,7 +130,7 @@ class Dashboard:
         return task
 
     async def stop(self):
-        await self.stop_simulation()
+        await self.stop_supervisor()
         for task in self.tasks:
             task.cancel()
         if self.tasks:
@@ -181,9 +193,23 @@ class Dashboard:
         finally:
             self.clients.discard(ws)
 
-    async def handle_ws(self, message, ws=None):
+    async def handle_ws(self, message, ws=None, supervisor_locked=False):
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
+        fleet_mutations = {
+            "set_param", "action", "identify", "switch_patch", "set_fleet_patch",
+            "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
+            "send_distribution", "sync_distribution", "drop_distribution",
+            "save_preset", "load_preset", "mute_all", "add_seat", "update_seat",
+            "remove_seat", "bind_seat", "unbind_seat", "forget_device",
+            "forget_offline_unbound",
+        }
+        if self.supervisor_mode == "edit" and kind in fleet_mutations:
+            await self.ws_error(ws, "Fleet controls are unavailable while patch edit mode owns the audio relay.")
+            return
+        if kind in fleet_mutations and not supervisor_locked:
+            async with self.supervisor_lock:
+                return await self.handle_ws(message, ws, supervisor_locked=True)
         if kind == "set_param":
             name, value = str(data.get("name", "")), data.get("value")
             selector = "all" if data.get("broadcast") or uid == "all" else self.selector(uid)
@@ -199,6 +225,17 @@ class Dashboard:
             self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
+        elif kind == "set_editor_param":
+            name, value = str(data.get("name", "")), data.get("value")
+            editor = self.state.data["editor"]
+            declaration = next((item for item in editor.get("declarations", ())
+                                if item.get("name") == name), None)
+            cleaned = self.clean_editor_value(declaration, value)
+            if (self.supervisor_mode == "edit" and cleaned is not None
+                    and re.fullmatch(r"[A-Za-z0-9_-]+", name)):
+                editor.setdefault("params", {})[name] = cleaned
+                self.osc.set_param(0, name, cleaned)
+                await self.broadcast("state", self.state.public())
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
                                                        "updatebopos"}:
             selector = "all" if uid == "all" else self.selector(uid)
@@ -216,11 +253,12 @@ class Dashboard:
                     if ws is not None and data.get("confirmed") is not True:
                         await self.ws_error(ws, "Switching the simulated fleet requires confirmation.")
                         return
+                    if self.supervisor_mode != "simulate":
+                        await self.ws_error(ws, "Simulation ended before the patch switch completed.")
+                        return
                     manifest, error = patch_manifest.load(os.path.join(self.patches_dir, name))
                     if manifest is None:
-                        if ws is not None:
-                            await ws.send_json({"type": "error", "data": {"message":
-                                f"Cannot simulate patch {name!r}: {error}"}})
+                        await self.ws_error(ws, f"Cannot simulate patch {name!r}: {error}")
                         return
                     item = await self.catalog_patch(name)
                     if item is None:
@@ -400,11 +438,36 @@ class Dashboard:
             self.osc.os_command("all", "mute", [value])
             await self.broadcast("mute_all", {"value": value})
         elif kind == "set_simulation":
-            if bool(data.get("active")):
-                await self.start_simulation()
-            else:
-                await self.stop_simulation()
+            async with self.supervisor_lock:
+                if bool(data.get("active")):
+                    await self.start_simulation(str(data.get("patch", "")).strip() or None)
+                else:
+                    if (ws is not None and self.supervisor_mode == "simulate"
+                            and data.get("confirmed") is not True):
+                        await self.ws_error(
+                            ws, "Stopping a running simulation requires confirmation.")
+                        return
+                    await self.stop_simulation()
             await self.broadcast("state", self.state.public())
+        elif kind == "set_edit":
+            async with self.supervisor_lock:
+                active = bool(data.get("active"))
+                if (active and self.supervisor_mode == "simulate"
+                        and data.get("confirmed") is not True):
+                    await self.ws_error(ws, "Leaving a running simulation for edit mode requires confirmation.")
+                    return
+                if active:
+                    await self.start_edit(str(data.get("patch", "")).strip() or None)
+                else:
+                    await self.stop_edit()
+            await self.broadcast("state", self.state.public())
+        elif kind in ("restart_edit", "relaunch_edit"):
+            async with self.supervisor_lock:
+                if self.supervisor_mode == "edit":
+                    patch_name = self.state.data["editor"].get("patch")
+                    await self.stop_edit()
+                    await self.start_edit(patch_name)
+                    await self.broadcast("state", self.state.public())
         elif kind == "add_seat":
             try:
                 seat_id = int(data.get("id"))
@@ -418,7 +481,8 @@ class Dashboard:
             self.state.seats[str(seat_id)] = seat
             self.state.save_debounced()
             if self.state.data["simulation"].get("active"):
-                await self.restart_simulation()
+                if self.supervisor_mode == "simulate":
+                    await self.restart_simulation()
             await self.broadcast("state", self.state.public())
         elif kind == "update_seat":
             seat = self.state.seats.get(str(data.get("id")))
@@ -440,7 +504,8 @@ class Dashboard:
             if seat is not None:
                 self.state.save_debounced()
                 if self.state.data["simulation"].get("active"):
-                    await self.restart_simulation()
+                    if self.supervisor_mode == "simulate":
+                        await self.restart_simulation()
                 await self.broadcast("state", self.state.public())
         elif kind == "bind_seat":
             seat = self.state.seats.get(str(data.get("id")))
@@ -616,12 +681,46 @@ class Dashboard:
         public["fleet_patch"] = desired
         public["devices"] = {uid: await self.public_device(device, desired)
                              for uid, device in self.state.devices.items()}
+        editor = dict(self.state.data["editor"])
+        editor_device = self.state.devices.get("audition-0001")
+        if self.supervisor_mode == "edit" and editor_device is not None:
+            editor["engine_alive"] = int(editor_device.get("engine_alive") or 0)
+            if editor["engine_alive"] == 0:
+                editor["status"] = "engine closed"
+        public["editor"] = editor
+        public["supervisor"] = {"mode": self.supervisor_mode}
         return public
 
     @staticmethod
     async def ws_error(ws, message):
         if ws is not None:
             await ws.send_json({"type": "error", "data": {"message": message}})
+
+    @staticmethod
+    def clean_editor_value(declaration, value):
+        if not isinstance(declaration, dict):
+            return None
+        kind = declaration.get("type")
+        if kind == "s":
+            return value if isinstance(value, str) else None
+        if kind not in {"f", "i"} or isinstance(value, bool):
+            return None
+        try:
+            cleaned = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(cleaned):
+            return None
+        if kind == "i":
+            if not cleaned.is_integer():
+                return None
+            cleaned = int(cleaned)
+        minimum, maximum = declaration.get("min"), declaration.get("max")
+        if minimum is not None and cleaned < minimum:
+            return None
+        if maximum is not None and cleaned > maximum:
+            return None
+        return cleaned
 
     async def stage_and_converge(self, name, ws):
         item = await self.catalog_patch(name)
@@ -854,18 +953,88 @@ class Dashboard:
                         and str(device.get("seat_id")) == str(seat["id"])):
                     self.osc.assign(virtual_uid, seat["id"], seat["name"], seat["positions"])
 
-    async def restart_simulation(self):
-        await self.stop_simulation()
-        await self.start_simulation()
+    @property
+    def supervisor_mode(self):
+        return self.state.data.get("supervisor", {}).get("mode", "off")
 
-    async def start_simulation(self):
+    def set_supervisor_mode(self, mode):
+        if mode not in {"off", "simulate", "edit"}:
+            raise ValueError(f"invalid supervisor mode {mode!r}")
+        self.state.data["supervisor"] = {"mode": mode}
+
+    async def terminate_supervisor_process(self):
+        self.supervisor_generation += 1
+        process, self.sim_process = self.sim_process, None
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                await asyncio.to_thread(process.wait, 5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                await asyncio.to_thread(process.wait)
+
+    def clear_audition_devices(self):
+        for uid in [uid for uid, device in self.state.devices.items()
+                    if device.get("virtual")]:
+            del self.state.devices[uid]
+
+    async def supervisor_exited(self, process, mode, generation):
+        await asyncio.to_thread(process.wait)
+        if self.sim_process is not process or generation != self.supervisor_generation:
+            return
+        self.sim_process = None
+        self.clear_audition_devices()
+        if mode == "simulate":
+            self.state.data["simulation"].update(active=False, status="stopped unexpectedly")
+        else:
+            self.state.data["editor"].update(active=False, status="stopped unexpectedly",
+                                              engine_alive=None)
+        self.set_supervisor_mode("off")
+        self.osc.set_target(self.performance_target)
+        await self.broadcast("state", self.state.public())
+
+    async def launch_supervisor(self, command, mode):
+        self.supervisor_generation += 1
+        generation = self.supervisor_generation
+        try:
+            process = subprocess.Popen(command, cwd=REPO_DIR,
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+        except OSError:
+            self.clear_audition_devices()
+            self.set_supervisor_mode("off")
+            self.osc.set_target(self.performance_target)
+            return False
+        self.sim_process = process
+        self.spawn(self.supervisor_exited(process, mode, generation))
+        return True
+
+    async def stop_supervisor(self):
+        if self.supervisor_mode == "edit":
+            await self.stop_edit()
+        elif self.supervisor_mode == "simulate":
+            await self.stop_simulation()
+        else:
+            await self.terminate_supervisor_process()
+            self.clear_audition_devices()
+            self.osc.set_target(self.performance_target)
+
+    async def restart_simulation(self):
+        patch_name = self.state.data["simulation"].get("patch")
+        await self.stop_simulation()
+        await self.start_simulation(patch_name)
+
+    async def start_simulation(self, patch_name=None):
+        if self.supervisor_mode == "edit":
+            await self.stop_edit()
         if self.sim_process is not None or not self.state.seats:
             return
         simulation = self.state.data["simulation"]
         catalog = await self.catalog()
         valid_items = [item for item in catalog["patches"] if item["valid"]]
         valid_patches = [item["name"] for item in valid_items]
-        patch_name = simulation.get("patch")
+        explicit_patch = patch_name is not None
+        patch_name = patch_name or simulation.get("patch")
         if patch_name not in valid_patches:
             patch_name = "demo-pd" if "demo-pd" in valid_patches else (
                 valid_patches[0] if valid_patches else None)
@@ -879,12 +1048,13 @@ class Dashboard:
                 return
             patch_name, manifest_path = "demo-pd", fallback
         item = next((item for item in valid_items if item["name"] == patch_name), None)
-        if item is not None:
+        if item is not None and not explicit_patch:
             self.stage_catalog_patch(item)
             self.state.save_debounced()
         else:
             simulation["patch"] = patch_name
         simulation.update(active=True, status="starting")
+        self.set_supervisor_mode("simulate")
         self.osc.set_target("127.0.0.1")
         command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),
             "--devices", str(len(self.state.seats)), "--bind", "127.0.0.1",
@@ -896,25 +1066,92 @@ class Dashboard:
             "--patches-dir", self.patches_dir]
         if getattr(self.args, "sim_no_engine", False):
             command.append("--no-engine")
-        self.sim_process = subprocess.Popen(command, cwd=REPO_DIR,
-                                            stdout=subprocess.DEVNULL,
-                                            stderr=subprocess.DEVNULL)
+        if not await self.launch_supervisor(command, "simulate"):
+            simulation.update(active=False, status="launch failed")
+            return
         simulation["status"] = "running"
         self.osc.send_audition_listener()
 
     async def stop_simulation(self):
-        process, self.sim_process = self.sim_process, None
-        if process is not None and process.poll() is None:
-            process.terminate()
-            try:
-                await asyncio.to_thread(process.wait, 5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                await asyncio.to_thread(process.wait)
-        for uid in [uid for uid, device in self.state.devices.items()
-                    if device.get("virtual")]:
-            del self.state.devices[uid]
+        if self.supervisor_mode != "simulate":
+            return
+        await self.terminate_supervisor_process()
+        self.clear_audition_devices()
         self.state.data["simulation"].update(active=False, status="off")
+        desired = (self.state.data.get("fleet_patch") or {}).get("name")
+        if desired:
+            self.state.data["simulation"]["patch"] = desired
+        self.set_supervisor_mode("off")
+        self.osc.set_target(self.performance_target)
+        for seat in self.state.seats.values():
+            if seat.get("bound") in self.state.devices:
+                self.assign_seat(seat)
+
+    async def start_edit(self, patch_name=None):
+        if self.supervisor_mode == "simulate":
+            await self.stop_simulation()
+        if self.supervisor_mode == "edit":
+            current = self.state.data["editor"].get("patch")
+            if patch_name in (None, current):
+                return
+            await self.stop_edit()
+
+        # The edit relay is a single-target ownership boundary.  No delayed
+        # fleet fetch/switch task may survive to emit commands after retarget.
+        self.supersede_fleet_operation()
+
+        catalog = await self.catalog()
+        valid_items = [item for item in catalog["patches"] if item["valid"]]
+        names = [item["name"] for item in valid_items]
+        if patch_name not in names:
+            desired = (self.state.data.get("fleet_patch") or {}).get("name")
+            patch_name = desired if desired in names else (
+                "demo-pd" if "demo-pd" in names else (names[0] if names else None))
+        if patch_name is None:
+            self.state.data["editor"].update(active=False,
+                                              status="no valid host patches")
+            return
+        manifest_path = os.path.join(self.patches_dir, patch_name,
+                                     patch_manifest.MANIFEST_NAME)
+        manifest, error = patch_manifest.load(os.path.dirname(manifest_path))
+        if manifest is None:
+            self.state.data["editor"].update(active=False, status=error)
+            return
+
+        editor = self.state.data["editor"]
+        generation = int(editor.get("generation", 0)) + 1
+        declarations = list(manifest.get("params", ()))
+        editor.clear()
+        editor.update(active=True, status="starting", patch=patch_name,
+                      engine_alive=None, generation=generation,
+                      params={item["name"]: item.get("default", "")
+                              for item in declarations},
+                      declarations=declarations, engine=manifest.get("engine"))
+        self.set_supervisor_mode("edit")
+        self.osc.set_target("127.0.0.1")
+        command = [sys.executable, os.path.join(REPO_DIR, "tools", "audition.py"),
+            "--edit", "--devices", "1", "--id-base", "0",
+            "--bind", "127.0.0.1", "--target", "127.0.0.1",
+            "--cmd-port", str(self.args.send_port),
+            "--report-port", str(self.args.listen_port), "--hb-interval", "0.2",
+            "--audio-backend", getattr(self.args, "sim_audio_backend", "none"),
+            "--engine-port-base", str(getattr(self.args, "sim_engine_port_base", 16661)),
+            "--manifest", manifest_path, "--patches-dir", self.patches_dir]
+        if getattr(self.args, "sim_no_engine", False):
+            command.append("--no-engine")
+        if not await self.launch_supervisor(command, "edit"):
+            editor.update(active=False, status="launch failed", engine_alive=None)
+            return
+        editor["status"] = "running"
+
+    async def stop_edit(self):
+        if self.supervisor_mode != "edit":
+            return
+        await self.terminate_supervisor_process()
+        self.clear_audition_devices()
+        editor = self.state.data["editor"]
+        editor.update(active=False, status="off", engine_alive=None)
+        self.set_supervisor_mode("off")
         self.osc.set_target(self.performance_target)
         for seat in self.state.seats.values():
             if seat.get("bound") in self.state.devices:

@@ -12,12 +12,17 @@ let fleetPatchChoice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
 let distributionAll = false;
+let editorPatchChoice = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
 function mergeDevice(device) {
   if (device && device.uid) {
     installation.devices[device.uid] = device;
+    if (device.editor && installation.editor) {
+      installation.editor.engine_alive = Number(device.engine_alive || 0);
+      installation.editor.status = device.engine_alive ? "running" : "engine closed";
+    }
     if (Number(device.id) >= 0) assignmentDrafts.delete(device.uid);
   }
   render();
@@ -105,6 +110,7 @@ function render() {
     rebind.textContent=venueRebind ? `Rebound: ${labels(venueRebind.rebound)} · Waiting: ${labels(venueRebind.waiting)}` : '';
   }
   renderSimulation(devices);
+  renderEditor();
   renderFleetPatch();
   Spatial.render(installation, selectedSeat, selectSeat, ws); renderRoom();
   renderHeader(); renderDetail();
@@ -138,9 +144,10 @@ function renderFleetPatch() {
     fleetPatchChoice=patches.some(item=>item.name===desired)?desired:(patches[0]?.name||null);
   }
   select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===fleetPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
-  select.disabled=!patches.length;
-  set.disabled=!fleetPatchChoice;
-  revert.disabled=!installation.fleet_patch?.previous?.name;
+  const editing=installation.supervisor?.mode==="edit";
+  select.disabled=!patches.length||editing;
+  set.disabled=!fleetPatchChoice||editing;
+  revert.disabled=!installation.fleet_patch?.previous?.name||editing;
   select.onchange=()=>{fleetPatchChoice=select.value;};
   set.onclick=()=>{const name=select.value;if(name&&confirm(`Set "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});};
   revert.onclick=()=>{const name=installation.fleet_patch?.previous?.name;if(name&&confirm(`Revert the fleet to patch "${name}"? The dashboard will use the same convergence and engine restart flow.`))ws.send("revert_fleet_patch",{confirmed:true});};
@@ -154,10 +161,91 @@ function renderSimulation(devices) {
   const sim=installation.simulation||{active:false,status:'off'}, button=$("#simulate-toggle");
   if (!button) return;
   button.textContent=sim.active?'Stop simulation':'Start simulation';
-  button.onclick=()=>ws.send("set_simulation",{active:!sim.active});
+  button.onclick=()=>{
+    if (sim.active && !confirm("Stop the running simulation?")) return;
+    ws.send("set_simulation",{active:!sim.active,confirmed:sim.active});
+  };
   $("#simulate-status").textContent=sim.active&&sim.patch?`${sim.status||'running'} · ${sim.patch}`:(sim.status||'off');
   const real=devices.filter(d=>!d.virtual&&d.online).length;
   $("#simulate-real-note").textContent=sim.active&&real?`${real} real device${real===1?'':'s'} online (not driven)`:'';
+  const edit=$("#edit-sim-patch");
+  edit.hidden=!sim.active;
+  edit.onclick=()=>{
+    const patch=sim.patch;
+    if (patch && confirm(`Stop the running simulation and edit "${patch}"?`)) {
+      ws.send("set_edit",{active:true,patch,confirmed:true});
+    }
+  };
+}
+
+function editorControl(declaration, value) {
+  const badge=declaration.facilitator?'<b class="badge facilitator-badge">facilitator</b>':'';
+  const name=`${esc(declaration.name)} ${badge}`;
+  if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(declaration.name)}" type="text" value="${esc(value)}"></label>`;
+  if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(declaration.name)}" type="checkbox" ${value?'checked':''}></label>`;
+  return `<label><span>${name}</span><output>${esc(value)}</output><input data-editor-param="${esc(declaration.name)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
+}
+function renderEditor() {
+  const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}}, mode=installation.supervisor?.mode||"off";
+  const patches=(distribution.patches||[]).filter(item=>item.valid);
+  const select=$("#editor-patch"), launch=$("#editor-launch");
+  if (!select || !launch) return;
+  if (!editorPatchChoice || !patches.some(item=>item.name===editorPatchChoice)) {
+    editorPatchChoice=editor.patch&&patches.some(item=>item.name===editor.patch)
+      ? editor.patch : (installation.fleet_patch?.name&&patches.some(item=>item.name===installation.fleet_patch.name)
+        ? installation.fleet_patch.name : patches[0]?.name);
+  }
+  if (document.activeElement!==select) {
+    select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===editorPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
+  }
+  select.disabled=!patches.length;
+  select.onchange=()=>{editorPatchChoice=select.value;};
+  launch.disabled=!patches.length;
+  launch.textContent=editor.active?'Launch selected patch':'Launch editor';
+  launch.onclick=()=>{
+    const patch=select.value;
+    if (!patch) return;
+    if (mode==="simulate" && !confirm(`Stop the running simulation and edit "${patch}"?`)) return;
+    ws.send("set_edit",{active:true,patch,confirmed:mode==="simulate"});
+  };
+  $("#editor-status").textContent=editor.active?`${editor.status||"running"} · ${editor.patch}`:(editor.status||"off");
+  const closed=editor.active&&editor.engine_alive!=null&&Number(editor.engine_alive)===0;
+  $("#editor-engine-note").textContent=closed
+    ? "Engine closed. It will stay closed until you explicitly relaunch it."
+    : editor.active ? (editor.engine==="pd"?"PD is open for live editing.":"Runtime controls are live; GUI editing is PD-only in v1.")
+      : "Launch a valid host patch through the managed audition runtime.";
+  const actions=$("#editor-session-actions");
+  actions.innerHTML=editor.active
+    ? `${closed?'<button id="editor-relaunch">Relaunch</button>':''}<button id="editor-restart">Restart</button><button id="editor-hear-sim">Hear it in the sim</button><button id="editor-stop">Stop</button>`:"";
+  $("#editor-relaunch")?.addEventListener("click",()=>ws.send("relaunch_edit",{}));
+  $("#editor-restart")?.addEventListener("click",()=>ws.send("restart_edit",{}));
+  $("#editor-hear-sim")?.addEventListener("click",()=>ws.send("set_simulation",{active:true,patch:editor.patch}));
+  $("#editor-stop")?.addEventListener("click",()=>ws.send("set_edit",{active:false}));
+  const focused=document.activeElement;
+  if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
+      && $("#editor-panel").contains(focused)) return;
+  const groups=[];
+  for (const declaration of editor.declarations||[]) {
+    const name=declaration.group||"parameters";
+    let group=groups.find(item=>item.name===name);
+    if (!group) { group={name,items:[]}; groups.push(group); }
+    group.items.push(declaration);
+  }
+  const controls=groups.map(group=>`<h3>${esc(group.name)}</h3>${group.items.map(item=>editorControl(item,editor.params?.[item.name]??item.default??"")).join("")}`).join("");
+  $("#editor-params").innerHTML=editor.active
+    ? `<h3>master</h3><label><span>master</span><output>${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
+  document.querySelectorAll("[data-editor-param]").forEach(input=>{
+    const send=()=>{const value=input.type==="checkbox"?(input.checked?1:0):(input.type==="range"?Number(input.value):input.value);editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});};
+    if(input.type==="range") {
+      let pending=null;
+      input.oninput=()=>{if(input.previousElementSibling?.tagName==="OUTPUT")input.previousElementSibling.value=input.value;if(pending===null)pending=requestAnimationFrame(()=>{pending=null;send();});};
+      input.onchange=send;
+    } else {
+      input.onchange=send;
+    }
+  });
+  const editorMaster=$("#editor-master");
+  if(editorMaster) editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
 }
 function row(d) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
@@ -198,6 +286,9 @@ function renderHeader() {
   $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
+  const editorMaster=$("#editor-master");
+  if(editorMaster&&document.activeElement!==editorMaster) editorMaster.value=master;
+  if(editorMaster?.previousElementSibling) editorMaster.previousElementSibling.value=Math.round(master*100)+"%";
 }
 function select(uid) {
   selected = uid; const d=installation.devices[uid];
@@ -214,7 +305,7 @@ function selectSeat(id) {
   render();
 }
 let interacting = false;
-document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input, #detail select")) interacting = true; });
+document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input, #detail select, #editor-panel input, #editor-panel select")) interacting = true; });
 document.addEventListener("pointerup", () => { interacting = false; });
 
 function patchDiagnostics(d, allowRemediation) {

@@ -13,12 +13,16 @@ The brain-dump spill through dashboard UI, patch/asset distribution, seats,
 managed simulation, and fleet-wide patch software is complete. Patch-editor
 design and its v1.4 cue contract amendment are also complete.
 
+The bop000 fleet gate is complete and audibly confirmed. `pe-2-edit-mode` is
+also tied, including its real GUI-PD gate. The next implementation stitch is
+`pe-3-manifest-editor`.
+
 ## Running order
 
-1. `fleet-patch/fp-4-bop000-gate` — Bob/hardware gate: prove fleet Set,
+1. **Complete:** `fleet-patch/fp-4-bop000-gate` — Bob/hardware gate: prove fleet Set,
    convergence, content fingerprint equality, induced drift, `stale`, Retry,
    `current`, and Revert on bop000; confirm audible switching with Bob.
-2. `patch-editor/pe-2-edit-mode` — single-instance GUI edit runtime, exclusive
+2. **Complete:** `patch-editor/pe-2-edit-mode` — single-instance GUI edit runtime, exclusive
    `off | simulate | edit` supervisor mode, patch list, live param panel, and
    explicit relaunch/restart behavior.
 3. `patch-editor/pe-3-manifest-editor` — validated atomic param/cue editing and

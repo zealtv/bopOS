@@ -313,18 +313,31 @@ class OSCBridge:
             # A relay restart can be faster than the normal offline threshold.
             # Its private ready frame requests the complete dashboard-owned
             # assignments and listener without weakening heartbeat rate limits.
-            for seat in self.state.seats.values():
-                uid = seat.get("bound")
-                if uid and uid.startswith("audition-") and uid in self.state.devices:
-                    self.assign(uid, seat["id"], seat["name"], seat["positions"])
-            self.send_audition_listener()
+            mode = str(args[1]) if len(args) > 1 else "simulate"
+            if mode == "simulate":
+                for seat in self.state.seats.values():
+                    uid = seat.get("bound")
+                    if uid and uid.startswith("audition-") and uid in self.state.devices:
+                        self.assign(uid, seat["id"], seat["name"], seat["positions"])
+                self.send_audition_listener()
             return
         if address == "/hb" and len(args) >= 4:
             uid = str(args[0])
+            supervisor_mode = self.state.data.get("supervisor", {}).get("mode", "off")
+            audition_uid = re.fullmatch(r"audition-\d{4}", uid) is not None
+            try:
+                local = ipaddress.ip_address(ip).is_loopback
+            except ValueError:
+                local = False
+            # Managed audition identities exist only on the private loopback
+            # relay and only while its supervisor owns that relay.  A delayed
+            # heartbeat must not resurrect a phantom installation device.
+            if audition_uid and (supervisor_mode == "off" or not local):
+                return
             first_seen = uid not in self.state.devices
             device = self.state.ensure(uid)
-            sim_active = bool(self.state.data.get("simulation", {}).get("active"))
-            if sim_active and uid.startswith("audition-"):
+            sim_active = supervisor_mode == "simulate"
+            if sim_active and audition_uid:
                 try:
                     index = int(uid.rsplit("-", 1)[1]) - 1
                     seats = sorted(self.state.seats.values(), key=lambda item: item["id"])
@@ -332,6 +345,10 @@ class OSCBridge:
                     device["seat_id"] = seats[index]["id"] if 0 <= index < len(seats) else None
                 except (ValueError, IndexError):
                     device["seat_id"] = None
+            elif supervisor_mode == "edit" and audition_uid:
+                device["virtual"] = True
+                device["editor"] = True
+                device["seat_id"] = None
             old = {key: device.get(key) for key in ("id", "ip", "version", "engine_alive", "rssi", "online")}
             advertised_id = int(args[1])
             seat = self.state.seat_for_uid(uid)
@@ -367,7 +384,7 @@ class OSCBridge:
                 self.state.save_debounced()
                 if first_seen:
                     self.request(uid, "report")
-                if configured:
+                if configured or device.get("editor"):
                     self.request(uid, "params")
                     self.request(uid, "patches")
             return
@@ -388,7 +405,10 @@ class OSCBridge:
                 device["undeclared"] = True
             device["declared"] = declarations
             seat = self.state.seat_for_uid(device["uid"])
-            if seat is not None:
+            editor = bool(device.get("editor"))
+            if editor:
+                device["params"] = dict(self.state.data.get("editor", {}).get("params", {}))
+            elif seat is not None:
                 device["params"] = dict(seat.get("params", {}))
             for declaration in declarations:
                 name = declaration.get("name")
@@ -400,7 +420,14 @@ class OSCBridge:
             # record, so a (re)declaring device gets them back (this is how a
             # device offline during a preset load converges on reconnect);
             # master rides along per the contract sec 4.1 catch-up rule
-            if seat is not None:
+            if editor:
+                for declaration in declarations:
+                    name = declaration.get("name")
+                    if name and name in device["params"]:
+                        self.set_param(int(device.get("id", 0)), name,
+                                       device["params"][name])
+                self.send_master(int(device.get("id", 0)))
+            elif seat is not None:
                 for declaration in declarations:
                     name = declaration.get("name")
                     if name and name in device["params"]:
