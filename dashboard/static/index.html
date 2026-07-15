@@ -57,12 +57,6 @@
     </section>
     <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
       <aside class="device-sidebar">
-      <section id="fleet-patch-panel">
-        <div class="section-head"><h2>Fleet patch</h2><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
-        <label>desired patch <select id="patch-select" aria-label="Fleet patch"></select></label>
-        <div class="fleet-patch-actions"><button id="patch-switch">Set fleet patch</button><button id="fleet-patch-revert">Revert</button></div>
-        <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
-      </section>
         <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
         <div id="device-roster"></div>
         <footer><button id="forget-offline">Forget offline unbound</button><button data-all="reboot">Reboot All</button><button data-all="shutdown" class="danger">Shutdown All</button><button data-all="updatebopos">Update bopOS</button></footer>
@@ -70,6 +64,11 @@
       <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
     </section>
     <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
+      <section id="fleet-patch-panel">
+        <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2><p class="dim">Choose the one desired production patch and converge every online assigned device.</p></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
+        <div class="fleet-patch-deploy"><label>desired fleet patch <select id="patch-select" aria-label="Fleet patch"></select></label><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
+        <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
+      </section>
       <section id="editor-panel">
         <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
         <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>

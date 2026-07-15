@@ -74,8 +74,8 @@ from the live editor. This recommended order takes precedence over
    resulting correctness-first next sweep is accepted. Bob explicitly dropped
    venue point persistence; runtime-only production points remain intentional.
 4. **In progress:** `ui-tabs/tabs-3-next-sweep` — 01, 02, 03, 05, 06, 08, 07,
-   and 09 are complete. The next stitch is **`10-patches-fleet-workflow`**, then
-   11 Assets, 12 Dashboard live controls, 13 diagnostic density, and 14 the
+   09, and 10 are complete. The next stitch is **`11-assets-fleet-workflow`**,
+   then 12 Dashboard live controls, 13 diagnostic density, and 14 the
    device-alias design gate.
 5. **`patch-workflow-friction/friction-0..1`** — resume after the full next sweep so the
    docs and starter-kit copy describe the finished editor and tab structure.

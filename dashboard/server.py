@@ -1176,6 +1176,11 @@ class Dashboard:
 
     async def retry_fleet_patch(self, uid, ws):
         if uid not in self.distribution_targets(uid):
+            device = self.state.devices.get(uid)
+            if device and not self.state.seat_for_uid(uid):
+                await self.ws_error(
+                    ws, "Assign this device to a Seat before syncing the fleet patch; "
+                    "OSC v1.5 cannot uniquely target unbound content operations.")
             return
         item = await self.catalog_patch((self.state.data.get("fleet_patch") or {}).get("name"))
         if item is None:
