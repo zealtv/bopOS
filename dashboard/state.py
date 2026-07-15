@@ -12,6 +12,44 @@ FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "sh
 FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
 
 
+def observed_active_patch(device):
+    """Return the strongest currently observed active patch name."""
+    listing = device.get("patches")
+    if isinstance(listing, list):
+        active = next((patch.get("name") for patch in listing
+                       if isinstance(patch, dict) and patch.get("active")), None)
+        if active:
+            return active
+    report = device.get("report")
+    if isinstance(report, dict) and isinstance(report.get("patch"), str):
+        return report["patch"]
+    return None
+
+
+def reconcile_patch_switch_success(device):
+    """Clear an attempt only when observation proves its target is active."""
+    attempt = device.get("patch_switch")
+    if (isinstance(attempt, dict) and attempt.get("patch")
+            and observed_active_patch(device) == attempt["patch"]):
+        device["patch_switch"] = None
+        return True
+    return False
+
+
+def reconcile_patch_switch_observation(device):
+    """Apply a late terminal observation to an existing attempt."""
+    if reconcile_patch_switch_success(device):
+        return "success"
+    attempt = device.get("patch_switch")
+    active = observed_active_patch(device)
+    if (isinstance(attempt, dict) and attempt.get("status") == "timeout"
+            and active and active != attempt.get("patch")):
+        attempt.update(status="failed",
+                       reason=f"Observed active patch {active!r}, not {attempt['patch']!r}.")
+        return "failed"
+    return None
+
+
 def patch_badge(device, desired):
     """Derive one device's fleet-patch convergence badge (fp-0 sec 3).
 
@@ -24,10 +62,18 @@ def patch_badge(device, desired):
     if not desired or not desired.get("name"):
         return "unset"
     name = desired["name"]
-    if not device.get("online") or device.get("patches") is None:
+    if not device.get("online"):
+        return "unknown"
+    switch = device.get("patch_switch")
+    switch_status = switch.get("status") if isinstance(switch, dict) else None
+    if switch_status in ("failed", "timeout"):
+        if switch.get("patch") == name:
+            return switch_status
+        switch = None  # terminal attempt for a superseded/manual target
+    if device.get("patches") is None:
         return "unknown"
     fetch_phase = (device.get("fetch") or {}).get("patch:" + name)
-    if device.get("patch_switch") or fetch_phase in ("sent", "queued", "fetching"):
+    if switch or fetch_phase in ("sent", "queued", "fetching"):
         return "switching"
     listing = device["patches"]
     entry = next((patch for patch in listing if patch.get("name") == name), None)
@@ -124,7 +170,9 @@ class InstallationState:
             # exposes: the node receipts success but does not report a hash.
             "distribution": {},
             "fetch": {},  # runtime phase by slot: queued/fetching/ok/err
-            "patch_switch": None,  # runtime {patch, at}; cleared by /os/rev
+            # runtime bounded attempt: switching -> reconciling -> failed/timeout;
+            # a matching patch observation clears it on success
+            "patch_switch": None,
             "patches": None,  # runtime /os/patches listing; None = not queried
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
             "params": {},  # runtime declaration/catch-up mirror; durable values live on seat

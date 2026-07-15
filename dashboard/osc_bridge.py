@@ -14,6 +14,7 @@ from pythonosc.osc_message import OscMessage
 from pythonosc.osc_message_builder import OscMessageBuilder
 
 import points
+from state import reconcile_patch_switch_observation
 
 
 LEGACY_DECLARATIONS = [
@@ -506,6 +507,7 @@ class OSCBridge:
                 device["report"] = report
                 if isinstance(report.get("hostname"), str):
                     device["hostname"] = report["hostname"]
+                reconcile_patch_switch_observation(device)
                 self.broadcast("report", device)
             return
         if address == "/os/patches" and args:
@@ -532,6 +534,7 @@ class OSCBridge:
                     entry["fingerprint"] = fingerprint
                 cleaned.append(entry)
             device["patches"] = cleaned
+            reconcile_patch_switch_observation(device)
             self.broadcast("patches", device)
             return
         if address == "/os/fetch-progress" and len(args) >= 2:
@@ -578,7 +581,10 @@ class OSCBridge:
                 log.warning("unattributable /os/rev from %s: %r", ip, args)
                 return
             device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
-            device["patch_switch"] = None
+            attempt = device.get("patch_switch")
+            if isinstance(attempt, dict):
+                attempt["status"] = "reconciling"
+                attempt["receipt_at"] = time.time()
             self.broadcast("rev", device)
             for member in ("patches", "params", "report"):
                 self.request(device["uid"], member)

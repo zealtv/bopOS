@@ -21,7 +21,8 @@ from fastapi.staticfiles import StaticFiles
 
 import points
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
-from state import InstallationState, patch_badge
+from state import (InstallationState, observed_active_patch, patch_badge,
+                   reconcile_patch_switch_success)
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
@@ -32,6 +33,8 @@ from python import manifest as patch_manifest
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 PATCH_TEMPLATE = os.path.join(".templates", "bopos-template.pd")
+PATCH_SWITCH_RECEIPT_SECONDS = 8.0
+PATCH_SWITCH_RECONCILE_SECONDS = 2.0
 
 
 class DistributionStaticFiles(StaticFiles):
@@ -340,11 +343,9 @@ class Dashboard:
                                if self.device_patch(device_uid, name)
                                and self.device_patch(device_uid, name).get("manifest")]
                 for device_uid in targets:
-                    device = self.state.devices[device_uid]
-                    device["patch_switch"] = {"patch": name, "at": time.time()}
-                    await self.broadcast("device_update", device)
-                    self.osc.os_command(self.selector(device_uid), "patch", [name])
-                    self.spawn(self.refresh_patch_state_later(device_uid, 8.0))
+                    device = self.begin_patch_switch(device_uid, name)
+                    if device is not None:
+                        await self.broadcast("device_update", device)
         elif kind == "set_fleet_patch":
             if data.get("confirmed") is not True:
                 await self.ws_error(ws, "Setting the fleet patch requires confirmation.")
@@ -974,6 +975,10 @@ class Dashboard:
             if not task.done():
                 task.cancel()
         self.fleet_retries.clear()
+        # Attempts belong to the desired patch generation. Clearing their
+        # identity tokens also makes their untracked monitor tasks exit.
+        for device in self.state.devices.values():
+            device["patch_switch"] = None
         return self.fleet_generation
 
     async def converge_fleet_patch(self, name, fingerprint, targets, base_urls,
@@ -1029,13 +1034,9 @@ class Dashboard:
         for uid in ready:
             if generation != self.fleet_generation:
                 return
-            device = self.state.devices.get(uid)
-            if not device or not device.get("online"):
-                continue
-            device["patch_switch"] = {"patch": name, "at": time.time()}
-            self.osc.os_command(self.selector(uid), "patch", [name])
-            self.spawn(self.refresh_patch_state_later(uid, 8.0))
-            switched.append(device)
+            device = self.begin_patch_switch(uid, name)
+            if device is not None:
+                switched.append(device)
         for device in switched:
             await self.broadcast("device_update", device)
 
@@ -1063,6 +1064,11 @@ class Dashboard:
         self.state.save_debounced()
         desired = {"name": item["name"], "fingerprint": item["fingerprint"]}
         badge = patch_badge(self.state.devices[uid], desired)
+        if badge in ("failed", "timeout"):
+            # Retry is a new attempt. Re-derive from observation so the row
+            # chooses re-switch vs re-fetch honestly.
+            self.state.devices[uid]["patch_switch"] = None
+            badge = patch_badge(self.state.devices[uid], desired)
         if badge == "mismatch":
             await self.switch_fleet_device(uid, item["name"], generation)
         elif badge in ("missing", "stale", "stale_unverified"):
@@ -1078,13 +1084,48 @@ class Dashboard:
     async def switch_fleet_device(self, uid, name, generation):
         if generation != self.fleet_generation:
             return
+        device = self.begin_patch_switch(uid, name)
+        if device is not None:
+            await self.broadcast("device_update", device)
+
+    def begin_patch_switch(self, uid, name):
         device = self.state.devices.get(uid)
         selector = self.selector(uid)
         if not device or not device.get("online") or selector is None:
-            return
-        device["patch_switch"] = {"patch": name, "at": time.time()}
+            return None
+        attempt = {"patch": name, "at": time.time(), "status": "switching"}
+        device["patch_switch"] = attempt
         self.osc.os_command(selector, "patch", [name])
-        self.spawn(self.refresh_patch_state_later(uid, 8.0))
+        self.spawn(self.monitor_patch_switch(uid, attempt))
+        return device
+
+    async def monitor_patch_switch(self, uid, attempt):
+        """Bound a switch even when its UDP receipt is lost or ambiguous."""
+        await asyncio.sleep(PATCH_SWITCH_RECEIPT_SECONDS)
+        device = self.state.devices.get(uid)
+        if not device or device.get("patch_switch") is not attempt:
+            return
+        if reconcile_patch_switch_success(device):
+            await self.broadcast("device_update", device)
+            return
+        attempt["status"] = "reconciling"
+        await self.broadcast("device_update", device)
+        for member in ("patches", "params", "report"):
+            self.osc.request(uid, member)
+        await asyncio.sleep(PATCH_SWITCH_RECONCILE_SECONDS)
+        device = self.state.devices.get(uid)
+        if not device or device.get("patch_switch") is not attempt:
+            return
+        if reconcile_patch_switch_success(device):
+            await self.broadcast("device_update", device)
+            return
+        active = observed_active_patch(device)
+        if active:
+            attempt.update(status="failed",
+                           reason=f"Observed active patch {active!r}, not {attempt['patch']!r}.")
+        else:
+            attempt.update(status="timeout",
+                           reason="Timed out without an attributable patch observation.")
         await self.broadcast("device_update", device)
 
     def public_url(self, ws, device_uid=None):
@@ -1146,13 +1187,6 @@ class Dashboard:
         await asyncio.sleep(delay)
         if uid in self.state.devices:
             self.osc.request(uid, "patches")
-
-    async def refresh_patch_state_later(self, uid, delay=0.25):
-        """Fallback refresh when a provisioning receipt is lost on UDP."""
-        await asyncio.sleep(delay)
-        if uid in self.state.devices:
-            for member in ("patches", "params", "report"):
-                self.osc.request(uid, member)
 
     def assign_seat(self, seat):
         uid = seat.get("bound")
