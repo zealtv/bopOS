@@ -14,6 +14,11 @@
 </head>
 <body>
   <header><a id="technical-link" href="/">All views</a><h1 id="venue-name">bopOS Dashboard</h1><span id="ws-status" class="offline">connecting…</span></header>
+  <section id="cue-panel" aria-labelledby="cue-title" hidden>
+    <div class="cue-panel-head"><h2 id="cue-title">Cues</h2><label for="cue-lead">Lead <span><input id="cue-lead" type="number" min="100" max="10000" step="50" value="500"> ms</span></label></div>
+    <div id="declared-cues"></div>
+    <output id="cue-status" role="status" aria-live="polite"></output>
+  </section>
   <nav id="live-scope-tabs" role="tablist" aria-label="Live control scope">
     <button id="live-scope-aggregate" role="tab" aria-selected="true" aria-controls="cards" data-live-scope-view="aggregate">All &amp; Groups</button>
     <button id="live-scope-seats" role="tab" aria-selected="false" aria-controls="cards" data-live-scope-view="seats">Seats</button>

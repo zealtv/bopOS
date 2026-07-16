@@ -1061,12 +1061,19 @@ class Dashboard:
         return {patch_manifest.qualify_param(item)
                 for item in manifest.get("params", ())}
 
-    def live_control_declarations(self):
-        """Validated promoted schema for Seat-owned live controls."""
+    def live_control_manifest(self):
+        """Return the validated staged manifest that owns live controls."""
         patch_name = self.state.data.get("params_patch")
         if not patch_name:
-            return []
+            return None
         manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
+        if manifest is None:
+            return None
+        return manifest
+
+    def live_control_declarations(self):
+        """Validated promoted schema for Seat-owned live controls."""
+        manifest = self.live_control_manifest()
         if manifest is None:
             return []
         declarations = []
@@ -1076,6 +1083,11 @@ class Dashboard:
                 projected["identity"] = patch_manifest.qualify_param(item)
                 declarations.append(projected)
         return declarations
+
+    def live_cue_declarations(self):
+        """Validated cue actions for the staged fleet patch."""
+        manifest = self.live_control_manifest()
+        return list(manifest.get("cues", ())) if manifest is not None else []
 
     def live_param_declaration(self, identity):
         if not isinstance(identity, str):
@@ -1145,9 +1157,14 @@ class Dashboard:
         public["devices"] = {uid: await self.public_device(device, desired)
                              for uid, device in self.state.devices.items()}
         declarations = self.live_control_declarations()
+        cues = self.live_cue_declarations()
         public["live_controls"] = {
             "patch": self.state.data.get("params_patch") if declarations else None,
             "declarations": declarations,
+        }
+        public["live_cues"] = {
+            "patch": self.state.data.get("params_patch") if cues else None,
+            "cues": cues,
         }
         editor = dict(self.state.data["editor"])
         editor_device = self.state.devices.get("audition-0001")

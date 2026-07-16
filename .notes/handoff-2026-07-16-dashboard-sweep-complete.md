@@ -18,6 +18,10 @@ This supersedes `.notes/handoff-2026-07-16-live-controls-complete.md`.
 - Diagnostic density verification passed **17/17** against the real dashboard,
   simulator, and touch Chromium. Live Controls backend **20/20**, exact mute
   **13/13**, and Seats workspace **12/12** also passed.
+- The active fleet manifest's declared cues now render as synchronized,
+  touch-friendly Dashboard actions in both embedded and standalone views. The
+  production free-text field and idle shared-clock copy are gone; Patch edit
+  retains undeclared cue trials. Focused verification passed **9/9**.
 
 No `.pd` files changed. Real iPad/Safari, screen reader, installation LAN,
 audible engine, and real Pi behavior were not exercised in this polish pass.

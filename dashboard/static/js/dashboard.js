@@ -202,10 +202,6 @@ ws.on("editor_point_element", data => {
   Spatial.renderEditor(installation.editor,ws);
 });
 ws.on("point_frame", data => Spatial.frame(data.points || {}));
-ws.on("cue_scheduled", data => {
-  const status = $("#cue-status"); if (!status) return;
-  status.value = `${data.cue_id} fires in ${data.lead_ms} ms`;
-});
 ws.on("editor_cue_fired", data => {
   const status = $("#editor-cue-status"); if (!status) return;
   status.value = `${data.cue_id} fired`;
@@ -809,17 +805,6 @@ function renderRoom() {
     origin: [Number($("#origin-x").value), Number($("#origin-y").value)],
   });
 });
-(function bindCue() {
-  const button = $("#cue-fire"); if (!button) return;
-  button.onclick = () => {
-    const cueId = $("#cue-id").value.trim();
-    const leadMs = Math.min(10000, Math.max(100, Number($("#cue-lead").value) || 500));
-    if (!cueId) return;
-    ws.send("fire_cue", {cue_id: cueId, lead_ms: leadMs});
-    button.disabled = true;
-    setTimeout(() => { button.disabled = false; }, leadMs + 250);
-  };
-})();
 function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;

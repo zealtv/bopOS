@@ -99,7 +99,8 @@ and tie one concrete stitch at a time:
 8. **Complete — Diagnostic density and polish.** The host Git shorthand,
    copyable identity tails, adjacent desired/reported identities, terse copy,
    divided Seat inspector, two-element UI guard, Seat-bound IP, empty-preset
-   cleanup, and UX-reviewed All & Groups / Seats live tabs are tied.
+   cleanup, UX-reviewed All & Groups / Seats live tabs, and manifest-declared
+   synchronized Dashboard cue triggers are tied.
 9. **Next — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.

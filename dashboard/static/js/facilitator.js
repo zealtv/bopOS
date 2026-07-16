@@ -7,6 +7,7 @@ let muted = false;
 let master = 1.0;
 let presetNames = [];
 let liveScopeView = "aggregate";
+let renderedCueSignature = null;
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -22,6 +23,13 @@ function liveSchema() {
   if (!valid) return null;
   const declarations = schema.declarations.map(declaration => ({...declaration, path: declaration.path || []}));
   return {patch: schema.patch, declarations};
+}
+
+function liveCueSchema() {
+  const schema = installation.live_cues;
+  if (!schema || typeof schema.patch !== "string" || !Array.isArray(schema.cues)) return null;
+  const cues = schema.cues.filter(cue => cue && typeof cue.id === "string" && cue.id.length > 0);
+  return {patch: schema.patch, cues};
 }
 
 function seats() {
@@ -139,6 +147,11 @@ ws.on("device_offline", data => { if (installation.devices[data.uid]) { installa
 ws.on("mute_all", data => { muted = !!data.value; renderControls(); });
 ws.on("master", data => { master = Number(data.value); renderControls(); });
 ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
+ws.on("cue_scheduled", data => {
+  const cue = (liveCueSchema()?.cues || []).find(item => item.id === data.cue_id);
+  const status = $("#cue-status");
+  if (status) status.value = `${cue?.label || data.cue_id} scheduled · ${data.lead_ms} ms`;
+});
 
 let interacting = false;
 document.addEventListener("pointerdown", event => { if (event.target.matches('input[type="range"]')) interacting = true; });
@@ -146,7 +159,45 @@ document.addEventListener("pointerup", () => { if (interacting) { interacting = 
 
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
-  renderCards(); renderControls(); renderCommands(); renderPresets();
+  renderCues(); renderCards(); renderControls(); renderCommands(); renderPresets();
+}
+
+function cueButton(cue, index) {
+  const label = cue.label || cue.id;
+  const descriptionId = cue.description ? `cue-description-${index}` : "";
+  const description = cue.description ? `<small id="${descriptionId}" class="cue-description">${esc(cue.description)}</small>` : "";
+  const identity = cue.label && cue.label !== cue.id ? `<small class="cue-id">${esc(cue.id)}</small>` : "";
+  return `<button data-live-cue="${esc(cue.id)}" data-cue-label="${esc(label)}" aria-label="Fire ${esc(label)} cue, ID ${esc(cue.id)}"${descriptionId ? ` aria-describedby="${descriptionId}"` : ""}><span>${esc(label)}</span>${description}${identity}</button>`;
+}
+
+function renderCues() {
+  const cues = liveCueSchema()?.cues || [];
+  const panel = $("#cue-panel");
+  panel.hidden = cues.length === 0;
+  const signature = JSON.stringify(cues);
+  if (!cues.length) {
+    renderedCueSignature = signature;
+    $("#declared-cues").innerHTML = "";
+    $("#cue-status").value = "";
+    return;
+  }
+  if (signature === renderedCueSignature) return;
+  renderedCueSignature = signature;
+  $("#declared-cues").innerHTML = cues.map(cueButton).join("");
+  document.querySelectorAll("[data-live-cue]").forEach(button => button.onclick = () => {
+    const lead = $("#cue-lead");
+    const leadMs = Math.min(10000, Math.max(100, Number(lead.value) || 500));
+    lead.value = leadMs;
+    ws.send("fire_cue", {cue_id: button.dataset.liveCue, lead_ms: leadMs});
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = `<span>Scheduled</span><small class="cue-id">${esc(button.dataset.cueLabel)}</small>`;
+    setTimeout(() => {
+      button.disabled = false;
+      button.innerHTML = original;
+      button.focus({preventScroll: true});
+    }, leadMs + 250);
+  });
 }
 
 function renderCards() {
@@ -155,9 +206,9 @@ function renderCards() {
   const declarations = schema?.declarations || [];
   const allSeats = seats();
   const cards = liveScopeView === "seats"
-    ? allSeats.map(seat => liveCard("seat", seat, [seat], declarations, !!schema))
-    : [liveCard("all", {}, allSeats, declarations, !!schema && allSeats.length > 0),
-       ...groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, !!schema))];
+    ? allSeats.map(seat => liveCard("seat", seat, [seat], declarations, declarations.length > 0))
+    : [liveCard("all", {}, allSeats, declarations, declarations.length > 0 && allSeats.length > 0),
+       ...groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, declarations.length > 0))];
   $("#cards").dataset.liveView = liveScopeView;
   $("#cards").setAttribute("aria-labelledby", liveScopeView === "seats" ? "live-scope-seats" : "live-scope-aggregate");
   $("#cards").innerHTML = cards.join("") || '<p class="empty">No Seats</p>';
