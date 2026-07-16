@@ -11,6 +11,7 @@ import time
 SCHEMA = 1
 FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "shutdown"))
 FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+MAX_GROUP_ID = 0x7fffffff
 
 
 def observed_active_patch(device):
@@ -99,6 +100,7 @@ class InstallationState:
     def __init__(self, path, devices_file=None):
         self.path = path
         self.data = {"schema": SCHEMA, "name": "bopOS", "seats": {},
+                     "groups": {}, "next_group_id": 0,
                      "devices": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
                      "facilitator_commands": [],
@@ -134,8 +136,12 @@ class InstallationState:
             # migrated or partially honoured.
             if (isinstance(loaded, dict) and loaded.get("schema") == SCHEMA
                     and isinstance(loaded.get("seats"), dict)):
-                rebuilt = self.clean_seats(loaded["seats"])
-                if rebuilt is None:
+                groups = self.clean_groups(loaded.get("groups", {}))
+                next_group_id = self.clean_next_group_id(
+                    loaded.get("next_group_id"), groups,
+                    missing="next_group_id" not in loaded)
+                rebuilt = self.clean_seats(loaded["seats"], groups)
+                if groups is None or next_group_id is None or rebuilt is None:
                     self._load_invalid = True
                     return
                 self.data["name"] = loaded.get("name", "bopOS")
@@ -159,6 +165,8 @@ class InstallationState:
                 if listener is not None:
                     self.data["listener"] = listener
                 self.data["seats"] = rebuilt
+                self.data["groups"] = groups
+                self.data["next_group_id"] = next_group_id
             else:
                 self._load_invalid = True
         except FileNotFoundError:
@@ -186,6 +194,7 @@ class InstallationState:
             "patches": None,  # runtime /os/patches listing; None = not queried
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
             "params": {},  # runtime declaration/catch-up mirror; durable values live on seat
+            "group_sync": None,  # runtime full-state membership convergence
         }
 
     def _import_seed(self, path):
@@ -210,7 +219,7 @@ class InstallationState:
                         or any(seat.get("bound") == uid for seat in self.seats.values())):
                     continue
                 self.seats[str(device_id)] = {"id": device_id, "name": name,
-                    "positions": positions, "params": {}, "bound": uid}
+                    "positions": positions, "params": {}, "groups": [], "bound": uid}
 
     def ensure(self, uid):
         if uid not in self.devices:
@@ -230,6 +239,9 @@ class InstallationState:
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
                 "params_patch": self.data.get("params_patch"),
                 "listener": dict(self.data["listener"]),
+                "groups": {str(group["id"]): dict(group)
+                           for group in self.data.get("groups", {}).values()},
+                "next_group_id": self.data.get("next_group_id", 0),
                 "seats": {str(seat["id"]): dict(seat)
                           for seat in self.seats.values()}}
 
@@ -263,13 +275,17 @@ class InstallationState:
         # no per-seat patch: the desired patch is fleet-scoped (fp-0, Bob Q1);
         # a "patch" key in an older state file is dropped silently here
         params = value.get("params", {})
+        groups = self.clean_group_ids(value.get("groups", []))
         bound = value.get("bound")
         if bound is not None:
             if not isinstance(bound, str) or not bound.strip():
                 return None
             bound = bound.strip()
+        if groups is None:
+            return None
         return {"id": seat_id, "name": name, "positions": positions,
                 "params": dict(params) if isinstance(params, dict) else {},
+                "groups": groups,
                 "bound": bound}
 
     @staticmethod
@@ -282,9 +298,73 @@ class InstallationState:
             return int(value.strip())
         return None
 
-    def clean_seats(self, value):
+    @staticmethod
+    def clean_group_id(value):
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if 0 <= value <= MAX_GROUP_ID else None
+        if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value.strip()):
+            parsed = int(value.strip())
+            return parsed if parsed <= MAX_GROUP_ID else None
+        return None
+
+    @classmethod
+    def clean_group_ids(cls, value):
+        if not isinstance(value, (list, tuple)):
+            return None
+        cleaned = []
+        for raw in value:
+            group_id = cls.clean_group_id(raw)
+            if group_id is None or group_id in cleaned:
+                return None
+            cleaned.append(group_id)
+        return sorted(cleaned)
+
+    @classmethod
+    def clean_group(cls, value):
         if not isinstance(value, dict):
             return None
+        group_id = cls.clean_group_id(value.get("id"))
+        if group_id is None:
+            return None
+        name = value.get("name", "")
+        if not isinstance(name, str):
+            return None
+        return {"id": group_id, "name": name.strip()[:48]}
+
+    @classmethod
+    def clean_groups(cls, value):
+        if not isinstance(value, dict):
+            return None
+        rebuilt = {}
+        for key, raw in value.items():
+            group = cls.clean_group(raw)
+            if (group is None or str(group["id"]) != str(key)
+                    or str(group["id"]) in rebuilt):
+                return None
+            rebuilt[str(group["id"])] = group
+        return dict(sorted(rebuilt.items(), key=lambda item: int(item[0])))
+
+    @staticmethod
+    def clean_next_group_id(value, groups, missing=False):
+        if groups is None:
+            return None
+        floor = max((group["id"] for group in groups.values()), default=-1) + 1
+        if missing:
+            return floor
+        if (isinstance(value, bool) or not isinstance(value, int)
+                or value < floor or value > MAX_GROUP_ID + 1):
+            return None
+        return value
+
+    def clean_seats(self, value, groups=None):
+        if not isinstance(value, dict):
+            return None
+        groups = self.data.get("groups", {}) if groups is None else groups
+        if groups is None:
+            return None
+        known_groups = {int(group_id) for group_id in groups}
         rebuilt, bound = {}, set()
         for key, raw in value.items():
             seat = self.clean_seat(raw)
@@ -293,9 +373,112 @@ class InstallationState:
             uid = seat.get("bound")
             if uid and uid in bound:
                 return None
+            if not set(seat["groups"]).issubset(known_groups):
+                return None
             uid and bound.add(uid)
             rebuilt[str(seat["id"])] = seat
         return rebuilt
+
+    def create_group(self, name=""):
+        """Create a never-reused canonical group ID and persist its allocator."""
+        cleaned = self.clean_group({"id": 0, "name": name})
+        if cleaned is None:
+            return None, "Group names must be text."
+        group_id = self.clean_next_group_id(
+            self.data.get("next_group_id"), self.data.get("groups", {}))
+        if group_id is None or group_id > MAX_GROUP_ID:
+            return None, "No group IDs are available."
+        group = {"id": group_id, "name": cleaned["name"]}
+        previous = copy.deepcopy(self.data.get("groups", {}))
+        previous_next = self.data.get("next_group_id", 0)
+        self.data.setdefault("groups", {})[str(group_id)] = group
+        self.data["next_group_id"] = group_id + 1
+        self.data["groups"] = dict(sorted(
+            self.data["groups"].items(), key=lambda item: int(item[0])))
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"] = previous
+            self.data["next_group_id"] = previous_next
+            return None, "Could not save the group; no changes were made."
+        return group, None
+
+    def rename_group(self, group_id, name):
+        group_id = self.clean_group_id(group_id)
+        candidate = self.clean_group({"id": group_id, "name": name})
+        key = str(group_id)
+        if candidate is None:
+            return None, "Group names must be text."
+        if key not in self.data.get("groups", {}):
+            return None, "Group no longer exists."
+        previous = dict(self.data["groups"][key])
+        self.data["groups"][key] = candidate
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"][key] = previous
+            return None, "Could not save the group; no changes were made."
+        return candidate, None
+
+    def delete_group(self, group_id):
+        group_id = self.clean_group_id(group_id)
+        key = str(group_id)
+        if group_id is None or key not in self.data.get("groups", {}):
+            return None, "Group no longer exists."
+        previous_groups = copy.deepcopy(self.data["groups"])
+        previous_memberships = {key: list(seat.get("groups", []))
+                                for key, seat in self.seats.items()}
+        removed = self.data["groups"].pop(key)
+        for seat in self.seats.values():
+            seat["groups"] = [item for item in seat.get("groups", [])
+                              if item != group_id]
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"] = previous_groups
+            for seat_key, membership in previous_memberships.items():
+                self.seats[seat_key]["groups"] = membership
+            return None, "Could not delete the group; no changes were made."
+        return removed, None
+
+    def set_seat_groups(self, seat_id, group_ids):
+        seat_id = self.clean_seat_id(seat_id)
+        seat = self.seats.get(str(seat_id))
+        cleaned = self.clean_group_ids(group_ids)
+        if seat is None:
+            return None, "Seat no longer exists."
+        if (cleaned is None or not set(cleaned).issubset(
+                {group["id"] for group in self.data.get("groups", {}).values()})):
+            return None, "Choose existing groups without duplicates."
+        previous = list(seat.get("groups", []))
+        seat["groups"] = cleaned
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            seat["groups"] = previous
+            return None, "Could not save Seat membership; no changes were made."
+        return seat, None
+
+    def seats_for_group(self, group_id):
+        group_id = self.clean_group_id(group_id)
+        if group_id is None or str(group_id) not in self.data.get("groups", {}):
+            return []
+        return sorted((seat for seat in self.seats.values()
+                       if group_id in seat.get("groups", [])),
+                      key=lambda seat: seat["id"])
+
+    def set_group_param(self, group_id, name, value):
+        members = self.seats_for_group(group_id)
+        for seat in members:
+            seat.setdefault("params", {})[name] = value
+            uid = seat.get("bound")
+            if uid in self.devices:
+                self.devices[uid].setdefault("params", {})[name] = value
+            for device in self.devices.values():
+                if (device.get("virtual")
+                        and str(device.get("seat_id")) == str(seat["id"])):
+                    device.setdefault("params", {})[name] = value
+        return members
 
     def reindex_seat(self, old_id, new_id):
         old_id, new_id = self.clean_seat_id(old_id), self.clean_seat_id(new_id)
@@ -583,8 +766,17 @@ class InstallationState:
         if (not isinstance(loaded, dict) or loaded.get("schema") != SCHEMA
                 or not isinstance(loaded.get("seats"), dict)):
             return None, None
-        rebuilt = self.clean_seats(loaded["seats"])
-        return (loaded, rebuilt) if rebuilt is not None else (None, None)
+        groups = self.clean_groups(loaded.get("groups", {}))
+        next_group_id = self.clean_next_group_id(
+            loaded.get("next_group_id"), groups,
+            missing="next_group_id" not in loaded)
+        rebuilt = self.clean_seats(loaded["seats"], groups)
+        if groups is None or next_group_id is None or rebuilt is None:
+            return None, None
+        loaded = dict(loaded)
+        loaded["groups"] = groups
+        loaded["next_group_id"] = next_group_id
+        return loaded, rebuilt
 
     def load_venue(self, name, prepared=None):
         # replace the current installation with a saved venue; keeps live
@@ -603,7 +795,8 @@ class InstallationState:
             elif uid:
                 rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
-        keys = ("name", "room", "master", "presets", "facilitator_commands",
+        keys = ("name", "room", "master", "presets", "facilitator_commands", "groups",
+                "next_group_id",
                 "fleet_patch", "params_patch", "listener", "seats", "simulation")
         previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
         previous_rebind = copy.deepcopy(self.last_venue_rebind)
@@ -626,6 +819,12 @@ class InstallationState:
             self.data["simulation"].pop("patch", None)
         self.data["listener"] = (self.clean_listener(loaded.get("listener"))
                                  or self.default_listener())
+        self.data["groups"] = loaded.get("groups", {})
+        # Venue structure can roll back, but the wire-identity allocator never
+        # may: nodes offline during a venue load can retain any ID ever issued.
+        self.data["next_group_id"] = max(
+            int(self.data.get("next_group_id", 0)),
+            int(loaded.get("next_group_id", 0)))
         self.data["seats"] = rebuilt
         self.last_venue_rebind = {"rebound": rebound, "waiting": waiting}
         try:

@@ -228,6 +228,7 @@ class Dashboard:
             "send_distribution", "sync_distribution", "drop_distribution",
             "save_preset", "load_preset", "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
+            "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room", "set_points",
             "set_point", "clear_point", "save_venue", "load_venue",
         }
@@ -595,6 +596,36 @@ class Dashboard:
             if self.state.data["simulation"].get("active"):
                 if self.supervisor_mode == "simulate":
                     await self.restart_simulation()
+            await self.broadcast("state", self.state.public())
+        elif kind == "create_group":
+            group, error = self.state.create_group(data.get("name", ""))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            await self.broadcast("state", self.state.public())
+        elif kind == "rename_group":
+            group, error = self.state.rename_group(data.get("id"), data.get("name", ""))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            await self.broadcast("state", self.state.public())
+        elif kind == "delete_group":
+            group_id = self.state.clean_group_id(data.get("id"))
+            affected = [seat for seat in self.state.seats.values()
+                        if group_id in seat.get("groups", [])]
+            _removed, error = self.state.delete_group(group_id)
+            if error:
+                await self.ws_error(ws, error)
+                return
+            for seat in affected:
+                self.sync_seat_groups(seat)
+            await self.broadcast("state", self.state.public())
+        elif kind == "set_seat_groups":
+            seat, error = self.state.set_seat_groups(data.get("id"), data.get("groups"))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            self.sync_seat_groups(seat)
             await self.broadcast("state", self.state.public())
         elif kind == "reindex_seat":
             seat, error = self.state.reindex_seat(data.get("id"), data.get("new_id"))
@@ -1351,6 +1382,15 @@ class Dashboard:
                 if (device.get("virtual")
                         and str(device.get("seat_id")) == str(seat["id"])):
                     self.osc.assign(virtual_uid, seat["id"], seat["name"], seat["positions"])
+
+    def sync_seat_groups(self, seat):
+        uid = seat.get("bound")
+        if uid in self.state.devices and hasattr(self.osc, "send_groups"):
+            self.osc.send_groups(uid)
+        for virtual_uid, device in self.state.devices.items():
+            if (hasattr(self.osc, "send_groups") and device.get("virtual")
+                    and str(device.get("seat_id")) == str(seat["id"])):
+                self.osc.send_groups(virtual_uid)
 
     def replay_current_assignments(self):
         for seat in self.state.seats.values():

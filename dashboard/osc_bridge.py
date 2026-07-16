@@ -48,6 +48,8 @@ FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must stil
 REQUEST_TIMEOUT_SECONDS = 5.0
 UNASSIGN_TIMEOUT_SECONDS = 5.0
 AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
+GROUP_RETRY_SECONDS = (0.5, 1.0, 2.0)
+GROUP_RETRY_EXPIRE_SECONDS = 2.0
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -86,6 +88,7 @@ class OSCBridge:
         self._unassign_replayed = {}  # stale unbound uid -> last repair send
         self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
         self._audition_param_replays = set()
+        self._group_pending = {}  # uid -> latest full-state membership attempt
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -122,6 +125,9 @@ class OSCBridge:
             if not waiter.done():
                 waiter.cancel()
         self._unassign_waiters.clear()
+        for record in self._group_pending.values():
+            record.get("timeout") and record["timeout"].cancel()
+        self._group_pending.clear()
         for replay in self._audition_param_replays:
             replay.cancel()
         self._audition_param_replays.clear()
@@ -205,6 +211,21 @@ class OSCBridge:
 
     def set_param(self, selector, name, value):
         self.send(f"/{selector}/p/{name}", [value])
+
+    def set_group_param(self, group_id, name, value):
+        """Update all durable member mirrors, then emit one group datagram."""
+        group_id = self.state.clean_group_id(group_id)
+        if group_id is None or str(group_id) not in self.state.data.get("groups", {}):
+            return None
+        members = self.state.set_group_param(group_id, name, value)
+        self.state.save_debounced()
+        self.set_param(f"g{group_id}", name, value)
+        member_ids = {seat["id"] for seat in members}
+        for device in self.state.devices.values():
+            seat = self.state.seat_for_uid(device["uid"])
+            if seat is not None and seat["id"] in member_ids:
+                self.broadcast("device_update", device)
+        return members
 
     def send_master(self, selector="all"):
         # provided term (contract sec 4.1): idempotent full-state; the engine
@@ -365,6 +386,134 @@ class OSCBridge:
         for position in elements or ():
             args += [float(position[0]), float(position[1])]
         self.send("/all/os/assign", args)
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        if device is not None and seat is not None and int(seat["id"]) == int(device_id):
+            # Assignment and membership are separate UDP transactions. Never
+            # send them back-to-back: reordering could install the new Seat's
+            # groups while the node still routes under its old Seat. A later
+            # matching-id heartbeat is the convergence gate.
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "awaiting_assignment",
+                                    "desired": list(seat.get("groups", []))}
+
+    @staticmethod
+    def _wire_group_ids(values):
+        if not isinstance(values, (list, tuple)):
+            return None
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in values):
+            return None
+        if any(value < 0 or value > 0x7fffffff for value in values):
+            return None
+        if len(set(values)) != len(values):
+            return None
+        return tuple(sorted(values))
+
+    def send_groups(self, uid, groups=None):
+        """Start a bounded full-state membership convergence attempt."""
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        if (device is None or seat is None or not device.get("online")
+                or self.sender is None):
+            if device is not None:
+                device["group_sync"] = {"status": "offline", "desired":
+                                        list(seat.get("groups", [])) if seat else []}
+            return False
+        if (device.get("group_sync") or {}).get("status") == "awaiting_assignment":
+            # Membership may change while assignment convergence is in flight.
+            # Keep the latest desired state visible, but do not put it on UDP
+            # until a later heartbeat proves the node routes as this Seat.
+            device["group_sync"] = {"status": "awaiting_assignment",
+                                    "desired": list(seat.get("groups", []))}
+            self.broadcast("device_update", device)
+            return False
+        desired = self._wire_group_ids(
+            list(seat.get("groups", [])) if groups is None else list(groups))
+        if desired is None:
+            return False
+        previous = self._group_pending.pop(uid, None)
+        if previous:
+            previous.get("timeout") and previous["timeout"].cancel()
+        record = {"desired": desired, "attempts": 1, "retry_index": 0,
+                  "timeout": None}
+        self._group_pending[uid] = record
+        self.send("/all/os/groups", [str(uid), *desired])
+        device["group_sync"] = {"status": "pending", "desired": list(desired),
+                                "attempts": 1}
+        self.broadcast("device_update", device)
+        self._schedule_group_retry(uid, record)
+        return True
+
+    def _schedule_group_retry(self, uid, record):
+        loop = asyncio.get_running_loop()
+        index = record["retry_index"]
+        delay = (GROUP_RETRY_SECONDS[index]
+                 if index < len(GROUP_RETRY_SECONDS) else GROUP_RETRY_EXPIRE_SECONDS)
+        record["timeout"] = loop.call_later(delay, self._retry_groups, uid, record)
+
+    def _retry_groups(self, uid, record):
+        if self._group_pending.get(uid) is not record:
+            return
+        index = record["retry_index"]
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        current = tuple(seat.get("groups", [])) if seat else None
+        if (device is None or seat is None or not device.get("online")
+                or current != record["desired"]):
+            self._group_pending.pop(uid, None)
+            if device is not None:
+                device["group_sync"] = {"status": "offline" if not device.get("online")
+                                        else "superseded",
+                                        "desired": list(current or ())}
+                self.broadcast("device_update", device)
+            if device is not None and seat is not None and device.get("online"):
+                self.send_groups(uid)
+            return
+        if index >= len(GROUP_RETRY_SECONDS):
+            self._group_pending.pop(uid, None)
+            device["group_sync"] = {"status": "timeout",
+                                    "desired": list(record["desired"]),
+                                    "attempts": record["attempts"]}
+            self.broadcast("device_update", device)
+            return
+        self.send("/all/os/groups", [str(uid), *record["desired"]])
+        record["attempts"] += 1
+        record["retry_index"] += 1
+        device["group_sync"] = {"status": "pending",
+                                "desired": list(record["desired"]),
+                                "attempts": record["attempts"]}
+        self.broadcast("device_update", device)
+        self._schedule_group_retry(uid, record)
+
+    def _finish_groups(self, uid, observed, source):
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        if device is None or seat is None:
+            return
+        desired = tuple(seat.get("groups", []))
+        if not device.get("online"):
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "offline", "desired": list(desired)}
+            self.broadcast("device_update", device)
+            return
+        if observed == desired:
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "current", "desired": list(desired),
+                                    "source": source}
+            self.broadcast("device_update", device)
+        elif device.get("online"):
+            # A stale receipt/report is useful evidence, but it must not reset
+            # an already bounded attempt for the same latest desired state.
+            # Let that attempt's existing retry schedule continue to timeout.
+            record = self._group_pending.get(uid)
+            if record is None or record.get("desired") != desired:
+                self.send_groups(uid)
 
     def _device_for_reply(self, kind, ip, payload=None):
         if kind == "report" and isinstance(payload, dict) and payload.get("uid") in self.state.devices:
@@ -502,6 +651,20 @@ class OSCBridge:
                 # it cannot form a resend loop.
                 self.assign(uid, configured_id, seat["name"], seat["positions"])
                 self._assign_replayed[uid] = now
+            if configured and not reassign and advertised_id == configured_id:
+                desired_groups = tuple(seat.get("groups", []))
+                pending_groups = self._group_pending.get(uid)
+                sync = device.get("group_sync") or {}
+                current = (sync.get("status") == "current"
+                           and tuple(sync.get("desired", ())) == desired_groups)
+                pending = (pending_groups is not None
+                           and pending_groups.get("desired") == desired_groups)
+                if not current and not pending:
+                    if sync.get("status") == "awaiting_assignment":
+                        device["group_sync"] = {
+                            "status": "assignment_confirmed",
+                            "desired": list(desired_groups)}
+                    self.send_groups(uid)
             self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
             new = {key: device.get(key) for key in old}
             if old != new:
@@ -523,6 +686,13 @@ class OSCBridge:
                     self.request(uid, "patches")
                     if first_seen and device.get("virtual"):
                         self.schedule_audition_param_replay(uid)
+            return
+        if address == "/os/groups" and args:
+            uid = str(args[0])
+            observed = self._wire_group_ids(list(args[1:]))
+            if uid not in self.state.devices or observed is None:
+                return
+            self._finish_groups(uid, observed, "receipt")
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)
@@ -588,6 +758,13 @@ class OSCBridge:
                 if isinstance(report.get("hostname"), str):
                     device["hostname"] = report["hostname"]
                 reconcile_patch_switch_observation(device)
+                observed_groups = self._wire_group_ids(report.get("groups"))
+                if observed_groups is None:
+                    seat = self.state.seat_for_uid(device["uid"])
+                    if seat is not None and device.get("online"):
+                        self.send_groups(device["uid"])
+                else:
+                    self._finish_groups(device["uid"], observed_groups, "report")
                 self.broadcast("report", device)
             return
         if address == "/os/patches" and args:

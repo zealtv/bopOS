@@ -23,6 +23,7 @@ import manifest
 import fetcher
 import pointfield
 import relay
+import groups as group_protocol
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 NETWORK_SYS = "/sys/class/net"
@@ -199,6 +200,7 @@ class NodeState:
         self.mixer_control = None
         self.muted_via_stop = False
         self.elements = resolve_elements(self.store)
+        self.groups = group_protocol.stored_group_ids(self.store.get("groups"))
         self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
         self.reports = {}
         self.reports_lock = threading.Lock()
@@ -412,13 +414,8 @@ def heartbeat_loop(state=None):
         hb_wake.clear()
 
 
-def selector_matches(selector, device_id):
-    if selector == "all":
-        return True
-    try:
-        return int(selector) == int(device_id) and str(selector) == str(int(selector))
-    except (TypeError, ValueError):
-        return False
+def selector_matches(selector, device_id, memberships=()):
+    return group_protocol.selector_matches(selector, device_id, memberships)
 
 
 def run_command(argv, wait_for_start=False):
@@ -558,6 +555,17 @@ def apply_assign(args, state=None):
             break
     if len(positions) % 2:
         positions = []
+    if not 0 <= new_id <= group_protocol.INT32_MAX:
+        return False
+    changing_seat = new_id != state.id
+    if changing_seat:
+        # Omission is the safe intermediate state: old groups must be durable
+        # before the new Seat can become routable.
+        if not state.store.put("groups", []):
+            return False
+        state.groups = ()
+    if not state.store.put("assignment", [new_id, name] + positions):
+        return False
     state.id = new_id
     set_hostname(name)
     msg = OSCMessage("/id")
@@ -566,7 +574,6 @@ def apply_assign(args, state=None):
         send_to_engine(msg)
     except Exception:
         pass
-    state.store.put("assignment", [new_id, name] + positions)
     state.elements = [[positions[i], positions[i + 1]]
                       for i in range(0, len(positions) - 1, 2)]
     hb_wake.set()
@@ -582,6 +589,9 @@ def apply_unassign(state=None):
     # revoked seed assignment.
     assignment = state.store.get("assignment") or []
     name = str(assignment[1]) if len(assignment) > 1 else socket.gethostname()
+    if not state.store.put("groups", []):
+        return False
+    state.groups = ()
     if not state.store.put("assignment", [-1, name]):
         return False
     state.id = -1
@@ -594,6 +604,23 @@ def apply_unassign(state=None):
         pass
     hb_wake.set()
     print(f"UNASSIGNED: {state.uid}")
+    return True
+
+
+def apply_groups(args, reply_socket, requester, state=None):
+    """Apply one UID-attributable, validated full membership replacement."""
+    state = state or node_state
+    if not args or not isinstance(args[0], str) or args[0] != state.uid:
+        return False
+    memberships = group_protocol.group_ids(args[1:])
+    if memberships is None or not state.store.put("groups", memberships):
+        return False
+    state.groups = memberships
+    msg = OSCMessage("/os/groups")
+    msg.append(str(state.uid), 's')
+    for group_id in memberships:
+        msg.append(group_id, 'i')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
     return True
 
 
@@ -762,6 +789,7 @@ def report_reply(reply_socket, requester, state=None):
         "git_rev": state.version,
         "update_model": state.update_model,
         "contract_version": "1.5",
+        "groups": list(getattr(state, "groups", ())),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -821,7 +849,8 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     args = decoded[2:]
     # Relay provided terms to every engine on the common selector-stripped
     # localhost surface; the address shaping is shared with the audition rig.
-    if len(parts) >= 3 and selector_matches(parts[0], state.id):
+    memberships = getattr(state, "groups", ())
+    if len(parts) >= 3 and selector_matches(parts[0], state.id, memberships):
         shaped = relay.shape_provided_term(parts, args)
         if shaped is not None:
             return relay_provided_term(*shaped)
@@ -846,7 +875,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             pass
         return True
     if (len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset"
-            and args and selector_matches(parts[0], state.id)):
+            and args and selector_matches(parts[0], state.id, memberships)):
         try:
             sync_state.push(int(str(args[0])))
         except (TypeError, ValueError):
@@ -859,10 +888,17 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             return True
         return dispatch_uid_admin(str(args[1]), list(args[2:]), state,
                                   reply_socket, source[0])
-    if len(parts) != 3 or parts[1] != "os" or not selector_matches(parts[0], state.id):
+    if parts == ["all", "os", "groups"]:
+        return apply_groups(args, reply_socket, source[0], state)
+    if parts == ["all", "os", "assign"]:
+        return apply_assign(args, state)
+    if (len(parts) != 3 or parts[1] != "os"
+            or not selector_matches(parts[0], state.id, memberships)):
         return False
     if parts[2] == "assign":
-        return apply_assign(args, state)
+        # Assignment is an exact literal-all administrative envelope, never a
+        # generalized Seat/group-addressed framework verb.
+        return False
     if parts[2] == "store" and args:
         return state.store.put(str(args[0]), list(args[1:]))
     if parts[2] == "load" and args:

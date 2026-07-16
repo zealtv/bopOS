@@ -43,6 +43,7 @@ sys.path.append(os.path.join(REPO_DIR, "python"))
 import identity  # noqa: E402
 import manifest as patch_manifest  # noqa: E402
 import pointfield  # noqa: E402
+import groups as group_protocol  # noqa: E402
 
 
 def load_manifest(path):
@@ -90,13 +91,8 @@ class ContractProtocol:
         return message.address, list(message.params)
 
     @staticmethod
-    def matches(selector, device_id):
-        if selector == "all":
-            return True
-        try:
-            return int(selector) == int(device_id) and str(selector) == str(int(selector))
-        except (TypeError, ValueError):
-            return False
+    def matches(selector, device_id, memberships=()):
+        return group_protocol.selector_matches(selector, device_id, memberships)
 
     @staticmethod
     def heartbeat(device):
@@ -155,6 +151,7 @@ class Device:
         # assignment (one [x, y] per element) and the held point field
         self.elements = []
         self.points = {}
+        self.groups = ()
 
     def engine_alive(self):
         return int(not self.engine_dead
@@ -189,21 +186,29 @@ class Device:
             positions = assignment.get("positions") or []
             self.elements = [[float(positions[i]), float(positions[i + 1])]
                              for i in range(0, len(positions) - 1, 2)]
+            self.groups = group_protocol.stored_group_ids(assignment.get("groups", []))
         except (OSError, ValueError, KeyError, TypeError):
             pass
 
-    def save_assignment(self, state_dir, positions):
+    def save_assignment(self, state_dir, positions, *, device_id=None, hostname=None,
+                        memberships=None):
         if self.ephemeral or state_dir is None:
-            return
+            return True
+        saved_id = self.device_id if device_id is None else device_id
+        saved_name = self.hostname if hostname is None else hostname
+        saved_groups = self.groups if memberships is None else memberships
         try:
             os.makedirs(state_dir, exist_ok=True)
             tmp = self.state_file(state_dir) + ".tmp"
             with open(tmp, "w") as target:
-                json.dump({"id": self.device_id, "name": self.hostname,
-                           "positions": positions}, target)
+                json.dump({"id": saved_id, "name": saved_name,
+                           "positions": positions,
+                           "groups": list(saved_groups)}, target)
             os.replace(tmp, self.state_file(state_dir))
+            return True
         except OSError as error:
             print(f"simfleet: could not persist assignment: {error}", file=sys.stderr)
+            return False
 
 
 class SimFleet:
@@ -337,6 +342,7 @@ class SimFleet:
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
             "contract_version": "1.5",
+            "groups": list(device.groups),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -353,9 +359,12 @@ class SimFleet:
         elif member == "report":
             self.send_report(device, source)
         elif member == "unassign":
+            if not device.save_assignment(self.args.state_dir, [], device_id=-1,
+                                          memberships=()):
+                return
+            device.groups = ()
             device.device_id = -1
             device.elements = []
-            device.save_assignment(self.args.state_dir, [])
             self.log(device, "unassigned")
             self.heartbeat(device, reschedule=False)
         else:
@@ -535,7 +544,7 @@ class SimFleet:
         for device in self.devices:
             if device.unresponsive or device.state not in ("booting", "running"):
                 continue
-            if not self.protocol.matches(selector, device.device_id):
+            if not self.protocol.matches(selector, device.device_id, device.groups):
                 continue
             device.sync_offset_ns = offset
             self.log(device, f"sync offset={offset}ns")
@@ -646,6 +655,28 @@ class SimFleet:
                     continue
                 self.uid_admin(device, member, member_args, source)
             return
+        if parts == ["all", "os", "groups"]:
+            if not args or not isinstance(args[0], str):
+                return
+            memberships = group_protocol.group_ids(args[1:])
+            if memberships is None:
+                return
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or device.mac != args[0] or random.random() < self.args.drop):
+                    continue
+                positions = [coordinate for element in device.elements for coordinate in element]
+                if not device.save_assignment(self.args.state_dir, positions,
+                                              memberships=memberships):
+                    continue
+                device.groups = memberships
+                builder = osc_message_builder.OscMessageBuilder(address="/os/groups")
+                builder.add_arg(device.mac, arg_type="s")
+                for group_id in memberships:
+                    builder.add_arg(group_id, arg_type="i")
+                self.sock.sendto(builder.build().dgram,
+                                 (source[0], self.args.report_port))
+            return
         if len(parts) < 3 or parts[1] not in ("os", "p"):
             return
         selector, plane = parts[:2]
@@ -657,7 +688,8 @@ class SimFleet:
             # helper starts before the engine) and its radio listening
             if device.unresponsive or device.state not in ("booting", "running"):
                 continue
-            if random.random() < self.args.drop or not self.protocol.matches(selector, device.device_id):
+            if (random.random() < self.args.drop
+                    or not self.protocol.matches(selector, device.device_id, device.groups)):
                 continue
             if plane == "p":
                 # the patch plane goes straight to PD — a dead engine applies nothing
@@ -683,22 +715,37 @@ class SimFleet:
                 except OSError as error:
                     print(f"simfleet: pong failed: {error}", file=sys.stderr)
             elif member == "assign" and len(args) >= 3:
+                if selector != "all":
+                    continue
                 if str(args[0]) != device.mac:
                     continue
                 try:
-                    device.device_id = int(float(args[1]))
+                    new_id = int(args[1])
                 except (TypeError, ValueError):
                     continue
-                device.hostname = str(args[2])
+                if (isinstance(args[1], bool) or not isinstance(args[1], (int, float))
+                        or float(args[1]) != new_id
+                        or not 0 <= new_id <= group_protocol.INT32_MAX):
+                    continue
+                hostname = str(args[2])
                 # true-N element positions: one x y pair per element, pair
                 # order = element index (contract sec 5)
-                positions = [float(value) for value in args[3:]
-                             if isinstance(value, (int, float))]
-                if len(positions) % 2:
-                    positions = []
+                if (len(args[3:]) % 2
+                        or any(isinstance(value, bool)
+                               or not isinstance(value, (int, float))
+                               for value in args[3:])):
+                    continue
+                positions = [float(value) for value in args[3:]]
+                memberships = device.groups if new_id == device.device_id else ()
+                if not device.save_assignment(self.args.state_dir, positions,
+                                              device_id=new_id, hostname=hostname,
+                                              memberships=memberships):
+                    continue
+                device.groups = memberships
+                device.device_id = new_id
+                device.hostname = hostname
                 device.elements = [[positions[i], positions[i + 1]]
                                    for i in range(0, len(positions) - 1, 2)]
-                device.save_assignment(self.args.state_dir, positions)
                 # Preview relay tests need the ordered element state but the
                 # protocol simulator must not pretend to render audio.
                 preview_positions = json.dumps(device.elements, separators=(",", ":"))

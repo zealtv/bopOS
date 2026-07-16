@@ -32,6 +32,10 @@ Amended 2026-07-16 by the nested parameter-address ratification (record in
 `path`, and the complete variable-length parameter hierarchy survives selector
 removal unchanged. This additive change is folded into v1.5; flat declarations
 and wire addresses are unchanged.
+Amended 2026-07-16 by the Seat-group ratification (record in
+`.loom/tied/seat-groups-0-design/`): canonical `g<id>` selectors route from
+node-local persisted Seat membership, synchronized by an attributable additive
+full-state envelope. This additive change is also folded into v1.5.
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -96,13 +100,29 @@ One rule for every LAN message (the open patch plane may continue after
 ```
 /<selector>/<plane>/<member>[/<segment>...]  args…  controller → fleet
 /<plane>/<member>[/<segment>...]             args…  node → controller
-                                                    selector: all | <id>
+                                                    selector: all | <id> | g<group-id>
 ```
 
-`bopos.py` routes on the selector (`all` = everyone; id −1 = unassigned) and
+`bopos.py` routes ordinary selector-addressed messages (`all` = everyone;
+id −1 = unassigned;
+`g<group-id>` = every assigned node whose persisted Seat membership contains
+that group) and
 strips it before anything reaches an engine — engines never see selectors or
 identity routing (v1.2; the old in-patch `route-by-id` is retired). Replies
 carry the request's address, so a stray packet in a log is self-describing.
+
+Group selectors are lowercase `g` followed by one canonical non-negative
+signed-int32 decimal ID: `g0`, `g1`, and `g2147483647` are valid; `g`, `G1`,
+`g01`, `g-1`, `g+1`, and `g2147483648` are invalid. A group selector is legal
+wherever a concrete numeric Seat selector is legal. A node assigned ID `-1`
+never matches a group. Groups contain Seats, may overlap or be empty, and are
+not nested in v1.5.
+
+Assignment is not an ordinary selector-addressed verb: its address is exactly
+literal `/all/os/assign`. Numeric and group-selected assignment spellings are
+invalid even when the receiving node currently matches that selector. The
+literal-all assignment, UID-administration, and membership envelopes are
+handled before generalized selector routing.
 
 One v1.5 administrative envelope is the deliberate exception to numeric
 selection:
@@ -117,6 +137,21 @@ allowlist—`identify`, `report`, `reboot`, `shutdown`, `restart-engine`,
 `updatebopos`, `unassign`—with no recursive address construction. Provided
 terms, patch parameters, probes, persistence storage, content distribution and
 patch switching remain selector-addressed and cannot pass through this envelope.
+
+The membership synchronization envelope is a second literal-`all`, exact-UID
+exception:
+
+```
+/all/os/groups <uid:string> <group-id:int32>...
+/os/groups     <uid:string> <group-id:int32>...
+```
+
+The command tail is the node's complete membership replacement; an empty tail
+clears it. Every node validates the entire UID-attributable message before
+changing state. IDs must be unique non-negative int32 values. The exact target
+sorts the set, persists it first, installs it, then replies with the same UID
+and sorted complete set. A UID mismatch, invalid or duplicate ID, or persistence
+failure changes nothing and emits no success receipt.
 
 ### Planes
 
@@ -214,9 +249,11 @@ the topology is identical, only the port number moves.
 **Transport discipline:**
 
 - **Broadcast** only for low-rate, idempotent, genuinely one-to-many messages:
-  `/hb`, `/os/assign`, `/all/*` admin, `/cue`, `/pt`, `/os/mute`, `/os/master`.
+  `/hb`, `/os/assign`, `/all/*` admin and membership, `/cue`, `/pt`, `/os/mute`,
+  `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
-  `/os/report`, `/os/params`, `/os/patches`, `/os/rev`, `/os/fetched`. (WiFi
+  `/os/report`, `/os/groups`, `/os/params`, `/os/patches`, `/os/rev`,
+  `/os/fetched`. (WiFi
   broadcast has no MAC-layer ACK and rides the lowest basic rate — it is scarce
   and lossy; replies don't wake 100 CPUs.)
 - **Control-plane law: every fleet command is full-state and idempotent.** No
@@ -253,6 +290,10 @@ both first-class) are the reference consumers.
   selector and preserves every parameter segment and argument.
   This is transport/selector plumbing only: bopos.py never interprets or
   composes the patch value.
+- Group matching removes exactly the same one fleet-selector segment as `all`
+  and numeric Seat matching. Thus `/g1/p/gain` reaches an engine as `/p/gain`,
+  and `/g1/p/track1/fx/distortion` reaches it as
+  `/p/track1/fx/distortion`; group identity never reaches the engine.
 - `/cue` (§3.1) is a provided term avant la lettre: bopos.py owns the clock
   math, the engine receives the bare relative fire.
 
@@ -330,8 +371,16 @@ deferred and unratified.
   the exact target replaces its persisted assignment with an explicit `-1`
   tombstone (so a CSV seed cannot resurrect it), sets framework and engine ID
   to `-1`, retains hostname, clears element positions and emits an immediate
-  uid-bearing heartbeat. A controller uses that heartbeat as the revocation
+  uid-bearing heartbeat. It clears persisted group membership in the same
+  fail-closed transition. A controller uses that heartbeat as the revocation
   confirmation before removing or replacing a live binding.
+- **Seat-group membership** is a sorted unique list of group IDs persisted on
+  each node under its assigned Seat. Repeating an assignment to the same Seat
+  preserves it. Direct assignment to a different Seat durably clears it before
+  the new ID becomes routable; synchronization then supplies the new Seat's
+  full set. A failed membership write retains the old in-memory and persisted
+  set and has no receipt. Dashboard-side membership belongs to Seats, so it
+  survives bind, unbind, and physical-device replacement.
 - **Persistence is required on persistent hosts.** The node stores its assignment
   via the framework persistence store, so a fleet configured over the network runs
   **standalone** after the network is taken down — dashboard-less, network-less
@@ -381,8 +430,9 @@ move to the uniform envelope.
   alarm**; there is no streamed telemetry.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
-  update_model, contract-version. This is the capability story: **pull, not
-  broadcast.**
+  update_model, contract-version, and the sorted `groups` array. This is the
+  capability story: **pull, not broadcast.** The groups fact is reconciliation
+  evidence; `/os/groups` is the immediate write receipt.
 - **`/os/mute` is safety-critical.** It is the one framework-owned output control:
   a transport-level kill enforced below patch logic (amixer on Pi; degrades to
   engine-stop where no mixer exists). Broadcast, idempotent, spam-safe — repeated

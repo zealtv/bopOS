@@ -27,6 +27,7 @@ import audition_matrix  # noqa: E402
 import pointfield  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
+import groups as group_protocol  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
@@ -49,13 +50,8 @@ def osc_float_datagram(address, values):
     return builder.build().dgram
 
 
-def matches(selector, device_id):
-    if selector == "all":
-        return True
-    try:
-        return int(selector) == device_id and selector == str(device_id)
-    except ValueError:
-        return False
+def matches(selector, device_id, memberships=()):
+    return group_protocol.selector_matches(selector, device_id, memberships)
 
 
 @dataclass
@@ -67,6 +63,7 @@ class VirtualNode:
     name: str = ""
     positions: tuple = ()
     points: dict = field(default_factory=dict)
+    groups: tuple = ()
     process: subprocess.Popen | None = None
 
     def engine_alive(self, no_engine):
@@ -222,6 +219,7 @@ class AuditionRig:
             "git_rev": VERSION,
             "update_model": "ephemeral",
             "contract_version": "1.5",
+            "groups": list(getattr(node, "groups", ())),
         }
         self.sock.sendto(osc_datagram("/os/report", json.dumps(report)),
                          (source[0], self.args.report_port))
@@ -240,6 +238,7 @@ class AuditionRig:
         elif member == "report":
             self.send_report(node, source)
         elif member == "unassign":
+            node.groups = ()
             node.device_id = -1
             node.positions = ()
             self.send_id(node)
@@ -415,11 +414,14 @@ class AuditionRig:
             return
         uid, device_id, name, positions = assignment
         for node in self.nodes:
-            if not matches(selector, node.device_id) or uid != node.uid:
+            if (not matches(selector, node.device_id, getattr(node, "groups", ()))
+                    or uid != node.uid):
                 continue
             if (node.device_id == device_id and node.name == name
                     and node.positions == positions):
                 continue
+            if node.device_id != device_id:
+                node.groups = ()
             node.device_id = device_id
             node.name = name
             node.positions = positions
@@ -468,6 +470,20 @@ class AuditionRig:
                 if node.uid == uid:
                     self.uid_admin(node, member, tuple(message.params[2:]), source)
             return
+        if parts == ["all", "os", "groups"]:
+            if not message.params or not isinstance(message.params[0], str):
+                return
+            memberships = group_protocol.group_ids(message.params[1:])
+            if memberships is None:
+                return
+            reply_host = source[0] if source is not None else self.args.target
+            for node in self.nodes:
+                if node.uid != message.params[0]:
+                    continue
+                node.groups = memberships
+                self.sock.sendto(osc_datagram("/os/groups", node.uid, *memberships),
+                                 (reply_host, self.args.report_port))
+            return
         if len(parts) < 3:
             return
         selector = parts[0]
@@ -479,13 +495,14 @@ class AuditionRig:
                 builder.add_arg(value)
             forwarded = builder.build().dgram
             for node in self.nodes:
-                if matches(selector, node.device_id):
+                if matches(selector, node.device_id, getattr(node, "groups", ())):
                     self.sock.sendto(forwarded, (self.local_target, node.engine_port))
             return
         if len(parts) != 3:
             return
         if parts[1:] == ["os", "assign"]:
-            self.apply_assignment(selector, message.params)
+            if selector == "all":
+                self.apply_assignment(selector, message.params)
             return
         if parts[1:] == ["os", "params"]:
             patch_dir, _loaded = self._load_patch()
@@ -495,7 +512,7 @@ class AuditionRig:
             packet = osc_datagram("/os/params", manifest_text)
             reply_host = source[0] if source is not None else self.args.target
             for node in self.nodes:
-                if matches(selector, node.device_id):
+                if matches(selector, node.device_id, getattr(node, "groups", ())):
                     self.sock.sendto(packet, (reply_host, self.args.report_port))
             return
         if parts[1:] == ["os", "patches"]:
@@ -503,14 +520,15 @@ class AuditionRig:
                 self.patch_listing(), separators=(",", ":")))
             reply_host = source[0] if source is not None else self.args.target
             for node in self.nodes:
-                if matches(selector, node.device_id):
+                if matches(selector, node.device_id, getattr(node, "groups", ())):
                     self.sock.sendto(packet, (reply_host, self.args.report_port))
             return
         if parts[1:] == ["os", "identify"]:
             uid = str(message.params[0]) if message.params else None
             packet = osc_datagram("/notify", "identify")
             for node in self.nodes:
-                if matches(selector, node.device_id) and uid in (None, node.uid):
+                if (matches(selector, node.device_id, getattr(node, "groups", ()))
+                        and uid in (None, node.uid)):
                     self.sock.sendto(packet, (self.local_target, node.engine_port))
             return
 
