@@ -7,6 +7,11 @@ import os
 import re
 import time
 
+try:
+    from . import device_aliases
+except ImportError:
+    import device_aliases
+
 
 SCHEMA = 1
 FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "shutdown"))
@@ -101,7 +106,7 @@ class InstallationState:
         self.path = path
         self.data = {"schema": SCHEMA, "name": "bopOS", "seats": {},
                      "groups": {}, "next_group_id": 0,
-                     "devices": {}, "muted": False,
+                     "devices": {}, "device_registry": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
                      "facilitator_commands": [],
                      "fleet_patch": None,
@@ -115,9 +120,18 @@ class InstallationState:
         self._load()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
+        changed = False
         if (not self._load_invalid and not self.data["seats"] and devices_file
                 and os.path.exists(devices_file)):
             self._import_seed(devices_file)
+            changed = True
+        if not self._load_invalid:
+            for seat in self.seats.values():
+                uid = seat.get("bound")
+                if uid:
+                    _entry, created = self.ensure_device_alias(uid)
+                    changed = changed or created
+        if changed:
             self.save()
 
     @property
@@ -127,6 +141,10 @@ class InstallationState:
     @property
     def seats(self):
         return self.data["seats"]
+
+    @property
+    def device_registry(self):
+        return self.data["device_registry"]
 
     def _load(self):
         try:
@@ -141,7 +159,9 @@ class InstallationState:
                     loaded.get("next_group_id"), groups,
                     missing="next_group_id" not in loaded)
                 rebuilt = self.clean_seats(loaded["seats"], groups)
-                if groups is None or next_group_id is None or rebuilt is None:
+                registry = device_aliases.clean_registry(loaded.get("device_registry"))
+                if (groups is None or next_group_id is None or rebuilt is None
+                        or registry is None):
                     self._load_invalid = True
                     return
                 self.data["name"] = loaded.get("name", "bopOS")
@@ -167,6 +187,7 @@ class InstallationState:
                 self.data["seats"] = rebuilt
                 self.data["groups"] = groups
                 self.data["next_group_id"] = next_group_id
+                self.data["device_registry"] = registry
             else:
                 self._load_invalid = True
         except FileNotFoundError:
@@ -235,6 +256,60 @@ class InstallationState:
             self.devices[uid] = self._runtime_device(uid)
         return self.devices[uid]
 
+    @staticmethod
+    def virtual_alias_uid(uid):
+        return isinstance(uid, str) and re.fullmatch(r"audition-\d{4}", uid) is not None
+
+    def ensure_device_alias(self, uid):
+        """Return one registry entry and whether this call allocated it."""
+        if (not isinstance(uid, str) or not uid or self.virtual_alias_uid(uid)):
+            return None, False
+        entry = self.device_registry.get(uid)
+        if entry is not None:
+            return entry, False
+        entry = device_aliases.allocate(uid, self.device_registry)
+        self.device_registry[uid] = entry
+        return entry, True
+
+    def alias_for(self, uid):
+        entry = self.device_registry.get(uid)
+        return entry.get("alias") if isinstance(entry, dict) else None
+
+    def set_device_alias(self, uid, value):
+        if uid not in self.device_registry:
+            return None, "Unknown physical device."
+        entry, error = device_aliases.set_custom(self.device_registry, uid, value)
+        if error:
+            return None, error
+        previous = self.device_registry[uid]
+        self.device_registry[uid] = entry
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.device_registry[uid] = previous
+            return None, "Could not save the device alias."
+        return entry, None
+
+    def reset_device_alias(self, uid):
+        if uid not in self.device_registry:
+            return None, "Unknown physical device."
+        previous = self.device_registry[uid]
+        try:
+            entry = device_aliases.allocate(uid, self.device_registry)
+        except ValueError as error:
+            return None, str(error)
+        self.device_registry[uid] = entry
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.device_registry[uid] = previous
+            return None, "Could not save the generated device alias."
+        return entry, None
+
+    def remove_device_alias(self, uid):
+        """Remove and return an entry in memory; callers own transaction save."""
+        return self.device_registry.pop(uid, None)
+
     def public(self):
         return self.data
 
@@ -251,6 +326,8 @@ class InstallationState:
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
                 "next_group_id": self.data.get("next_group_id", 0),
+                "device_registry": {uid: dict(entry)
+                                    for uid, entry in self.device_registry.items()},
                 "seats": {str(seat["id"]): dict(seat)
                           for seat in self.seats.values()}}
 
@@ -760,6 +837,8 @@ class InstallationState:
         temporary = path + ".tmp"
         snapshot = self.durable()
         snapshot["name"] = name
+        # Physical-box identity belongs to this dashboard host, never a venue.
+        snapshot.pop("device_registry", None)
         with open(temporary, "w", encoding="utf-8") as target:
             json.dump(snapshot, target, indent=2, sort_keys=True)
             target.write("\n")

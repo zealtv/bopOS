@@ -738,32 +738,58 @@ class Dashboard:
                     return
                 self.mark_offline_revoking(previous)
                 await self.broadcast("state", self.state.public())
+        elif kind == "set_device_alias":
+            alias, error = self.state.set_device_alias(
+                str(data.get("uid", "")), data.get("alias"))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            await self.broadcast("state", self.state.public())
+        elif kind == "reset_device_alias":
+            alias, error = self.state.reset_device_alias(str(data.get("uid", "")))
+            if error:
+                await self.ws_error(ws, error)
+                return
+            await self.broadcast("state", self.state.public())
         elif kind == "forget_device":
             forget_uid = str(data.get("uid", ""))
             device = self.state.devices.get(forget_uid)
             seat = next((item for item in self.state.seats.values()
                          if item.get("bound") == forget_uid), None)
-            if seat is not None and not await self.revoke_online(
-                    forget_uid, ws, "forget this bound device"):
-                return
             if seat is not None:
-                seat["bound"] = None
-            if self.state.devices.pop(forget_uid, None) is not None:
+                await self.ws_error(
+                    ws, f"Unassign {self.state.alias_for(forget_uid) or forget_uid} before forgetting it.")
+                return
+            registry_entry = self.state.remove_device_alias(forget_uid)
+            removed_device = self.state.devices.pop(forget_uid, None)
+            if removed_device is not None or registry_entry is not None:
                 try:
                     self.state.save()
                 except (OSError, TypeError, ValueError):
-                    self.state.devices[forget_uid] = device
-                    if seat is not None:
-                        seat["bound"] = forget_uid
-                    self.replay_current_assignments()
+                    if removed_device is not None:
+                        self.state.devices[forget_uid] = device
+                    if registry_entry is not None:
+                        self.state.device_registry[forget_uid] = registry_entry
                     await self.ws_error(ws, "Could not forget the device; no changes were made.")
                     return
                 await self.broadcast("state", self.state.public())
         elif kind == "forget_offline_unbound":
             bound = {seat.get("bound") for seat in self.state.seats.values()}
+            removed = {}
             for device_uid in list(self.state.devices):
                 if device_uid not in bound and not self.state.devices[device_uid].get("online"):
-                    del self.state.devices[device_uid]
+                    removed[device_uid] = (self.state.devices.pop(device_uid),
+                                           self.state.remove_device_alias(device_uid))
+            if removed:
+                try:
+                    self.state.save()
+                except (OSError, TypeError, ValueError):
+                    for device_uid, (device, registry_entry) in removed.items():
+                        self.state.devices[device_uid] = device
+                        if registry_entry is not None:
+                            self.state.device_registry[device_uid] = registry_entry
+                    await self.ws_error(ws, "Could not forget offline devices; no changes were made.")
+                    return
             await self.broadcast("state", self.state.public())
         elif kind == "set_listener":
             listener = self.state.clean_listener(data)
@@ -953,6 +979,10 @@ class Dashboard:
     async def public_device(self, device, desired=None):
         desired = desired if desired is not None else await self.live_fleet_patch()
         public = dict(device)
+        # Alias is a projection of the durable host registry, never a runtime
+        # device fact or node-provided identity.
+        public["alias"] = (None if device.get("virtual")
+                           else self.state.alias_for(device.get("uid")))
         public["patch_badge"] = patch_badge(device, desired)
         return public
 

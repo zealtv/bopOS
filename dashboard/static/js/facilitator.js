@@ -10,6 +10,7 @@ const requested = new Set();
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const Identity = window.DeviceIdentity;
 
 // contract sec 8: every facilitator:true param gets a labelled control on
 // the device card; no role concept, no anointed volume, no gain fallback
@@ -65,11 +66,11 @@ function seatForDevice(d) {
 
 function cardIdentity(d) {
   const seat = seatForDevice(d);
-  if (!seat) return {primary: d.hostname || d.uid, secondary: d.uid};
+  if (!seat) return {primary: Identity.primary(d,installation), secondary: Identity.technical(d)};
   const name = seat.name || `Seat ${seat.id}`;
-  const tail = d.uid.length > 8 ? `…${d.uid.slice(-8)}` : d.uid;
   return {primary: `${name} · ID ${seat.id}`,
-          secondary: [d.hostname, tail].filter(Boolean).join(" · ")};
+          secondary: [Identity.primary(d,installation), Identity.technical(d)]
+            .filter((value,index,values)=>value&&values.indexOf(value)===index).join(" · ")};
 }
 
 function card(d) {

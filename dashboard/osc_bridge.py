@@ -653,6 +653,14 @@ class OSCBridge:
                 device["virtual"] = True
                 device["editor"] = True
                 device["seat_id"] = None
+            if not device.get("virtual"):
+                try:
+                    _alias, alias_created = self.state.ensure_device_alias(uid)
+                except ValueError as error:
+                    log.error("could not allocate device alias for %s: %s", uid, error)
+                else:
+                    if alias_created:
+                        self.state.save_debounced()
             old = {key: device.get(key) for key in (
                 "id", "ip", "version", "engine_alive", "rssi", "online",
                 "revoking_assignment")}

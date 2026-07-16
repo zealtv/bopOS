@@ -6,6 +6,7 @@
 #cue-panel{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:7px;background:#14191d}#cue-panel label{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:13px}#cue-panel input{background:#12171c;border:1px solid var(--line);color:var(--text);border-radius:4px;padding:6px}#cue-id{width:150px}#cue-lead{width:82px}#cue-status{font-size:13px}button:disabled{opacity:.5;cursor:not-allowed}
 
 .assign{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.assign label{display:grid;gap:4px;color:var(--dim);font-size:13px}.assign input{background:#12171c;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px;width:150px}.assign input[type=number]{width:80px}
+.device-alias-editor{margin:12px 0 6px}.device-alias-editor input{width:min(240px,70vw)}
 
 #venue-bar,#preset-bar{margin-top:8px;display:grid;gap:6px}#venue-bar select,#preset-bar select{background:#12171c;border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px}#venue-bar button,#preset-bar button{width:100%}.view-link{color:var(--text);border:1px solid #45515b;background:#273039;border-radius:6px;padding:9px 13px;text-decoration:none;white-space:nowrap}
 .device-row{gap:8px}.heartbeat-blip{width:4px;height:14px;border-radius:2px;background:var(--green);opacity:.12;flex:none}.heartbeat-blip.pulse{animation:heartbeat-pulse .55s ease-out}@keyframes heartbeat-pulse{0%{opacity:1;box-shadow:0 0 8px var(--green)}100%{opacity:.12;box-shadow:none}}

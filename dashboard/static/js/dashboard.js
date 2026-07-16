@@ -28,6 +28,7 @@ let manifestFeedback = "";
 let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const Identity = window.DeviceIdentity;
 const GROUP_SLOTS = [
   {colour:"#56B4E9", pattern:"solid"},
   {colour:"#E69F00", pattern:"dash"},
@@ -751,7 +752,8 @@ function row(d, seat) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
   const heartbeatAt = heartbeats.get(d.uid);
   const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
-  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(d.hostname || d.uid)}</strong><small>${esc(d.uid)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small><small class="device-binding-badge">${esc(assignment)}</small></span>${patchBadge(d.patch_badge)}</button>`;
+  const technical=Identity.technical(d);
+  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong><small>${esc(technical)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small><small class="device-binding-badge">${esc(assignment)}</small></span>${patchBadge(d.patch_badge)}</button>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -834,7 +836,7 @@ function bindPatchDiagnostics(d) {
   const retry=$("#fleet-patch-retry");
   if(retry) retry.onclick=()=>ws.send("retry_fleet_patch",{uid:d.uid});
   const pull=$("#patch-pull");
-  if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${d.name||d.uid}? It reboots.`))ws.send("pull_patch",{uid:d.uid});};
+  if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${Identity.primary(d,installation)}? It reboots.`))ws.send("pull_patch",{uid:d.uid});};
 }
 
 function renderSeatDetail() {
@@ -852,9 +854,9 @@ function renderSeatDetail() {
   const bindingChoice=seatBindingDrafts.get(seat.id)??seat.bound??"";
   const currentKnown=devices.find(device=>device.uid===seat.bound);
   const options=[];
-  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(seat.bound)} · remembered offline</option>`);
-  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(currentKnown.hostname||currentKnown.uid)} · clearing old assignment</option>`);
-  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(device.hostname||device.uid)} · ${device.online?'online':'offline'}</option>`));
+  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(Identity.primary(seat.bound,installation))} · ${esc(Identity.uidTail(seat.bound))} · remembered offline</option>`);
+  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(Identity.full(currentKnown,installation))} · clearing old assignment</option>`);
+  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(Identity.full(device,installation))} · ${device.online?'online':'offline'}</option>`));
   if (!seat.bound) options.unshift(`<option value="" ${bindingChoice?'':'selected'}>Choose a device</option>`);
   const room=installation.room||{}, origin=room.origin||[0,0];
   const positions=(seat.positions||[]).map((position,index)=>`<div class="position-row" data-seat-element="${index}"><strong>element ${index}</strong><label>x <input data-axis="x" type="number" step="0.01" value="${Math.round((position[0]-origin[0])*100)/100}"></label><label>y <input data-axis="y" type="number" step="0.01" value="${Math.round((position[1]-origin[1])*100)/100}"></label><button data-remove-element="${index}" class="danger">Remove</button></div>`).join('');
@@ -867,7 +869,7 @@ function renderSeatDetail() {
     <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
     <h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add">Add element</button>
     <h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small>
-    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(seat.bound)} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
+    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.full(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
     <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div>`;
   const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());};
   panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
@@ -898,12 +900,13 @@ function renderDeviceDetail() {
   const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
   const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
   const health=!d.online?'offline':Number(d.engine_alive)===0?'engine stopped':'healthy';
+  const displayAlias=Identity.primary(d,installation);
   const binding=d.revoking_assignment
     ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><h2>${esc(d.hostname||d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace. Mix parameters live there too.</p></section>
+  $("#detail").innerHTML=`<section><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}" aria-describedby="device-alias-help"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button></div><small id="device-alias-help" class="dim">Two short words using letters A–Z. This names the physical box, never its Seat or hostname.</small><dl><dt>Hostname</dt><dd>${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace. Mix parameters live there too.</p></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
@@ -913,11 +916,14 @@ function renderDeviceDetail() {
 }
 
 function bindDeviceDetailControls(d) {
-  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(!confirm(`${actionLabel(verb)} ${d.hostname||d.uid}?`))return;ws.send("action",{uid:d.uid,verb});});
+  const alias=Identity.primary(d,installation), registryEntry=installation.device_registry?.[d.uid]||{};
+  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(!confirm(`${actionLabel(verb)} ${alias}?`))return;ws.send("action",{uid:d.uid,verb});});
   document.querySelectorAll("#detail [data-identify]").forEach(button=>button.onclick=()=>ws.send("identify",{uid:d.uid}));
   const openSeat=$("#device-open-seat");if(openSeat)openSeat.onclick=()=>{const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);if(seat){selectSeat(Number(seat.id));activateTab("seats");}};
   const bind=$("#device-bind");if(bind)bind.onclick=()=>{const id=Number($("#device-seat").value);if(Number.isInteger(id))ws.send("bind_seat",{id,uid:d.uid,confirmed:false});};
-  const forget=$("#device-forget");if(forget)forget.onclick=()=>{if(confirm(`Forget ${d.hostname||d.uid}?`))ws.send("forget_device",{uid:d.uid});};
+  const aliasSave=$("#device-alias-save");if(aliasSave)aliasSave.onclick=()=>{const value=$("#device-alias").value;if($("#device-alias").reportValidity())ws.send("set_device_alias",{uid:d.uid,alias:value});};
+  const aliasReset=$("#device-alias-reset");if(aliasReset)aliasReset.onclick=()=>{if(registryEntry.source!=="custom"||confirm(`Reset custom alias ${alias} to its generated name?`))ws.send("reset_device_alias",{uid:d.uid});};
+  const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
 }
@@ -939,7 +945,7 @@ function assetTargets() {
     if(!device.online) reasons.push("offline");
     if(!device.virtual&&!assigned.has(device.uid)) reasons.push("unassigned");
     return {device,reasons,eligible:reasons.length===0};
-  }).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||String(a.device.hostname||a.device.uid).localeCompare(String(b.device.hostname||b.device.uid)));
+  }).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||Identity.primary(a.device,installation).localeCompare(Identity.primary(b.device,installation)));
 }
 function selectedAssetDevice(targets=assetTargets()) {
   const eligible=targets.filter(target=>target.eligible);
@@ -978,11 +984,11 @@ function assetCatalogRow(device,item) {
   else if(observed.label==="unknown") { action="send-update"; actionLabel="Send / update"; }
   const unavailable=!device||pending;
   const reason=!device?"Choose an online, assigned physical device":pending?"Transfer already in progress":"";
-  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?.hostname||device?.uid||'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'<span class="asset-no-action">No action needed</span>'}</div></article>`;
+  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?Identity.primary(device,installation):'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'<span class="asset-no-action">No action needed</span>'}</div></article>`;
 }
 function assetExtraRow(device,item) {
   const state=assetLiveState(device,item.name,"extra"), pending=state==="queued"||state==="fetching";
-  return `<article class="asset-row asset-extra" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action"><button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${device.hostname||device.uid}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button></div></article>`;
+  return `<article class="asset-row asset-extra" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action"><button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${Identity.primary(device,installation)}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button></div></article>`;
 }
 function assetIsActive(device,slot) {
   return Array.isArray(device?.active_asset_slots)&&device.active_asset_slots.includes(slot);
@@ -991,7 +997,7 @@ function confirmAssetAction(device,slot,action) {
   const active=assetIsActive(device,slot);
   if(action==="remove") {
     if(active) return confirm(`Asset slot "${slot}" is declared by the active patch. Removing it can immediately break the running patch. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. Remove anyway?`);
-    return confirm(`Remove asset slot "${slot}" from ${device.hostname||device.uid}?`);
+    return confirm(`Remove asset slot "${slot}" from ${Identity.primary(device,installation)}?`);
   }
   if(active&&action!=="send") return confirm(`Asset slot "${slot}" is declared by the active patch. Updating it in place can expose the running engine to a partial update or broken files. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. ${action==="update"?'Update':'Send / update'} anyway?`);
   return true;
@@ -1005,8 +1011,8 @@ function resolveAssetFeedback(device) {
   const resolved=pending.action==="remove" ? !installed : installed?.fingerprint===pending.fingerprint;
   if(!resolved) return;
   assetFeedback=pending.action==="remove"
-    ? `Removed ${pending.slot} from ${device.hostname||device.uid}; confirmed by observed inventory.`
-    : `${pending.slot} is current on ${device.hostname||device.uid}; confirmed by observed inventory.`;
+    ? `Removed ${pending.slot} from ${Identity.primary(device,installation)}; confirmed by observed inventory.`
+    : `${pending.slot} is current on ${Identity.primary(device,installation)}; confirmed by observed inventory.`;
   assetFeedbackPending=null;
 }
 function renderAssets() {
@@ -1015,13 +1021,13 @@ function renderAssets() {
   const active=document.activeElement, focused=active===select, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
   const targets=assetTargets(), device=selectedAssetDevice(targets);
   resolveAssetFeedback(device);
-  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(target.device.hostname||target.device.uid)}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
+  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(Identity.full(target.device,installation))}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
   select.disabled=!targets.some(target=>target.eligible);
   select.onchange=()=>{assetTarget=select.value;assetFeedback="";renderAssets();};
   if(focused) select.focus();
   const ineligible=targets.filter(target=>!target.eligible);
-  $("#asset-target-reasons").innerHTML=ineligible.length?ineligible.map(target=>`<span><strong>${esc(target.device.hostname||target.device.uid)}</strong> · ${esc(target.reasons.join(' · '))}</span>`).join(''):targets.length?'<span class="dim">Every discovered device is eligible.</span>':'<span class="dim">No devices discovered.</span>';
-  $("#asset-catalog-summary").textContent=`${distribution.assets.length} host slot${distribution.assets.length===1?'':'s'}${device?` · compared with ${device.hostname||device.uid}`:''}`;
+  $("#asset-target-reasons").innerHTML=ineligible.length?ineligible.map(target=>`<span><strong>${esc(Identity.primary(target.device,installation))}</strong> · ${esc(target.reasons.join(' · '))}</span>`).join(''):targets.length?'<span class="dim">Every discovered device is eligible.</span>':'<span class="dim">No devices discovered.</span>';
+  $("#asset-catalog-summary").textContent=`${distribution.assets.length} host slot${distribution.assets.length===1?'':'s'}${device?` · compared with ${Identity.primary(device,installation)}`:''}`;
   $("#asset-feedback").textContent=assetFeedback;
   catalog.innerHTML=distribution.assets.length?distribution.assets.map(item=>assetCatalogRow(device,item)).join(''):'<p class="empty">No asset slots in the host catalog.</p>';
   const hostNames=new Set(distribution.assets.map(item=>item.name));
@@ -1032,7 +1038,7 @@ function renderAssets() {
   document.querySelectorAll("#tab-assets [data-asset-action]").forEach(button=>button.onclick=()=>{
     const row=button.closest("[data-slot]"), slot=row.dataset.slot, action=button.dataset.assetAction;
     if(!device||!confirmAssetAction(device,slot,action)) return;
-    assetFeedback=action==="remove"?`Removing ${slot} from ${device.hostname||device.uid}…`:`${action==="update"?'Updating':'Sending'} ${slot} to ${device.hostname||device.uid}…`;
+    assetFeedback=action==="remove"?`Removing ${slot} from ${Identity.primary(device,installation)}…`:`${action==="update"?'Updating':'Sending'} ${slot} to ${Identity.primary(device,installation)}…`;
     const hostItem=distribution.assets.find(item=>item.name===slot);
     assetFeedbackPending={uid:device.uid,slot,action,observedAt:Number(device.assets_observed_at)||0,fingerprint:hostItem?.fingerprint||null};
     $("#asset-feedback").textContent=assetFeedback;
