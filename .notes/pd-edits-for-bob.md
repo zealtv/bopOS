@@ -250,3 +250,16 @@ The boundary-4 verifier should fail unless all of the following are true:
 The gate is N=1 deliberately. Multi-instance audition topology cleanup belongs
 to stage 5. Record automated results and Bob's audible observation inside the
 boundary-4 stitch before tying it.
+
+## Asset-root cleanup after retiring the samplepacks compatibility path
+
+The engine now exposes only the run-context asset root and no longer creates
+`patches/<active>/bop/samplepacks -> assets/samplepacks`. When these abstractions
+are next maintained, update their path templates to address top-level asset
+slots directly:
+
+- `pd/bop/bop.stream~.pd`: change `%s/samplepacks/$1/*/` to `%s/$1/*/` and
+  `%s/samplepacks/bop_samplepack/*/` to `%s/bop_samplepack/*/`.
+- `pd/bop/bop.sampler~.pd`: make the same two replacements.
+
+No `.pd` file was changed by the Assets cache/compatibility repair.

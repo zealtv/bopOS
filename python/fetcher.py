@@ -226,30 +226,17 @@ def _converge(uri, destination, scheme, cache_root=None):
     return False, "unsupported URI scheme"
 
 
-def _patch_fetch(uri, destination, scheme, assets_root):
+def _patch_fetch(uri, destination, scheme):
     """Converge and validate off to the side, then atomically replace."""
     root = os.path.dirname(destination)
     os.makedirs(root, exist_ok=True)
-    legacy_link = os.path.join(destination, "bop", "samplepacks")
-    legacy_target = os.path.join(assets_root, "samplepacks")
-    allowed = ({os.path.abspath(legacy_link): legacy_target}
-               if os.path.islink(legacy_link) else {})
-    _reject_symlinks(destination, allowed)
+    _reject_symlinks(destination)
     staging = tempfile.mkdtemp(prefix=".fetch-{}-".format(os.path.basename(destination)),
                                dir=root)
     backup = None
     try:
         if os.path.isdir(destination):
-            def ignore_legacy(directory, names):
-                if (os.path.realpath(directory)
-                        == os.path.realpath(os.path.join(destination, "bop"))
-                        and "samplepacks" in names
-                        and os.path.islink(os.path.join(directory, "samplepacks"))):
-                    return {"samplepacks"}
-                return set()
-
-            shutil.copytree(destination, staging, dirs_exist_ok=True,
-                            ignore=ignore_legacy)
+            shutil.copytree(destination, staging, dirs_exist_ok=True)
         ok, detail = _converge(uri, staging, scheme)
         if not ok:
             return ok, detail
@@ -292,7 +279,7 @@ def fetch(uri, slot, assets_root, patches_root=None):
         destination, is_patch = _landing(slot, assets_root, patches_root)
         scheme = urllib.parse.urlparse(uri).scheme.lower()
         if is_patch:
-            return _patch_fetch(uri, destination, scheme, assets_root)
+            return _patch_fetch(uri, destination, scheme)
         _reject_symlinks(destination)
         return _converge(uri, destination, scheme, assets_root)
     except Exception as error:

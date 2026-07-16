@@ -79,9 +79,11 @@ and tie one concrete stitch at a time:
    touch layout, and dense-layout verification are tied.
 5. **Complete — Single-device Assets workflow.** Device asset inventory
    (`11a`) and the operational one-assigned-physical-device Assets workspace
-   (`11b`) are tied. Durable observations drive absent/current/stale/unknown/
-   extra state; fleet-wide bulk rollout remains deferred to
-   `asset-fleet-distribution`.
+   (`11b`) are tied. The first real `bop000` transfer gate also repaired
+   canonical cache ordering across restart and retired the temporary
+   `samplepacks` compatibility path. Durable observations drive
+   absent/current/stale/unknown/extra state; fleet-wide bulk rollout remains
+   deferred to `asset-fleet-distribution`.
 6. **Next — Dashboard live controls.** Use
    `12-dashboard-live-controls` as the single integration point for the
    flat/nested parameter × All/Group/Seat target matrix.

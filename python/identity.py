@@ -139,6 +139,12 @@ def cached_directory_info(root):
                 digest = cached[1]
             files.append({"path": os.path.relpath(path, root).replace(os.sep, "/"),
                           "size": stat.st_size, "sha256": digest})
+    # os.walk yields files in each directory before descending into its
+    # children.  That is not necessarily the canonical global path order
+    # used by directory_manifest (a root readme sorts after a 000/ child).
+    # Inventory fingerprints must hash the exact same manifest ordering as
+    # the transfer endpoint or verified bytes can be reported as stale.
+    files.sort(key=lambda item: item["path"])
     fingerprint_value = None
     if complete:
         fingerprint_value = manifest_fingerprint({"files": files})

@@ -17,6 +17,10 @@ images, models, or any other files a patch or engine needs. Choose boundaries
 operationally: content that should be sent, updated, rolled back, and removed
 together belongs in one slot.
 
+Engines receive this directory as their asset root through the run context.
+There is no reserved `samplepacks` folder or patch-local compatibility path;
+sample packs are ordinary named slots like any other asset content.
+
 ## Using a slot
 
 1. Copy or create the slot folder under `assets/` on the dashboard host.

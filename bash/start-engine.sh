@@ -52,29 +52,15 @@ echo "ENGINE: $ENGINE"
 echo "PATCH ENTRYPOINT: $PATCH_PATH/$ENTRYPOINT"
 echo "====================="
 
-# Contract v1.3 retains this legacy PD sample path for one release. Asset
-# fetching no longer depends on it; every engine receives BOPOS_ASSETS below.
+# Assets are exposed only through the engine-neutral run context. Retire the
+# former patch-local samplepacks compatibility symlink and remove its empty
+# framework-created target. Never delete a real directory or any content.
 ASSETS_DIR="$BOPOS_DIR/assets"
-SAMPLEPACKS_DIR="$PATCH_PATH/bop/samplepacks"
-SAMPLEPACKS_SLOT="$ASSETS_DIR/samplepacks"
-mkdir -p "$SAMPLEPACKS_SLOT"
-if [ -L "$SAMPLEPACKS_DIR" ] && [ "$(readlink -f "$SAMPLEPACKS_DIR")" = "$SAMPLEPACKS_SLOT" ]; then
-    :
-elif [ -d "$SAMPLEPACKS_DIR" ] && [ -z "$(find "$SAMPLEPACKS_SLOT" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
-    find "$SAMPLEPACKS_DIR" -mindepth 1 -maxdepth 1 -exec mv -t "$SAMPLEPACKS_SLOT" -- {} +
-    rmdir "$SAMPLEPACKS_DIR"
-    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
-elif [ -d "$SAMPLEPACKS_DIR" ] && [ -n "$(find "$SAMPLEPACKS_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
-    echo "WARNING: BOTH LEGACY AND ASSET SAMPLEPACK DIRECTORIES HAVE CONTENT; LEAVING LEGACY DIRECTORY ALONE" >&2
-elif [ -d "$SAMPLEPACKS_DIR" ]; then
-    rmdir "$SAMPLEPACKS_DIR"
-    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
-elif [ ! -e "$SAMPLEPACKS_DIR" ] && [ ! -L "$SAMPLEPACKS_DIR" ]; then
-    mkdir -p "$(dirname "$SAMPLEPACKS_DIR")"
-    ln -s "$SAMPLEPACKS_SLOT" "$SAMPLEPACKS_DIR"
-else
-    echo "WARNING: LEGACY SAMPLEPACK PATH CANNOT BE ADOPTED: $SAMPLEPACKS_DIR" >&2
+LEGACY_SAMPLEPACKS="$PATCH_PATH/bop/samplepacks"
+if [ -L "$LEGACY_SAMPLEPACKS" ]; then
+    rm "$LEGACY_SAMPLEPACKS"
 fi
+rmdir "$ASSETS_DIR/samplepacks" 2>/dev/null || true
 
 #Start Jack
 echo "------------------- Starting Jack..."

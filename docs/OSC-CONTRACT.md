@@ -583,8 +583,9 @@ joins the job.
   **outside the patch git tree** — `~/bopOS/assets/<slot>/` — handed to every
   engine at launch as part of the run context (§4.2: `bopos-context assets`
   for PD, `BOPOS_ASSETS` for other engines). PD, SC, and oF patches all read
-  the same predictable root. Legacy `patches/<active>/bop/samplepacks` is
-  symlinked for one release.
+  the same predictable root. The retired
+  `patches/<active>/bop/samplepacks` compatibility symlink is not created;
+  every asset consumer uses the run-context root directly.
 - **Patch landing convention:** `patch:<name>` lands in
   `~/bopOS/patches/<name>/` with the same diff, resume, hash-verification and
   prune-to-manifest convergence semantics as an asset slot. A device patch is
@@ -650,7 +651,9 @@ Unchanged verbs, sharpened boundary:
   speculatively. The old 7770 admin forwarding, `/rpt` echo chain,
   `osc-in`/`osc-out`, direct PD LAN binding, and in-patch identity routing
   are removed, not maintained in parallel. Fleet-level guarantees stand:
-  `bopos.devices` seed, samplepacks symlink, zero port changes, `uid == MAC`.
+  `bopos.devices` seed, zero port changes, `uid == MAC`. The temporary
+  `samplepacks` compatibility symlink was retired after the first real-device
+  Assets workflow gate; patches consume the run-context asset root directly.
 - **v1.3 hard break:** Kite Choir and The Plants move in lockstep to
   `/os/updatebopos`, manifest-required patch launch, and the distribution
   surface above. There are no `/os/update` or `/os/getsamples` aliases, no
