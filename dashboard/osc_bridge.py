@@ -653,6 +653,7 @@ class OSCBridge:
                 device["virtual"] = True
                 device["editor"] = True
                 device["seat_id"] = None
+            alias_created = False
             if not device.get("virtual"):
                 try:
                     _alias, alias_created = self.state.ensure_device_alias(uid)
@@ -732,6 +733,13 @@ class OSCBridge:
             new = {key: device.get(key) for key in old}
             if old != new:
                 self.broadcast("device_update", device)
+            if alias_created:
+                # A device_update projects the resolved alias but cannot add
+                # the new durable registry record to an already-open browser.
+                # Converge that host-global identity state immediately so
+                # Rename/Reset semantics do not depend on discovery preceding
+                # the WebSocket connection.
+                self.broadcast("state", self.state.public())
             if first_seen or not old["online"]:
                 self.state.save_debounced()
                 # Asset inventory is useful for assigned and unassigned
@@ -962,12 +970,18 @@ class OSCBridge:
             if not device:
                 log.warning("unattributable /os/rev from %s: %r", ip, args)
                 return
-            device["rev"] = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
+            receipt = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
+            if len(args) >= 4:
+                receipt["status"] = str(args[3])
+                receipt["phase"] = str(args[4]) if len(args) >= 5 else "unknown"
+            device["rev"] = receipt
             attempt = device.get("patch_switch")
-            if isinstance(attempt, dict):
+            if isinstance(attempt, dict) and receipt.get("status", "ok") == "ok":
                 attempt["status"] = "reconciling"
                 attempt["receipt_at"] = time.time()
             self.broadcast("rev", device)
+            if receipt.get("status") == "err":
+                return
             for member in ("patches", "params", "report"):
                 self.request(device["uid"], member)
             self.request_assets(device["uid"])

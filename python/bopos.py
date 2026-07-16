@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import re
 import json
+import signal
 
 
 import os, sys
@@ -683,7 +684,7 @@ def relay_provided_term(address, args):
 admin_lock = threading.Lock()
 
 
-def rev_reply(reply_socket, requester, state=None):
+def rev_reply(reply_socket, requester, state=None, status=None, phase=None):
     # /os/rev <sha> <model> <uid> -- attributable convergence (v1.5, sec 7).
     state = state or node_state
     state.version = resolve_version()
@@ -691,6 +692,9 @@ def rev_reply(reply_socket, requester, state=None):
     msg.append(str(state.version), 's')
     msg.append(str(state.update_model), 's')
     msg.append(str(state.uid), 's')
+    if status is not None:
+        msg.append(str(status), 's')
+        msg.append(str(phase or "unknown"), 's')
     try:
         reply_socket.sendto(msg.getBinary(), (requester, 5550))
     except Exception as error:
@@ -800,13 +804,23 @@ def installed_assets(assets_root=None):
 def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
     # serialized so two provisioning verbs can't interleave in one git tree
     with admin_lock:
+        outcome = None
         try:
-            callback('', '', [str(value) for value in args], '')
+            outcome = callback('', '', [str(value) for value in args], '')
         except Exception as error:
             print("WARNING: admin verb failed:", error)
+            outcome = {"status": "err", "phase": "exception"}
         if reply_socket is not None:
             # after convergence, so the sha is the post-action one
-            rev_reply(reply_socket, requester, state)
+            if isinstance(outcome, dict):
+                rev_reply(reply_socket, requester, state,
+                          outcome.get("status", "err"), outcome.get("phase", "unknown"))
+            else:
+                rev_reply(reply_socket, requester, state)
+        if (isinstance(outcome, dict) and outcome.get("status") == "ok"
+                and outcome.get("reboot")):
+            if not request_power_action("reboot") and reply_socket is not None:
+                rev_reply(reply_socket, requester, state, "err", "reboot")
 
 
 def report_reply(reply_socket, requester, state=None):
@@ -1104,13 +1118,159 @@ def config_callback(path='', tags='', args='', source=''):
     send_to_engine(msg)
 
 
+FRAMEWORK_COMMAND_TIMEOUTS = {
+    "authorization": 10,
+    "restore": 30,
+    "fetch": 120,
+    "branch": 15,
+    "checkout": 60,
+    "pull": 180,
+    "submodules": 180,
+}
+
+
+def _framework_environment():
+    ssh_command = os.environ.get("GIT_SSH_COMMAND", "ssh")
+    if "BatchMode" not in ssh_command:
+        ssh_command += " -o BatchMode=yes"
+    return dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never",
+                GIT_SSH_COMMAND=ssh_command)
+
+
+def _bounded_command(argv, cwd, timeout, env=None):
+    """Run one admin command in its own process group and reap it completely."""
+    process = subprocess.Popen(argv, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True,
+                               start_new_session=True)
+
+    def terminate_group():
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            return process.communicate(timeout=2)[0] or ""
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            return process.communicate()[0] or ""
+
+    try:
+        output, _unused = process.communicate(timeout=timeout)
+        return {"returncode": process.returncode, "stdout": output or "",
+                "timed_out": False}
+    except subprocess.TimeoutExpired as error:
+        output = error.output or ""
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+        tail = terminate_group()
+        return {"returncode": process.returncode, "stdout": output + (tail or ""),
+                "timed_out": True}
+    except BaseException:
+        terminate_group()
+        raise
+
+
+def _restore_active_patch(name):
+    target = os.path.join(BOPOS_DIR, "patches", "active_patch.txt")
+    temporary = target + ".update"
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(temporary, "w", encoding="utf-8") as destination:
+            destination.write(name + "\n")
+            destination.flush()
+            os.fsync(destination.fileno())
+        os.replace(temporary, target)
+        return True
+    except OSError as error:
+        print("active patch restoration failed:", error)
+        try:
+            os.remove(temporary)
+        except OSError:
+            pass
+        return False
+
+
+def _framework_command(argv, phase, timeout=None):
+    timeout = FRAMEWORK_COMMAND_TIMEOUTS[phase] if timeout is None else timeout
+    try:
+        result = _bounded_command(argv, BOPOS_DIR, timeout, _framework_environment())
+    except Exception as error:
+        print("{} command failed to start: {}".format(phase, error))
+        return {"status": "err", "phase": phase}
+    if result["stdout"]:
+        print(result["stdout"], end="" if result["stdout"].endswith("\n") else "\n")
+    if result["timed_out"]:
+        return {"status": "err", "phase": phase + "-timeout"}
+    if result["returncode"] != 0:
+        return {"status": "err", "phase": phase}
+    return None
+
+
+def converge_framework(branch=None):
+    """Trusted in-process orchestration; remains stable across branch checkout."""
+    authorization = _framework_command(
+        ["/usr/bin/sudo", "-n", "-l", "/usr/bin/systemctl", "reboot"],
+        "authorization")
+    if authorization:
+        return authorization
+    try:
+        with open(os.path.join(BOPOS_DIR, "patches", "active_patch.txt"),
+                  encoding="utf-8") as source_file:
+            active_patch = source_file.read().strip()
+    except OSError as error:
+        print("active patch selection unavailable:", error)
+        return {"status": "err", "phase": "active-patch"}
+
+    outcome = None
+    try:
+        if branch is not None:
+            outcome = _framework_command(
+                ["git", "check-ref-format", "--branch", branch], "branch")
+        if outcome is None:
+            outcome = _framework_command(["git", "restore", "."], "restore")
+        if outcome is None and branch is not None:
+            remote_refspec = "+refs/heads/{0}:refs/remotes/origin/{0}".format(branch)
+            outcome = _framework_command(
+                ["git", "-c", "credential.interactive=never", "fetch", "origin",
+                 remote_refspec],
+                "fetch")
+        remote_ref = "refs/remotes/origin/{}".format(branch) if branch is not None else None
+        if outcome is None and branch is not None:
+            outcome = _framework_command(
+                ["git", "show-ref", "--verify", "--quiet", remote_ref], "branch")
+        if outcome is None and branch is not None:
+            outcome = _framework_command(
+                ["git", "checkout", "-B", branch, remote_ref], "checkout")
+        if outcome is None and branch is not None:
+            outcome = _framework_command(
+                ["git", "branch", "--set-upstream-to=origin/{}".format(branch), branch],
+                "checkout")
+        if outcome is None and branch is None:
+            outcome = _framework_command(
+                ["git", "-c", "credential.interactive=never", "pull", "--ff-only",
+                 "--recurse-submodules"], "pull")
+        if outcome is None:
+            outcome = _framework_command(["git", "submodule", "sync", "--recursive"],
+                                         "submodules")
+        if outcome is None:
+            outcome = _framework_command(
+                ["git", "-c", "credential.interactive=never", "submodule", "update",
+                 "--init", "--recursive"], "submodules")
+    finally:
+        if not _restore_active_patch(active_patch):
+            outcome = {"status": "err", "phase": "active-patch"}
+    return outcome or {"status": "ok", "phase": "converged", "reboot": True}
+
+
 def update_bopos_callback(path='', tags='', args='', source=''):
-    update_script = os.path.join(BOPOS_DIR, "bash/update.sh")
     msg = OSCMessage("/notify")
     msg.append("updatebopos", 's')
     send_to_engine(msg)
     print("UPDATE BOPOS!")
-    os.system(update_script)
+    return converge_framework()
 
 def request_power_action(action):
     status = run_command(["/usr/bin/sudo", "-n", "/usr/bin/systemctl", action])
@@ -1138,14 +1298,11 @@ def checkout_callback(path, tags, args, source):
     msg = OSCMessage("/notify")
     msg.append("checkout", 's')
     send_to_engine(msg)
-    branch = args[0].lstrip('/')
+    if not args:
+        return {"status": "err", "phase": "branch"}
+    branch = str(args[0])
     print("checking out: " + branch)
-    os.system(os.path.join(BOPOS_DIR, "bash/checkout.sh ") + branch)
-    msg = OSCMessage("/notify")
-    msg.append("updatebopos", 's')
-    send_to_engine(msg)
-    print("UPDATE!")
-    os.system(os.path.join(BOPOS_DIR, "bash/update.sh"))
+    return converge_framework(branch)
 
 def switch_patch_callback(path='', tags='', args='', source=''):
     patches_dir = os.path.join(BOPOS_DIR, 'patches')

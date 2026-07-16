@@ -29,6 +29,8 @@ distinct from the existing fleet safety mute and from patch parameters. Audit
 the selector/UID targeting and convergence semantics before choosing the wire
 shape; do not silently make it Seat-owned. Seat and Group mute/solo are a
 separate, trickier design and are explicitly deferred from this stitch.
+The resulting exact-UID proposal is in `device-mute-contract-proposal.md` and
+must be ratified before this subfeature is implemented.
 
 Depends on:
 

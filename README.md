@@ -75,13 +75,19 @@ python3 -m venv ~/venv
 git clone --recursive https://github.com/zealtv/bopOS.git ~/bopOS
 ~/venv/bin/pip install -r ~/bopOS/python/requirements.txt
 cd ~/bopOS
-sudo bash/update.sh
+sudo bash/provision.sh
 ```
 
-`update.sh` installs the current `rc.local` boot entry, the narrow sudoers rule
-that permits the unprivileged bopOS helper to reboot or power off the node, and
-then reboots. It also restores the repository checkout before pulling, so do
-not keep uncommitted work on an installation node.
+`provision.sh` is the one-time privileged step: it installs the current
+`rc.local` boot entry and the narrow sudoers rule that permits the unprivileged
+bopOS helper to reboot or power off the node. Routine dashboard updates are
+orchestrated by the already-running helper as `pi`, so checking out a branch
+cannot replace the update procedure mid-operation. The helper restores and
+pulls the checkout without interactive Git credentials, preserves
+`patches/active_patch.txt`, updates submodules, issues the convergence receipt,
+and only then requests a reboot. `update.sh` remains the equivalent manual
+convergence check and never reboots. Do not keep uncommitted work on an
+installation node.
 
 Before relying on audio, set the ALSA card name used by JACK. The current
 default is `DigiAMP` in `bash/start-engine.sh`:

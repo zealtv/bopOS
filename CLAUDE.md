@@ -47,7 +47,8 @@ remain the authority for a particular piece of work.
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.6** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
-and unassignment revision); `engine-boundary-design`, `patch-seam`, `clock-sync`
+and unassignment revision + additive unattended-update outcome receipts);
+`engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
 `patch-asset-sync` (dist-0..4), fleet-patch (fp-0..4), and patch-editor
@@ -58,15 +59,15 @@ surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
 The dashboard review sweep is complete through Devices and Patches (01, 02,
-03, 05, 06, 08, 07, 09, and 10). Bob accepted the following **seven-stage
-implementation sweep as the next program of work**. This order takes precedence
+03, 05, 06, 08, 07, 09, and 10). Bob expanded the accepted implementation
+sweep to the following **nine-stage program of work**. This order takes precedence
 over `./.loom/loom.sh next`'s alphabetical listing; still claim, work, verify,
 and tie one concrete stitch at a time:
 
 1. **Complete — parameter-address foundation.** Contract/model/relay and
    dashboard state/editor are tied. True nested OSC, flat compatibility,
    canonical persistence/presets, and editor path CRUD are verified; promoted
-   live controls remain reserved for stage 6.
+   live controls remain reserved for stage 7.
 2. **Complete — Seat-group spatial UX gate.** Bob ratified focus plus bounded
    four-group rail comparison, view-local styles, checklist authoring,
    eye/eye-off visibility, and the subordinate collapsible Groups placement
@@ -84,18 +85,25 @@ and tie one concrete stitch at a time:
    `samplepacks` compatibility path. Durable observations drive
    absent/current/stale/unknown/extra state; fleet-wide bulk rollout remains
    deferred to `asset-fleet-distribution`.
-6. **Next — Dashboard live controls.** Use
+6. **Hardware gate — unattended Update bopOS.** Runtime convergence is split
+   from privileged provisioning, fails without prompting, reports outcome
+   phases and reboots only after success. Software verification is complete;
+   a Bob-triggered `bop000` update remains before the stitch can tie.
+7. **Next — Dashboard live controls.** Use
    `12-dashboard-live-controls` as the single integration point for the
-   flat/nested parameter × All/Group/Seat target matrix. The device-alias
-   design gate was completed early; its implementation follow-up should land
-   before or with any new hostname-first target surface.
-7. **Close the sweep.** Complete `13-diagnostic-density`, then resume
+   flat/nested parameter × All/Group/Seat target matrix, per-Seat/All parameter
+   replay, and individual physical-device mute. Device aliases are complete.
+   The exact-UID mute subfeature remains gated on Bob's ratification of
+   `device-mute-contract-proposal.md`; Seat/Group mute and solo are deferred.
+8. **Diagnostic density and polish.** Add the host Git shorthand beside the
+   wordmark, remove the ratified extraneous copy, vertically align desired and
+   reported patch identities, and complete `13-diagnostic-density`.
+9. **Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
-   copy describe the finished system. The device-alias design is already
-   ratified in `.lore/items/2026-07-16-device-alias-design-ratified/`.
+   copy describe the finished system.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
-`scene-sequencing` co-design. It is not part of this seven-stage sweep and does
+`scene-sequencing` co-design. It is not part of this nine-stage sweep and does
 not authorize implementation.
 
 Everything else is `.waiting` for a reason stated in its stitch:

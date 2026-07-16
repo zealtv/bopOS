@@ -23,3 +23,14 @@ In Patch diagnostics, put **Desired fingerprint** immediately above
 **Reported content identity** so their values can be compared vertically.
 Keep this pass terse: do not introduce replacement explanatory copy while
 implementing these changes.
+
+Refine the Seats inspector without adding help prose:
+
+- add clear visual dividers between Seat workspace, Elements, Groups,
+  Physical device, and Venue;
+- cap element authoring at two in the UI. Disable further Add actions at two,
+  but do not narrow the protocol, truncate loaded data, or reject a future/
+  legacy Seat that already contains more positions;
+- show the bound physical device's IP address in the Physical device section
+  so an operator can identify the SSH target. Keep hostname and UID/MAC
+  exclusive to selected Device detail.

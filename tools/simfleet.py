@@ -325,12 +325,15 @@ class SimFleet:
         self.set_state(device, "rebooting")
         self.schedule(duration, self.finish_boot, device, bump_version)
 
-    def send_rev(self, device, source):
-        # /os/rev <sha> <model> <uid> -- attributable convergence (v1.5, sec 7)
+    def send_rev(self, device, source, status=None, phase=None):
+        # Optional status/phase make convergence failures attributable (v1.6).
         builder = osc_message_builder.OscMessageBuilder(address="/os/rev")
         builder.add_arg(str(device.version), arg_type="s")
         builder.add_arg("ephemeral" if device.ephemeral else "persistent", arg_type="s")
         builder.add_arg(device.mac, arg_type="s")
+        if status is not None:
+            builder.add_arg(str(status), arg_type="s")
+            builder.add_arg(str(phase or "unknown"), arg_type="s")
         try:
             self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
         except OSError as error:
@@ -500,7 +503,7 @@ class SimFleet:
             # the pull lands (sha bumps), the receipt goes out, then the reboot
             self.set_state(device, "updating")
             self.bump(device)
-            self.schedule(2.0, self.send_rev, device, source)
+            self.schedule(2.0, self.send_rev, device, source, "ok", "converged")
             self.schedule(5.0, self.reboot_after_silence, device, False)
         elif member == "patch" and args:
             name = str(args[0])

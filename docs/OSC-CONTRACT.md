@@ -487,9 +487,13 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
   hashes file contents synchronously.
 - `/os/droppatch <name>` removes an inactive patch and refuses the active
   patch. `/os/dropassets <slot>` removes an asset slot.
-- **Every provisioning verb replies** `/os/rev <sha> <model> <uid>` (unicast;
-  uid additive in v1.5) so the dashboard observes attributable convergence, not
-  fire-and-forget. This includes both
+- **Every provisioning verb replies** `/os/rev <sha> <model> <uid> [<status>
+  <phase>]` (unicast; uid additive in v1.5, optional outcome additive in v1.6)
+  so the dashboard observes attributable convergence, not fire-and-forget.
+  `status` is `ok` or `err`; `phase` is a short machine-readable token such as
+  `pull`, `authorization`, `converged`, or `reboot`. An `updatebopos` success
+  receipt is sent before requesting reboot; a rejected reboot produces a
+  second `err reboot` receipt. This includes both
   drop verbs; `/os/patches` is a query and replies with its listing instead.
 - `/os/getsamples` is removed. Assets use `/os/fetch`; there is no alias.
 
