@@ -1,4 +1,4 @@
-# Exact physical-device mute proposal
+# Exact physical-device mute contract
 
 **Status:** ratified by Bob on 2026-07-16.
 
@@ -10,7 +10,7 @@ currently permits only the exact report and identify operations. Implementing
 the requested control with a numeric selector would silently make mute follow
 the Seat when the box is reassigned.
 
-## Proposed wire and state
+## Wire and state
 
 Add one exact-UID full-state operation:
 

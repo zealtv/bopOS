@@ -93,8 +93,9 @@ and tie one concrete stitch at a time:
    `12-dashboard-live-controls` as the single integration point for the
    flat/nested parameter × All/Group/Seat target matrix, per-Seat/All parameter
    replay, and individual physical-device mute. Device aliases are complete.
-   The exact-UID mute subfeature remains gated on Bob's ratification of
-   `device-mute-contract-proposal.md`; Seat/Group mute and solo are deferred.
+   The exact-UID mute subfeature is ratified in
+   `device-mute-contract-proposal.md`, including its selected-detail action and
+   Devices-roster mute indication; Seat/Group mute and solo are deferred.
 8. **Diagnostic density and polish.** Add the host Git shorthand beside the
    wordmark, remove the ratified extraneous copy, vertically align desired and
    reported patch identities, and complete `13-diagnostic-density`.

@@ -37,8 +37,8 @@ The unattended updater repair is software-complete and awaiting a real
 7. **Dashboard live controls** — the sole All / Group / Seat integration point
    for flat and nested promoted parameters, plus per-Seat/All **Send all**
    replay and one-physical-device mute/unmute. Seat/Group mute and solo remain
-   deferred for a dedicated design; exact-UID mute awaits ratification of the
-   recorded two-layer device/fleet proposal.
+   deferred for a dedicated design; exact-UID mute's two-layer device/fleet
+   contract and Devices-roster indication are ratified.
 8. **Diagnostic density and polish** — add the host Git shorthand beside the
    wordmark, remove the ratified extraneous copy, make desired/reported patch
    identities vertically comparable, add Seats inspector dividers, cap element

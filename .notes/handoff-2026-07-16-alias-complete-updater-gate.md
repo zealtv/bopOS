@@ -28,11 +28,11 @@ This supersedes `.notes/handoff-2026-07-16-device-alias-design-ratified.md`.
 1. Commit and deploy the updater repair, then perform a Bob-triggered real
    `bop000` update. Confirm `ok converged`, reboot, returned short revision and
    unchanged active patch. The updater stitch remains waiting until this gate.
-2. Bob must ratify or revise
-   `.loom/threads/ui-tabs/tabs-3-next-sweep/12-dashboard-live-controls.waiting/device-mute-contract-proposal.md`
-   before individual physical-device mute implementation. The proposal adds an
-   exact-UID full-state mute with acknowledgement, persistent device mute, and
-   the existing fleet safety mute as a session OR overlay.
+2. Bob ratified
+   `.loom/threads/ui-tabs/tabs-3-next-sweep/12-dashboard-live-controls.waiting/device-mute-contract-proposal.md`.
+   It adds exact-UID full-state mute with acknowledgement, persistent device
+   mute, the existing fleet safety mute as a session OR overlay, a selected
+   Device action, and a compact Devices-roster mute indication.
 3. Live parameter targeting and per-Seat/All **Send all** need no contract
    amendment and may proceed after the gate/decision sequencing is settled.
 4. The diagnostic-density pass also owns Seats inspector dividers, a

@@ -1,6 +1,7 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
 - [2026-07-16-seat-group-spatial-membership-ux-proposal](items/2026-07-16-seat-group-spatial-membership-ux-proposal/) — Seat-group spatial membership UX proposal — The ratified interaction and hierarchy for revealing overlapping Seat-group membership on the Seats spatial map.
+- [2026-07-16-device-mute-contract-ratified](items/2026-07-16-device-mute-contract-ratified/) — Exact physical-device mute contract — The ratified UID-targeted physical-device mute contract, persistence model, fleet-safety interaction, and dashboard UI boundary.
 - [2026-07-16-device-alias-design-ratified](items/2026-07-16-device-alias-design-ratified/) — Device alias design — The ratified design for durable, globally legible two-word aliases for physical bopOS devices.
 - [2026-07-15-seat-group-selector-design-ratified](items/2026-07-15-seat-group-selector-design-ratified/) — Seat group selectors — ratified — Bob's accepted lowercase `/g<id>/...` selector, durable Seat membership, synchronization, dashboard-state, and nested-parameter composition design.
 - [2026-07-15-seat-group-selector-design](items/2026-07-15-seat-group-selector-design/) — Seat group selector proposal — Design proposal for lowercase `/g<id>/...` fleet selectors, durable Seat group membership on nodes, and clean composition with OSC-native nested patch parameter addresses.
