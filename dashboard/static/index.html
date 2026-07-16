@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#101316"><title>bopOS</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
-  <header><h1>bopOS</h1><div id="execution-target" role="group" aria-label="Execution target"><span class="execution-copy"><small>execution target</small><output id="mode-status" class="mode-status" aria-live="polite">live fleet</output></span><span class="execution-options"><button data-execution-target="off" aria-pressed="true">Live fleet</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch edit</button></span></div><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
+  <header><h1>bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><div id="execution-target" role="group" aria-label="Execution target"><span class="execution-copy"><small>execution target</small><output id="mode-status" class="mode-status" aria-live="polite">live fleet</output></span><span class="execution-options"><button data-execution-target="off" aria-pressed="true">Live fleet</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch edit</button></span></div><span id="online-count">0 / 0 online</span><button id="mute-all" class="danger">MUTE ALL</button><span id="ws-status" class="offline">disconnected</span></header>
   <nav id="primary-tabs" class="primary-tabs" aria-label="bopOS views" role="tablist">
     <button id="tab-button-dashboard" role="tab" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard">Dashboard</button>
     <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
@@ -45,7 +45,6 @@
           <button id="point-delete" class="danger">Delete</button>
         </div>
       </div>
-      <p class="dim spatial-help">Drag the listener puck to move it; drag the green heading handle to turn it. Seat dot colour is element index and the number is Seat ID. Each point's coloured dashed field shows its reach.</p>
       <div id="group-map-bar" hidden>
         <div id="group-map-legend" aria-label="Visible Seat groups"></div>
         <button id="group-view-clear">Clear group view</button>
@@ -66,7 +65,7 @@
           <div class="section-head"><div><h2>Groups</h2><small id="groups-summary" class="dim">0 shown · 0 total</small></div><button id="group-create">Create group</button></div>
           <div id="groups-content"></div>
         </div>
-        <div id="venue-bar"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
+        <div id="venue-bar" class="seat-inspector-section"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
       </aside>
     </section>
     <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
@@ -79,16 +78,16 @@
     </section>
     <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
       <section id="fleet-patch-panel">
-        <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2><p class="dim">Choose the one desired production patch and converge every online assigned device.</p></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
-        <div class="fleet-patch-deploy"><label>desired fleet patch <select id="patch-select" aria-label="Fleet patch"></select></label><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
+        <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
+        <div class="fleet-patch-deploy"><div class="fleet-patch-choice"><select id="patch-select" aria-label="Fleet patch"></select></div><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
       </section>
       <section id="editor-panel">
         <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
         <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>
-        <p id="editor-engine-note" class="dim">Launch a valid host patch through the managed audition runtime.</p>
+        <p id="editor-engine-note" class="dim" hidden></p>
         <section id="manifest-editor" aria-labelledby="manifest-editor-title">
-          <div class="section-head"><div><h3 id="manifest-editor-title">Manifest</h3><p class="dim">Edit the dashboard-facing declarations. The audio patch is never rewritten here.</p></div><button id="manifest-save">Save manifest</button></div>
+          <div class="section-head"><h3 id="manifest-editor-title">Manifest</h3><button id="manifest-save">Save manifest</button></div>
           <div id="manifest-readonly"></div>
           <div class="manifest-subhead"><h3>Parameters</h3><button id="manifest-add-param">Add parameter</button></div>
           <div id="manifest-params"></div>
@@ -124,9 +123,9 @@
       </section>
     </section>
     <section id="tab-assets" class="tab-panel assets-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden>
-      <div class="assets-heading"><div><p class="eyebrow">Single-device delivery</p><h2>Assets</h2><p class="dim">Compare the host catalog with one assigned physical device, then send, update, or remove individual slots.</p></div><button id="asset-refresh">Refresh catalog</button></div>
+      <div class="assets-heading"><div><p class="eyebrow">Single-device delivery</p><h2>Assets</h2></div><button id="asset-refresh">Refresh catalog</button></div>
       <section id="asset-target-panel" aria-labelledby="asset-target-title">
-        <div class="section-head"><div><h3 id="asset-target-title">Target device</h3><p class="dim">Actions always address exactly one online, assigned physical device.</p></div><label class="asset-target-select">device <select id="asset-target" aria-describedby="asset-target-reasons"></select></label></div>
+        <div class="section-head"><h3 id="asset-target-title">Target device</h3><label class="asset-target-select">device <select id="asset-target" aria-describedby="asset-target-reasons"></select></label></div>
         <div id="asset-target-reasons" class="asset-target-reasons"></div>
       </section>
       <section id="asset-catalog-panel" aria-labelledby="asset-catalog-title">

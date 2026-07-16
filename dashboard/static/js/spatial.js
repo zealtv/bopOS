@@ -417,7 +417,8 @@
   function toggleSecondElement(seat, ws, W) {
     if (!Array.isArray(seat.positions?.[0])) return;
     const positions = clone(seat.positions);
-    if (positions.length > 1) positions.splice(1, 1);
+    if (positions.length > 2) return;
+    if (positions.length === 2) positions.splice(1, 1);
     else positions.push([Math.min(round(positions[0][0] + 0.8), W), positions[0][1]]);
     ws.send("update_seat", {id:seat.id, positions}); seat.positions = positions;
     render(...last);

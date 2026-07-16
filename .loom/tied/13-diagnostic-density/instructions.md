@@ -34,3 +34,15 @@ Refine the Seats inspector without adding help prose:
 - show the bound physical device's IP address in the Physical device section
   so an operator can identify the SSH target. Keep hostname and UID/MAC
   exclusive to selected Device detail.
+
+Fold in the 2026-07-16 live-surface follow-up:
+
+- remove the stray `Seat presets` label when there are no preset controls;
+- have a UX-focused reviewer assess the whole Dashboard and recommend how to
+  distinguish aggregate controls (All Seats and Groups) from individual Seat
+  cards, explicitly comparing tabs with lighter visual grouping before the UI
+  treatment is chosen.
+
+Master and fleet mute replay from **Send all** was considered and explicitly
+held pending hands-on use. Keep the current parameter-only semantics for both
+All Seats and per-Seat replay.

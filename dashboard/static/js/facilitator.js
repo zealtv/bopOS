@@ -6,6 +6,7 @@ let installation = {devices: {}, seats: {}, groups: {}};
 let muted = false;
 let master = 1.0;
 let presetNames = [];
+let liveScopeView = "aggregate";
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -153,13 +154,37 @@ function renderCards() {
   const schema = liveSchema();
   const declarations = schema?.declarations || [];
   const allSeats = seats();
-  $("#cards").innerHTML = [
-    liveCard("all", {}, allSeats, declarations, !!schema && allSeats.length > 0),
-    ...groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, !!schema)),
-    ...allSeats.map(seat => liveCard("seat", seat, [seat], declarations, !!schema)),
-  ].join("");
+  const cards = liveScopeView === "seats"
+    ? allSeats.map(seat => liveCard("seat", seat, [seat], declarations, !!schema))
+    : [liveCard("all", {}, allSeats, declarations, !!schema && allSeats.length > 0),
+       ...groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, !!schema))];
+  $("#cards").dataset.liveView = liveScopeView;
+  $("#cards").setAttribute("aria-labelledby", liveScopeView === "seats" ? "live-scope-seats" : "live-scope-aggregate");
+  $("#cards").innerHTML = cards.join("") || '<p class="empty">No Seats</p>';
   bindCards();
 }
+
+function activateLiveScope(view, moveFocus = false) {
+  liveScopeView = view === "seats" ? "seats" : "aggregate";
+  document.querySelectorAll("[data-live-scope-view]").forEach(button => {
+    const active = button.dataset.liveScopeView === liveScopeView;
+    button.setAttribute("aria-selected", active ? "true" : "false");
+    button.tabIndex = active ? 0 : -1;
+    if (active && moveFocus) button.focus();
+  });
+  renderCards();
+  $("#cards").scrollTop = 0;
+}
+
+document.querySelectorAll("[data-live-scope-view]").forEach(button => {
+  button.onclick = () => activateLiveScope(button.dataset.liveScopeView);
+  button.onkeydown = event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "ArrowRight" || event.key === "End" ? "seats" : "aggregate";
+    activateLiveScope(next, true);
+  };
+});
 
 function updateLocalParams(scope, id, identity, value) {
   const members = scope === "all" ? seats() : scope === "group" ? groupSeats(id) : seats().filter(seat => Number(seat.id) === Number(id));
@@ -217,6 +242,7 @@ function renderControls() {
 }
 
 function renderPresets() {
+  $("#preset-section").hidden = document.body.classList.contains("embedded") || presetNames.length === 0;
   $("#presets").innerHTML = presetNames.map(name => `<button class="chip" data-preset="${esc(name)}">${esc(name)}</button>`).join("");
   document.querySelectorAll("[data-preset]").forEach(button => button.onclick = () => ws.send("load_preset", {name: button.dataset.preset}));
 }

@@ -96,10 +96,11 @@ and tie one concrete stitch at a time:
    selected-detail action, roster indication, simulator/audition parity, and
    focused touch verification are tied. Seat/Group mute and solo remain
    deferred.
-8. **Next — Diagnostic density and polish.** Add the host Git shorthand beside
-   the wordmark, remove the ratified extraneous copy, vertically align desired
-   and reported patch identities, and complete `13-diagnostic-density`.
-9. **Close the sweep.** Resume
+8. **Complete — Diagnostic density and polish.** The host Git shorthand,
+   copyable identity tails, adjacent desired/reported identities, terse copy,
+   divided Seat inspector, two-element UI guard, Seat-bound IP, empty-preset
+   cleanup, and UX-reviewed All & Groups / Seats live tabs are tied.
+9. **Next — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.
 
@@ -117,8 +118,9 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
-  Dashboard live controls are complete. The next software stitch in the
-  accepted sweep is diagnostic density (stage 13).
+  Dashboard live controls and diagnostic density are complete. The next
+  software stitches in the accepted sweep are patch-workflow friction
+  documentation and starter-kit copy.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

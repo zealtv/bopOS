@@ -29,6 +29,24 @@ let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const Identity = window.DeviceIdentity;
+
+async function copyFullIdentity(button) {
+  const value=button.dataset.copyIdentity;
+  let copied=false;
+  try {
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);copied=true;}
+  } catch(_error) {}
+  if(!copied){
+    const input=document.createElement("textarea");
+    input.value=value;input.setAttribute("readonly","");input.style.position="fixed";input.style.opacity="0";
+    document.body.append(input);input.select();
+    try{copied=document.execCommand("copy");}catch(_error){}
+    input.remove();
+  }
+  const feedback=button.querySelector(".copy-feedback");
+  if(feedback){feedback.textContent=copied?"Copied":"Copy failed";setTimeout(()=>{if(feedback.isConnected)feedback.textContent="";},1400);}
+}
+document.addEventListener("click",event=>{const button=event.target.closest("[data-copy-identity]");if(button)copyFullIdentity(button);});
 const GROUP_SLOTS = [
   {colour:"#56B4E9", pattern:"solid"},
   {colour:"#E69F00", pattern:"dash"},
@@ -450,8 +468,9 @@ function renderFleetPatch() {
   $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
   const assigned=Object.values(installation.seats||{}).map(occupant).filter(Boolean);
   const counts=new Map(); assigned.forEach(device=>counts.set(device.patch_badge||"unknown",(counts.get(device.patch_badge||"unknown")||0)+1));
-  const summary=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
-  $("#fleet-patch-summary").textContent=summary||(desired?"No assigned devices":"No fleet patch set");
+  const progress=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
+  const targets=`${assigned.length} assigned target${assigned.length===1?'':'s'}`;
+  $("#fleet-patch-summary").textContent=desired?`${targets}${progress?` · ${progress}`:''}`:"No fleet patch set";
 }
 function contextualExecutionPatch() {
   const editor=installation.editor||{}, sim=installation.simulation||{};
@@ -707,10 +726,11 @@ function renderEditor() {
   };
   $("#editor-status").textContent=editor.active?`${editor.status||"running"} · ${editor.patch}`:(editor.status||"off");
   const closed=editor.active&&editor.engine_alive!=null&&Number(editor.engine_alive)===0;
-  $("#editor-engine-note").textContent=closed
+  const engineNote=$("#editor-engine-note");
+  engineNote.hidden=!editor.active;
+  engineNote.textContent=!editor.active ? "" : closed
     ? "Engine closed. It will stay closed until you explicitly relaunch it."
-    : editor.active ? (editor.engine==="pd"?"PD is open for live editing.":"Runtime controls are live; GUI editing is PD-only in v1.")
-      : "Launch a valid host patch through the managed audition runtime.";
+    : editor.engine==="pd"?"PD is open for live editing.":"Runtime controls are live; GUI editing is PD-only in v1.";
   const actions=$("#editor-session-actions");
   actions.innerHTML=editor.active
     ? `${closed?'<button id="editor-relaunch">Relaunch</button>':''}<button id="editor-restart">Restart</button><button id="editor-hear-sim">Hear it in the sim</button><button id="editor-stop">Stop</button>`:"";
@@ -803,6 +823,7 @@ function renderRoom() {
 function renderHeader() {
   const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
+  $("#host-version").textContent = installation.host_version || "—";
   const mode=installation.supervisor?.mode||"off";
   $("#mode-status").textContent=mode==="simulate"?"simulation":mode==="edit"?"patch edit":"live fleet";
   document.querySelectorAll("[data-execution-target]").forEach(button=>{
@@ -840,14 +861,14 @@ function patchDiagnostics(d, allowRemediation) {
   const active=installed.find(patch=>patch.active)||installed.find(patch=>patch.name===d.report?.patch);
   const desired=installation.fleet_patch||{};
   const fetchPhase=desired.name?(d.fetch||{})[`patch:${desired.name}`]:null;
-  const rows=installed.map(patch=>`<tr><td>${patch.git?'◆ ':''}${esc(patch.name)}</td><td>${patch.active?'active':'inactive'}</td><td>${patch.manifest?'valid':'invalid'}</td><td>${patch.git?'git-managed':'host-mirrored'}</td><td><code>${esc(patch.fingerprint||'unreported')}</code></td></tr>`).join("");
+  const rows=installed.map(patch=>`<tr><td>${patch.git?'◆ ':''}${esc(patch.name)}</td><td>${patch.active?'active':'inactive'}</td><td>${patch.manifest?'valid':'invalid'}</td><td>${patch.git?'git-managed':'host-mirrored'}</td><td>${copyIdentity(patch.fingerprint,'unreported')}</td></tr>`).join("");
   const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch","failed","timeout"].includes(d.patch_badge)
     ? '<button id="fleet-patch-retry">Sync to fleet patch</button>':"";
   const unboundNote=!allowRemediation&&desired.name
     ? '<p class="dim patch-target-note">Assign this device to a Seat before syncing content. OSC v1.5 does not UID-target patch distribution or switching.</p>':"";
   const pull=allowRemediation&&d.online&&active?.git?'<button id="patch-pull">Pull latest</button>':"";
   const switchAttempt=d.patch_switch||{};
-  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired fleet patch</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd><code>${esc(desired.fingerprint||'—')}</code></dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Reported content identity</dt><dd><code>${esc(active?.fingerprint||'unreported')}</code></dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull?`<div class="actions patch-remediation">${remediation}${pull}</div>`:''}${unboundNote}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
+  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired fleet patch</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd>${copyIdentity(desired.fingerprint,'—')}</dd><dt>Reported content identity</dt><dd>${copyIdentity(active?.fingerprint,'unreported')}</dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull?`<div class="actions patch-remediation">${remediation}${pull}</div>`:''}${unboundNote}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
 }
 function bindPatchDiagnostics(d) {
   const retry=$("#fleet-patch-retry");
@@ -881,13 +902,14 @@ function renderSeatDetail() {
   const groupChecks=groupCatalog().map(group=>`<label class="membership-check"><input type="checkbox" data-seat-group="${group.id}" ${(seat.groups||[]).includes(Number(group.id))?'checked':''}><span><strong>${esc(group.name)}</strong><small>g${group.id}</small></span></label>`).join('');
   const groupSync=binding?.group_sync?.status;
   const choiceRevoking=!!devices.find(device=>device.uid===bindingChoice)?.revoking_assignment;
-  panel.innerHTML=`<h3>Seat workspace</h3>
+  const elementLimit=(seat.positions||[]).length>=2;
+  panel.innerHTML=`<div class="seat-inspector-section"><h3>Seat workspace</h3>
     <div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat.name||'')}"></label><button id="seat-rename">Apply name</button></div>
-    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
-    <h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add">Add element</button>
-    <h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small>
-    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.primary(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
-    <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div>`;
+    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div></div>
+    <div class="seat-inspector-section"><h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add" ${elementLimit?'disabled':''}>Add element</button></div>
+    <div class="seat-inspector-section"><h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small></div>
+    <div class="seat-inspector-section"><h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.primary(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}${binding?.ip?` · ${esc(binding.ip)}`:''}`:'No device assigned'}</small>
+    <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div></div>`;
   const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());};
   panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
     const row=input.closest('[data-seat-element]'), index=Number(row.dataset.seatElement);
@@ -896,7 +918,7 @@ function renderSeatDetail() {
     const next=structuredClone(seat.positions||[]); next[index]=[Math.round((x+origin[0])*100)/100,Math.round((y+origin[1])*100)/100]; savePositions(next);
   });
   panel.querySelectorAll('[data-remove-element]').forEach(button=>button.onclick=()=>{const next=structuredClone(seat.positions||[]);next.splice(Number(button.dataset.removeElement),1);savePositions(next);});
-  $("#seat-element-add").onclick=()=>savePositions([...(seat.positions||[]),[Number(origin[0])||0,Number(origin[1])||0]]);
+  $("#seat-element-add").onclick=()=>{if((seat.positions||[]).length<2)savePositions([...(seat.positions||[]),[Number(origin[0])||0,Number(origin[1])||0]]);};
   $("#seat-rename").onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
   $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Current presets follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
   $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its current preset entries will also be removed.`))ws.send("remove_seat",{id:seat.id});};
@@ -924,7 +946,7 @@ function renderDeviceDetail() {
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-mute-control"><output id="device-mute-status" aria-live="polite">${esc(mute.terse)}</output><button id="device-mute-toggle" ${mute.fleet?'disabled':''}>${d.device_muted?'Unmute':'Mute'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}" aria-describedby="device-alias-help"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button></div><small id="device-alias-help" class="dim">Two short words using letters A–Z. This names the physical box, never its Seat or hostname.</small><dl><dt>Hostname</dt><dd>${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace. Mix parameters live there too.</p></section>
+  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-mute-control"><output id="device-mute-status" aria-live="polite">${esc(mute.terse)}</output><button id="device-mute-toggle" ${mute.fleet?'disabled':''}>${d.device_muted?'Unmute':'Mute'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button></div><dl><dt>Hostname</dt><dd>${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
@@ -984,13 +1006,18 @@ function assetInventoryState(device,item) {
   if(installed.fingerprint===null||typeof installed.fingerprint!=="string") return {label:"unknown",installed};
   return {label:installed.fingerprint===item.fingerprint?"current":"stale",installed};
 }
-function abbreviatedFingerprint(value) {
-  return typeof value==="string"&&value ? `${value.slice(0,10)}…` : "unknown";
+function fingerprintTail(value) {
+  return typeof value==="string"&&value ? `…${value.slice(-10)}` : null;
+}
+function copyIdentity(value, fallback="unknown") {
+  const tail=fingerprintTail(value);
+  if(!tail) return `<code>${esc(fallback)}</code>`;
+  return `<button type="button" class="identity-copy" data-copy-identity="${esc(value)}" title="${esc(value)}" aria-label="Copy full identity ${esc(value)}"><code>${esc(tail)}</code><span class="copy-feedback" aria-live="polite"></span></button>`;
 }
 function assetFacts(item) {
   const modified=Number(item.modified);
   const timestamp=Number.isFinite(modified)&&modified>0 ? new Date(modified*1000) : null;
-  return `<dl class="asset-facts"><dt>Files</dt><dd>${item.files==null?'unknown':esc(item.files)}</dd><dt>Size</dt><dd>${item.bytes==null?'unknown':formatBytes(item.bytes)}</dd><dt>Modified</dt><dd>${timestamp?`<time datetime="${timestamp.toISOString()}">${timestamp.toLocaleString()}</time>`:'unknown'}</dd><dt>Fingerprint</dt><dd><code title="${esc(item.fingerprint||'unknown')}">${esc(abbreviatedFingerprint(item.fingerprint))}</code></dd></dl>`;
+  return `<dl class="asset-facts"><dt>Files</dt><dd>${item.files==null?'unknown':esc(item.files)}</dd><dt>Size</dt><dd>${item.bytes==null?'unknown':formatBytes(item.bytes)}</dd><dt>Modified</dt><dd>${timestamp?`<time datetime="${timestamp.toISOString()}">${timestamp.toLocaleString()}</time>`:'unknown'}</dd><dt>Fingerprint</dt><dd>${copyIdentity(item.fingerprint)}</dd></dl>`;
 }
 function assetLiveState(device,slot,observed) {
   const phase=device?.fetch?.[slot];

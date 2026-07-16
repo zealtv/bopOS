@@ -14,7 +14,11 @@
 </head>
 <body>
   <header><a id="technical-link" href="/">All views</a><h1 id="venue-name">bopOS Dashboard</h1><span id="ws-status" class="offline">connecting…</span></header>
-  <main id="cards"><p class="empty">Waiting for devices…</p></main>
+  <nav id="live-scope-tabs" role="tablist" aria-label="Live control scope">
+    <button id="live-scope-aggregate" role="tab" aria-selected="true" aria-controls="cards" data-live-scope-view="aggregate">All &amp; Groups</button>
+    <button id="live-scope-seats" role="tab" aria-selected="false" aria-controls="cards" data-live-scope-view="seats">Seats</button>
+  </nav>
+  <main id="cards" role="tabpanel" aria-labelledby="live-scope-aggregate"><p class="empty">Waiting for devices…</p></main>
   <footer id="controls">
     <div id="master-row"><span class="label">Master</span><input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out"></output></div>
     <div id="buttons">

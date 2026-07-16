@@ -38,6 +38,18 @@ PATCH_SWITCH_RECEIPT_SECONDS = 8.0
 PATCH_SWITCH_RECONCILE_SECONDS = 2.0
 
 
+def host_checkout_shorthand(repo_dir=REPO_DIR):
+    """Return the dashboard host's checkout identity without failing startup."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "rev-parse", "--short=8", "HEAD"],
+            capture_output=True, text=True, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{7,12}", value) else None
+
+
 class DistributionStaticFiles(StaticFiles):
     """Serve manifest-listed content without exposing source-control internals."""
     async def get_response(self, path, scope):
@@ -127,6 +139,7 @@ class Dashboard:
         self.fleet_retries = {}
         self.fleet_generation = 0
         self.performance_target = args.osc_target
+        self.host_version = host_checkout_shorthand()
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
         os.makedirs(self.assets_dir, exist_ok=True)
@@ -1144,6 +1157,7 @@ class Dashboard:
                 editor["status"] = "engine closed"
         public["editor"] = editor
         public["supervisor"] = {"mode": self.supervisor_mode}
+        public["host_version"] = self.host_version
         return public
 
     @staticmethod
