@@ -11,7 +11,7 @@ import math
 import re
 
 
-GENERATOR_VERSION = 1
+GENERATOR_VERSION = 2
 ALIAS_RE = re.compile(r"[A-Za-z]{2,12} [A-Za-z]{2,12}")
 
 # Freda Sparks is the ratified seed and tone reference. Keep both at index 0.
@@ -24,6 +24,14 @@ GIVEN_NAMES = (
     "Noor", "Omar", "Orla", "Pavel", "Priya", "Rami", "Ravi", "Remy",
     "Rina", "Rosa", "Sami", "Sana", "Sora", "Talia", "Tariq", "Theo",
     "Tova", "Uma", "Vera", "Yara", "Yuki", "Zain", "Zola", "Zuri",
+    "Ada", "Adi", "Aiko", "Alba", "Alma", "Ana", "Ari", "Arlo",
+    "Aya", "Bo", "Bria", "Cleo", "Dara", "Eden", "Eiko", "Elia",
+    "Emi", "Femi", "Finn", "Gia", "Hiro", "Idris", "Ilya", "Iris",
+    "Jia", "Kai", "Kian", "Kimi", "Lana", "Leo", "Lina", "Lou",
+    "Maya", "Mika", "Milo", "Mimi", "Mona", "Nami", "Nina", "Noa",
+    "Oona", "Oren", "Pema", "Pia", "Rio", "Rumi", "Sela", "Sol",
+    "Tara", "Teo", "Timo", "Una", "Veda", "Wren", "Xavi", "Yani",
+    "Yuna", "Zara", "Zia", "Aro", "Luma", "Nuri", "Riko", "Zeno",
 )
 
 CHARACTER_WORDS = (
@@ -35,7 +43,17 @@ CHARACTER_WORDS = (
     "Onyx", "Peach", "Pearl", "Pixel", "Pulse", "Quartz", "Rain", "Reef",
     "Ribbon", "River", "Satin", "Scout", "Shine", "Silver", "Solar", "Sonic",
     "Star", "Storm", "Sugar", "Tiger", "Vinyl", "Wave", "Willow", "Zephyr",
+    "Ace", "Ash", "Beam", "Blue", "Bolt", "Bubble", "Charm", "Cherry",
+    "Cinder", "Clover", "Cobra", "Cosmos", "Crown", "Crystal", "Dash", "Dream",
+    "Flame", "Flint", "Flora", "Flux", "Fox", "Glitter", "Haze", "Jet",
+    "Jewel", "Joy", "Karma", "Lemon", "Light", "Lucky", "Magic", "Mango",
+    "Marble", "Midnight", "Mint", "Muse", "Opal", "Panda", "Phoenix", "Pluto",
+    "Poppy", "Raven", "Rebel", "Rose", "Ruby", "Sage", "Shadow", "Sky",
+    "Smoke", "Snow", "Song", "Spirit", "Splash", "Steel", "Sunset", "Swift",
+    "Tango", "Thunder", "Toast", "Topaz", "Vivid", "Wild", "Wing", "Wonder",
 )
+
+V1_VOCABULARY_SIZE = 64
 
 
 def clean_alias(value):
@@ -51,10 +69,21 @@ def alias_key(value):
     return cleaned.casefold() if cleaned is not None else None
 
 
-def _permutation(uid):
-    total = len(GIVEN_NAMES) * len(CHARACTER_WORDS)
+def _vocabulary(version):
+    if version == 1:
+        return (GIVEN_NAMES[:V1_VOCABULARY_SIZE],
+                CHARACTER_WORDS[:V1_VOCABULARY_SIZE])
+    if version == GENERATOR_VERSION:
+        return GIVEN_NAMES, CHARACTER_WORDS
+    raise ValueError("unknown alias generator version")
+
+
+def _permutation(uid, version=GENERATOR_VERSION):
+    given_names, character_words = _vocabulary(version)
+    total = len(given_names) * len(character_words)
     digest = hashlib.sha256(
-        b"bopos-device-alias-v1\0" + str(uid).strip().casefold().encode("utf-8")
+        f"bopos-device-alias-v{version}\0".encode("ascii")
+        + str(uid).strip().casefold().encode("utf-8")
     ).digest()
     start = int.from_bytes(digest[:8], "big") % total
     step = int.from_bytes(digest[8:16], "big") % total or 1
@@ -63,14 +92,15 @@ def _permutation(uid):
     return start, step, total
 
 
-def candidate(uid, probe=0):
+def candidate(uid, probe=0, version=GENERATOR_VERSION):
     """Return one pinned candidate; probes visit every pair exactly once."""
-    start, step, total = _permutation(uid)
+    given_names, character_words = _vocabulary(version)
+    start, step, total = _permutation(uid, version)
     if isinstance(probe, bool) or not isinstance(probe, int) or not 0 <= probe < total:
         raise ValueError("alias probe outside generator range")
     index = (start + probe * step) % total
-    given_index, word_index = divmod(index, len(CHARACTER_WORDS))
-    return f"{GIVEN_NAMES[given_index]} {CHARACTER_WORDS[word_index]}"
+    given_index, word_index = divmod(index, len(character_words))
+    return f"{given_names[given_index]} {character_words[word_index]}"
 
 
 def allocate(uid, registry):
@@ -78,7 +108,7 @@ def allocate(uid, registry):
     occupied = {alias_key(entry.get("alias"))
                 for other_uid, entry in registry.items() if other_uid != uid
                 and isinstance(entry, dict)}
-    _start, _step, total = _permutation(uid)
+    _start, _step, total = _permutation(uid, GENERATOR_VERSION)
     for probe in range(total):
         alias = candidate(uid, probe)
         if alias.casefold() not in occupied:

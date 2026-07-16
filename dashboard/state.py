@@ -299,6 +299,10 @@ class InstallationState:
         if uid not in self.device_registry:
             return None, "Unknown physical device."
         previous = self.device_registry[uid]
+        # A persisted generated alias is already reset. In particular, do not
+        # silently rename a v1 box merely because the host now allocates v2.
+        if previous.get("source") == "generated":
+            return previous, None
         try:
             entry = device_aliases.allocate(uid, self.device_registry)
         except ValueError as error:

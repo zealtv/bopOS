@@ -37,5 +37,14 @@ ratified polish sweep:
 - show the bound device IP in Seat Physical device detail while keeping hostname
   and UID exclusive to selected Device detail.
 
-The manually running dashboard process on port 8080 predates Live Controls and
-must be restarted before Bob evaluates the new UI or protocol behavior.
+The dashboard on port 8080 was restarted with Live Controls. Niko Cloud still
+reported framework revision `4ccd39f`, so its desired device mute was persisted
+host-side but correctly remained unconfirmed and did not stop audio. Update the
+node after the Live Controls commit reaches `origin/main`.
+
+## Alias vocabulary follow-up
+
+The generator now has 128 given names and 128 character words (16,384 base
+combinations). New allocations use pinned generator v2; explicit v1 vectors
+remain reproducible, and persisted generated aliases such as Niko Cloud remain
+unchanged across restart and Reset.
