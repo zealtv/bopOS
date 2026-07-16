@@ -316,6 +316,10 @@ class OSCBridge:
     def uid_action(self, uid, verb):
         self.uid_command(uid, verb)
 
+    def set_device_mute(self, uid, value):
+        """Send one exact-UID persistent physical-box mute intent."""
+        self.uid_command(uid, "mute", [int(bool(value))])
+
     async def unassign(self, uid, timeout=UNASSIGN_TIMEOUT_SECONDS):
         """Request id=-1 and hold assignment replay until its heartbeat ack."""
         device = self.state.devices.get(uid)
@@ -729,6 +733,10 @@ class OSCBridge:
                             "status": "assignment_confirmed",
                             "desired": list(desired_groups)}
                     self.send_groups(uid)
+            if not device.get("virtual"):
+                # Heartbeat is a convergence edge. Old nodes safely ignore the
+                # additive UID verb and remain publicly unconfirmed.
+                self.set_device_mute(uid, self.state.device_muted_for(uid))
             self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
             new = {key: device.get(key) for key in old}
             if old != new:
@@ -767,6 +775,24 @@ class OSCBridge:
             if uid not in self.state.devices or observed is None:
                 return
             self._finish_groups(uid, observed, "receipt")
+            return
+        if address == "/os/mute" and len(args) >= 3:
+            uid = str(args[0])
+            device = self.state.devices.get(uid)
+            if device is None or device.get("virtual"):
+                return
+            try:
+                observed = int(args[1])
+                effective = int(args[2])
+            except (TypeError, ValueError):
+                return
+            if (isinstance(args[1], bool) or isinstance(args[2], bool)
+                    or observed not in (0, 1) or effective not in (0, 1)):
+                return
+            device["mute_observed"] = bool(observed)
+            device["effective_muted"] = bool(effective)
+            device["mute_pending_at"] = None
+            self.broadcast("device_update", device)
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)
@@ -838,6 +864,13 @@ class OSCBridge:
                 device["report"] = report
                 if isinstance(report.get("hostname"), str):
                     device["hostname"] = report["hostname"]
+                if isinstance(report.get("device_muted"), bool):
+                    device["mute_observed"] = report["device_muted"]
+                if isinstance(report.get("muted"), bool):
+                    device["effective_muted"] = report["muted"]
+                if (isinstance(report.get("device_muted"), bool)
+                        and isinstance(report.get("muted"), bool)):
+                    device["mute_pending_at"] = None
                 reconcile_patch_switch_observation(device)
                 observed_groups = self._wire_group_ids(report.get("groups"))
                 if observed_groups is None:
@@ -846,6 +879,9 @@ class OSCBridge:
                         self.send_groups(device["uid"])
                 else:
                     self._finish_groups(device["uid"], observed_groups, "report")
+                if not device.get("virtual"):
+                    self.set_device_mute(
+                        device["uid"], self.state.device_muted_for(device["uid"]))
                 self.broadcast("report", device)
             return
         if address == "/os/patches" and args:

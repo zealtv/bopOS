@@ -228,7 +228,8 @@ class Dashboard:
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         fleet_mutations = {
-            "set_param", "action", "identify", "switch_patch", "set_fleet_patch",
+            "set_param", "set_live_param", "replay_live_params", "set_device_mute",
+            "action", "identify", "switch_patch", "set_fleet_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
             "save_preset", "load_preset", "mute_all", "add_seat", "update_seat",
@@ -266,6 +267,80 @@ class Dashboard:
             self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
+        elif kind == "set_live_param":
+            scope = str(data.get("scope", ""))
+            declaration = self.live_param_declaration(data.get("name"))
+            cleaned = self.clean_editor_value(declaration, data.get("value"))
+            seats, selector = self.live_param_target(scope, data.get("id"))
+            if declaration is None or cleaned is None or seats is None:
+                await self.ws_error(ws, "That live parameter or target is unavailable.")
+                return
+            identity = declaration["identity"]
+            previous = {str(seat["id"]): dict(seat.get("params", {})) for seat in seats}
+            previous_devices = {uid: dict(device.get("params", {}))
+                                for uid, device in self.state.devices.items()}
+            for seat in seats:
+                seat.setdefault("params", {})[identity] = cleaned
+                device = self.state.devices.get(seat.get("bound"))
+                if device is not None:
+                    device.setdefault("params", {})[identity] = cleaned
+                for virtual in self.state.devices.values():
+                    if (virtual.get("virtual")
+                            and str(virtual.get("seat_id")) == str(seat["id"])):
+                        virtual.setdefault("params", {})[identity] = cleaned
+            try:
+                self.state.save()
+            except (OSError, TypeError, ValueError):
+                for seat in seats:
+                    seat["params"] = previous[str(seat["id"])]
+                for uid, params in previous_devices.items():
+                    if uid in self.state.devices:
+                        self.state.devices[uid]["params"] = params
+                await self.ws_error(ws, "Could not save the live parameter; no command was sent.")
+                return
+            self.osc.set_param(selector, identity, cleaned)
+            await self.broadcast("state", self.state.public())
+        elif kind == "replay_live_params":
+            scope = str(data.get("scope", ""))
+            if scope == "all":
+                seats = sorted(self.state.seats.values(), key=lambda item: item["id"])
+            elif scope == "seat":
+                seat_id = self.state.clean_seat_id(data.get("id"))
+                seat = self.state.seats.get(str(seat_id))
+                seats = [seat] if seat is not None else None
+            else:
+                seats = None
+            declarations = self.live_control_declarations()
+            if seats is None or not declarations:
+                await self.ws_error(ws, "That live replay target is unavailable.")
+                return
+            # Replay is deliberately numeric even for All: this is an ordered
+            # refresh of each Seat snapshot, not a fleet-wide value overwrite.
+            for seat in seats:
+                for declaration in declarations:
+                    identity = declaration["identity"]
+                    if identity in seat.get("params", {}):
+                        self.osc.set_param(int(seat["id"]), identity,
+                                           seat["params"][identity])
+        elif kind == "set_device_mute":
+            mute_uid = str(data.get("uid", ""))
+            raw_value = data.get("value")
+            device = self.state.devices.get(mute_uid)
+            if (raw_value not in (0, 1) or isinstance(raw_value, bool)
+                    or device is None or device.get("virtual")
+                    or mute_uid not in self.state.device_registry):
+                await self.ws_error(ws, "That physical device mute target is unavailable.")
+                return
+            if self.state.data.get("muted"):
+                await self.ws_error(ws, "Individual device mute is unavailable during fleet mute.")
+                return
+            desired = bool(raw_value)
+            if not self.state.set_device_muted(mute_uid, desired):
+                await self.ws_error(ws, "Could not save device mute; no command was sent.")
+                return
+            device["mute_pending_at"] = time.time()
+            self.osc.set_device_mute(mute_uid, desired)
+            await self.broadcast("device_update", device)
         elif kind == "set_editor_param":
             name, value = str(data.get("name", "")), data.get("value")
             editor = self.state.data["editor"]
@@ -535,6 +610,13 @@ class Dashboard:
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
             self.osc.os_command("all", "mute", [value])
+            # Reassert each exact physical-box layer after the session overlay.
+            # In particular, releasing MUTE ALL must not unmute a box whose
+            # durable UID intent remains true.
+            for device_uid, device in self.state.devices.items():
+                if not device.get("virtual") and device.get("online"):
+                    self.osc.set_device_mute(
+                        device_uid, self.state.device_muted_for(device_uid))
             await self.broadcast("mute_all", {"value": value})
         elif kind == "set_simulation":
             async with self.supervisor_lock:
@@ -966,6 +1048,43 @@ class Dashboard:
         return {patch_manifest.qualify_param(item)
                 for item in manifest.get("params", ())}
 
+    def live_control_declarations(self):
+        """Validated promoted schema for Seat-owned live controls."""
+        patch_name = self.state.data.get("params_patch")
+        if not patch_name:
+            return []
+        manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
+        if manifest is None:
+            return []
+        declarations = []
+        for item in manifest.get("params", ()):
+            if item.get("facilitator") is True:
+                projected = dict(item)
+                projected["identity"] = patch_manifest.qualify_param(item)
+                declarations.append(projected)
+        return declarations
+
+    def live_param_declaration(self, identity):
+        if not isinstance(identity, str):
+            return None
+        return next((item for item in self.live_control_declarations()
+                     if item["identity"] == identity), None)
+
+    def live_param_target(self, scope, target_id):
+        if scope == "all":
+            return list(self.state.seats.values()), "all"
+        if scope == "seat":
+            seat_id = self.state.clean_seat_id(target_id)
+            seat = self.state.seats.get(str(seat_id))
+            return ([seat], seat_id) if seat is not None else (None, None)
+        if scope == "group":
+            group_id = self.state.clean_group_id(target_id)
+            if group_id is None or str(group_id) not in self.state.data.get("groups", {}):
+                return None, None
+            seats = self.state.seats_for_group(group_id)
+            return (seats, f"g{group_id}") if seats else (None, None)
+        return None, None
+
     async def live_fleet_patch(self):
         staged = self.state.data.get("fleet_patch")
         if not staged:
@@ -983,6 +1102,22 @@ class Dashboard:
         # device fact or node-provided identity.
         public["alias"] = (None if device.get("virtual")
                            else self.state.alias_for(device.get("uid")))
+        if device.get("virtual"):
+            public.update(device_muted=False, mute_observed=None,
+                          effective_muted=None, mute_status="unconfirmed")
+        else:
+            desired_mute = self.state.device_muted_for(device.get("uid"))
+            observed = device.get("mute_observed")
+            pending_at = device.get("mute_pending_at")
+            if isinstance(observed, bool) and observed == desired_mute:
+                mute_status = "current"
+            elif pending_at is not None and time.time() - pending_at < 5.0:
+                mute_status = "pending"
+            else:
+                mute_status = "unconfirmed"
+            public.update(device_muted=desired_mute, mute_observed=observed,
+                          effective_muted=device.get("effective_muted"),
+                          mute_status=mute_status)
         public["patch_badge"] = patch_badge(device, desired)
         return public
 
@@ -996,6 +1131,11 @@ class Dashboard:
         public["fleet_patch"] = desired
         public["devices"] = {uid: await self.public_device(device, desired)
                              for uid, device in self.state.devices.items()}
+        declarations = self.live_control_declarations()
+        public["live_controls"] = {
+            "patch": self.state.data.get("params_patch") if declarations else None,
+            "declarations": declarations,
+        }
         editor = dict(self.state.data["editor"])
         editor_device = self.state.devices.get("audition-0001")
         if self.supervisor_mode == "edit" and editor_device is not None:
@@ -1485,6 +1625,9 @@ class Dashboard:
         self.osc.send_master()
         self.osc.os_command("all", "mute", [
             int(bool(self.state.data.get("muted", False)))])
+        for uid, device in self.state.devices.items():
+            if not device.get("virtual") and device.get("online"):
+                self.osc.set_device_mute(uid, self.state.device_muted_for(uid))
 
     async def supervisor_exited(self, process, mode, generation):
         await asyncio.to_thread(process.wait)

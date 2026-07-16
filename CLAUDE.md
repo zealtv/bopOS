@@ -89,16 +89,16 @@ and tie one concrete stitch at a time:
    from privileged provisioning, fails without prompting, reports outcome
    phases and reboots only after success. Niko Cloud passed the real
    receipt-before-reboot/return gate at `7d8a671` with `bonks-pd` preserved.
-7. **Next — Dashboard live controls.** Use
-   `12-dashboard-live-controls` as the single integration point for the
-   flat/nested parameter × All/Group/Seat target matrix, per-Seat/All parameter
-   replay, and individual physical-device mute. Device aliases are complete.
-   The exact-UID mute subfeature is ratified in
-   `device-mute-contract-proposal.md`, including its selected-detail action and
-   Devices-roster mute indication; Seat/Group mute and solo are deferred.
-8. **Diagnostic density and polish.** Add the host Git shorthand beside the
-   wordmark, remove the ratified extraneous copy, vertically align desired and
-   reported patch identities, and complete `13-diagnostic-density`.
+7. **Complete — Dashboard live controls.** The staged host manifest now drives
+   Seat-owned All/Group/Seat promoted controls with nested identity intact,
+   mixed aggregates, durable offline/unbound values, and per-Seat/All replay.
+   Exact-UID persistent physical-device mute, fleet-overlay OR semantics,
+   selected-detail action, roster indication, simulator/audition parity, and
+   focused touch verification are tied. Seat/Group mute and solo remain
+   deferred.
+8. **Next — Diagnostic density and polish.** Add the host Git shorthand beside
+   the wordmark, remove the ratified extraneous copy, vertically align desired
+   and reported patch identities, and complete `13-diagnostic-density`.
 9. **Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.
@@ -116,9 +116,9 @@ Everything else is `.waiting` for a reason stated in its stitch:
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
-  `parameter-addresses`, `seat-groups`, and the single-device Assets workflow
-  are complete. The next software stitch in the accepted sweep is dashboard
-  live controls (stage 12).
+  `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
+  Dashboard live controls are complete. The next software stitch in the
+  accepted sweep is diagnostic density (stage 13).
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

@@ -64,6 +64,8 @@ class VirtualNode:
     positions: tuple = ()
     points: dict = field(default_factory=dict)
     groups: tuple = ()
+    device_muted: bool = False
+    fleet_muted: bool = False
     process: subprocess.Popen | None = None
 
     def engine_alive(self, no_engine):
@@ -218,8 +220,10 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.5",
+            "contract_version": "1.6",
             "groups": list(getattr(node, "groups", ())),
+            "device_muted": bool(node.device_muted),
+            "muted": bool(node.device_muted or node.fleet_muted),
         }
         self.sock.sendto(osc_datagram("/os/report", json.dumps(report)),
                          (source[0], self.args.report_port))
@@ -231,6 +235,19 @@ class AuditionRig:
     def uid_admin(self, node, member, args, source):
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
+        if member == "mute" and len(args) == 1:
+            try:
+                value = int(args[0])
+            except (TypeError, ValueError):
+                return
+            if value not in (0, 1):
+                return
+            node.device_muted = bool(value)
+            self.sock.sendto(osc_datagram(
+                "/os/mute", node.uid, value,
+                int(node.device_muted or node.fleet_muted)),
+                (source[0], self.args.report_port))
+            return
         if member not in allowed or args:
             return
         if member == "identify":
@@ -530,6 +547,17 @@ class AuditionRig:
                 if (matches(selector, node.device_id, getattr(node, "groups", ()))
                         and uid in (None, node.uid)):
                     self.sock.sendto(packet, (self.local_target, node.engine_port))
+            return
+        if parts[1:] == ["os", "mute"] and message.params:
+            try:
+                value = int(message.params[0])
+            except (TypeError, ValueError):
+                return
+            if value not in (0, 1):
+                return
+            for node in self.nodes:
+                if matches(selector, node.device_id, getattr(node, "groups", ())):
+                    node.fleet_muted = bool(value)
             return
 
     def stop(self):

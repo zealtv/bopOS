@@ -225,6 +225,11 @@ class InstallationState:
             # None means /os/params has not supplied a valid manifest yet.
             "active_asset_slots": None,
             "group_sync": None,  # runtime full-state membership convergence
+            # Runtime observations for the persistent physical-box mute intent.
+            # Desired state lives in device_registry, never in a venue.
+            "mute_observed": None,
+            "effective_muted": None,
+            "mute_pending_at": None,
         }
 
     def _import_seed(self, path):
@@ -298,6 +303,7 @@ class InstallationState:
             entry = device_aliases.allocate(uid, self.device_registry)
         except ValueError as error:
             return None, str(error)
+        entry["device_muted"] = bool(previous.get("device_muted", False))
         self.device_registry[uid] = entry
         try:
             self.save()
@@ -309,6 +315,24 @@ class InstallationState:
     def remove_device_alias(self, uid):
         """Remove and return an entry in memory; callers own transaction save."""
         return self.device_registry.pop(uid, None)
+
+    def device_muted_for(self, uid):
+        entry = self.device_registry.get(uid)
+        return bool(entry.get("device_muted", False)) if isinstance(entry, dict) else False
+
+    def set_device_muted(self, uid, value):
+        """Persist exact physical-box mute intent in the host-global registry."""
+        entry = self.device_registry.get(uid)
+        if not isinstance(entry, dict) or not isinstance(value, bool):
+            return False
+        previous = bool(entry.get("device_muted", False))
+        entry["device_muted"] = value
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            entry["device_muted"] = previous
+            return False
+        return True
 
     def public(self):
         return self.data

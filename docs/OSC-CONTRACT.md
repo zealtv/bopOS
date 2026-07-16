@@ -27,6 +27,10 @@ in `.loom/tied/06-seat-device-boundary-design/`): a small allowlisted UID
 administration envelope uniquely reaches physical nodes that all advertise ID
 `-1`; node unassignment and uid-attributable revision receipts make binding
 revocation safe.
+Amended 2026-07-16 by the exact physical-device mute ratification (record in
+`.loom/tied/12-dashboard-live-controls/device-mute-contract-proposal.md`): the
+exact-UID envelope carries persistent box mute intent and reports both that
+layer and its effective OR with the session fleet-safety overlay.
 Amended 2026-07-16 by the nested parameter-address ratification (record in
 `.loom/tied/param-address-0-design/`): patch declarations may carry a structural
 `path`, and the complete variable-length parameter hierarchy survives selector
@@ -136,8 +140,9 @@ selection:
 ```
 
 Every node receives it; only the exact opaque uid match dispatches. The uid is
-data, never an OSC address component. Dispatch is direct to an exact zero-arity
-allowlist—`identify`, `report`, `reboot`, `shutdown`, `restart-engine`,
+data, never an OSC address component. Dispatch is direct to an exact allowlist.
+`mute <0|1>` is the sole full-state one-argument operation; the zero-arity
+operations are `identify`, `report`, `reboot`, `shutdown`, `restart-engine`,
 `updatebopos`, `unassign`—with no recursive address construction. Provided
 terms, patch parameters, probes, persistence storage, content distribution and
 patch switching remain selector-addressed and cannot pass through this envelope.
@@ -409,6 +414,7 @@ deferred and unratified.
 /<id>/os/identify           →  the box chirps/flashes          (locate on install day)
 /<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
+/all/os/to <uid> mute <0|1> → /os/mute <uid> <device-muted> <effective-muted>
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -434,7 +440,8 @@ move to the uniform envelope.
   alarm**; there is no streamed telemetry.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
-  update_model, contract-version, and the sorted `groups` array. This is the
+  update_model, contract-version, the sorted `groups` array, persistent
+  `device_muted`, and effective `muted`. This is the
   capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
 - **`/os/mute` is safety-critical.** It is the one framework-owned output control:
@@ -450,6 +457,12 @@ move to the uniform envelope.
   not the design centre. The mixer path must be verified per audio board on
   real hardware (DigiAMP, Pimoroni Audio SHIM, class-compliant USB — the
   candidate-control list in `set_mute` grows as boards are benched).
+  The broadcast `/all/os/mute` value is a session fleet-safety overlay. The
+  exact-UID `/all/os/to <uid> mute <0|1>` value is persisted by that physical
+  node before `/os/mute <uid> <device-muted> <effective-muted>` acknowledges
+  it. Effective mute is the logical OR of those layers and is enforced before
+  or while the engine launches. Releasing fleet safety therefore restores,
+  rather than erases, each box's persistent intent.
 
 ## 7. Admin and convergence (`/os/*` verbs)
 

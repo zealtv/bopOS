@@ -164,6 +164,8 @@ class Device:
         self.engine_dead = engine_dead
         self.engine_restart_until = 0.0
         self.rssi = random.randint(-70, -45)
+        self.device_muted = False
+        self.fleet_muted = False
         self.muted = False
         self.ident_until = 0.0
         # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
@@ -210,6 +212,8 @@ class Device:
             self.elements = [[float(positions[i]), float(positions[i + 1])]
                              for i in range(0, len(positions) - 1, 2)]
             self.groups = group_protocol.stored_group_ids(assignment.get("groups", []))
+            self.device_muted = bool(assignment.get("device_muted", False))
+            self.muted = bool(self.device_muted or self.fleet_muted)
         except (OSError, ValueError, KeyError, TypeError):
             pass
 
@@ -226,7 +230,8 @@ class Device:
             with open(tmp, "w") as target:
                 json.dump({"id": saved_id, "name": saved_name,
                            "positions": positions,
-                           "groups": list(saved_groups)}, target)
+                           "groups": list(saved_groups),
+                           "device_muted": bool(self.device_muted)}, target)
             os.replace(tmp, self.state_file(state_dir))
             return True
         except OSError as error:
@@ -377,6 +382,8 @@ class SimFleet:
             "update_model": "ephemeral" if device.ephemeral else "persistent",
             "contract_version": "1.6",
             "groups": list(device.groups),
+            "device_muted": bool(device.device_muted),
+            "muted": bool(device.muted),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -385,6 +392,28 @@ class SimFleet:
     def uid_admin(self, device, member, args, source):
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
+        if member == "mute" and len(args) == 1:
+            try:
+                value = int(args[0])
+            except (TypeError, ValueError):
+                return
+            if value not in (0, 1):
+                return
+            previous = device.device_muted
+            device.device_muted = bool(value)
+            positions = [coordinate for element in device.elements for coordinate in element]
+            if not device.save_assignment(self.args.state_dir, positions):
+                device.device_muted = previous
+                return
+            device.muted = bool(device.device_muted or device.fleet_muted)
+            builder = osc_message_builder.OscMessageBuilder(address="/os/mute")
+            builder.add_arg(device.mac, arg_type="s")
+            builder.add_arg(value, arg_type="i")
+            builder.add_arg(int(device.muted), arg_type="i")
+            self.sock.sendto(builder.build().dgram,
+                             (source[0], self.args.report_port))
+            self.log(device, f"device_muted={value} effective={int(device.muted)}")
+            return
         if member not in allowed or args:
             return
         if member == "identify":
@@ -799,8 +828,9 @@ class SimFleet:
                 except (TypeError, ValueError):
                     continue
                 if value in (0, 1):
-                    device.muted = bool(value)
-                    self.log(device, f"muted={value}")
+                    device.fleet_muted = bool(value)
+                    device.muted = bool(device.device_muted or device.fleet_muted)
+                    self.log(device, f"fleet_muted={value} effective={int(device.muted)}")
             elif member == "master" and args:
                 # provided term (contract sec 4.1): a real node's OS layer
                 # routes this to the engine's named receive; the fake device

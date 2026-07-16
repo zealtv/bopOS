@@ -201,6 +201,9 @@ class NodeState:
         self.version = resolve_version()
         self.mixer_control = None
         self.muted_via_stop = False
+        stored_mute = self.store.get("device_muted")
+        self.device_muted = bool(stored_mute and stored_mute[0] in (1, True))
+        self.fleet_muted = False
         self.elements = resolve_elements(self.store)
         self.groups = group_protocol.stored_group_ids(self.store.get("groups"))
         self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
@@ -442,7 +445,7 @@ def mixer_candidates(state=None):
     return result
 
 
-def set_mute(value, state=None):
+def enforce_mute(value, state=None):
     state = state or node_state
     mute = int(value) == 1
     candidates = mixer_candidates(state)
@@ -450,18 +453,53 @@ def set_mute(value, state=None):
         candidates.remove(state.mixer_control)
         candidates.insert(0, state.mixer_control)
     action = "mute" if mute else "unmute"
-    succeeded = False
+    if not mute and state.muted_via_stop:
+        if run_command(["bash", os.path.join(BOPOS_DIR, "bash", "start-engine.sh")]) == 0:
+            state.muted_via_stop = False
+            return True
+        return False
     for control in candidates:
         if run_command(["amixer", "-q", "sset", control, action]) == 0:
             state.mixer_control = control
-            succeeded = True
-            break
-    if mute and not succeeded:
-        run_command(["bash", os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")])
-        state.muted_via_stop = True
-    if not mute and state.muted_via_stop:
-        run_command(["bash", os.path.join(BOPOS_DIR, "bash", "start-engine.sh")])
-        state.muted_via_stop = False
+            return True
+    if mute:
+        if run_command(["bash", os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")]) == 0:
+            state.muted_via_stop = True
+            return True
+    return False
+
+
+def effective_mute(state=None):
+    state = state or node_state
+    return bool(getattr(state, "device_muted", False)
+                or getattr(state, "fleet_muted", False))
+
+
+def set_mute(value, state=None):
+    """Apply the fleet safety overlay without changing persistent UID intent."""
+    state = state or node_state
+    state.fleet_muted = int(value) == 1
+    return enforce_mute(effective_mute(state), state)
+
+
+def set_device_mute(value, reply_socket, requester, state=None):
+    """Persist and acknowledge one exact physical-box mute layer."""
+    state = state or node_state
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        return False
+    if value not in (0, 1) or not state.store.put("device_muted", [value]):
+        return False
+    state.device_muted = bool(value)
+    if not enforce_mute(effective_mute(state), state):
+        return False
+    msg = OSCMessage("/os/mute")
+    msg.append(str(state.uid), 's')
+    msg.append(value, 'i')
+    msg.append(int(effective_mute(state)), 'i')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    return True
 
 
 def flash_led():
@@ -870,6 +908,8 @@ def report_reply(reply_socket, requester, state=None):
         "update_model": state.update_model,
         "contract_version": "1.6",
         "groups": list(getattr(state, "groups", ())),
+        "device_muted": bool(getattr(state, "device_muted", False)),
+        "muted": effective_mute(state),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -905,7 +945,9 @@ UID_ADMIN_VERBS = frozenset({
 
 
 def dispatch_uid_admin(member, args, state, reply_socket, requester):
-    """Dispatch the exact ratified UID envelope allowlist, all zero-arity."""
+    """Dispatch the exact UID allowlist: mute is the sole one-arity verb."""
+    if member == "mute" and len(args) == 1:
+        return set_device_mute(args[0], reply_socket, requester, state)
     if member not in UID_ADMIN_VERBS or args:
         return False
     if member == "identify":
@@ -1559,6 +1601,9 @@ if __name__ == "__main__":
     server.timeout = 1.0
     cue_scheduler.start()
     initialise_asset_cache()
+    # Persistent box intent is enforced as the helper comes up, before or
+    # alongside the independently managed engine launch.
+    enforce_mute(effective_mute(node_state), node_state)
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
     while True:
