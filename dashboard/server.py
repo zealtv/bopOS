@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 import points
+import device_aliases
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
@@ -242,6 +243,7 @@ class Dashboard:
         uid = data.get("uid")
         fleet_mutations = {
             "set_param", "set_live_param", "replay_live_params", "set_device_mute",
+            "set_device_hostname",
             "action", "identify", "switch_patch", "set_fleet_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
@@ -344,15 +346,25 @@ class Dashboard:
                     or mute_uid not in self.state.device_registry):
                 await self.ws_error(ws, "That physical device mute target is unavailable.")
                 return
-            if self.state.data.get("muted"):
-                await self.ws_error(ws, "Individual device mute is unavailable during fleet mute.")
-                return
             desired = bool(raw_value)
             if not self.state.set_device_muted(mute_uid, desired):
                 await self.ws_error(ws, "Could not save device mute; no command was sent.")
                 return
             device["mute_pending_at"] = time.time()
             self.osc.set_device_mute(mute_uid, desired)
+            await self.broadcast("device_update", device)
+        elif kind == "set_device_hostname":
+            hostname_uid = str(data.get("uid", ""))
+            device = self.state.devices.get(hostname_uid)
+            alias = self.state.alias_for(hostname_uid)
+            hostname = device_aliases.hostname_for_alias(alias)
+            if (device is None or device.get("virtual") or not device.get("online")
+                    or hostname is None):
+                await self.ws_error(ws, "That physical device hostname target is unavailable.")
+                return
+            device["hostname_target"] = hostname
+            device["hostname_status"] = "pending"
+            self.osc.set_device_hostname(hostname_uid, hostname)
             await self.broadcast("device_update", device)
         elif kind == "set_editor_param":
             name, value = str(data.get("name", "")), data.get("value")

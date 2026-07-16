@@ -79,8 +79,9 @@ sudo bash/provision.sh
 ```
 
 `provision.sh` is the one-time privileged step: it installs the current
-`rc.local` boot entry and the narrow sudoers rule that permits the unprivileged
-bopOS helper to reboot or power off the node. Routine dashboard updates are
+`rc.local` boot entry, the validated hostname helper, and narrow sudoers rules
+that permit the unprivileged bopOS helper to reboot, power off, or apply a
+validated hostname. Routine dashboard updates are
 orchestrated by the already-running helper as `pi`, so checking out a branch
 cannot replace the update procedure mid-operation. The helper restores and
 pulls the checkout without interactive Git credentials, preserves

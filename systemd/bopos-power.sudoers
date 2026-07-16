@@ -1,2 +1,2 @@
-# bopOS framework power controls; installed as /etc/sudoers.d/bopos-power
-pi ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff
+# bopOS narrow privileged controls; installed as /etc/sudoers.d/bopos-power
+pi ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/bopos-set-hostname *

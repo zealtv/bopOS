@@ -22,6 +22,18 @@ This supersedes `.notes/handoff-2026-07-16-live-controls-complete.md`.
   touch-friendly Dashboard actions in both embedded and standalone views. The
   production free-text field and idle shared-clock copy are gone; Patch edit
   retains undeclared cue trials. Focused verification passed **9/9**.
+- Seats and Physical device rosters are now bounded scrolling regions. Seats
+  have a live name-prefix filter; Physical devices deliberately retain only
+  their existing categorical dropdown. Focused verification passed **9/9**.
+- Exact-device mute intent can be changed beneath fleet safety mute; the node
+  remains effectively muted until the fleet layer is released, and roster
+  indicators now describe device intent only. Focused browser verification
+  passed **7/7** and the existing node protocol regression passed **13/13**.
+- A selected Device can set its OS hostname from its alias (`Finn Jet` →
+  `finn-jet`) through an exact-UID, receipt-backed action. Existing Pis need a
+  one-time `sudo bash/provision.sh` run for the new root-owned helper and
+  sudoers policy; routine Update bopOS cannot install that boundary. Focused
+  verification passed **10/10** without real Pi execution.
 
 No `.pd` files changed. Real iPad/Safari, screen reader, installation LAN,
 audible engine, and real Pi behavior were not exercised in this polish pass.
@@ -30,7 +42,8 @@ audible engine, and real Pi behavior were not exercised in this polish pass.
 
 Close the sweep through `patch-workflow-friction` in order:
 
-1. `friction-0-docs` — reconcile operator/developer documentation with the
-   finished Dashboard and runtime workflow.
+1. `friction-0-docs` — complete documentation review: make README a friendly
+   system overview, establish a getting-started guide and composer guide, and
+   move detailed implementation material into coherent technical docs.
 2. `friction-1-starter-kit` — align starter-kit copy and examples with that
    final documentation.

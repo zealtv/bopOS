@@ -11,8 +11,10 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
 
+install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-hostname" \
+    /usr/local/sbin/bopos-set-hostname
 "$SCRIPT_DIR/install-power-control.sh"
 chown -R pi:pi "$BOPOS_DIR"
 install -o root -g root -m 0755 "$SCRIPT_DIR/rc.local" /etc/rc.local
-echo "Installed bopOS boot entry and power authorization"
+echo "Installed bopOS boot entry and privileged control authorization"
 echo "Run bash/update.sh as pi to verify convergence, then reboot when ready"

@@ -49,7 +49,11 @@
           <button id="group-sidebar-tab" role="tab" aria-selected="false" aria-controls="group-sidebar-panel">Groups</button>
         </div>
         <div id="seat-sidebar-panel" role="tabpanel" aria-labelledby="seat-sidebar-tab">
-          <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div><p id="venue-rebind" class="dim" hidden></p><div id="assigned"></div>
+          <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div>
+          <p id="venue-rebind" class="dim" hidden></p>
+          <label class="seat-roster-filter">Filter Seats <input id="seat-roster-filter" type="text" placeholder="Names beginning with…"></label>
+          <div id="assigned" class="seat-roster-list"></div>
+          <p id="seat-roster-filter-empty" class="dim" hidden>No Seat names begin with this filter.</p>
           <div id="seat-detail"><p class="dim">Select a Seat on the map or in the list.</p></div>
         </div>
         <div id="group-sidebar-panel" role="tabpanel" aria-labelledby="group-sidebar-tab" hidden>
@@ -62,7 +66,7 @@
     <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
       <aside class="device-sidebar">
         <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
-        <div id="device-roster"></div>
+        <div id="device-roster" class="device-roster-list"></div>
         <footer><button id="forget-offline">Forget offline unbound</button><button data-all="reboot">Reboot All</button><button data-all="shutdown" class="danger">Shutdown All</button><button data-all="updatebopos">Update bopOS</button></footer>
       </aside>
       <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>

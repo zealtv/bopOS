@@ -7,6 +7,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 import shlex
 import signal
 import socket
@@ -31,6 +32,7 @@ import groups as group_protocol  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
+HOSTNAME_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 
 def osc_datagram(address, *args):
@@ -247,6 +249,16 @@ class AuditionRig:
                 "/os/mute", node.uid, value,
                 int(node.device_muted or node.fleet_muted)),
                 (source[0], self.args.report_port))
+            return
+        if member == "hostname" and len(args) == 1:
+            hostname = str(args[0])
+            if HOSTNAME_RE.fullmatch(hostname) is None:
+                return
+            node.name = hostname
+            self.sock.sendto(osc_datagram(
+                "/os/hostname", node.uid, hostname, "ok"),
+                (source[0], self.args.report_port))
+            self.send_heartbeat(node)
             return
         if member not in allowed or args:
             return

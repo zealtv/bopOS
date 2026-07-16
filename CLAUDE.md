@@ -100,7 +100,10 @@ and tie one concrete stitch at a time:
    copyable identity tails, adjacent desired/reported identities, terse copy,
    divided Seat inspector, two-element UI guard, Seat-bound IP, empty-preset
    cleanup, UX-reviewed All & Groups / Seats live tabs, and manifest-declared
-   synchronized Dashboard cue triggers are tied.
+   synchronized Dashboard cue triggers, bounded Seat/Device rosters, live Seat
+   name filtering, independently staged device mute beneath fleet safety, and
+   exact-device alias-derived hostname action are tied. Existing Pis need one
+   manual provisioning run before the hostname action is available.
 9. **Next — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.

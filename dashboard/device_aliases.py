@@ -69,6 +69,12 @@ def alias_key(value):
     return cleaned.casefold() if cleaned is not None else None
 
 
+def hostname_for_alias(value):
+    """Return the safe lowercase-hyphen hostname for one valid alias."""
+    cleaned = clean_alias(value)
+    return cleaned.casefold().replace(" ", "-") if cleaned is not None else None
+
+
 def _vocabulary(version):
     if version == 1:
         return (GIVEN_NAMES[:V1_VOCABULARY_SIZE],

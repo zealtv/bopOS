@@ -37,6 +37,7 @@ REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 PATCHES_DIR = os.path.join(REPO_DIR, "patches")
 ASSETS_DIR = os.path.join(REPO_DIR, "assets")
 DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
+HOSTNAME_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
 # the sim decomposes /pt with the same module the real helper uses, so the
 # two can never drift (contract sec 4.1)
@@ -413,6 +414,25 @@ class SimFleet:
             self.sock.sendto(builder.build().dgram,
                              (source[0], self.args.report_port))
             self.log(device, f"device_muted={value} effective={int(device.muted)}")
+            return
+        if member == "hostname" and len(args) == 1:
+            hostname = str(args[0])
+            if HOSTNAME_RE.fullmatch(hostname) is None:
+                return
+            positions = [coordinate for element in device.elements for coordinate in element]
+            status = "ok" if device.save_assignment(
+                self.args.state_dir, positions, hostname=hostname) else "err"
+            if status == "ok":
+                device.hostname = hostname
+            builder = osc_message_builder.OscMessageBuilder(address="/os/hostname")
+            builder.add_arg(device.mac, arg_type="s")
+            builder.add_arg(hostname, arg_type="s")
+            builder.add_arg(status, arg_type="s")
+            self.sock.sendto(builder.build().dgram,
+                             (source[0], self.args.report_port))
+            if status == "ok":
+                self.heartbeat(device, reschedule=False)
+            self.log(device, f"hostname={hostname} {status}")
             return
         if member not in allowed or args:
             return

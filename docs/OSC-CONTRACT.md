@@ -31,6 +31,9 @@ Amended 2026-07-16 by the exact physical-device mute ratification (record in
 `.loom/tied/12-dashboard-live-controls/device-mute-contract-proposal.md`): the
 exact-UID envelope carries persistent box mute intent and reports both that
 layer and its effective OR with the session fleet-safety overlay.
+Amended 2026-07-16 by the alias-derived hostname action (record in
+`.loom/tied/19-alias-hostname-action/`): the exact-UID envelope can apply one
+validated full-state hostname and returns an attributable terminal receipt.
 Amended 2026-07-16 by the nested parameter-address ratification (record in
 `.loom/tied/param-address-0-design/`): patch declarations may carry a structural
 `path`, and the complete variable-length parameter hierarchy survives selector
@@ -141,9 +144,10 @@ selection:
 
 Every node receives it; only the exact opaque uid match dispatches. The uid is
 data, never an OSC address component. Dispatch is direct to an exact allowlist.
-`mute <0|1>` is the sole full-state one-argument operation; the zero-arity
-operations are `identify`, `report`, `reboot`, `shutdown`, `restart-engine`,
-`updatebopos`, `unassign`—with no recursive address construction. Provided
+The full-state one-argument operations are `mute <0|1>` and
+`hostname <lowercase-hostname>`; the zero-arity operations are `identify`,
+`report`, `reboot`, `shutdown`, `restart-engine`, `updatebopos`, `unassign`—with
+no recursive address construction. Provided
 terms, patch parameters, probes, persistence storage, content distribution and
 patch switching remain selector-addressed and cannot pass through this envelope.
 
@@ -262,7 +266,7 @@ the topology is identical, only the port number moves.
   `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
   `/os/report`, `/os/groups`, `/os/params`, `/os/patches`, `/os/assets`,
-  `/os/rev`, `/os/fetched`. (WiFi
+  `/os/rev`, `/os/fetched`, `/os/hostname`. (WiFi
   broadcast has no MAC-layer ACK and rides the lowest basic rate — it is scarce
   and lossy; replies don't wake 100 CPUs.)
 - **Control-plane law: every fleet command is full-state and idempotent.** No
@@ -415,6 +419,7 @@ deferred and unratified.
 /<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
 /all/os/to <uid> mute <0|1> → /os/mute <uid> <device-muted> <effective-muted>
+/all/os/to <uid> hostname <name> → /os/hostname <uid> <name> <ok|err>
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -463,6 +468,14 @@ move to the uniform envelope.
   it. Effective mute is the logical OR of those layers and is enforced before
   or while the engine launches. Releasing fleet safety therefore restores,
   rather than erases, each box's persistent intent.
+- **Exact-device hostname** is a full-state administrative operation, not Seat
+  identity. `<name>` is 1–63 lowercase ASCII letters/digits with internal
+  hyphens only, beginning and ending alphanumeric. The node changes its OS
+  hostname through pre-provisioned non-interactive authorization and returns
+  `/os/hostname <uid> <name> ok` only after the privileged helper succeeds;
+  unavailable authorization or OS failure returns `err`. Repeating the current
+  hostname is an idempotent success. No Seat, alias, element, or engine state is
+  changed by this verb.
 
 ## 7. Admin and convergence (`/os/*` verbs)
 

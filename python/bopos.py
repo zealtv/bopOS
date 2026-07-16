@@ -31,6 +31,8 @@ ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
 NETWORK_SYS = "/sys/class/net"
 PROC_DIR = "/proc"
 LED_SYS = "/sys/class/leds"
+HOSTNAME_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+HOSTNAME_HELPER = "/usr/local/sbin/bopos-set-hostname"
 
 io_directory = os.path.join(BOPOS_DIR, "python", "io")
 if io_directory not in sys.path:
@@ -561,6 +563,32 @@ def set_hostname(hostname):
     os.system('sudo systemctl restart avahi-daemon')
 
 
+def set_device_hostname(hostname, reply_socket, requester, state=None):
+    """Apply one validated exact-UID hostname and return a terminal receipt."""
+    state = state or node_state
+    hostname = str(hostname)
+    if HOSTNAME_RE.fullmatch(hostname) is None:
+        return False
+    status = "ok"
+    if socket.gethostname() != hostname:
+        try:
+            completed = subprocess.run(
+                ["sudo", "-n", HOSTNAME_HELPER, hostname],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=20, check=False)
+            status = "ok" if completed.returncode == 0 else "err"
+        except (OSError, subprocess.TimeoutExpired):
+            status = "err"
+    msg = OSCMessage("/os/hostname")
+    msg.append(str(state.uid), 's')
+    msg.append(hostname, 's')
+    msg.append(status, 's')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    if status == "ok":
+        hb_wake.set()
+    return True
+
+
 def typed_append(msg, value):
     if isinstance(value, bool):
         msg.append(int(value), 'i')
@@ -945,9 +973,17 @@ UID_ADMIN_VERBS = frozenset({
 
 
 def dispatch_uid_admin(member, args, state, reply_socket, requester):
-    """Dispatch the exact UID allowlist: mute is the sole one-arity verb."""
+    """Dispatch the exact UID allowlist and its narrow argument verbs."""
     if member == "mute" and len(args) == 1:
         return set_device_mute(args[0], reply_socket, requester, state)
+    if member == "hostname" and len(args) == 1:
+        hostname = str(args[0])
+        if HOSTNAME_RE.fullmatch(hostname) is None:
+            return False
+        threading.Thread(target=set_device_hostname,
+                         args=(hostname, reply_socket, requester, state),
+                         daemon=True).start()
+        return True
     if member not in UID_ADMIN_VERBS or args:
         return False
     if member == "identify":

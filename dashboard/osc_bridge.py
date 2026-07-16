@@ -320,6 +320,10 @@ class OSCBridge:
         """Send one exact-UID persistent physical-box mute intent."""
         self.uid_command(uid, "mute", [int(bool(value))])
 
+    def set_device_hostname(self, uid, hostname):
+        """Send one exact-UID alias-derived hostname target."""
+        self.uid_command(uid, "hostname", [str(hostname)])
+
     async def unassign(self, uid, timeout=UNASSIGN_TIMEOUT_SECONDS):
         """Request id=-1 and hold assignment replay until its heartbeat ack."""
         device = self.state.devices.get(uid)
@@ -792,6 +796,19 @@ class OSCBridge:
             device["mute_observed"] = bool(observed)
             device["effective_muted"] = bool(effective)
             device["mute_pending_at"] = None
+            self.broadcast("device_update", device)
+            return
+        if address == "/os/hostname" and len(args) >= 3:
+            uid, hostname, status = str(args[0]), str(args[1]), str(args[2])
+            device = self.state.devices.get(uid)
+            if (device is None or device.get("virtual")
+                    or status not in ("ok", "err")
+                    or device.get("hostname_target") not in (None, hostname)):
+                return
+            device["hostname_target"] = hostname
+            device["hostname_status"] = status
+            if status == "ok":
+                device["hostname"] = hostname
             self.broadcast("device_update", device)
             return
         if address == "/os/params":

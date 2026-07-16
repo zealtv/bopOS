@@ -6,6 +6,7 @@ let selectedGroup = null;
 let focusedGroup = null;
 let visibleGroups = [null, null, null, null];
 let groupMemberFilter = "";
+let seatRosterFilter = "";
 let seatSidebarMode = "seats";
 let groupMessage = "";
 let venueRebind = null;
@@ -255,6 +256,19 @@ function render() {
     return true;
   });
   $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
+  const rosterFilter=$("#seat-roster-filter");
+  if (rosterFilter && document.activeElement!==rosterFilter) rosterFilter.value=seatRosterFilter;
+  const applyRosterFilter=()=>{
+    seatRosterFilter=rosterFilter?.value||"";
+    const value=seatRosterFilter.trim().toLowerCase();let matches=0;
+    document.querySelectorAll("#assigned [data-seat-filter]").forEach(row=>{
+      row.hidden=!!value&&!row.dataset.seatFilter.startsWith(value);
+      if(!row.hidden)matches++;
+    });
+    const empty=$("#seat-roster-filter-empty");if(empty)empty.hidden=!value||matches>0;
+  };
+  if (rosterFilter) rosterFilter.oninput=applyRosterFilter;
+  applyRosterFilter();
   $("#device-roster").innerHTML = visible.map(device=>row(device,seats.find(seat=>seat.bound===device.uid))).join("") || '<p class="dim">No matching devices</p>';
   document.querySelectorAll(".seat-row").forEach(el => {
     el.onclick = event => { if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId)); };
@@ -433,7 +447,8 @@ function seatRow(seat) {
   const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
   const uid=d?.uid||"";
   const heartbeatAt=heartbeats.get(uid);
-  return `<div class="device-row seat-row ${Number(seat.id)===Number(selectedSeat)?'selected':''} ${badgeTone(d?.patch_badge)}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" role="button" tabindex="0"><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i>${uid?`<i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i>`:''}<span><input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(seat.name||`Seat ${seat.id}`)}"><small>ID ${seat.id} · ${state}</small></span>${d?patchBadge(d.patch_badge):''}</div>`;
+  const name=seat.name||`Seat ${seat.id}`;
+  return `<div class="device-row seat-row ${Number(seat.id)===Number(selectedSeat)?'selected':''} ${badgeTone(d?.patch_badge)}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" data-seat-filter="${esc(String(name).trim().toLowerCase())}" role="button" tabindex="0"><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i>${uid?`<i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i>`:''}<span><input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(name)}"><small>ID ${seat.id} · ${state}</small></span>${d?patchBadge(d.patch_badge):''}</div>`;
 }
 const PATCH_BADGE_LABELS = {unset:"not set",unknown:"unknown / last seen",switching:"switching",timeout:"switch timed out",failed:"switch failed",missing:"missing",mismatch:"mismatch",stale:"stale",stale_unverified:"stale (unverified)",current:"current"};
 const PATCH_BADGE_ORDER = ["current","switching","timeout","failed","missing","mismatch","stale","stale_unverified","unknown","unset"];
@@ -773,20 +788,18 @@ function row(d, seat) {
 }
 
 function deviceMutePresentation(d) {
-  const fleet=!!installation.muted;
   const desired=!!d.device_muted;
-  const effective=fleet||!!d.effective_muted||desired;
   const status=String(d.mute_status||"").toLowerCase();
   const unsettled=status&&status!=="current"&&status!=="confirmed";
-  const state=fleet?(desired?"Muted by fleet safety; persistent device mute also on":"Muted by fleet safety"):desired?"Persistent device mute on":effective?"Device reports muted":"Device unmuted";
+  const state=desired?"Device muted":"Device unmuted";
   const suffix=unsettled?` · ${status}`:"";
-  return {fleet,desired,effective,status,label:state+suffix,terse:(fleet?(desired?"fleet + device muted":"fleet muted"):desired||effective?"muted":"unmuted")+suffix};
+  return {desired,status,label:state+suffix,terse:(desired?"muted":"unmuted")+suffix};
 }
 
 function deviceMuteIndicator(d) {
   const mute=deviceMutePresentation(d);
-  const slash=mute.effective?'<path d="M3 3l18 18"></path>':'';
-  return `<span class="device-mute-indicator ${mute.fleet?'fleet':mute.desired?'device':mute.effective?'reported':'off'} ${mute.status&&mute.status!=="current"&&mute.status!=="confirmed"?'unsettled':''}" data-device-mute-indicator data-mute-status="${esc(mute.status||'current')}" role="img" aria-label="${esc(mute.label)}" title="${esc(mute.label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"></path><path d="M15.5 9.5a4 4 0 010 5"></path>${slash}</svg></span>`;
+  const slash=mute.desired?'<path d="M3 3l18 18"></path>':'';
+  return `<span class="device-mute-indicator ${mute.desired?'device':'off'} ${mute.status&&mute.status!=="current"&&mute.status!=="confirmed"?'unsettled':''}" data-device-mute-indicator data-mute-status="${esc(mute.status||'current')}" role="img" aria-label="${esc(mute.label)}" title="${esc(mute.label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"></path><path d="M15.5 9.5a4 4 0 010 5"></path>${slash}</svg></span>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -919,19 +932,23 @@ function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
   const active=document.activeElement;
-  if ($("#detail").contains(active) && active.matches('input,select')) { updateDeviceMuteControls(d); return; }
+  if ($("#detail").contains(active) && active.matches('input,select')) { updateDeviceMuteControls(d);updateDeviceHostnameControls(d);return; }
   const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
   const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
   const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
   const health=!d.online?'offline':Number(d.engine_alive)===0?'engine stopped':'healthy';
   const displayAlias=Identity.primary(d,installation);
+  const hostnameTarget=displayAlias.trim().toLowerCase().replace(/\s+/g,"-");
+  const hostnamePending=d.hostname_status==="pending";
+  const hostnameCurrent=String(d.hostname||"").toLowerCase()===hostnameTarget;
+  const hostnameActionLabel=hostnamePending?"Setting…":hostnameCurrent?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";
   const mute=deviceMutePresentation(d);
   const binding=d.revoking_assignment
     ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-mute-control"><output id="device-mute-status" aria-live="polite">${esc(mute.terse)}</output><button id="device-mute-toggle" ${mute.fleet?'disabled':''}>${d.device_muted?'Unmute':'Mute'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button></div><dl><dt>Hostname</dt><dd>${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
+  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-mute-control"><output id="device-mute-status" aria-live="polite">${esc(mute.terse)}</output><button id="device-mute-toggle">${d.device_muted?'Unmute':'Mute'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
@@ -942,8 +959,18 @@ function renderDeviceDetail() {
 
 function updateDeviceMuteControls(d) {
   const mute=deviceMutePresentation(d), button=$("#device-mute-toggle"), status=$("#device-mute-status");
-  if(button){button.disabled=mute.fleet;button.textContent=d.device_muted?"Unmute":"Mute";}
+  if(button)button.textContent=d.device_muted?"Unmute":"Mute";
   if(status)status.value=mute.terse;
+}
+
+function updateDeviceHostnameControls(d) {
+  const alias=Identity.primary(d,installation);
+  const target=alias.trim().toLowerCase().replace(/\s+/g,"-");
+  const pending=d.hostname_status==="pending";
+  const current=String(d.hostname||"").toLowerCase()===target;
+  const button=$("#device-hostname-set");
+  if(button){button.disabled=!d.online||pending||current;button.textContent=pending?"Setting…":current?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";}
+  const value=$("#device-hostname-value");if(value)value.textContent=d.hostname||"—";
 }
 
 function bindDeviceDetailControls(d) {
@@ -952,8 +979,9 @@ function bindDeviceDetailControls(d) {
   document.querySelectorAll("#detail [data-identify]").forEach(button=>button.onclick=()=>ws.send("identify",{uid:d.uid}));
   const openSeat=$("#device-open-seat");if(openSeat)openSeat.onclick=()=>{const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);if(seat){selectSeat(Number(seat.id));activateTab("seats");}};
   const bind=$("#device-bind");if(bind)bind.onclick=()=>{const id=Number($("#device-seat").value);if(Number.isInteger(id))ws.send("bind_seat",{id,uid:d.uid,confirmed:false});};
-  const aliasSave=$("#device-alias-save");if(aliasSave)aliasSave.onclick=()=>{const value=$("#device-alias").value;if($("#device-alias").reportValidity())ws.send("set_device_alias",{uid:d.uid,alias:value});};
+  const aliasSave=$("#device-alias-save");if(aliasSave)aliasSave.onclick=()=>{const input=$("#device-alias"),value=input.value;if(input.reportValidity()){input.blur();ws.send("set_device_alias",{uid:d.uid,alias:value});}};
   const aliasReset=$("#device-alias-reset");if(aliasReset)aliasReset.onclick=()=>{if(registryEntry.source!=="custom"||confirm(`Reset custom alias ${alias} to its generated name?`))ws.send("reset_device_alias",{uid:d.uid});};
+  const hostnameSet=$("#device-hostname-set");if(hostnameSet)hostnameSet.onclick=()=>ws.send("set_device_hostname",{uid:d.uid});
   const muteToggle=$("#device-mute-toggle");if(muteToggle)muteToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_mute",{uid:d.uid,value:current.device_muted?0:1});};
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
