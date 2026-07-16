@@ -1,55 +1,21 @@
 # bopOS OSC Contract
 
-Version 1.6 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
-(seam council 2026-07-10 + Bob's ratification; record in
-`.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
-2026-07-12 by Bob's removal of the param `role` concept (§8; record in
-`.loom/tied/dashboard-7-remove-param-roles/`); revised to v1.2 2026-07-12 by
-the engine-boundary ratification (record in
-`.loom/tied/engine-boundary-ratification/`): `bopos.py` is each node's sole
-LAN citizen, every engine — Pure Data included — consumes one
-selector-stripped localhost surface, and v1.1's statement that PD retains a
-direct 6660 path is **superseded** (§4).
-Revised to v1.3 2026-07-13 by the patch-distribution ratification (record in
-`.loom/tied/dist-0-proposal/`): host-mirrored patches share the fetch
-convergence path with assets; patch manifests are mandatory; the legacy
-`gdrive:` and `getsamples` paths are removed; and `/os/update` is renamed
-`/os/updatebopos`. The deployed fleets adopt these hard breaks in lockstep.
-Amended to v1.4 2026-07-14 by the fleet-patch fingerprint amendment (record in
-`.loom/tied/fp-0-design-proposal/`): each `/os/patches` entry may carry the
-patch's content `fingerprint` (§7), additive, and by the patch-editor cues
-manifest amendment (record in
-`.lore/items/2026-07-14-patch-editor-design-ratified/`): patches may document
-the cue IDs they handle (§8), also additive. Bob ratified folding both into
-this shared revision (2026-07-14, Q4 "fold in").
-Revised to v1.5 2026-07-15 by the Seat / Device boundary ratification (record
-in `.loom/tied/06-seat-device-boundary-design/`): a small allowlisted UID
-administration envelope uniquely reaches physical nodes that all advertise ID
-`-1`; node unassignment and uid-attributable revision receipts make binding
-revocation safe.
-Amended 2026-07-16 by the exact physical-device mute ratification (record in
-`.loom/tied/12-dashboard-live-controls/device-mute-contract-proposal.md`): the
-exact-UID envelope carries persistent box mute intent and reports both that
-layer and its effective OR with the session fleet-safety overlay.
-Amended 2026-07-16 by the alias-derived hostname action (record in
-`.loom/tied/19-alias-hostname-action/`): the exact-UID envelope can apply one
-validated full-state hostname and returns an attributable terminal receipt.
-Amended 2026-07-16 by the nested parameter-address ratification (record in
-`.loom/tied/param-address-0-design/`): patch declarations may carry a structural
-`path`, and the complete variable-length parameter hierarchy survives selector
-removal unchanged. This additive change is folded into v1.5; flat declarations
-and wire addresses are unchanged.
-Amended 2026-07-16 by the Seat-group ratification (record in
-`.loom/tied/seat-groups-0-design/`): canonical `g<id>` selectors route from
-node-local persisted Seat membership, synchronized by an attributable additive
-full-state envelope. This additive change is also folded into v1.5.
-Revised to v1.6 2026-07-16 by the 2026-07-15 asset-inventory amendment (record in
-`.lore/items/2026-07-15-asset-management-direction/` and stitch
-`11a-device-asset-inventory`): nodes expose durable observed asset-slot facts,
-including canonical fingerprints when their nonblocking cache has resolved.
-Provenance of v1.0: five-expert council + judgment + Bob's ratification,
-recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
-the council records hold the reasoning and the rejected alternatives.
+**Version 1.6** — base ratified 2026-07-07; latest revision 2026-07-16. The
+complete amendment record, with provenance for every revision, is in
+[§15 Revision history](#15-revision-history).
+
+This document is the **durable, normative spec** for everything bopOS nodes
+speak on the wire. Guides paraphrase it; where they disagree, this document
+wins. The council records in `.lore/` hold the reasoning and the rejected
+alternatives — this document states only the ratified result.
+
+**How to read it:** §1–§3 give the ownership model and the one address
+grammar; §4 pins ports, transport rules, and the engine-facing surface;
+§5–§7 cover identity, liveness, and administration; §8–§11 cover the patch
+manifest, distribution, persistence, and peripherals; §12–§14 hold the hard
+constraints, migration guarantees, and the list of designs deliberately
+rejected. A gentler, non-normative tour of the same system is
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. Purpose and scope
 
@@ -714,3 +680,23 @@ The `gdrive:` fetch scheme, `/os/getsamples`, undeclared-patch launch, and
 patch-level `bopos.config` are likewise rejected; media acquisition on the
 conducting computer is outside the node contract, and host-to-node transfer
 uses the asset/patch mirror in §9.
+
+## 15. Revision history
+
+Every revision below was ratified by Bob; the cited records hold the full
+reasoning.
+
+| version | date | change | record |
+|---|---|---|---|
+| 1.0 | 2026-07-07 | Base contract ratified: five-expert council + judgment + Bob's ratification. | `.lore/` `osc-schema-council` |
+| 1.0 am. | 2026-07-11 | Patch-seam ruling (seam council 2026-07-10 + ratification). | `.loom/tied/seam-0-council/`; lore `2026-07-10-patch-seam-council` |
+| 1.0 am. | 2026-07-12 | Param `role` concept removed entirely (§8). | `.loom/tied/dashboard-7-remove-param-roles/` |
+| 1.2 | 2026-07-12 | Engine-boundary ratification: `bopos.py` is each node's sole LAN citizen; every engine — Pure Data included — consumes one selector-stripped localhost surface; v1.1's direct PD 6660 path is **superseded** (§4). | `.loom/tied/engine-boundary-ratification/` |
+| 1.3 | 2026-07-13 | Patch-distribution ratification: host-mirrored patches share the fetch convergence path with assets; manifests mandatory; legacy `gdrive:`/`getsamples` removed; `/os/update` renamed `/os/updatebopos`. Deployed fleets adopt these hard breaks in lockstep. | `.loom/tied/dist-0-proposal/` |
+| 1.4 | 2026-07-14 | Fleet-patch fingerprint amendment: `/os/patches` entries may carry a content `fingerprint` (§7, additive). Patch-editor cues amendment: patches may document handled cue IDs (§8, additive). Folded into one revision (Bob, Q4 "fold in"). | `.loom/tied/fp-0-design-proposal/`; `.lore/items/2026-07-14-patch-editor-design-ratified/` |
+| 1.5 | 2026-07-15 | Seat/Device boundary ratification: allowlisted exact-UID administration envelope; node unassignment and uid-attributable revision receipts make binding revocation safe. | `.loom/tied/06-seat-device-boundary-design/` |
+| 1.5 am. | 2026-07-16 | Exact physical-device mute: the exact-UID envelope carries persistent box mute intent and reports both that layer and its effective OR with the session fleet-safety overlay. | `.loom/tied/12-dashboard-live-controls/device-mute-contract-proposal.md` |
+| 1.5 am. | 2026-07-16 | Alias-derived hostname action: the exact-UID envelope can apply one validated full-state hostname with an attributable terminal receipt. | `.loom/tied/19-alias-hostname-action/` |
+| 1.5 am. | 2026-07-16 | Nested parameter addresses: declarations may carry a structural `path`; the complete variable-length hierarchy survives selector removal unchanged. Additive; flat declarations and wire addresses unchanged. | `.loom/tied/param-address-0-design/` |
+| 1.5 am. | 2026-07-16 | Seat groups: canonical `g<id>` selectors route from node-local persisted Seat membership, synchronized by an attributable additive full-state envelope. | `.loom/tied/seat-groups-0-design/` |
+| 1.6 | 2026-07-16 | Asset-inventory amendment (design 2026-07-15): nodes expose durable observed asset-slot facts, including canonical fingerprints once the nonblocking cache resolves. Also carries the additive unattended-update outcome receipts (§7). | `.lore/items/2026-07-15-asset-management-direction/`; stitch `11a-device-asset-inventory` |
