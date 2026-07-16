@@ -752,8 +752,8 @@ function row(d, seat) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
   const heartbeatAt = heartbeats.get(d.uid);
   const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
-  const technical=Identity.technical(d);
-  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong><small>${esc(technical)} · ${esc(d.version)}${d.rssi != null ? ` · ${d.rssi} dBm` : ''}</small><small class="device-binding-badge">${esc(assignment)}</small></span>${patchBadge(d.patch_badge)}</button>`;
+  const telemetry=[d.version,d.rssi != null ? `${d.rssi} dBm` : null].filter(Boolean).join(" · ");
+  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small></span>${patchBadge(d.patch_badge)}</button>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -854,9 +854,9 @@ function renderSeatDetail() {
   const bindingChoice=seatBindingDrafts.get(seat.id)??seat.bound??"";
   const currentKnown=devices.find(device=>device.uid===seat.bound);
   const options=[];
-  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(Identity.primary(seat.bound,installation))} · ${esc(Identity.uidTail(seat.bound))} · remembered offline</option>`);
-  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(Identity.full(currentKnown,installation))} · clearing old assignment</option>`);
-  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(Identity.full(device,installation))} · ${device.online?'online':'offline'}</option>`));
+  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(Identity.primary(seat.bound,installation))} · remembered offline</option>`);
+  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(Identity.primary(currentKnown,installation))} · clearing old assignment</option>`);
+  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(Identity.primary(device,installation))} · ${device.online?'online':'offline'}</option>`));
   if (!seat.bound) options.unshift(`<option value="" ${bindingChoice?'':'selected'}>Choose a device</option>`);
   const room=installation.room||{}, origin=room.origin||[0,0];
   const positions=(seat.positions||[]).map((position,index)=>`<div class="position-row" data-seat-element="${index}"><strong>element ${index}</strong><label>x <input data-axis="x" type="number" step="0.01" value="${Math.round((position[0]-origin[0])*100)/100}"></label><label>y <input data-axis="y" type="number" step="0.01" value="${Math.round((position[1]-origin[1])*100)/100}"></label><button data-remove-element="${index}" class="danger">Remove</button></div>`).join('');
@@ -869,7 +869,7 @@ function renderSeatDetail() {
     <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
     <h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add">Add element</button>
     <h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small>
-    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.full(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
+    <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.primary(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
     <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div>`;
   const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());};
   panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
@@ -1021,7 +1021,7 @@ function renderAssets() {
   const active=document.activeElement, focused=active===select, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
   const targets=assetTargets(), device=selectedAssetDevice(targets);
   resolveAssetFeedback(device);
-  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(Identity.full(target.device,installation))}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
+  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(Identity.primary(target.device,installation))}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
   select.disabled=!targets.some(target=>target.eligible);
   select.onchange=()=>{assetTarget=select.value;assetFeedback="";renderAssets();};
   if(focused) select.focus();

@@ -66,11 +66,10 @@ function seatForDevice(d) {
 
 function cardIdentity(d) {
   const seat = seatForDevice(d);
-  if (!seat) return {primary: Identity.primary(d,installation), secondary: Identity.technical(d)};
+  if (!seat) return {primary: Identity.primary(d,installation), secondary: ""};
   const name = seat.name || `Seat ${seat.id}`;
   return {primary: `${name} · ID ${seat.id}`,
-          secondary: [Identity.primary(d,installation), Identity.technical(d)]
-            .filter((value,index,values)=>value&&values.indexOf(value)===index).join(" · ")};
+          secondary: Identity.primary(d,installation)};
 }
 
 function card(d) {
@@ -81,7 +80,7 @@ function card(d) {
     ? promotedParams(d).map(param => paramControl(d, param)).join("") : "";
   const commands=(installation.facilitator_commands||[]).map(command=>`<button data-device-command="${esc(command)}" data-uid="${esc(d.uid)}" class="${destructiveCommands.has(command)?"hold":""}">${esc(commandLabel(command))}${destructiveCommands.has(command)?" — hold":""}</button>`).join("");
   const identity=cardIdentity(d);
-  return `<div class="card" data-uid="${esc(d.uid)}"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name"><strong>${esc(identity.primary)}</strong><small>${esc(identity.secondary)}</small></span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}${commands?`<details class="device-commands" data-command-uid="${esc(d.uid)}" ${openCommandDevices.has(d.uid)?"open":""}><summary>Device setup</summary><div>${commands}</div></details>`:""}</div>`;
+  return `<div class="card" data-uid="${esc(d.uid)}"><div class="card-main"><i class="dot ${ok ? 'ok' : ''}"></i><span class="name"><strong>${esc(identity.primary)}</strong>${identity.secondary?`<small>${esc(identity.secondary)}</small>`:""}</span>${pending}</div>${promoted ? `<div class="promoted-controls">${promoted}</div>` : ""}${commands?`<details class="device-commands" data-command-uid="${esc(d.uid)}" ${openCommandDevices.has(d.uid)?"open":""}><summary>Device setup</summary><div>${commands}</div></details>`:""}</div>`;
 }
 
 function bindCards() {
