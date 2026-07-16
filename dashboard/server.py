@@ -43,7 +43,7 @@ def host_checkout_shorthand(repo_dir=REPO_DIR):
     """Return the dashboard host's checkout identity without failing startup."""
     try:
         result = subprocess.run(
-            ["git", "-C", repo_dir, "rev-parse", "--short=8", "HEAD"],
+            ["git", "-C", repo_dir, "rev-parse", "--short=7", "HEAD"],
             capture_output=True, text=True, timeout=2, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
