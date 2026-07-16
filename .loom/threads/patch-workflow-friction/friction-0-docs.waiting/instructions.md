@@ -1,19 +1,22 @@
 # friction-0-documentation-review
 
-**.waiting (2026-07-13, gate updated same day):** Bob's composer-experience
-brain dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) makes
+**.waiting only for the next-session boundary (2026-07-16):** claim this stitch
+first in the next session. Its distribution prerequisites are tied and Bob has
+explicitly selected the documentation review as the next work. Bob's composer
+experience brain dump (`.lore/items/2026-07-13-composer-experience-brain-dump`) makes
 this doc a first-class deliverable — "how to create a patch, what you need
 running locally, step by step how to get it onto a device, in a beautifully
 laid out, very simple, clearly labelled markdown file". The model is now
 **ratified** (`.loom/tied/dist-0-proposal/` — proposal + ratification); this
-doc must be walked against the real Send flow on simfleet, so resume once
-`patch-asset-sync/dist-2` and `dist-3` are tied. Content rulings from Bob (2026-07-13): the main flow
+doc must be walked against the real Send flow on simfleet;
+`patch-asset-sync/dist-2` and `dist-3` are tied. Content rulings from Bob
+(2026-07-13): the main flow
 is git-free (folder in `patches/`, copy a demo, edit, Send); **git gets its
 own section, "advanced workflow with git"** — not a prerequisite anywhere
 else. The network-recipe checklist below is not gated; it can split out if
 the wait drags.
 
-**Scope revision (Bob, 2026-07-16; do not action yet):** this is now a complete
+**Scope revision (Bob, 2026-07-16):** this is now a complete
 documentation review, not only a composer getting-started page. Preserve the
 composer deliverable below, but first establish a clear documentation
 architecture and reconcile the existing material with the finished system.
