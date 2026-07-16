@@ -71,13 +71,13 @@ and tie one concrete stitch at a time:
    four-group rail comparison, view-local styles, checklist authoring,
    eye/eye-off visibility, and the subordinate collapsible Groups placement
    after Seat detail and before Simulation/Venue.
-3. **Next — Seat-group core.** Implement the non-visual
-   protocol, node persistence/matching, simulator/audition parity, dashboard
-   group state, and membership synchronization in
-   `seat-groups-1-core-implementation`. Reuse the parameter relay foundation.
-4. **Seat-group delivery.** Finish group authoring and the ratified spatial
-   membership visualization through `seat-groups-3-delivery`.
-5. **Single-device Assets workflow.** Complete `11a-device-asset-inventory`,
+3. **Complete — Seat-group core.** Canonical selectors, node persistence and
+   matching, simulator/audition parity, dashboard group state, safe assignment
+   transitions, and acknowledged membership synchronization are tied.
+4. **Complete — Seat-group delivery.** Group catalog/membership authoring,
+   eye/eye-off comparison controls, stable four-slot spatial rails, responsive
+   touch layout, and dense-layout verification are tied.
+5. **Next — Single-device Assets workflow.** Complete `11a-device-asset-inventory`,
    then `11b-single-device-assets-workspace`. Fleet-wide bulk rollout remains
    deferred to `asset-fleet-distribution`.
 6. **Dashboard live controls.** Use
@@ -101,9 +101,8 @@ Everything else is `.waiting` for a reason stated in its stitch:
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
-  `parameter-addresses` is complete. `seat-groups` is no longer parked: its
-  protocol/data direction and spatial UX are ratified, with core implementation
-  next.
+  `parameter-addresses` and `seat-groups` are complete. The next software stitch
+  in the accepted sweep is Assets 11a.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

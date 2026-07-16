@@ -37,11 +37,12 @@
   const shownXY = point => pointFrame[String(point.id)] || [point.x, point.y];
   const pointColour = id => POINT_COLOURS[Math.abs(Number(id)) % POINT_COLOURS.length];
 
-  function render(installation, selected, select, ws) {
-    last = [installation, selected, select, ws];
+  function render(installation, selected, select, ws, groupView={}) {
+    last = [installation, selected, select, ws, groupView];
     if (seatDrag || pointDrag || listenerDrag || headingDrag) return;
     const svg = document.getElementById("spatial");
     if (!svg) return;
+    svg.classList.toggle("group-focused", groupView.focused != null);
     const room = installation.room || {width: 10, depth: 8};
     const W = Number(room.width) || 10, D = Number(room.depth) || 8;
     svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${W + 2 * PAD} ${D + TRAY_GAP + TRAY_H + 2 * PAD}`);
@@ -71,12 +72,28 @@
 
     const devices = installation.devices || {};
     const seats = Object.values(installation.seats || {}).sort((a,b)=>Number(a.id)-Number(b.id));
+    const visibleSlots = (groupView.visibleSlots || groupView.visible || []).slice(0, 4);
+    const visibleGroups = visibleSlots.filter(id => id != null).map(Number);
+    const focusedGroup = groupView.focused == null ? null : Number(groupView.focused);
+    const groupSlots = groupView.slots || [];
     let slot = 0;
     for (const seat of seats) {
       const d = Object.values(devices).find(item=>item.virtual&&Number(item.seat_id)===Number(seat.id)) || devices[seat.bound];
       const occupancy = d?.virtual ? "sim" : d?.online ? "online" : "offline";
-      const node = el("g", {class: `node ${occupancy}${Number(seat.id) === Number(selected) ? " selected" : ""}`,
-                            "data-uid": d?.uid || "", "data-seat-id": seat.id}, svg);
+      const memberships = (seat.groups || []).map(Number);
+      const focusedMember = focusedGroup !== null && memberships.includes(focusedGroup);
+      const comparedMember = visibleGroups.some(id => memberships.includes(id));
+      const emphasis = focusedGroup !== null ? (focusedMember ? "" : " group-muted")
+        : visibleGroups.length && !comparedMember ? " group-dim" : "";
+      const membershipNames = memberships.map(id => {
+        const group = installation.groups?.[String(id)] || installation.groups?.[id];
+        return group ? `${group.name}, g${id}` : `g${id}`;
+      });
+      const node = el("g", {class: `node ${occupancy}${Number(seat.id) === Number(selected) ? " selected" : ""}${emphasis}`,
+                            "data-uid": d?.uid || "", "data-seat-id": seat.id,
+                            tabindex: "0", role: "button",
+                            "aria-label": `Seat ${seat.id}; ${membershipNames.join("; ") || "no groups"}`}, svg);
+      el("title", {}, node).textContent = `Seat ${seat.id} · ${membershipNames.join(", ") || "No groups"}`;
       const positions = (seat.positions || []).filter(Array.isArray);
       if (!positions.length) {
         positions.push([0.7 + 1.7 * slot++, D + TRAY_GAP + TRAY_H * 0.62]);
@@ -88,6 +105,21 @@
       positions.forEach((position, index) => {
         const g = el("g", {class: "element", "data-element": index,
                            transform: `translate(${position[0]} ${position[1]})`}, node);
+        el("circle", {r: 0.34, class: "element-hit", fill: "transparent",
+                      "data-point": index}, g);
+        visibleSlots.forEach((rawGroupId, railIndex) => {
+          if (rawGroupId == null) return;
+          const groupId = Number(rawGroupId);
+          if (!memberships.includes(groupId)) return;
+          const radius = ELEMENT_R + 0.11 + railIndex * 0.105;
+          const slotStyle = groupSlots[railIndex] || {};
+          const classes = `membership-rail slot-${railIndex + 1}${focusedGroup === groupId ? " focused" : ""}`;
+          const style = `--group-colour:${slotStyle.colour || "currentColor"}`;
+          el("circle", {r: radius, class: `${classes} back`, style,
+                        "data-group-id": groupId, "vector-effect": "non-scaling-stroke"}, g);
+          el("circle", {r: radius, class: classes, style,
+                        "data-group-id": groupId, "vector-effect": "non-scaling-stroke"}, g);
+        });
         const circle = el("circle", {r: ELEMENT_R, class: `element-dot ${index === 0 ? "p1" : "p2"}`,
                                      fill: ELEMENT_COLOURS[index % ELEMENT_COLOURS.length],
                                      "fill-opacity": 0.9,
@@ -107,8 +139,6 @@
       el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip"}, g);
       el("circle", {r: 0.3, class: "listener-body"}, g);
       el("text", {x: 0, y: 0.07, class: "listener-label"}, g).textContent = "L";
-      const readout = document.getElementById("listener-heading-readout");
-      if (readout) readout.value = `${Math.round(Number(listener.heading) || 0)}°`;
     }
 
     const handles = el("g", {class: "point-handles", "clip-path": "url(#spatial-room-clip)"}, svg);
@@ -126,6 +156,13 @@
   }
 
   function bindMap(svg, W, D) {
+    svg.onkeydown = event => {
+      if (!["Enter", " "].includes(event.key)) return;
+      const node = event.target.closest("g[data-seat-id]");
+      if (!node) return;
+      event.preventDefault();
+      last[2](Number(node.dataset.seatId));
+    };
     svg.onclick = event => {
       if (!event.target.matches("rect.room")) return;
       let [x, y] = toSvg(svg, event);
@@ -182,8 +219,6 @@
         headingDrag.group.querySelector(".listener-heading").setAttribute("y2", hy);
         headingDrag.group.querySelector(".listener-tip").setAttribute("cx", hx);
         headingDrag.group.querySelector(".listener-tip").setAttribute("cy", hy);
-        const readout = document.getElementById("listener-heading-readout");
-        if (readout) readout.value = `${Math.round(listener.heading)}°`;
         const now = performance.now();
         if (now - lastListenerSend >= 40) {
           lastListenerSend = now;

@@ -2,6 +2,12 @@ const ws = new BopSocket("/ws");
 let installation = {devices: {}};
 let selected = null;
 let selectedSeat = null;
+let selectedGroup = null;
+let focusedGroup = null;
+let visibleGroups = [null, null, null, null];
+let groupMemberFilter = "";
+let seatSidebarMode = "seats";
+let groupMessage = "";
 let venueRebind = null;
 let muted = false;
 let master = 1.0;
@@ -20,6 +26,12 @@ let manifestFeedback = "";
 let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const GROUP_SLOTS = [
+  {colour:"#56B4E9", pattern:"solid"},
+  {colour:"#E69F00", pattern:"dash"},
+  {colour:"#00B98B", pattern:"dot"},
+  {colour:"#CC79A7", pattern:"dash-dot"},
+];
 const TAB_NAMES = ["dashboard", "seats", "devices", "patches", "assets", "sequencer"];
 let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
 
@@ -36,7 +48,7 @@ function activateTab(name, updateHash=true) {
   });
   if (updateHash) history.replaceState(null,"",`#${name}`);
   window.scrollTo(0,0);
-  if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws));
+  if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws,groupView()));
 }
 document.querySelectorAll("[data-tab]").forEach(button=>{
   button.onclick=()=>activateTab(button.dataset.tab);
@@ -53,7 +65,34 @@ document.querySelectorAll("[data-tab]").forEach(button=>{
   };
 });
 window.addEventListener("hashchange",()=>activateTab(location.hash.slice(1),false));
+document.addEventListener("keydown",event=>{
+  if (event.key!=="Escape" || activeTab!=="seats" || event.target.matches("input,select,textarea")) return;
+  if (focusedGroup!==null) {
+    focusedGroup=null; renderGroups(); renderGroupMap(); Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+  } else if (visibleGroupIds().length) clearGroupView();
+});
 activateTab(activeTab,false);
+
+function activateSeatSidebar(mode, moveFocus=false) {
+  seatSidebarMode=mode==="groups"?"groups":"seats";
+  const seats=seatSidebarMode==="seats";
+  $("#seat-sidebar-tab").setAttribute("aria-selected",seats?"true":"false");
+  $("#group-sidebar-tab").setAttribute("aria-selected",seats?"false":"true");
+  $("#seat-sidebar-tab").tabIndex=seats?0:-1;
+  $("#group-sidebar-tab").tabIndex=seats?-1:0;
+  $("#seat-sidebar-panel").hidden=!seats;
+  $("#group-sidebar-panel").hidden=seats;
+  if(moveFocus)$(seats?"#seat-sidebar-tab":"#group-sidebar-tab").focus();
+}
+$("#seat-sidebar-tab").onclick=()=>activateSeatSidebar("seats");
+$("#group-sidebar-tab").onclick=()=>activateSeatSidebar("groups");
+$("#seat-sidebar-tabs").onkeydown=event=>{
+  if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
+  event.preventDefault();
+  const groups=event.key==="ArrowRight"||event.key==="End";
+  activateSeatSidebar(groups?"groups":"seats",true);
+};
+activateSeatSidebar(seatSidebarMode);
 
 function mergeDevice(device) {
   if (device && device.uid) {
@@ -66,7 +105,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); renderPresets(); render(); });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); renderPresets(); render(); });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -222,10 +261,11 @@ function render() {
     }).join(', ')||'none';
     rebind.textContent=venueRebind ? `Rebound: ${labels(venueRebind.rebound)} · Waiting: ${labels(venueRebind.waiting)}` : '';
   }
-  renderSimulation(devices);
   renderEditor();
   renderFleetPatch();
-  Spatial.render(installation, selectedSeat, selectSeat, ws); renderRoom();
+  renderGroups();
+  renderGroupMap();
+  Spatial.render(installation, selectedSeat, selectSeat, ws, groupView()); renderRoom();
   renderHeader(); renderSeatDetail(); renderDeviceDetail();
 }
 function occupant(seat) {
@@ -242,6 +282,134 @@ function reconcileSelection() {
   if (!selected || !installation.devices?.[selected]) { selected=null; return; }
   const seat=Object.values(installation.seats||{}).find(item=>item.bound===selected);
   if (seat) selectedSeat=seat.id;
+}
+
+function groupCatalog() {
+  return Object.values(installation.groups || {}).sort((a,b)=>Number(a.id)-Number(b.id));
+}
+function groupById(id) {
+  return installation.groups?.[String(id)] || installation.groups?.[id] || null;
+}
+function groupMembers(id) {
+  return Object.values(installation.seats || {}).filter(seat=>(seat.groups||[]).includes(Number(id))).sort((a,b)=>Number(a.id)-Number(b.id));
+}
+function visibleGroupIds() {
+  return visibleGroups.filter(id=>id!==null);
+}
+function reconcileGroupView() {
+  const valid=new Set(groupCatalog().map(group=>Number(group.id)));
+  visibleGroups=Array.from({length:4},(_item,index)=>{
+    const id=visibleGroups[index]; return id!==null&&valid.has(Number(id))?Number(id):null;
+  });
+  if (!valid.has(Number(focusedGroup))) focusedGroup=null;
+  if (!valid.has(Number(selectedGroup))) selectedGroup=null;
+}
+function groupView() {
+  return {visible:visibleGroupIds(),visibleSlots:[...visibleGroups],focused:focusedGroup,slots:GROUP_SLOTS};
+}
+// Adapted Lucide eye/eye-off geometry; see THIRD_PARTY_NOTICES.md.
+function eyeIcon(shown) {
+  const slash=shown?'':'<path d="M2 2l20 20"></path>';
+  return `<svg class="visibility-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle>${slash}</svg>`;
+}
+function ensureGroupVisible(id) {
+  id=Number(id);
+  if (visibleGroups.includes(id)) return true;
+  const slot=visibleGroups.findIndex(item=>item===null);
+  if (slot<0) {
+    groupMessage="Four groups are already shown; hide one to compare another.";
+    return false;
+  }
+  visibleGroups[slot]=id; groupMessage=""; return true;
+}
+function focusGroup(id) {
+  id=Number(id); selectedGroup=id; groupMemberFilter=""; activateSeatSidebar("groups");
+  if (focusedGroup===id) focusedGroup=null;
+  else if (ensureGroupVisible(id)) focusedGroup=id;
+  renderGroups(); renderGroupMap();
+  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+}
+function toggleGroupVisible(id) {
+  id=Number(id);
+  if (visibleGroups.includes(id)) {
+    visibleGroups=visibleGroups.map(item=>item===id?null:item);
+    if (focusedGroup===id) focusedGroup=null;
+    groupMessage="";
+  } else ensureGroupVisible(id);
+  renderGroups(); renderGroupMap();
+  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+}
+function clearGroupView() {
+  focusedGroup=null; visibleGroups=[null,null,null,null]; groupMessage="";
+  renderGroups(); renderGroupMap();
+  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+}
+function groupMarker(id) {
+  const index=visibleGroups.indexOf(Number(id));
+  if (index<0) return '<i class="group-slot hidden" aria-hidden="true">–</i>';
+  const slot=GROUP_SLOTS[index];
+  return `<i class="group-slot slot-${index+1}" style="--group-colour:${slot.colour}" aria-hidden="true">${index+1}</i>`;
+}
+function renderGroups() {
+  const panel=$("#group-sidebar-panel"), content=$("#groups-content"), summary=$("#groups-summary");
+  if (!panel || !content || !summary) return;
+  const previousFilter=$("#group-member-filter");
+  const restoreFilterFocus=document.activeElement===previousFilter;
+  const filterSelection=restoreFilterFocus
+    ? [previousFilter.selectionStart,previousFilter.selectionEnd] : null;
+  reconcileGroupView();
+  const groups=groupCatalog();
+  summary.textContent=`${visibleGroupIds().length} shown · ${groups.length} total`;
+  const rows=groups.map(group=>{
+    const id=Number(group.id), visible=visibleGroups.includes(id), count=groupMembers(id).length;
+    const action=`${visible?'Hide':'Show'} ${group.name} ${visible?'from':'on'} map`;
+    return `<div class="group-row${focusedGroup===id?' focused':''}${selectedGroup===id?' selected':''}" data-group-row="${id}">
+      <button class="group-focus" data-group-focus="${id}" aria-pressed="${focusedGroup===id}">${groupMarker(id)}<span><strong>${esc(group.name)}</strong><small>g${id} · ${count} ${count===1?'Seat':'Seats'}</small></span></button>
+      <button class="group-eye" data-group-eye="${id}" aria-pressed="${visible}" aria-label="${esc(action)}" title="${esc(action)}">${eyeIcon(visible)}</button>
+      <details class="group-overflow"><summary aria-label="Actions for ${esc(group.name)}" title="Group actions">…</summary><div><button data-group-rename="${id}">Rename</button><button data-group-delete="${id}" class="danger">Delete</button></div></details>
+    </div>`;
+  }).join("");
+  const active=groupById(selectedGroup);
+  const members=active ? groupMembers(active.id) : [];
+  const seatQuery=groupMemberFilter.trim().toLowerCase();
+  const memberRows=active ? Object.values(installation.seats||{}).sort((a,b)=>Number(a.id)-Number(b.id)).map(seat=>{
+    const checked=(seat.groups||[]).includes(Number(active.id));
+    const search=String(seat.name||`Seat ${seat.id}`).trim().toLowerCase();
+    const device=seat.bound?installation.devices?.[seat.bound]:null;
+    const sync=!seat.bound?'unbound':device?.group_sync?.status||(device?.online?'waiting':'offline');
+    return `<label class="membership-check" data-group-member-filter="${esc(search)}" ${seatQuery&&!search.startsWith(seatQuery)?'hidden':''}><input type="checkbox" data-group-member="${seat.id}" ${checked?'checked':''}><span><strong>${esc(seat.name||`Seat ${seat.id}`)}</strong><small>Seat ${seat.id} · ${esc(sync)}</small></span></label>`;
+  }).join("") : "";
+  const detail=active ? `<section class="group-detail"><div class="group-detail-head"><div><strong>${esc(active.name)}</strong><small>g${active.id} · ${members.length} ${members.length===1?'Seat':'Seats'}</small></div><button id="group-show-map">Show on map</button></div><label class="group-filter">Filter Seats <input id="group-member-filter" type="text" placeholder="Names beginning with…" value="${esc(groupMemberFilter)}"></label><div class="membership-list">${memberRows||'<p class="dim">No Seats to add yet.</p>'}</div><p id="group-filter-empty" class="dim" ${seatQuery&&memberRows&&!Object.values(installation.seats||{}).some(seat=>String(seat.name||`Seat ${seat.id}`).trim().toLowerCase().startsWith(seatQuery))?'':'hidden'}>No Seat names begin with this filter.</p></section>` : "";
+  content.innerHTML=`<div class="group-rows">${rows||'<p class="dim">No groups yet</p>'}</div><p id="group-limit" class="group-limit" role="status" ${groupMessage?'':'hidden'}>${esc(groupMessage)}</p>${detail}`;
+  $("#group-create").onclick=()=>{const name=prompt("Group name:","");if(name?.trim())ws.send("create_group",{name:name.trim()});};
+  content.querySelectorAll("[data-group-focus]").forEach(button=>button.onclick=()=>focusGroup(button.dataset.groupFocus));
+  content.querySelectorAll("[data-group-eye]").forEach(button=>button.onclick=()=>toggleGroupVisible(button.dataset.groupEye));
+  content.querySelectorAll("[data-group-rename]").forEach(button=>button.onclick=()=>{const group=groupById(button.dataset.groupRename);const name=group&&prompt("Rename group:",group.name);if(name?.trim())ws.send("rename_group",{id:Number(group.id),name:name.trim()});});
+  content.querySelectorAll("[data-group-delete]").forEach(button=>button.onclick=()=>{const group=groupById(button.dataset.groupDelete);if(group&&confirm(`Delete ${group.name} (g${group.id})? Seat memberships will be removed.`)){visibleGroups=visibleGroups.map(id=>id===Number(group.id)?null:id);if(focusedGroup===Number(group.id))focusedGroup=null;if(selectedGroup===Number(group.id))selectedGroup=null;ws.send("delete_group",{id:Number(group.id)});}});
+  const show=$("#group-show-map"); if(show)show.onclick=()=>{if(focusedGroup!==Number(active.id))focusGroup(active.id);};
+  const memberFilter=$("#group-member-filter"); if(memberFilter){
+    const applyFilter=()=>{groupMemberFilter=memberFilter.value;const value=groupMemberFilter.trim().toLowerCase();let matches=0;content.querySelectorAll("[data-group-member-filter]").forEach(row=>{row.hidden=!!value&&!row.dataset.groupMemberFilter.startsWith(value);if(!row.hidden)matches++;});const empty=$("#group-filter-empty");if(empty)empty.hidden=!value||matches>0;};
+    memberFilter.oninput=applyFilter;
+    memberFilter.onchange=applyFilter;
+    memberFilter.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();applyFilter();}};
+    if(restoreFilterFocus){memberFilter.focus();if(filterSelection.every(value=>value!==null))memberFilter.setSelectionRange(...filterSelection);}
+  }
+  content.querySelectorAll("[data-group-member]").forEach(input=>input.onchange=()=>{
+    const seat=installation.seats?.[String(input.dataset.groupMember)]; if(!seat||!active)return;
+    const next=new Set((seat.groups||[]).map(Number)); input.checked?next.add(Number(active.id)):next.delete(Number(active.id));
+    seat.groups=[...next].sort((a,b)=>a-b); ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});
+    renderGroupMap(); Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+  });
+}
+function renderGroupMap() {
+  const bar=$("#group-map-bar"), legend=$("#group-map-legend"), message=$("#group-map-message");
+  if (!bar || !legend || !message) return;
+  bar.hidden=!visibleGroupIds().length;
+  legend.innerHTML=visibleGroups.map((id,index)=>{if(id===null)return"";const group=groupById(id);if(!group)return"";return `<button class="group-legend-chip${focusedGroup===id?' focused':''}" data-group-legend="${id}">${groupMarker(id)}<span>${esc(group.name)} <small>g${id}</small></span></button>`;}).join("");
+  legend.querySelectorAll("[data-group-legend]").forEach(button=>button.onclick=()=>focusGroup(button.dataset.groupLegend));
+  $("#group-view-clear").onclick=clearGroupView;
+  const focused=groupById(focusedGroup), empty=focused&&groupMembers(focused.id).length===0;
+  message.hidden=!empty; message.textContent=empty?`No Seats in ${focused.name} (g${focused.id})`:"";
 }
 function seatRow(seat) {
   const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
@@ -281,13 +449,6 @@ function renderFleetPatch() {
   const summary=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
   $("#fleet-patch-summary").textContent=summary||(desired?"No assigned devices":"No fleet patch set");
 }
-function renderSimulation(devices) {
-  const sim=installation.simulation||{active:false,status:'off'};
-  $("#simulate-status").textContent=sim.active&&sim.patch?`${sim.status||'running'} · ${sim.patch}`:(sim.status||'off');
-  const real=devices.filter(d=>!d.virtual&&d.online).length;
-  $("#simulate-real-note").textContent=sim.active&&real?`${real} real device${real===1?'':'s'} online (not driven)`:'';
-}
-
 function contextualExecutionPatch() {
   const editor=installation.editor||{}, sim=installation.simulation||{};
   if (editor.active&&editor.patch) return editor.patch;
@@ -641,6 +802,7 @@ function select(uid) {
   render();
 }
 function selectSeat(id) {
+  activateSeatSidebar("seats");
   selectedSeat=id; const seat=installation.seats?.[String(id)]||installation.seats?.[id];
   const d=seat&&occupant(seat); selected=d?.uid||null;
   if(d&&!d.declared) ws.send("request_params",{uid:d.uid});
@@ -694,14 +856,17 @@ function renderSeatDetail() {
   const room=installation.room||{}, origin=room.origin||[0,0];
   const positions=(seat.positions||[]).map((position,index)=>`<div class="position-row" data-seat-element="${index}"><strong>element ${index}</strong><label>x <input data-axis="x" type="number" step="0.01" value="${Math.round((position[0]-origin[0])*100)/100}"></label><label>y <input data-axis="y" type="number" step="0.01" value="${Math.round((position[1]-origin[1])*100)/100}"></label><button data-remove-element="${index}" class="danger">Remove</button></div>`).join('');
   const binding=seat.bound ? installation.devices?.[seat.bound] : null;
+  const groupChecks=groupCatalog().map(group=>`<label class="membership-check"><input type="checkbox" data-seat-group="${group.id}" ${(seat.groups||[]).includes(Number(group.id))?'checked':''}><span><strong>${esc(group.name)}</strong><small>g${group.id}</small></span></label>`).join('');
+  const groupSync=binding?.group_sync?.status;
   const choiceRevoking=!!devices.find(device=>device.uid===bindingChoice)?.revoking_assignment;
   panel.innerHTML=`<h3>Seat workspace</h3>
     <div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat.name||'')}"></label><button id="seat-rename">Apply name</button></div>
     <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
     <h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add">Add element</button>
+    <h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small>
     <h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(seat.bound)} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}`:'No device assigned'}</small>
     <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div>`;
-  const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws);};
+  const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());};
   panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
     const row=input.closest('[data-seat-element]'), index=Number(row.dataset.seatElement);
     const x=Number(row.querySelector('[data-axis="x"]').value), y=Number(row.querySelector('[data-axis="y"]').value);
@@ -713,6 +878,7 @@ function renderSeatDetail() {
   $("#seat-rename").onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
   $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Current presets follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
   $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its current preset entries will also be removed.`))ws.send("remove_seat",{id:seat.id});};
+  panel.querySelectorAll("[data-seat-group]").forEach(input=>input.onchange=()=>{const next=new Set((seat.groups||[]).map(Number));input.checked?next.add(Number(input.dataset.seatGroup)):next.delete(Number(input.dataset.seatGroup));seat.groups=[...next].sort((a,b)=>a-b);ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});renderGroups();renderGroupMap();Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());});
   const chosen=()=>$("#seat-device").value;
   $("#seat-device").onchange=()=>seatBindingDrafts.set(seat.id,chosen());
   $("#seat-identify").onclick=()=>{const uid=chosen();if(uid&&installation.devices?.[uid])ws.send("identify",{uid});};
