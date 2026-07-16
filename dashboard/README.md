@@ -4,6 +4,10 @@ Web control surface for the fleet: the tabbed application at `/`, with
 `/facilitator` retained as the standalone compatibility entry for the
 touch-first Dashboard surface.
 
+This is the operator reference (flags, modes, state files). For a guided
+first run see [Getting started](../docs/GETTING-STARTED.md); for the
+composer's deploy flow see [Composing](../docs/COMPOSING.md).
+
 ## Quickstart (laptop, no hardware)
 
 One-time setup:
@@ -48,12 +52,13 @@ where the audition relay derives and forwards fixed-stereo matrices. This
 private preview state is never broadcast onto the installation LAN and is not
 part of the fleet OSC contract.
 
-The dashboard's **Start simulation** control manages this audition rig directly:
-every valid folder under `patches/` is already available, and one selected patch
-runs across the whole simulated fleet. Use the global Fleet patch selector and
-**Set fleet patch** to restart the managed engines into another host patch.
-Send/Sync is intentionally absent in this mode because there is no remote
-filesystem to converge.
+The header's **Execution target** toggle (Live fleet / Simulation / Patch
+edit) manages this audition rig directly: switching to **Simulation** runs
+one selected patch across the whole simulated fleet, and every valid folder
+under `patches/` is already available. Use the global Fleet patch selector
+to restart the managed engines into another host patch. Send/Sync is
+intentionally absent in this mode because there is no remote filesystem to
+converge; live fleet devices are never driven while simulating.
 
 `tools/simfleet.py` is different: it is the protocol-only remote-node harness.
 It retains `/os/fetch` queue and receipt behaviour so distribution itself can be
@@ -101,9 +106,9 @@ at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
 the explicit flag remains useful on multi-interface or proxied installations.
 
 The defaults are the repository's `assets/` and `patches/` directories. The
-global Fleet patch selector lists valid host catalog patches. **Set fleet
-patch** is one confirmed operation: it converges the selected bytes across
-online assigned devices, then switches their audio engines. Row badges show
+global Fleet patch selector lists valid host catalog patches. **Deploy as
+fleet patch** is one confirmed operation: it converges the selected bytes
+across online assigned devices, then switches their audio engines. Row badges show
 fleet convergence; selecting a row opens its observed inventory, fingerprints,
 fetch phase, manifest/git facts, and Retry or Re-switch remediation. **Revert**
 stages the previous fleet patch through the same flow. A ◆ marker identifies an

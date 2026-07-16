@@ -2,7 +2,9 @@
 
 `patches/` is the host-side authoring root and mirrors the patch layout on
 bopOS nodes. Each immediate child directory is one patch. Patch authors can
-work here without installing or importing bopOS separately.
+work here without installing or importing bopOS separately. The step-by-step
+authoring and deployment guide is [docs/COMPOSING.md](../docs/COMPOSING.md);
+this file is the layout and manifest reference.
 
 The repository's demos are:
 
@@ -67,13 +69,14 @@ The normal composer workflow is host-mirrored:
 
 1. Create or copy a directory under `patches/`.
 2. Add and validate its `bopos.patch.json`.
-3. Send the patch to selected devices from the dashboard.
-4. Select the installed patch by name.
+3. In the dashboard's Patches tab, select it as the fleet patch and press
+   **Deploy as fleet patch** (one confirmed operation for all online
+   assigned devices; per-device patch mixtures are not a supported mode).
 
-Sending uses `/os/fetch` with the `patch:<name>` slot. It converges the node's
-`patches/<name>/` directory to the host copy, including pruning files that no
-longer exist on the host. Sending an active patch stops and restarts its engine
-and is confirmation-gated in the dashboard.
+Deployment uses `/os/fetch` with the `patch:<name>` slot. It converges each
+node's `patches/<name>/` directory to the host copy, including pruning files
+that no longer exist on the host, then restarts the audio engines into the
+new patch.
 
 For the advanced Git workflow, `/os/addpatch` installs a Git-managed patch and
 `/os/pullpatch` updates it directly from its remote. Host-mirror sends refuse a

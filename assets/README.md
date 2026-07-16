@@ -23,6 +23,8 @@ sample packs are ordinary named slots like any other asset content.
 
 ## Using a slot
 
+![The Assets tab comparing the host catalog with one device's observed inventory](../docs/images/tab-assets.png)
+
 1. Copy or create the slot folder under `assets/` on the dashboard host.
 2. Open **Assets** in the dashboard and refresh the host catalog.
 3. Select one online physical device that is assigned to a Seat.
