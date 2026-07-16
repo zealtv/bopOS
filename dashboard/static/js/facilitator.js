@@ -162,12 +162,9 @@ function render() {
   renderCues(); renderCards(); renderControls(); renderCommands(); renderPresets();
 }
 
-function cueButton(cue, index) {
+function cueButton(cue) {
   const label = cue.label || cue.id;
-  const descriptionId = cue.description ? `cue-description-${index}` : "";
-  const description = cue.description ? `<small id="${descriptionId}" class="cue-description">${esc(cue.description)}</small>` : "";
-  const identity = cue.label && cue.label !== cue.id ? `<small class="cue-id">${esc(cue.id)}</small>` : "";
-  return `<button data-live-cue="${esc(cue.id)}" data-cue-label="${esc(label)}" aria-label="Fire ${esc(label)} cue, ID ${esc(cue.id)}"${descriptionId ? ` aria-describedby="${descriptionId}"` : ""}><span>${esc(label)}</span>${description}${identity}</button>`;
+  return `<button data-live-cue="${esc(cue.id)}" data-cue-label="${esc(label)}" aria-label="Fire ${esc(label)} cue">${esc(label)}</button>`;
 }
 
 function renderCues() {
@@ -189,14 +186,18 @@ function renderCues() {
     const leadMs = Math.min(10000, Math.max(100, Number(lead.value) || 500));
     lead.value = leadMs;
     ws.send("fire_cue", {cue_id: button.dataset.liveCue, lead_ms: leadMs});
-    const original = button.innerHTML;
     button.disabled = true;
-    button.innerHTML = `<span>Scheduled</span><small class="cue-id">${esc(button.dataset.cueLabel)}</small>`;
+    button.style.setProperty("--cue-lead-duration", `${leadMs}ms`);
+    button.classList.add("scheduling");
+    button.setAttribute("aria-busy", "true");
+    setTimeout(() => button.classList.add("triggered"), leadMs);
     setTimeout(() => {
       button.disabled = false;
-      button.innerHTML = original;
+      button.classList.remove("scheduling", "triggered");
+      button.style.removeProperty("--cue-lead-duration");
+      button.removeAttribute("aria-busy");
       button.focus({preventScroll: true});
-    }, leadMs + 250);
+    }, leadMs + 300);
   });
 }
 
