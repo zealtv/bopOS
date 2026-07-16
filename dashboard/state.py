@@ -192,8 +192,17 @@ class InstallationState:
             # a matching patch observation clears it on success
             "patch_switch": None,
             "patches": None,  # runtime /os/patches listing; None = not queried
+            # Runtime /os/assets observation. None means the node has not
+            # supplied a usable inventory (including older nodes which never
+            # reply); [] is an observed, genuinely empty assets root.
+            "assets": None,
+            "assets_observed_at": None,
+            "assets_quarantine": [],
             "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
             "params": {},  # runtime declaration/catch-up mirror; durable values live on seat
+            # Asset slots declared by the observed active patch manifest.
+            # None means /os/params has not supplied a valid manifest yet.
+            "active_asset_slots": None,
             "group_sync": None,  # runtime full-state membership convergence
         }
 

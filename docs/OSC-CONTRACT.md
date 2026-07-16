@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-Version 1.5 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
+Version 1.6 — ratified 2026-07-07; amended 2026-07-11 by the patch-seam ruling
 (seam council 2026-07-10 + Bob's ratification; record in
 `.loom/tied/seam-0-council/` and lore `2026-07-10-patch-seam-council`); amended
 2026-07-12 by Bob's removal of the param `role` concept (§8; record in
@@ -36,6 +36,10 @@ Amended 2026-07-16 by the Seat-group ratification (record in
 `.loom/tied/seat-groups-0-design/`): canonical `g<id>` selectors route from
 node-local persisted Seat membership, synchronized by an attributable additive
 full-state envelope. This additive change is also folded into v1.5.
+Revised to v1.6 2026-07-16 by the 2026-07-15 asset-inventory amendment (record in
+`.lore/items/2026-07-15-asset-management-direction/` and stitch
+`11a-device-asset-inventory`): nodes expose durable observed asset-slot facts,
+including canonical fingerprints when their nonblocking cache has resolved.
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -252,8 +256,8 @@ the topology is identical, only the port number moves.
   `/hb`, `/os/assign`, `/all/*` admin and membership, `/cue`, `/pt`, `/os/mute`,
   `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
-  `/os/report`, `/os/groups`, `/os/params`, `/os/patches`, `/os/rev`,
-  `/os/fetched`. (WiFi
+  `/os/report`, `/os/groups`, `/os/params`, `/os/patches`, `/os/assets`,
+  `/os/rev`, `/os/fetched`. (WiFi
   broadcast has no MAC-layer ACK and rides the lowest basic rate — it is scarce
   and lossy; replies don't wake 100 CPUs.)
 - **Control-plane law: every fleet command is full-state and idempotent.** No
@@ -472,6 +476,15 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
   catalog fingerprint for the same bytes (dot-entries, symlinks, and `.part`
   files excluded from the walk). Absent from pre-v1.4 nodes, and from an
   entry whose content cannot be read; every consumer tolerates absence.
+- `/<id>/os/assets` → `/os/assets <json>` (unicast) lists installed asset
+  slots as objects `{name, fingerprint, files, bytes}`. `name` is a top-level
+  non-dot, non-symlink directory under `~/bopOS/assets/`; `files` and `bytes`
+  are fresh counts from the canonical manifest walk, excluding dot entries,
+  symlinks, and `.part` files. `fingerprint` is the same canonical
+  directory-manifest sha256 used by the host catalog, or JSON `null` while the
+  node's nonblocking stat-signature cache is still warming. An empty list means
+  no installed slots; no reply means inventory unknown. The query path never
+  hashes file contents synchronously.
 - `/os/droppatch <name>` removes an inactive patch and refuses the active
   patch. `/os/dropassets <slot>` removes an asset slot.
 - **Every provisioning verb replies** `/os/rev <sha> <model> <uid>` (unicast;

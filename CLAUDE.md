@@ -6,11 +6,11 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.5: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.6: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
-   fleet-patch fingerprint/cues amendments, plus the 2026-07-15 UID-admin and
-   unassignment revision):
+   fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
+   unassignment revision, plus the device asset-inventory amendment):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -45,7 +45,7 @@ remain the authority for a particular piece of work.
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.5** (2026-07-07 base + seam amendment + engine-boundary revision +
+**v1.6** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
 and unassignment revision); `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
@@ -77,10 +77,12 @@ and tie one concrete stitch at a time:
 4. **Complete — Seat-group delivery.** Group catalog/membership authoring,
    eye/eye-off comparison controls, stable four-slot spatial rails, responsive
    touch layout, and dense-layout verification are tied.
-5. **Next — Single-device Assets workflow.** Complete `11a-device-asset-inventory`,
-   then `11b-single-device-assets-workspace`. Fleet-wide bulk rollout remains
-   deferred to `asset-fleet-distribution`.
-6. **Dashboard live controls.** Use
+5. **Complete — Single-device Assets workflow.** Device asset inventory
+   (`11a`) and the operational one-assigned-physical-device Assets workspace
+   (`11b`) are tied. Durable observations drive absent/current/stale/unknown/
+   extra state; fleet-wide bulk rollout remains deferred to
+   `asset-fleet-distribution`.
+6. **Next — Dashboard live controls.** Use
    `12-dashboard-live-controls` as the single integration point for the
    flat/nested parameter × All/Group/Seat target matrix.
 7. **Close the sweep.** Complete `13-diagnostic-density`, then the
@@ -101,8 +103,9 @@ Everything else is `.waiting` for a reason stated in its stitch:
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
-  `parameter-addresses` and `seat-groups` are complete. The next software stitch
-  in the accepted sweep is Assets 11a.
+  `parameter-addresses`, `seat-groups`, and the single-device Assets workflow
+  are complete. The next software stitch in the accepted sweep is dashboard
+  live controls (stage 12).
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

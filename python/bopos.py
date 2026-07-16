@@ -26,6 +26,7 @@ import relay
 import groups as group_protocol
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
 NETWORK_SYS = "/sys/class/net"
 PROC_DIR = "/proc"
 LED_SYS = "/sys/class/leds"
@@ -731,6 +732,71 @@ def installed_patches():
     return result
 
 
+asset_warm_lock = threading.Lock()
+asset_warm_thread = None
+
+
+def _asset_warm_loop(assets_root):
+    try:
+        # On Linux nice is per-thread. If a platform rejects it, warming still
+        # remains off the OSC thread and correctness does not depend on it.
+        try:
+            os.nice(10)
+        except OSError:
+            pass
+        identity.warm_hash_cache(assets_root)
+    except OSError as error:
+        print("WARNING: asset fingerprint warm failed:", error)
+
+
+def warm_asset_cache(assets_root=None):
+    """Start at most one low-priority asset cache warm without blocking."""
+    global asset_warm_thread
+    assets_root = assets_root or ASSETS_ROOT
+    with asset_warm_lock:
+        if asset_warm_thread is not None and asset_warm_thread.is_alive():
+            return asset_warm_thread
+        asset_warm_thread = threading.Thread(target=_asset_warm_loop,
+                                             args=(assets_root,), daemon=True)
+        asset_warm_thread.start()
+        return asset_warm_thread
+
+
+def initialise_asset_cache(assets_root=None):
+    assets_root = assets_root or ASSETS_ROOT
+    try:
+        identity.load_hash_cache(assets_root)
+    except OSError as error:
+        print("WARNING: asset fingerprint cache load failed:", error)
+    return warm_asset_cache(assets_root)
+
+
+def installed_assets(assets_root=None):
+    """Return installed slots without ever hashing on the reply path."""
+    assets_root = assets_root or ASSETS_ROOT
+    try:
+        names = sorted(os.listdir(assets_root))
+    except OSError:
+        names = []
+    result = []
+    needs_warm = False
+    for name in names:
+        path = os.path.join(assets_root, name)
+        if name.startswith(".") or os.path.islink(path) or not os.path.isdir(path):
+            continue
+        try:
+            info = identity.cached_directory_info(path)
+        except OSError:
+            info = {"fingerprint": None, "files": 0, "bytes": 0}
+        entry = {"name": name, "fingerprint": info["fingerprint"],
+                 "files": info["files"], "bytes": info["bytes"]}
+        needs_warm = needs_warm or entry["fingerprint"] is None
+        result.append(entry)
+    if needs_warm:
+        warm_asset_cache(assets_root)
+    return result
+
+
 def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
     # serialized so two provisioning verbs can't interleave in one git tree
     with admin_lock:
@@ -788,7 +854,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.5",
+        "contract_version": "1.6",
         "groups": list(getattr(state, "groups", ())),
     }
     msg = OSCMessage("/os/report")
@@ -921,9 +987,9 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             _fetched_reply(reply_socket, source[0], str(args[1]) if len(args) > 1 else "", "err")
             return True
         uri, slot = str(args[0]), str(args[1])
-        asset_slot = re.fullmatch(r"[A-Za-z0-9_-]+", slot)
+        asset_slot = identity.valid_asset_slot(slot)
         patch_slot = re.fullmatch(r"patch:[A-Za-z0-9_-]+", slot)
-        if asset_slot is None and patch_slot is None:
+        if not asset_slot and patch_slot is None:
             _fetched_reply(reply_socket, source[0], slot, "err")
             return True
         queue_fetch(uri, slot, source[0], reply_socket)
@@ -931,6 +997,11 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if parts[2] == "patches":
         msg = OSCMessage("/os/patches")
         msg.append(json.dumps(installed_patches(), separators=(",", ":")), 's')
+        reply_socket.sendto(msg.getBinary(), (source[0], 5550))
+        return True
+    if parts[2] == "assets":
+        msg = OSCMessage("/os/assets")
+        msg.append(json.dumps(installed_assets(), separators=(",", ":")), 's')
         reply_socket.sendto(msg.getBinary(), (source[0], 5550))
         return True
     if parts[2] == "report":
@@ -1229,7 +1300,7 @@ def drop_patch_callback(path='', tags='', args='', source=''):
 
 
 def drop_assets_callback(path='', tags='', args='', source=''):
-    if not args or re.fullmatch(r"[A-Za-z0-9_-]+", str(args[0])) is None:
+    if not args or not identity.valid_asset_slot(str(args[0])):
         print("/dropassets requires a valid asset slot")
         return
     slot = str(args[0])
@@ -1330,6 +1401,7 @@ atexit.register(exit_handler)
 if __name__ == "__main__":
     server.timeout = 1.0
     cue_scheduler.start()
+    initialise_asset_cache()
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
     while True:

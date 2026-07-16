@@ -35,6 +35,7 @@ from pythonosc import osc_message, osc_message_builder
 
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 PATCHES_DIR = os.path.join(REPO_DIR, "patches")
+ASSETS_DIR = os.path.join(REPO_DIR, "assets")
 DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 
 # the sim decomposes /pt with the same module the real helper uses, so the
@@ -80,6 +81,26 @@ def host_patch_fingerprint(name):
         except OSError:
             pass
     return hashlib.sha256(name.encode()).hexdigest()
+
+
+def host_asset_facts(root, name):
+    """Snapshot the host slot using the catalog's canonical identity rules."""
+    path = os.path.join(root, name)
+    if os.path.isdir(path) and not os.path.islink(path):
+        try:
+            manifest = identity.directory_manifest(path)
+            files = manifest["files"]
+            return {
+                "fingerprint": identity.manifest_fingerprint(manifest),
+                "files": len(files),
+                "bytes": sum(item["size"] for item in files),
+            }
+        except OSError:
+            pass
+    # Arbitrary file:/ test sources have no host catalog entry. Keep those
+    # useful to the simulator with a valid, stable synthetic content identity.
+    return {"fingerprint": hashlib.sha256(name.encode()).hexdigest(),
+            "files": 0, "bytes": 0}
 
 
 class ContractProtocol:
@@ -133,7 +154,9 @@ class Device:
             "demo-pd": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None,
                         "fingerprint": host_patch_fingerprint("demo-pd")}
         }
-        self.asset_slots = set()
+        # Installed slots are snapshots: later host edits must not silently
+        # alter a simulated node until another fetch converges that slot.
+        self.asset_slots = {}
         self.reports = {}
         self.last_hb = None
         self.last_command = "-"
@@ -218,6 +241,7 @@ class SimFleet:
         self.protocol = ContractProtocol()
         self.manifest_text, self.declared_params = load_manifest(
             getattr(args, "manifest", None) or DEFAULT_MANIFEST_PATH)
+        self.assets_dir = os.path.realpath(getattr(args, "assets_dir", ASSETS_DIR))
         self.events = []
         self.fetch_jobs = {}
         self.fetch_active = {}
@@ -328,6 +352,13 @@ class SimFleet:
         builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
 
+    def send_asset_list(self, device, source):
+        listing = [{"name": name, **facts}
+                   for name, facts in sorted(device.asset_slots.items())]
+        builder = osc_message_builder.OscMessageBuilder(address="/os/assets")
+        builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
     def send_report(self, device, source):
         report = {
             "uid": device.mac,
@@ -341,7 +372,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.5",
+            "contract_version": "1.6",
             "groups": list(device.groups),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
@@ -402,7 +433,7 @@ class SimFleet:
                 device.patches[name] = {"git": False, "manifest": True,
                                         "fingerprint": host_patch_fingerprint(name)}
             else:
-                device.asset_slots.add(slot)
+                device.asset_slots[slot] = host_asset_facts(self.assets_dir, slot)
         for source in job["requesters"]:
             builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
             builder.add_arg(slot, arg_type="s")
@@ -491,7 +522,9 @@ class SimFleet:
                 device.patches.pop(name, None)
             self.send_rev(device, source)
         elif member == "dropassets" and args:
-            device.asset_slots.discard(str(args[0]))
+            slot = str(args[0])
+            if identity.valid_asset_slot(slot):
+                device.asset_slots.pop(slot, None)
             self.send_rev(device, source)
         else:
             # malformed args change nothing; the receipt is still the honest state
@@ -780,6 +813,8 @@ class SimFleet:
                 self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
             elif member == "patches":
                 self.send_patch_list(device, source)
+            elif member == "assets":
+                self.send_asset_list(device, source)
             elif member == "fetch":
                 uri = str(args[0]) if args else ""
                 slot = str(args[1]) if len(args) > 1 else ""
@@ -787,7 +822,7 @@ class SimFleet:
                 patch_name = slot.split(":", 1)[1] if slot.startswith("patch:") else None
                 valid_slot = (re.fullmatch(r"[A-Za-z0-9_-]+", patch_name) is not None
                               if patch_name is not None
-                              else re.fullmatch(r"[A-Za-z0-9_-]+", slot) is not None)
+                              else identity.valid_asset_slot(slot))
                 git_target = (patch_name is not None and patch_name in device.patches
                               and device.patches[patch_name]["git"])
                 ok = scheme in ("http", "https", "file") and valid_slot and not git_target
@@ -930,6 +965,8 @@ def parse_args():
                         help="bopos.patch.json served on /os/params (default: patches/demo-pd)")
     parser.add_argument("--patches-dir", default=PATCHES_DIR,
                         help="host patch root used for simulated content fingerprints")
+    parser.add_argument("--assets-dir", default=ASSETS_DIR,
+                        help="host asset root used for simulated content fingerprints")
     parser.add_argument("--sync-skew-ms", type=float, default=0.0,
                         help="max abs fake clock skew vs leader, random +/- per device")
     parser.add_argument("--sync-jitter-ms", type=float, default=0.0,

@@ -8,6 +8,7 @@ run/
 /dashboard/installation.json
 /dashboard/installations/
 /assets/*
+!/assets/README.md
 /patches/*
 !/patches/README.md
 !/patches/active_patch.txt

@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -51,10 +52,12 @@ class DistributionStaticFiles(StaticFiles):
         return await super().get_response(path, scope)
 
 
-def directory_manifest(root_dir, name):
+def directory_manifest(root_dir, name, kind="patch"):
     # the walk/fingerprint itself lives in python/identity.py so nodes report
     # the identical identity; the HTTP-facing name/path guards stay here
-    if NAME_RE.fullmatch(name) is None:
+    valid_name = (identity.valid_asset_slot(name) if kind == "asset"
+                  else NAME_RE.fullmatch(name) is not None)
+    if not valid_name:
         raise HTTPException(status_code=404)
     root = os.path.join(root_dir, name)
     if os.path.islink(root) or not os.path.isdir(root):
@@ -64,7 +67,7 @@ def directory_manifest(root_dir, name):
 
 def directory_info(root_dir, name, kind):
     root = os.path.join(root_dir, name)
-    manifest = directory_manifest(root_dir, name)
+    manifest = directory_manifest(root_dir, name, kind)
     files = manifest["files"]
     modified = os.stat(root).st_mtime
     for item in files:
@@ -87,8 +90,10 @@ def directory_info(root_dir, name, kind):
 
 def distribution_catalog(assets_dir, patches_dir):
     def entries(root, kind):
+        valid_name = identity.valid_asset_slot if kind == "asset" \
+            else lambda value: NAME_RE.fullmatch(value) is not None
         names = (name for name in os.listdir(root)
-                 if NAME_RE.fullmatch(name)
+                 if valid_name(name)
                  and not os.path.islink(os.path.join(root, name))
                  and os.path.isdir(os.path.join(root, name)))
         return [directory_info(root, name, kind) for name in sorted(names)]
@@ -157,7 +162,7 @@ class Dashboard:
     async def broadcast(self, message_type, data):
         if message_type == "state":
             data = await self.public_state()
-        elif (message_type in {"device_update", "patches", "report",
+        elif (message_type in {"device_update", "patches", "assets", "report",
                                "params_declaration", "rev"}
               and isinstance(data, dict)):
             # OSC callbacks cross into the asyncio loop through queued tasks.
@@ -391,17 +396,21 @@ class Dashboard:
                 return
             catalog = await self.catalog()
             await self.broadcast("distribution", catalog)
-            targets = self.distribution_targets(uid)
             requested = []
             if kind == "send_distribution":
                 item_kind = str(data.get("kind", ""))
                 name = str(data.get("name", ""))
+                if item_kind == "asset" and not self.single_asset_target(uid):
+                    await self.ws_error(
+                        ws, "Assets require one online, assigned physical device target.")
+                    return
                 requested = [item for group in catalog.values() for item in group
                              if item["kind"] == item_kind and item["name"] == name
                              and (item["kind"] != "patch" or item["valid"])]
             else:
-                requested = ([item for item in catalog["patches"] if item["valid"]]
-                             + catalog["assets"])
+                # Fleet asset sync moved to the separately gated rollout work.
+                requested = [item for item in catalog["patches"] if item["valid"]]
+            targets = self.distribution_targets(uid)
             if (self.requires_active_confirmation(targets, requested)
                     and data.get("confirmed_active") is not True):
                 if ws is not None:
@@ -423,12 +432,19 @@ class Dashboard:
                         continue
                     path = "patches" if item["kind"] == "patch" else "assets"
                     slot = "patch:" + item["name"] if item["kind"] == "patch" else item["name"]
-                    uri = f"{base_urls[device_uid]}/{path}/{item['name']}/.manifest.json"
+                    encoded_name = urllib.parse.quote(item["name"], safe="")
+                    uri = f"{base_urls[device_uid]}/{path}/{encoded_name}/.manifest.json"
                     self.osc.fetch(device_uid, uri, slot, item["fingerprint"])
         elif kind == "drop_distribution":
-            targets = self.distribution_targets(uid)
             item_kind, name = str(data.get("kind", "")), str(data.get("name", ""))
-            if NAME_RE.fullmatch(name) and item_kind in ("patch", "asset"):
+            if item_kind == "asset" and not self.single_asset_target(uid):
+                await self.ws_error(
+                    ws, "Assets require one online, assigned physical device target.")
+                return
+            targets = self.distribution_targets(uid)
+            valid_name = (identity.valid_asset_slot(name) if item_kind == "asset"
+                          else NAME_RE.fullmatch(name) is not None)
+            if valid_name and item_kind in ("patch", "asset"):
                 verb = "droppatch" if item_kind == "patch" else "dropassets"
                 slot = "patch:" + name if item_kind == "patch" else name
                 for device_uid in targets:
@@ -881,6 +897,12 @@ class Dashboard:
         return ([uid] if uid in self.state.devices and self.selector(uid) is not None
                 and self.state.devices[uid].get("online") else [])
 
+    def single_asset_target(self, uid):
+        """Assets 11b permits exactly one assigned online physical node."""
+        device = self.state.devices.get(uid)
+        return bool(device and device.get("online") and not device.get("virtual")
+                    and self.selector(uid) is not None)
+
     def device_patch(self, uid, name, git=None):
         for patch in self.state.devices.get(uid, {}).get("patches") or ():
             if patch.get("name") == name and (git is None or patch.get("git") is git):
@@ -1277,6 +1299,7 @@ class Dashboard:
             return None
         attempt = {"patch": name, "at": time.time(), "status": "switching"}
         device["patch_switch"] = attempt
+        device["active_asset_slots"] = None
         self.osc.os_command(selector, "patch", [name])
         self.spawn(self.monitor_patch_switch(uid, attempt))
         return device
@@ -1641,7 +1664,7 @@ def create_app(args):
 
     @app.get("/assets/{slot}/.manifest.json")
     def assets_manifest(slot: str):
-        return JSONResponse(directory_manifest(assets, slot))
+        return JSONResponse(directory_manifest(assets, slot, "asset"))
 
     @app.get("/patches/{name}/.manifest.json")
     def patches_manifest(name: str):

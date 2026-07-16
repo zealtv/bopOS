@@ -123,7 +123,19 @@
         </section>
       </section>
     </section>
-    <section id="tab-assets" class="tab-panel placeholder-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden><p class="eyebrow">Reserved view</p><h2>Assets</h2><p>Host and fleet asset management will land here. Existing per-device asset send controls remain in Devices until that workflow is designed.</p></section>
+    <section id="tab-assets" class="tab-panel assets-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden>
+      <div class="assets-heading"><div><p class="eyebrow">Single-device delivery</p><h2>Assets</h2><p class="dim">Compare the host catalog with one assigned physical device, then send, update, or remove individual slots.</p></div><button id="asset-refresh">Refresh catalog</button></div>
+      <section id="asset-target-panel" aria-labelledby="asset-target-title">
+        <div class="section-head"><div><h3 id="asset-target-title">Target device</h3><p class="dim">Actions always address exactly one online, assigned physical device.</p></div><label class="asset-target-select">device <select id="asset-target" aria-describedby="asset-target-reasons"></select></label></div>
+        <div id="asset-target-reasons" class="asset-target-reasons"></div>
+      </section>
+      <section id="asset-catalog-panel" aria-labelledby="asset-catalog-title">
+        <div class="section-head"><div><h3 id="asset-catalog-title">Host catalog</h3><p id="asset-catalog-summary" class="dim"></p></div></div>
+        <output id="asset-feedback" class="asset-feedback dim" aria-live="polite"></output>
+        <div id="asset-catalog" class="asset-catalog"></div>
+        <div id="asset-extras" class="asset-extras"></div>
+      </section>
+    </section>
     <section id="tab-sequencer" class="tab-panel placeholder-tab" role="tabpanel" aria-labelledby="tab-button-sequencer" data-tab-panel="sequencer" hidden><p class="eyebrow">Reserved view</p><h2>Sequencer</h2><p>The show-control sequence system is a future co-design stitch.</p></section>
   </div>
   <script src="/js/ws.js"></script><script src="/js/spatial.js"></script><script src="/js/dashboard.js"></script>

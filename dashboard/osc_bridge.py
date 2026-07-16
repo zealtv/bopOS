@@ -50,6 +50,7 @@ UNASSIGN_TIMEOUT_SECONDS = 5.0
 AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
 GROUP_RETRY_SECONDS = (0.5, 1.0, 2.0)
 GROUP_RETRY_EXPIRE_SECONDS = 2.0
+ASSET_REQUERY_SECONDS = (0.5, 1.0, 2.0, 4.0)
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -72,7 +73,8 @@ class OSCBridge:
         self.destination = (target, send_port)
         self.transport = None
         self.sender = None
-        self.pending = {"params": deque(), "report": deque(), "patches": deque()}
+        self.pending = {"params": deque(), "report": deque(), "patches": deque(),
+                        "assets": deque()}
         # v1.3 distribution replies carry slot + phase/status but no uid. Real
         # nodes are normally attributable by source IP; the ordered records are
         # the fallback for simfleet, whose devices share one loopback address.
@@ -89,6 +91,9 @@ class OSCBridge:
         self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
         self._audition_param_replays = set()
         self._group_pending = {}  # uid -> latest full-state membership attempt
+        # uid -> bounded retry generation for inventories whose background
+        # fingerprint warming has not completed yet.
+        self._asset_requeries = {}
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -128,6 +133,9 @@ class OSCBridge:
         for record in self._group_pending.values():
             record.get("timeout") and record["timeout"].cancel()
         self._group_pending.clear()
+        for record in self._asset_requeries.values():
+            record.get("timeout") and record["timeout"].cancel()
+        self._asset_requeries.clear()
         for replay in self._audition_param_replays:
             replay.cancel()
         self._audition_param_replays.clear()
@@ -357,9 +365,9 @@ class OSCBridge:
     def request(self, uid, member):
         device = self.state.devices.get(uid)
         if not device:
-            return
+            return False
         if uid in self.pending[member]:
-            return
+            return False
         self.pending[member].append(uid)
         self.pending_timeouts[(member, uid)] = asyncio.get_running_loop().call_later(
             REQUEST_TIMEOUT_SECONDS, self._expire_request, member, uid)
@@ -373,6 +381,51 @@ class OSCBridge:
                 self.pending[member].remove(uid)
             except ValueError:
                 pass
+            return False
+        return True
+
+    def request_assets(self, uid, reset=True):
+        """Query one inventory, optionally starting a fresh retry generation."""
+        if reset:
+            previous = self._asset_requeries.pop(uid, None)
+            if previous:
+                previous.get("timeout") and previous["timeout"].cancel()
+        return self.request(uid, "assets")
+
+    def _cancel_asset_requery(self, uid):
+        record = self._asset_requeries.pop(uid, None)
+        if record:
+            record.get("timeout") and record["timeout"].cancel()
+
+    def _schedule_asset_requery(self, uid):
+        device = self.state.devices.get(uid)
+        if device is None or not device.get("online"):
+            self._cancel_asset_requery(uid)
+            return
+        listing = device.get("assets")
+        unresolved = isinstance(listing, list) and any(
+            item.get("fingerprint") is None for item in listing)
+        if not unresolved:
+            self._cancel_asset_requery(uid)
+            return
+        record = self._asset_requeries.setdefault(
+            uid, {"attempts": 0, "timeout": None})
+        if record.get("timeout") is not None:
+            return
+        if record["attempts"] >= len(ASSET_REQUERY_SECONDS):
+            return
+        delay = ASSET_REQUERY_SECONDS[record["attempts"]]
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            delay, self._requery_assets, uid, record)
+
+    def _requery_assets(self, uid, record):
+        if self._asset_requeries.get(uid) is not record:
+            return
+        record["timeout"] = None
+        if self.request(uid, "assets"):
+            record["attempts"] += 1
+        # If a request is already in flight, its reply or expiry resumes the
+        # bounded sequence; do not spin another timer alongside it.
 
     def os_command(self, selector, member, args=()):
         self.send(f"/{selector}/os/{member}", args)
@@ -550,6 +603,8 @@ class OSCBridge:
             self.pending[member].remove(uid)
         except ValueError:
             pass
+        if member == "assets":
+            self._schedule_asset_requery(uid)
 
     def handle(self, address, args, ip):
         if address == "/audition/ready":
@@ -671,6 +726,9 @@ class OSCBridge:
                 self.broadcast("device_update", device)
             if first_seen or not old["online"]:
                 self.state.save_debounced()
+                # Asset inventory is useful for assigned and unassigned
+                # devices alike. A missing reply deliberately leaves None.
+                self.request_assets(uid)
                 if first_seen:
                     self.request(uid, "report")
                 if device.get("editor"):
@@ -698,6 +756,8 @@ class OSCBridge:
             device = self._device_for_reply("params", ip)
             if not device:
                 return
+            device["active_asset_slots"] = None
+            active_asset_slots = None
             if args:
                 try:
                     manifest = json.loads(args[0])
@@ -705,6 +765,10 @@ class OSCBridge:
                 except (ValueError, TypeError, AttributeError):
                     log.warning("bad params declaration from %s", ip)
                     return
+                slots = manifest.get("slots", [])
+                if isinstance(slots, list) and all(isinstance(slot, str) for slot in slots):
+                    active_asset_slots = list(dict.fromkeys(
+                        slot for slot in slots if slot))
                 device["undeclared"] = False
             else:
                 declarations = LEGACY_DECLARATIONS
@@ -722,6 +786,7 @@ class OSCBridge:
             except ValueError:
                 log.warning("invalid qualified params declaration from %s", ip)
                 return
+            device["active_asset_slots"] = active_asset_slots
             for declaration, identity in qualified:
                 if identity not in device["params"] and "default" in declaration:
                     device["params"][identity] = declaration["default"]
@@ -794,6 +859,56 @@ class OSCBridge:
             reconcile_patch_switch_observation(device)
             self.broadcast("patches", device)
             return
+        if address == "/os/assets":
+            device = self._device_for_reply("assets", ip)
+            if not device:
+                return
+            uid = device["uid"]
+            try:
+                listing = json.loads(args[0]) if args else None
+            except (ValueError, TypeError):
+                listing = None
+            if not isinstance(listing, list):
+                device["assets"] = None
+                device["assets_observed_at"] = None
+                device["assets_quarantine"] = [{"reason": "malformed top-level inventory"}]
+                self._cancel_asset_requery(uid)
+                log.warning("bad asset inventory from %s: expected JSON list", ip)
+                self.broadcast("assets", device)
+                return
+            cleaned, quarantine = [], []
+            for index, asset in enumerate(listing):
+                name = asset.get("name") if isinstance(asset, dict) else None
+                if (not isinstance(name, str) or not name or name.startswith(".")
+                        or "/" in name or "\\" in name or "\x00" in name):
+                    quarantine.append({"index": index, "reason": "missing or unsafe name"})
+                    log.warning("quarantined unnamed asset inventory entry %d from %s",
+                                index, ip)
+                    continue
+                fingerprint = asset.get("fingerprint")
+                fingerprint_ok = (fingerprint is None or
+                                  (isinstance(fingerprint, str) and
+                                   re.fullmatch(r"[0-9a-f]{64}", fingerprint)))
+                files, size = asset.get("files"), asset.get("bytes")
+                counts_ok = (isinstance(files, int) and not isinstance(files, bool)
+                             and files >= 0 and isinstance(size, int)
+                             and not isinstance(size, bool) and size >= 0)
+                if not fingerprint_ok or not counts_ok:
+                    cleaned.append({"name": name, "fingerprint": None,
+                                    "files": None, "bytes": None, "unknown": True})
+                    quarantine.append({"index": index, "name": name,
+                                       "reason": "malformed inventory facts"})
+                    log.warning("quarantined malformed asset inventory entry %r from %s",
+                                name, ip)
+                    continue
+                cleaned.append({"name": name, "fingerprint": fingerprint,
+                                "files": files, "bytes": size})
+            device["assets"] = cleaned
+            device["assets_observed_at"] = time.time()
+            device["assets_quarantine"] = quarantine
+            self.broadcast("assets", device)
+            self._schedule_asset_requery(uid)
+            return
         if address == "/os/fetch-progress" and len(args) >= 2:
             slot, phase = str(args[0]), str(args[1])
             record = self._fetch_record(slot, ip, phase)
@@ -826,6 +941,8 @@ class OSCBridge:
                 self.broadcast("device_update", device)
                 if status == "ok" and slot.startswith("patch:"):
                     self.request(record["uid"], "patches")
+                elif not slot.startswith("patch:"):
+                    self.request_assets(record["uid"])
             return
         if address == "/os/rev" and len(args) >= 2:
             device = None
@@ -845,6 +962,7 @@ class OSCBridge:
             self.broadcast("rev", device)
             for member in ("patches", "params", "report"):
                 self.request(device["uid"], member)
+            self.request_assets(device["uid"])
             return
         if address == "/sync/pong" and len(args) >= 4:
             self.handle_pong(args)

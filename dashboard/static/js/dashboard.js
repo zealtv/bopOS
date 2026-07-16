@@ -16,7 +16,9 @@ const seatBindingDrafts = new Map();
 let fleetPatchChoice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
-let distributionAll = false;
+let assetTarget = null;
+let assetFeedback = "";
+let assetFeedbackPending = null;
 let deviceFilter = "all";
 let editorPatchChoice = null;
 let manifestDraft = null;
@@ -121,7 +123,7 @@ ws.on("heartbeat", data => {
   blip.dataset.heartbeatAt = heartbeatAt;
 });
 ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
-ws.on("patches", mergeDevice);
+ws.on("patches", mergeDevice); ws.on("assets", mergeDevice);
 ws.on("distribution", data => {
   distribution=data||{assets:[],patches:[]};
   if (pendingCreatedPatch && (distribution.patches||[]).some(item=>item.valid&&item.name===pendingCreatedPatch)) {
@@ -263,6 +265,7 @@ function render() {
   }
   renderEditor();
   renderFleetPatch();
+  renderAssets();
   renderGroups();
   renderGroupMap();
   Spatial.render(installation, selectedSeat, selectSeat, ws, groupView()); renderRoom();
@@ -900,11 +903,10 @@ function renderDeviceDetail() {
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  const assetRows=distribution.assets.map(item=>distributionRow(d,item)).join("");
   $("#detail").innerHTML=`<section><h2>${esc(d.hostname||d.uid)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><dl><dt>UID</dt><dd>${esc(d.uid)}</dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'?'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})`:'—'}</dd></dl><p class="dim">Seat naming, IDs, positions and assignment live in the Seats workspace. Mix parameters live there too.</p></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
-    <section id="distribution"><div class="section-head"><h2>Asset send &amp; sync</h2><label><input id="distribution-all" type="checkbox" ${distributionAll?'checked':''}> target all online devices</label></div><div class="distribution-actions"><button id="sync-all">Sync all assets</button></div><div class="distribution-grid">${assetRows||'<p class="dim">No host assets.</p>'}</div></section>
+    <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
     <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
@@ -917,57 +919,129 @@ function bindDeviceDetailControls(d) {
   const bind=$("#device-bind");if(bind)bind.onclick=()=>{const id=Number($("#device-seat").value);if(Number.isInteger(id))ws.send("bind_seat",{id,uid:d.uid,confirmed:false});};
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{if(confirm(`Forget ${d.hostname||d.uid}?`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
-  const target=$("#distribution-all");if(target)target.onchange=()=>{distributionAll=target.checked;renderDeviceDetail();};
-  const targetUid=()=>distributionAll?"all":d.uid;
-  document.querySelectorAll("#detail .distribution-item").forEach(row=>{
-    const item=distribution.assets.find(entry=>entry.kind===row.dataset.kind&&entry.name===row.dataset.name);
-    const send=row.querySelector("[data-send]");if(send&&!send.disabled)send.onclick=()=>ws.send("send_distribution",{uid:targetUid(),kind:"asset",name:item.name,confirmed_active:false});
-    const drop=row.querySelector("[data-drop-asset]");if(drop)drop.onclick=()=>{if(confirm(`Remove asset slot "${item.name}"?`))ws.send("drop_distribution",{uid:targetUid(),kind:"asset",name:item.name});};
-  });
-  const sync=$("#sync-all");if(sync)sync.onclick=()=>distribution.assets.forEach(item=>ws.send("send_distribution",{uid:targetUid(),kind:"asset",name:item.name,confirmed_active:false}));
+  const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
 }
 
 function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
-function itemSlot(item) { return item.kind === "patch" ? `patch:${item.name}` : item.name; }
-function deviceDistributionStatus(d, item) {
-  const slot = itemSlot(item), phase = d.fetch?.[slot], sent = d.distribution?.[slot];
-  if (!d.online) return "offline";
-  if (item.kind === "patch" && (d.patches || []).some(p=>p.name===item.name&&p.git)) return "Git-managed";
-  if (phase === "queued" || phase === "fetching" || phase === "sent") return phase === "sent" ? "queued" : phase;
-  if (phase === "err" || phase === "timeout") return phase === "timeout" ? "timed out" : "failed";
-  if (sent && sent !== item.fingerprint) return "stale";
-  if (sent === item.fingerprint) return "in sync";
-  return "unknown";
-}
-function distributionTargets(d) { return distributionAll ? Object.values(installation.devices||{}).filter(device=>Number(device.id)>=0) : [d]; }
-function distributionStatus(d, item) {
-  const targets=distributionTargets(d), statuses=targets.map(device=>({device,status:deviceDistributionStatus(device,item)}));
-  if (!distributionAll) return {label:statuses[0]?.status||"unknown", details:""};
-  const eligible=statuses.filter(entry=>!["offline","Git-managed"].includes(entry.status));
-  const synced=eligible.filter(entry=>entry.status==="in sync").length;
-  const pending=eligible.find(entry=>["queued","fetching"].includes(entry.status));
-  const failed=eligible.find(entry=>["failed","timed out","stale"].includes(entry.status));
-  const label=pending?.status || failed?.status || `${synced}/${eligible.length} in sync`;
-  const details=statuses.map(entry=>`${entry.device.name||entry.device.uid}: ${entry.status}`).join(" · ");
-  return {label,details};
-}
 function formatBytes(value) {
   const bytes = Number(value) || 0;
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
   return `${(bytes/1024/1024).toFixed(1)} MB`;
 }
-function distributionRow(d, item) {
-  const status = distributionStatus(d, item), targets=distributionTargets(d);
-  const gitTargets = item.kind === "patch" ? targets.filter(device=>(device.patches||[]).some(p=>p.name===item.name&&p.git)) : [];
-  const pending=targets.some(device=>["sent","queued","fetching"].includes(device.fetch?.[itemSlot(item)]));
-  const timedOut=targets.some(device=>device.fetch?.[itemSlot(item)]==="timeout");
-  const selectedGit=!distributionAll&&gitTargets.length>0;
-  const invalid=item.kind==="patch"&&!item.valid;
-  const noOnline=targets.every(device=>!device.online);
-  const disabled=selectedGit||invalid||pending||timedOut||noOnline;
-  const reason=selectedGit?'Git-managed patches use Pull latest':invalid?(item.error||'Invalid patch manifest'):pending?'Send already in progress':timedOut?'Receipt timed out; restart the dashboard before retrying so a late receipt cannot be misread':noOnline?'No online target devices':'';
-  return `<article class="distribution-item" data-kind="${item.kind}" data-name="${esc(item.name)}"><div><strong>${esc(item.name)}</strong>${gitTargets.length?`<span class="git-badge">◆ Git on ${gitTargets.length} device${gitTargets.length===1?'':'s'}</span>`:''}${invalid?'<span class="invalid-badge">invalid manifest</span>':''}<small>${item.files} files · ${formatBytes(item.bytes)} · <time datetime="${new Date(item.modified*1000).toISOString()}">${new Date(item.modified*1000).toLocaleString()}</time></small>${status.details?`<small class="device-sync">${esc(status.details)}</small>`:''}</div><span role="status" aria-live="polite" class="sync-status ${status.label.replace(/[^a-z0-9]+/gi,'-')}">${status.label}</span><button data-send ${disabled?`disabled title="${esc(reason)}"`:''}>${item.kind==='asset'?'Send assets':'Send patch'}</button>${item.kind==='asset'?'<button data-drop-asset>Remove from device</button>':''}</article>`;
+
+function assetTargets() {
+  const seats=Object.values(installation.seats||{}), devices=Object.values(installation.devices||{});
+  const assigned=new Set(seats.map(seat=>seat.bound).filter(Boolean));
+  return devices.map(device=>{
+    const reasons=[];
+    if(device.virtual) reasons.push("simulation");
+    if(!device.online) reasons.push("offline");
+    if(!device.virtual&&!assigned.has(device.uid)) reasons.push("unassigned");
+    return {device,reasons,eligible:reasons.length===0};
+  }).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||String(a.device.hostname||a.device.uid).localeCompare(String(b.device.hostname||b.device.uid)));
+}
+function selectedAssetDevice(targets=assetTargets()) {
+  const eligible=targets.filter(target=>target.eligible);
+  if(!eligible.some(target=>target.device.uid===assetTarget)) assetTarget=eligible[0]?.device.uid||null;
+  return eligible.find(target=>target.device.uid===assetTarget)?.device||null;
+}
+function assetInventoryState(device,item) {
+  if(!device||device.assets===null||!Array.isArray(device.assets)) return {label:"unknown",installed:null};
+  const installed=device.assets.find(asset=>asset.name===item.name);
+  if(!installed) return {label:"absent",installed:null};
+  if(installed.fingerprint===null||typeof installed.fingerprint!=="string") return {label:"unknown",installed};
+  return {label:installed.fingerprint===item.fingerprint?"current":"stale",installed};
+}
+function abbreviatedFingerprint(value) {
+  return typeof value==="string"&&value ? `${value.slice(0,10)}…` : "unknown";
+}
+function assetFacts(item) {
+  const modified=Number(item.modified);
+  const timestamp=Number.isFinite(modified)&&modified>0 ? new Date(modified*1000) : null;
+  return `<dl class="asset-facts"><dt>Files</dt><dd>${item.files==null?'unknown':esc(item.files)}</dd><dt>Size</dt><dd>${item.bytes==null?'unknown':formatBytes(item.bytes)}</dd><dt>Modified</dt><dd>${timestamp?`<time datetime="${timestamp.toISOString()}">${timestamp.toLocaleString()}</time>`:'unknown'}</dd><dt>Fingerprint</dt><dd><code title="${esc(item.fingerprint||'unknown')}">${esc(abbreviatedFingerprint(item.fingerprint))}</code></dd></dl>`;
+}
+function assetLiveState(device,slot,observed) {
+  const phase=device?.fetch?.[slot];
+  if(phase==="sent"||phase==="queued") return "queued";
+  if(phase==="fetching") return "fetching";
+  if(phase==="err") return "failed";
+  if(phase==="timeout") return "timed out";
+  return observed;
+}
+function assetCatalogRow(device,item) {
+  const observed=assetInventoryState(device,item), state=assetLiveState(device,item.name,observed.label);
+  const pending=state==="queued"||state==="fetching";
+  let action="", actionLabel="";
+  if(observed.label==="absent") { action="send"; actionLabel="Send"; }
+  else if(observed.label==="stale") { action="update"; actionLabel="Update"; }
+  else if(observed.label==="unknown") { action="send-update"; actionLabel="Send / update"; }
+  const unavailable=!device||pending;
+  const reason=!device?"Choose an online, assigned physical device":pending?"Transfer already in progress":"";
+  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?.hostname||device?.uid||'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'<span class="asset-no-action">No action needed</span>'}</div></article>`;
+}
+function assetExtraRow(device,item) {
+  const state=assetLiveState(device,item.name,"extra"), pending=state==="queued"||state==="fetching";
+  return `<article class="asset-row asset-extra" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action"><button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${device.hostname||device.uid}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button></div></article>`;
+}
+function assetIsActive(device,slot) {
+  return Array.isArray(device?.active_asset_slots)&&device.active_asset_slots.includes(slot);
+}
+function confirmAssetAction(device,slot,action) {
+  const active=assetIsActive(device,slot);
+  if(action==="remove") {
+    if(active) return confirm(`Asset slot "${slot}" is declared by the active patch. Removing it can immediately break the running patch. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. Remove anyway?`);
+    return confirm(`Remove asset slot "${slot}" from ${device.hostname||device.uid}?`);
+  }
+  if(active&&action!=="send") return confirm(`Asset slot "${slot}" is declared by the active patch. Updating it in place can expose the running engine to a partial update or broken files. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. ${action==="update"?'Update':'Send / update'} anyway?`);
+  return true;
+}
+function resolveAssetFeedback(device) {
+  const pending=assetFeedbackPending;
+  if(!pending||!device||device.uid!==pending.uid||!Array.isArray(device.assets)) return;
+  const observedAt=Number(device.assets_observed_at)||0;
+  if(observedAt<=pending.observedAt) return;
+  const installed=device.assets.find(item=>item.name===pending.slot);
+  const resolved=pending.action==="remove" ? !installed : installed?.fingerprint===pending.fingerprint;
+  if(!resolved) return;
+  assetFeedback=pending.action==="remove"
+    ? `Removed ${pending.slot} from ${device.hostname||device.uid}; confirmed by observed inventory.`
+    : `${pending.slot} is current on ${device.hostname||device.uid}; confirmed by observed inventory.`;
+  assetFeedbackPending=null;
+}
+function renderAssets() {
+  const select=$("#asset-target"), catalog=$("#asset-catalog"), extras=$("#asset-extras");
+  if(!select||!catalog||!extras) return;
+  const active=document.activeElement, focused=active===select, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
+  const targets=assetTargets(), device=selectedAssetDevice(targets);
+  resolveAssetFeedback(device);
+  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(target.device.hostname||target.device.uid)}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
+  select.disabled=!targets.some(target=>target.eligible);
+  select.onchange=()=>{assetTarget=select.value;assetFeedback="";renderAssets();};
+  if(focused) select.focus();
+  const ineligible=targets.filter(target=>!target.eligible);
+  $("#asset-target-reasons").innerHTML=ineligible.length?ineligible.map(target=>`<span><strong>${esc(target.device.hostname||target.device.uid)}</strong> · ${esc(target.reasons.join(' · '))}</span>`).join(''):targets.length?'<span class="dim">Every discovered device is eligible.</span>':'<span class="dim">No devices discovered.</span>';
+  $("#asset-catalog-summary").textContent=`${distribution.assets.length} host slot${distribution.assets.length===1?'':'s'}${device?` · compared with ${device.hostname||device.uid}`:''}`;
+  $("#asset-feedback").textContent=assetFeedback;
+  catalog.innerHTML=distribution.assets.length?distribution.assets.map(item=>assetCatalogRow(device,item)).join(''):'<p class="empty">No asset slots in the host catalog.</p>';
+  const hostNames=new Set(distribution.assets.map(item=>item.name));
+  const extraItems=device&&Array.isArray(device.assets)?device.assets.filter(item=>!hostNames.has(item.name)):[];
+  const inventoryBanner=!device?'<p class="asset-inventory-note">Choose an eligible target to compare its observed inventory.</p>':!Array.isArray(device.assets)?'<p class="asset-inventory-note unknown">Inventory unknown — this node has not replied yet, or does not support asset inventory.</p>':`<p class="asset-inventory-note current">Observed ${device.assets.length} installed slot${device.assets.length===1?'':'s'}${device.assets_observed_at?` · ${ago(device.assets_observed_at)}`:''}.</p>`;
+  const quarantine=device?.assets_quarantine?.length?`<p class="asset-inventory-note unknown">Inventory incomplete: ${device.assets_quarantine.length} malformed entr${device.assets_quarantine.length===1?'y was':'ies were'} excluded.</p>`:"";
+  extras.innerHTML=`${inventoryBanner}${quarantine}${extraItems.length?`<div class="asset-extras-heading"><h3>Device-only slots</h3><p class="dim">Installed on this device but absent from the host catalog.</p></div>${extraItems.map(item=>assetExtraRow(device,item)).join('')}`:''}`;
+  document.querySelectorAll("#tab-assets [data-asset-action]").forEach(button=>button.onclick=()=>{
+    const row=button.closest("[data-slot]"), slot=row.dataset.slot, action=button.dataset.assetAction;
+    if(!device||!confirmAssetAction(device,slot,action)) return;
+    assetFeedback=action==="remove"?`Removing ${slot} from ${device.hostname||device.uid}…`:`${action==="update"?'Updating':'Sending'} ${slot} to ${device.hostname||device.uid}…`;
+    const hostItem=distribution.assets.find(item=>item.name===slot);
+    assetFeedbackPending={uid:device.uid,slot,action,observedAt:Number(device.assets_observed_at)||0,fingerprint:hostItem?.fingerprint||null};
+    $("#asset-feedback").textContent=assetFeedback;
+    if(action==="remove") ws.send("drop_distribution",{uid:device.uid,kind:"asset",name:slot});
+    else ws.send("send_distribution",{uid:device.uid,kind:"asset",name:slot,confirmed_active:false});
+  });
+  $("#asset-refresh").onclick=()=>{assetFeedback="Refreshing host catalog…";$("#asset-feedback").textContent=assetFeedback;ws.send("refresh_distribution",{});};
+  if(focusSlot&&focusAction) document.querySelector(`#tab-assets [data-slot="${CSS.escape(focusSlot)}"] [data-asset-action="${CSS.escape(focusAction)}"]`)?.focus();
+  else if(focusRefresh) $("#asset-refresh").focus();
 }
 function nextFreeId() { const used = new Set(Object.values(installation.seats||{}).map(s=>Number(s.id))); let id=0; while (used.has(id)) id++; return id; }
 function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }

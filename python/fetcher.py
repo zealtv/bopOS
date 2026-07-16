@@ -10,11 +10,13 @@ import urllib.request
 
 try:
     from . import manifest as patch_manifest
+    from . import identity
 except ImportError:
     import manifest as patch_manifest
+    import identity
 
 
-def _valid_slot(slot):
+def _valid_patch_slot(slot):
     return (isinstance(slot, str) and bool(slot)
             and all(char.isascii() and (char.isalnum() or char in "_-") for char in slot))
 
@@ -140,7 +142,7 @@ def _download(url, target, item):
     return False
 
 
-def _http_fetch(uri, destination):
+def _http_fetch(uri, destination, cache_root=None):
     with urllib.request.urlopen(uri, timeout=30) as response:
         files = parse_manifest(response.read())
     os.makedirs(destination, exist_ok=True)
@@ -154,10 +156,12 @@ def _http_fetch(uri, destination):
         if not _download(urllib.parse.urljoin(uri, quoted_path), target, item):
             return False, "failed to fetch {}".format(url_path)
     _prune(destination, [item["path"] for item in files])
+    if cache_root is not None:
+        identity.seed_hashes(cache_root, destination, files)
     return True, "fetched {} files".format(len(files))
 
 
-def _file_fetch(uri, destination):
+def _file_fetch(uri, destination, cache_root=None):
     parsed = urllib.parse.urlparse(uri)
     if parsed.netloc not in ("", "localhost"):
         raise ValueError("file URI host is not local")
@@ -186,13 +190,15 @@ def _file_fetch(uri, destination):
             return False, "failed to verify {}".format(item["path"])
         os.replace(part, target)
     _prune(destination, [item["path"] for item in files])
+    if cache_root is not None:
+        identity.seed_hashes(cache_root, destination, files)
     return True, "synced {} files".format(len(files))
 
 
 def _landing(slot, assets_root, patches_root):
     if slot.startswith("patch:"):
         name = slot[len("patch:"):]
-        if not _valid_slot(name):
+        if not _valid_patch_slot(name):
             raise ValueError("invalid patch name")
         root = patches_root or os.path.join(os.path.dirname(assets_root), "patches")
         destination = os.path.join(root, name)
@@ -207,16 +213,16 @@ def _landing(slot, assets_root, patches_root):
         if os.path.lexists(os.path.join(destination, ".git")):
             raise ValueError("refusing to fetch over a git-managed patch")
         return destination, True
-    if not _valid_slot(slot):
+    if not identity.valid_asset_slot(slot):
         raise ValueError("invalid slot")
     return os.path.join(assets_root, slot), False
 
 
-def _converge(uri, destination, scheme):
+def _converge(uri, destination, scheme, cache_root=None):
     if scheme in ("http", "https"):
-        return _http_fetch(uri, destination)
+        return _http_fetch(uri, destination, cache_root)
     if scheme == "file":
-        return _file_fetch(uri, destination)
+        return _file_fetch(uri, destination, cache_root)
     return False, "unsupported URI scheme"
 
 
@@ -288,6 +294,6 @@ def fetch(uri, slot, assets_root, patches_root=None):
         if is_patch:
             return _patch_fetch(uri, destination, scheme, assets_root)
         _reject_symlinks(destination)
-        return _converge(uri, destination, scheme)
+        return _converge(uri, destination, scheme, assets_root)
     except Exception as error:
         return False, str(error)
