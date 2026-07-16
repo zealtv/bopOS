@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seat-group membership rails — UX study</title>
+<style>
+:root{color-scheme:dark;--bg:#101316;--panel:#191e23;--line:#303942;--text:#e8edf1;--dim:#9aa7b1;--room:#12171c}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,sans-serif}button{min-height:44px;border:1px solid #45515b;border-radius:7px;background:#273039;color:inherit;padding:9px 12px;cursor:pointer}button:focus-visible,summary:focus-visible{outline:3px solid white;outline-offset:2px}.shell{max-width:1240px;margin:auto;padding:24px}.intro{color:var(--dim);line-height:1.5}.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px}.map-card,.side{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:16px}.toolbar,.legend,.group-row,.row-main{display:flex;align-items:center;gap:8px}.toolbar{justify-content:space-between;flex-wrap:wrap}.legend{flex-wrap:wrap;min-height:44px}.chip{min-height:36px;padding:7px 10px}.chip.focused{box-shadow:inset 0 0 0 2px white}.slot{display:inline-grid;place-items:center;width:25px;height:25px;border:3px solid var(--c);border-radius:50%;font-weight:800;color:var(--text)}.slot.s2{border-style:dashed}.slot.s3{border-style:dotted}.slot.s4{border-style:double}.room{display:block;width:100%;min-height:480px;margin-top:12px;border:1px solid var(--line);background:var(--room);touch-action:none}.room .seat{cursor:pointer;transition:opacity .15s}.room .seat.muted{opacity:.3}.room .seat.compare-muted{opacity:.55}.room .rail{fill:none;stroke:var(--c);stroke-width:4;vector-effect:non-scaling-stroke}.room .rail.back{stroke:#071015;stroke-width:8}.room .s2{stroke-dasharray:12 7}.room .s3{stroke-dasharray:2 6;stroke-linecap:round}.room .s4{stroke-dasharray:14 5 3 5}.room .rail.quiet{opacity:.38}.room .dot{fill:#45d483;stroke:#0b0e11;stroke-width:4;vector-effect:non-scaling-stroke}.room .seat.selected .dot{stroke:#fff;stroke-width:6}.room text{fill:#071015;font-weight:900;text-anchor:middle;pointer-events:none}.room .label{fill:#b7c2ca;font-size:15px;font-weight:650;text-anchor:start}.side h2{margin:0}.side-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.seat-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px}.seat-list-row{display:flex;align-items:center;gap:8px;text-align:left;background:transparent;border-color:transparent}.seat-list-row.selected{background:#252d34;border-color:#75828d}.status-dot{width:10px;height:10px;border-radius:50%;background:#45d483}.seat-study{margin:12px 0 16px;padding:12px;border:1px solid var(--line);border-radius:8px;background:#151a1f}.seat-study h3{margin:0 0 4px}.seat-study p{margin:4px 0;color:var(--dim)}.member-list.compact{grid-template-columns:1fr 1fr}.groups-panel{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 0 10px}.groups-panel summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none}.groups-panel summary::-webkit-details-marker{display:none}.groups-title{display:grid}.groups-title strong{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}.groups-title small{color:var(--dim)}.group-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 8px}.group-actions p{margin:0;color:var(--dim);font-size:12px}.group-actions button{min-height:36px;padding:6px 9px}.rows{display:grid;gap:5px}.group-row{width:100%;justify-content:space-between;border:1px solid transparent;border-radius:7px}.group-row:hover,.group-row.focused{background:#252d34}.group-row.focused{border-color:#75828d}.group-focus{min-width:0;flex:1;display:flex;align-items:center;gap:8px;text-align:left;background:transparent;border-color:transparent}.row-main{min-width:0}.row-copy{display:grid}.row-copy small{color:var(--dim)}.eye{width:44px;padding:0;display:grid;place-items:center;background:transparent}.eye[aria-pressed="false"]{color:#78848d}.visibility-icon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}.empty-note{margin:10px 0;padding:10px;border:1px solid #745c2e;border-radius:7px;color:#ffd58a;background:#2b2417}.member-list{display:grid;gap:6px}.member-list label{display:flex;align-items:center;min-height:38px;gap:7px;font-size:13px}.utilities{display:grid;gap:7px;margin-top:14px;color:var(--dim);font-size:12px}.utility{padding:9px;border:1px solid var(--line);border-radius:7px}.tip{position:fixed;z-index:5;max-width:260px;padding:8px 10px;border:1px solid #65727c;border-radius:6px;background:#090c0e;color:white;pointer-events:none}.tip[hidden]{display:none}.note{font-size:13px;color:var(--dim)}@media(max-width:800px){.shell{padding:14px}.grid{display:block}.side{margin-top:14px}.room{min-height:360px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <h1>Seat-group membership rails</h1>
+  <p class="intro">Standalone interaction study. Select a group row to focus it; use eyes to compare up to four; select a Seat for its complete membership. Colours are deliberately reinforced by rail position, pattern, numeral and text.</p>
+  <div class="grid">
+    <section class="map-card" aria-labelledby="map-title">
+      <div class="toolbar"><div><strong id="map-title">Seats</strong><div class="note" id="mode-note">No groups shown</div></div><button id="clear">Clear group view</button></div>
+      <div id="legend" class="legend" aria-label="Visible group legend"></div>
+      <div id="empty-note" class="empty-note" hidden>No Seats in this group.</div>
+      <svg id="map" class="room" viewBox="0 0 700 480" role="img" aria-label="Spatial Seat map"></svg>
+      <p class="note">Dots retain element-index fill. White dot outline means selected Seat. Group rails sit outside both.</p>
+    </section>
+    <aside class="side">
+      <div class="side-head"><h2>Seats</h2><button aria-label="Create Seat">Create Seat</button></div>
+      <div class="seat-roster" aria-label="Seat roster">
+        <button class="seat-list-row"><i class="status-dot"></i>Seat 0</button><button class="seat-list-row"><i class="status-dot"></i>Seat 1</button>
+        <button class="seat-list-row"><i class="status-dot"></i>Seat 2</button><button class="seat-list-row selected"><i class="status-dot"></i>Seat 3</button>
+      </div>
+      <section class="seat-study"><h3 id="detail-title">Seat 3</h3><p id="detail-copy">Selected Seat detail stays directly below the roster.</p><div id="members" class="member-list compact"></div></section>
+      <details id="groups-panel" class="groups-panel" open>
+        <summary><span class="groups-title"><strong>Groups</strong><small id="groups-summary">1 shown · 5 total</small></span><span aria-hidden="true">▾</span></summary>
+        <div class="group-actions"><p>Map overlays and membership</p><button aria-label="Create group">Create group</button></div>
+        <div id="rows" class="rows"></div>
+        <p id="limit" class="empty-note" hidden>Four groups are already shown; hide one to compare another.</p>
+      </details>
+      <div class="utilities"><div class="utility"><strong>Simulation status</strong> · off</div><div class="utility"><strong>Venue</strong> · Default</div></div>
+    </aside>
+  </div>
+</main>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<!-- Eye and eye-off geometry derived from Lucide Icons; ISC license:
+     https://github.com/lucide-icons/lucide/blob/main/LICENSE -->
+<script>
+const groups=[
+ {id:1,name:"Front row",members:[0,1,2,3]},
+ {id:2,name:"Guitars",members:[2,3,5,7]},
+ {id:7,name:"Roving",members:[3,4,7,8]},
+ {id:9,name:"Choir",members:[1,3,6,8]},
+ {id:12,name:"Empty study",members:[]}
+];
+const slots=[
+ {c:"#56B4E9",style:"s1"},{c:"#E69F00",style:"s2"},
+ {c:"#00B98B",style:"s3"},{c:"#CC79A7",style:"s4"}
+];
+const seats=[
+ {id:0,x:95,y:110},{id:1,x:245,y:95},{id:2,x:400,y:120},{id:3,x:555,y:105},
+ {id:4,x:145,y:260},{id:5,x:305,y:245},{id:6,x:470,y:270},{id:7,x:225,y:390},{id:8,x:510,y:385}
+];
+let visible=[1],focus=1,selected=null;
+const $=s=>document.querySelector(s), ns="http://www.w3.org/2000/svg";
+function node(tag,attrs,parent){const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));parent?.append(e);return e}
+function group(id){return groups.find(g=>g.id===id)}
+function memberships(id){return groups.filter(g=>g.members.includes(id))}
+function eyeIcon(shown){
+ const eye='<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle>';
+ const slash=shown?'':'<path d="M2 2l20 20"></path>';
+ return `<svg class="visibility-icon" viewBox="0 0 24 24" aria-hidden="true">${eye}${slash}</svg>`;
+}
+function toggleVisible(id){
+ if(visible.includes(id)){visible=visible.filter(x=>x!==id);if(focus===id)focus=null;}
+ else if(visible.length<4)visible.push(id);else{$("#limit").hidden=false;return}
+ $("#limit").hidden=true;render();
+}
+function focusGroup(id){
+ if(focus===id){focus=null;render();return}
+ if(!visible.includes(id)&&visible.length===4){$("#limit").hidden=false;return}
+ focus=id;if(!visible.includes(id))visible.push(id);$("#limit").hidden=true;render();
+}
+function renderRows(){
+ $("#rows").innerHTML=groups.map(g=>{const i=visible.indexOf(g.id),shown=i>=0,slot=shown?slots[i]:{c:'#59636b',style:'s1'},action=`${shown?'Hide':'Show'} ${g.name} ${shown?'from':'on'} map`;return `<div class="group-row${focus===g.id?' focused':''}" data-row="${g.id}"><button class="group-focus" data-focus="${g.id}" aria-pressed="${focus===g.id}"><span class="row-main"><i class="slot ${slot.style}" style="--c:${slot.c}">${i+1||'–'}</i><span class="row-copy"><strong>${g.name}</strong><small>g${g.id} · ${g.members.length} Seats</small></span></span></button><button class="eye" data-eye="${g.id}" aria-pressed="${shown}" aria-label="${action}" title="${action}">${eyeIcon(shown)}</button></div>`}).join("");
+ document.querySelectorAll("[data-eye]").forEach(b=>b.onclick=e=>{e.stopPropagation();toggleVisible(Number(b.dataset.eye))});
+ document.querySelectorAll("[data-focus]").forEach(b=>b.onclick=()=>focusGroup(Number(b.dataset.focus)));
+ $("#groups-summary").textContent=`${visible.length} shown · ${groups.length} total`;
+}
+function renderLegend(){
+ $("#legend").innerHTML=visible.map((id,i)=>{const g=group(id),slot=slots[i];return `<button class="chip${focus===id?' focused':''}" data-chip="${id}"><i class="slot ${slot.style}" style="--c:${slot.c}">${i+1}</i> ${g.name} <small>g${id}</small></button>`}).join("")||'<span class="note">Choose an eye to compare groups</span>';
+ document.querySelectorAll("[data-chip]").forEach(b=>b.onclick=()=>focusGroup(Number(b.dataset.chip)));
+}
+function renderMap(){
+ const svg=$("#map");svg.replaceChildren();node("rect",{x:10,y:10,width:680,height:460,rx:8,fill:"#12171c",stroke:"#303942"},svg);
+ for(const s of seats){
+   const memberVisible=visible.filter(id=>group(id).members.includes(s.id));
+   const muted=focus!==null&&!group(focus).members.includes(s.id)?"muted":focus===null&&visible.length&&!memberVisible.length?"compare-muted":"";
+   const sg=node("g",{class:`seat ${muted}${selected===s.id?' selected':''}`,tabindex:"0","data-seat":s.id,"aria-label":`Seat ${s.id}; ${memberships(s.id).map(g=>g.name+", g"+g.id).join('; ')||'no groups'}`},svg);
+   visible.forEach((id,i)=>{if(!group(id).members.includes(s.id))return;const slot=slots[i],r=24+i*8,quiet=focus!==null&&focus!==id?" quiet":"";node("circle",{cx:s.x,cy:s.y,r,class:`rail back ${slot.style}${quiet}`},sg);node("circle",{cx:s.x,cy:s.y,r,class:`rail ${slot.style}${quiet}`,style:`--c:${slot.c}`},sg)});
+   node("circle",{cx:s.x,cy:s.y,r:17,class:"dot"},sg);const t=node("text",{x:s.x,y:s.y+6},sg);t.textContent=s.id;
+   sg.onclick=()=>{selected=s.id;render()};sg.onfocus=showTip;sg.onmouseenter=showTip;sg.onmouseleave=hideTip;sg.onblur=hideTip;
+ }
+}
+function showTip(e){const id=Number(e.currentTarget.dataset.seat),names=memberships(id).map(g=>`${g.name} (g${g.id})`).join(", ")||"No groups";const tip=$("#tip");tip.textContent=`Seat ${id} · ${names}`;tip.hidden=false;const box=e.currentTarget.getBoundingClientRect();tip.style.left=`${Math.min(innerWidth-270,box.left+25)}px`;tip.style.top=`${Math.max(8,box.top-45)}px`}
+function hideTip(){$("#tip").hidden=true}
+function renderDetail(){
+ if(selected===null){$("#detail-title").textContent="Select a Seat";$("#detail-copy").textContent="Choose a map Seat to inspect it.";$("#members").innerHTML="";return}
+ $("#detail-title").textContent=`Seat ${selected}`;$("#detail-copy").textContent="Membership is edited here or in Group detail; map taps only select.";
+ $("#members").innerHTML=groups.map(g=>`<label><input type="checkbox" ${g.members.includes(selected)?'checked':''} disabled> ${g.name} <small>g${g.id}${visible.includes(g.id)?' · shown':' · hidden'}</small></label>`).join("");
+}
+function render(){renderRows();renderLegend();renderMap();renderDetail();$("#empty-note").hidden=focus===null||group(focus).members.length>0;$("#mode-note").textContent=focus!==null?`Focused: ${group(focus).name}`:visible.length?`${visible.length} groups compared`:"No groups shown"}
+$("#clear").onclick=()=>{visible=[];focus=null;$("#limit").hidden=true;render()};
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;if(focus!==null)focus=null;else visible=[];render()});
+render();
+</script>
+</body>
+</html>

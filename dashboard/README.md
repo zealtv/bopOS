@@ -119,9 +119,18 @@ mode.
 Changing to a different fleet patch also changes the one active parameter
 schema: every seat is reset to that manifest's declared defaults and keys from
 the previous patch are removed. Setting the same patch again (including a stale
-content retry) preserves current values. Revert changes patch names, so it
+content retry) preserves values for unchanged qualified identities, defaults
+new identities, and prunes removed ones. Revert changes patch names, so it
 restores the previous patch with its manifest defaults rather than retaining a
-hidden per-patch parameter history.
+hidden per-patch parameter history. Parameter and preset keys are the canonical
+slash-joined manifest `path + name`; reconnect catch-up and preset load send
+only identities declared by the active manifest.
+
+In Patch edit, `path` is authored as slash-separated text and saved as a JSON
+array while `name` remains the leaf. Nested declarations render as a tree and
+send their complete `/p/<path>/<name>` address. The legacy `group` field stays
+presentation-only: clear it before adding a path, and path/name moves are shown
+as explicit remove-plus-add identity changes.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
 visual coordinate origin, listener, master, presets). The Seats and Devices tabs let

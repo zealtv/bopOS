@@ -468,9 +468,22 @@ class AuditionRig:
                 if node.uid == uid:
                     self.uid_admin(node, member, tuple(message.params[2:]), source)
             return
-        if len(parts) != 3:
+        if len(parts) < 3:
             return
         selector = parts[0]
+        shaped = relay.shape_provided_term(parts, message.params)
+        if shaped is not None:
+            address, args = shaped
+            builder = osc_message_builder.OscMessageBuilder(address=address)
+            for value in args:
+                builder.add_arg(value)
+            forwarded = builder.build().dgram
+            for node in self.nodes:
+                if matches(selector, node.device_id):
+                    self.sock.sendto(forwarded, (self.local_target, node.engine_port))
+            return
+        if len(parts) != 3:
+            return
         if parts[1:] == ["os", "assign"]:
             self.apply_assignment(selector, message.params)
             return
@@ -500,17 +513,6 @@ class AuditionRig:
                 if matches(selector, node.device_id) and uid in (None, node.uid):
                     self.sock.sendto(packet, (self.local_target, node.engine_port))
             return
-        shaped = relay.shape_provided_term(parts, message.params)
-        if shaped is None:
-            return
-        address, args = shaped
-        builder = osc_message_builder.OscMessageBuilder(address=address)
-        for value in args:
-            builder.add_arg(value)
-        forwarded = builder.build().dgram
-        for node in self.nodes:
-            if matches(selector, node.device_id):
-                self.sock.sendto(forwarded, (self.local_target, node.engine_port))
 
     def stop(self):
         descendants = {}

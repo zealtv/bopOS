@@ -3,10 +3,12 @@ import ipaddress
 import json
 import logging
 import math
+import os
 import random
 import re
 import socket
 import statistics
+import sys
 import time
 from collections import deque
 
@@ -15,6 +17,11 @@ from pythonosc.osc_message_builder import OscMessageBuilder
 
 import points
 from state import reconcile_patch_switch_observation
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python import manifest as patch_manifest
 
 
 LEGACY_DECLARATIONS = [
@@ -539,28 +546,32 @@ class OSCBridge:
                 device["params"] = dict(self.state.data.get("editor", {}).get("params", {}))
             elif seat is not None:
                 device["params"] = dict(seat.get("params", {}))
-            for declaration in declarations:
-                name = declaration.get("name")
-                if name and name not in device["params"] and "default" in declaration:
-                    device["params"][name] = declaration["default"]
+            try:
+                qualified = [(declaration, patch_manifest.qualify_param(declaration))
+                             for declaration in declarations]
+            except ValueError:
+                log.warning("invalid qualified params declaration from %s", ip)
+                return
+            for declaration, identity in qualified:
+                if identity not in device["params"] and "default" in declaration:
+                    device["params"][identity] = declaration["default"]
                     if seat is not None:
-                        seat["params"][name] = declaration["default"]
+                        seat["params"][identity] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
             # device offline during a preset load converges on reconnect);
             # master rides along per the contract sec 4.1 catch-up rule
             if editor:
-                for declaration in declarations:
-                    name = declaration.get("name")
-                    if name and name in device["params"]:
-                        self.set_param(int(device.get("id", 0)), name,
-                                       device["params"][name])
+                for _declaration, identity in qualified:
+                    if identity in device["params"]:
+                        self.set_param(int(device.get("id", 0)), identity,
+                                       device["params"][identity])
                 self.send_master(int(device.get("id", 0)))
             elif seat is not None:
-                for declaration in declarations:
-                    name = declaration.get("name")
-                    if name and name in device["params"]:
-                        self.set_param(int(seat["id"]), name, device["params"][name])
+                for _declaration, identity in qualified:
+                    if identity in device["params"]:
+                        self.set_param(int(seat["id"]), identity,
+                                       device["params"][identity])
                 self.send_master(int(seat["id"]))
                 if self.state.data.get("points"):
                     self.send_points_frame()

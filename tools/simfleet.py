@@ -41,18 +41,26 @@ DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patc
 # two can never drift (contract sec 4.1)
 sys.path.append(os.path.join(REPO_DIR, "python"))
 import identity  # noqa: E402
+import manifest as patch_manifest  # noqa: E402
 import pointfield  # noqa: E402
 
 
 def load_manifest(path):
-    """Return verbatim text and declared parameter names."""
+    """Return verbatim text and canonical declared parameter identities."""
     try:
         with open(path) as source:
             text = source.read()
-        manifest = json.loads(text)
-        params = manifest.get("params", [])
-        return text, {param["name"] for param in params}
-    except (OSError, ValueError, TypeError, KeyError):
+        manifest_data = json.loads(text)
+        if not isinstance(manifest_data, dict):
+            return None, set()
+        params = manifest_data.get("params", [])
+        if not isinstance(params, list):
+            return None, set()
+        identities = [patch_manifest.qualify_param(param) for param in params]
+        if len(identities) != len(set(identities)):
+            return None, set()
+        return text, set(identities)
+    except (OSError, ValueError, TypeError, KeyError, UnicodeEncodeError):
         return None, set()
 
 
@@ -638,9 +646,12 @@ class SimFleet:
                     continue
                 self.uid_admin(device, member, member_args, source)
             return
-        if len(parts) != 3 or parts[1] not in ("os", "p"):
+        if len(parts) < 3 or parts[1] not in ("os", "p"):
             return
-        selector, plane, member = parts
+        selector, plane = parts[:2]
+        if plane == "os" and len(parts) != 3:
+            return
+        member = "/".join(parts[2:])
         for device in self.devices:
             # bopos.py answers these, so the box must be up (booting counts:
             # helper starts before the engine) and its radio listening

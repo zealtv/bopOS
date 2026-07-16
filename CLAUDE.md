@@ -42,7 +42,7 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
-## Thread ordering (reconciled 2026-07-15 after patch-editor PE-4/PE-4b)
+## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
 **v1.5** (2026-07-07 base + seam amendment + engine-boundary revision +
@@ -51,50 +51,46 @@ and unassignment revision); `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
 `patch-asset-sync` (dist-0..4), fleet-patch (fp-0..4), and patch-editor
-(pe-0..4 plus the PE-4b delivery/element-target follow-up) are **all tied**. `bopos.py`
+(pe-0..4 plus the PE-4b delivery/element-target follow-up), and the nested
+parameter-address foundation are **all tied**. `bopos.py`
 (ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
 surface; run context is launch-delivered; `role`/meter are dead;
 facilitator controls come only from `facilitator: true`.
 
-**The workable queue for autonomous sessions.** Fleet-patch and patch-editor
-are tied; fp-4 passed on bop000, the PE-3b launch-race regression passed an
-audible simulator gate, and Bob confirmed PE-4/PE-4b point and cue delivery
-from the live editor. This recommended order takes precedence over
-`./.loom/loom.sh next`'s alphabetical listing:
+The dashboard review sweep is complete through Devices and Patches (01, 02,
+03, 05, 06, 08, 07, 09, and 10). Bob accepted the following **seven-stage
+implementation sweep as the next program of work**. This order takes precedence
+over `./.loom/loom.sh next`'s alphabetical listing; still claim, work, verify,
+and tie one concrete stitch at a time:
 
-1. **Complete:** `ui-tabs/tabs-0-ia-proposal` — Bob ratified the lore-kept
-   Dashboard / Seats / Devices / Patches / Assets / Sequencer IA, amended so
-   promoted Dashboard admin commands have explicit fleet and single-device
-   action scopes.
-2. **Complete:** `ui-tabs/tabs-1-skeleton` — the ratified six-tab structure,
-   Dashboard compatibility entry, and dual-scope promoted admin commands are
-   implemented and browser-verified.
-3. **Complete:** `ui-tabs/tabs-2-review-session` — Bob's real-dashboard review
-   plus an independent interactive-installation UX review are lore-kept. The
-   resulting correctness-first next sweep is accepted. Bob explicitly dropped
-   venue point persistence; runtime-only production points remain intentional.
-4. **In progress:** `ui-tabs/tabs-3-next-sweep` — 01, 02, 03, 05, 06, 08, 07,
-   09, and 10 are complete. Stitch 11 was narrowed with Bob on 2026-07-15 to
-   **`11-assets-device-workflow`**: first establish device asset inventory,
-   then manage assets on exactly one device at a time. Later the same day the
-   scale premise was revised (Belief System pack measured at 1.15 GB; packs
-   expected well under 5 GB — see lore `2026-07-15-asset-transfer-scale-reference`)
-   and 11a/11b were specced to implement autonomously without a further
-   design gate. Fleet-wide bulk asset rollout is deferred on the separate
-   `asset-fleet-distribution` thread. Bob then ratified and made ready the
-   nested `parameter-addresses` and lowercase `seat-groups` work, and clarified
-   that no 11a implementation had begun—the Assets tab is still empty—so it has
-   no sunk-work priority. The revised order is: land the parameter
-   contract/model/relay and dashboard/editor foundation first; send the
-   Seat-group spatial-membership UX to its review gate early; complete
-   Seat-group core while that review waits; then finish group authoring and map
-   visualization once ratified. Assets 11a/11b remain ready, independent fallback
-   work if the UX gate is still waiting, and otherwise follow the group
-   foundation. Continue with 12 as the **single** All / Group / Seat nested
-   live-controls integration point, followed by 13 diagnostic density and 14
-   the device-alias design gate.
-5. **`patch-workflow-friction/friction-0..1`** — resume after the full next sweep so the
-   docs and starter-kit copy describe the finished editor and tab structure.
+1. **Complete — parameter-address foundation.** Contract/model/relay and
+   dashboard state/editor are tied. True nested OSC, flat compatibility,
+   canonical persistence/presets, and editor path CRUD are verified; promoted
+   live controls remain reserved for stage 6.
+2. **Complete — Seat-group spatial UX gate.** Bob ratified focus plus bounded
+   four-group rail comparison, view-local styles, checklist authoring,
+   eye/eye-off visibility, and the subordinate collapsible Groups placement
+   after Seat detail and before Simulation/Venue.
+3. **Next — Seat-group core.** Implement the non-visual
+   protocol, node persistence/matching, simulator/audition parity, dashboard
+   group state, and membership synchronization in
+   `seat-groups-1-core-implementation`. Reuse the parameter relay foundation.
+4. **Seat-group delivery.** Finish group authoring and the ratified spatial
+   membership visualization through `seat-groups-3-delivery`.
+5. **Single-device Assets workflow.** Complete `11a-device-asset-inventory`,
+   then `11b-single-device-assets-workspace`. Fleet-wide bulk rollout remains
+   deferred to `asset-fleet-distribution`.
+6. **Dashboard live controls.** Use
+   `12-dashboard-live-controls` as the single integration point for the
+   flat/nested parameter × All/Group/Seat target matrix.
+7. **Close the sweep.** Complete `13-diagnostic-density`, then the
+   `14-device-alias-design` decision gate, then resume
+   `patch-workflow-friction/friction-0..1` so documentation and starter-kit
+   copy describe the finished system.
+
+The latest sequencer brainstorm is input to the separately Bob-gated
+`scene-sequencing` co-design. It is not part of this seven-stage sweep and does
+not authorize implementation.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 
@@ -105,9 +101,9 @@ Everything else is `.waiting` for a reason stated in its stitch:
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
-  `parameter-addresses` and
-  `seat-groups` are no longer parked: Bob ratified and made their implementation
-  leaves ready on 2026-07-15, with the ordering recorded above.
+  `parameter-addresses` is complete. `seat-groups` is no longer parked: its
+  protocol/data direction and spatial UX are ratified, with core implementation
+  next.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

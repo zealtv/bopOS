@@ -454,6 +454,29 @@ class InstallationState:
                 device["params"] = dict(values)
         self.data["params_patch"] = patch_name
 
+    def reconcile_fleet_params(self, patch_name, identities, defaults):
+        """Apply a staged same-patch schema revision without identity guesses.
+
+        Unchanged qualified identities retain their values, new identities use
+        declared defaults when present, and removed identities are pruned.
+        A patch-name transition remains a full reset via reset_fleet_params().
+        """
+        if self.data.get("params_patch") != patch_name:
+            self.reset_fleet_params(patch_name, defaults)
+            return
+        active = tuple(identities)
+        for seat in self.seats.values():
+            previous = seat.get("params", {})
+            seat["params"] = {
+                identity: previous.get(identity, defaults[identity])
+                for identity in active
+                if identity in previous or identity in defaults
+            }
+        for device in self.devices.values():
+            seat = self.seat_for_uid(device["uid"])
+            if seat is not None:
+                device["params"] = dict(seat["params"])
+
     @staticmethod
     def clean_facilitator_commands(value):
         if not isinstance(value, list):

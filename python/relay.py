@@ -19,10 +19,10 @@ def shape_provided_term(parts, args):
     for a relayed provided term, or None for everything else. Selector
     matching and delivery stay with the caller.
     """
-    if len(parts) != 3 or not args:
+    if len(parts) < 3 or not args:
         return None
-    if parts[1:] == ["os", "master"]:
+    if len(parts) == 3 and parts[1:] == ["os", "master"]:
         return "/os/master", list(args[:1])
-    if parts[1] == "p" and parts[2]:
-        return "/p/" + parts[2], list(args)
+    if parts[1] == "p" and all(parts[2:]):
+        return "/p/" + "/".join(parts[2:]), list(args)
     return None

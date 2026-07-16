@@ -27,6 +27,11 @@ in `.loom/tied/06-seat-device-boundary-design/`): a small allowlisted UID
 administration envelope uniquely reaches physical nodes that all advertise ID
 `-1`; node unassignment and uid-attributable revision receipts make binding
 revocation safe.
+Amended 2026-07-16 by the nested parameter-address ratification (record in
+`.loom/tied/param-address-0-design/`): patch declarations may carry a structural
+`path`, and the complete variable-length parameter hierarchy survives selector
+removal unchanged. This additive change is folded into v1.5; flat declarations
+and wire addresses are unchanged.
 Provenance of v1.0: five-expert council + judgment + Bob's ratification,
 recorded in `.lore/` (`osc-schema-council`). This document is the durable spec;
 the council records hold the reasoning and the rejected alternatives.
@@ -85,11 +90,13 @@ or a pre-registered MAC.
 
 ## 3. Address grammar
 
-One rule for every LAN message:
+One rule for every LAN message (the open patch plane may continue after
+`<member>` with additional manifest-declared path segments):
 
 ```
-/<selector>/<plane>/<member>  args…    controller → fleet    selector: all | <id>
-/<plane>/<member>             args…    node → controller     (source identifies sender)
+/<selector>/<plane>/<member>[/<segment>...]  args…  controller → fleet
+/<plane>/<member>[/<segment>...]             args…  node → controller
+                                                    selector: all | <id>
 ```
 
 `bopos.py` routes on the selector (`all` = everyone; id −1 = unassigned) and
@@ -240,8 +247,10 @@ both first-class) are the reference consumers.
   only holds for devices that were present.
 - Point values are **shaped scalars**, not geometry (raw distance may be added
   later as an option, by revision).
-- bopos.py relays matched patch-plane values as `/p/<name> <values…>` on the
-  engine port — for every engine (v1.2; PD's direct 6660 path is removed).
+- bopos.py relays matched patch-plane values as
+  `/p/<segment>[/<segment>...] <values…>` on the engine port — for every
+  engine (v1.2; PD's direct 6660 path is removed). It removes only the fleet
+  selector and preserves every parameter segment and argument.
   This is transport/selector plumbing only: bopos.py never interprets or
   composes the patch value.
 - `/cue` (§3.1) is a provided term avant la lettre: bopos.py owns the clock
@@ -257,7 +266,8 @@ selector-stripped:
 /id <n>                        resolved identity (pushed on assignment and
                                after a /config request)
 /os/master <0..1>              the master term (§4.1)
-/p/<name> <values…>            patch-declared parameters (§8)
+/p/<segment>[/<segment>...] <values…>
+                               patch-declared parameters (§8)
 /pt <point> <element> <value>  shaped point scalars (§4.1)
 /cue <id>                      scheduled relative fire (§3.1)
 /notify <event>                framework notifications (identify, update, …)
@@ -427,7 +437,7 @@ A patch ships **`bopos.patch.json`** in its patch root:
 ```json
 { "engine": "pd", "entrypoint": "main.pd",
   "params": [
-    {"name":"gain",    "type":"f", "min":0, "max":1, "default":0.75, "group":"mix", "facilitator":true},
+    {"path":["instrument","marimba"], "name":"gain", "type":"f", "min":0, "max":1, "default":0.75, "facilitator":true},
     {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8,  "group":"mix"},
     {"name":"echo",    "type":"i", "min":0, "max":1, "default":0,    "group":"fx"} ],
   "cues": [
@@ -444,9 +454,22 @@ A patch ships **`bopos.patch.json`** in its patch root:
   `bopos.config` is retired; the framework's node-level root `bopos.config`
   is unrelated and remains valid.
 - bopos.py serves it verbatim: `/<id>/os/params` → `/os/params <json>` (unicast).
-- The dashboard **renders controls from the declaration** — no more hardcoded
-  sliders. Values flow as `/<id>/p/<name> <value>` or `/all/p/<name> <value>`.
-- A `/p/*` value hitting an undeclared name gets a badge, not a guess. The
+- `name` is the leaf parameter segment. Optional `path` is an array of parent
+  segments; the canonical public identity is their slash-joined sequence plus
+  `name` (for example `instrument/marimba/gain`). `name` and every `path`
+  entry match `[A-Za-z0-9_-]+` exactly. There is no escaping, normalization,
+  dot syntax, or slash syntax inside a segment. A qualified identity is at
+  most eight segments and 255 ASCII bytes, and must be unique in its manifest;
+  duplicate leaves in distinct paths are legal. Nested declarations do not
+  also use the legacy presentation-only `group` field.
+- An omitted or empty `path` retains byte-for-behavior compatibility: `gain`
+  remains `/p/gain`. The dashboard **renders controls from the declaration** —
+  no more hardcoded sliders. Nested values flow as
+  `/<id>/p/instrument/marimba/gain <value>` or
+  `/all/p/instrument/marimba/gain <value>`, and engines receive the identical
+  selector-free `/p/instrument/marimba/gain <value>` hierarchy.
+- A `/p/*` value hitting an undeclared qualified identity gets a badge, not a
+  guess. The
   launcher validates declared params before start so the manifest cannot
   silently drift.
 - **`role` — removed (Bob, 2026-07-12):** the param `role` concept is gone
@@ -459,7 +482,8 @@ A patch ships **`bopos.patch.json`** in its patch root:
 - **`facilitator` (optional; additive, ratified 2026-07-10):** a param
   declaration may carry `"facilitator": true` to promote it onto the
   `/facilitator` surface as a control (rendered as a labelled control on the
-  device card; values flow as ordinary `/<sel>/p/<name>`; a card with no
+  device card; values flow as ordinary
+  `/<sel>/p/<segment>[/<segment>...]`; a card with no
   promoted params is status-only). Promotion of **framework
   verbs** is *never* a manifest concern: an install-level allowlist in
   `installation.json` (`"facilitator_commands": […]`, **default empty**)

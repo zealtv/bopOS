@@ -248,10 +248,13 @@ class Dashboard:
             if not name or selector is None:
                 return
             targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
+            if selector == "all":
+                for seat in self.state.seats.values():
+                    seat["params"][name] = value
             for device in targets:
                 device["params"][name] = value
                 seat = self.state.seat_for_uid(device["uid"])
-                if seat is not None:
+                if seat is not None and selector != "all":
                     seat["params"][name] = value
             self.osc.set_param(selector, name, value)
             self.state.save_debounced()
@@ -261,10 +264,9 @@ class Dashboard:
             name, value = str(data.get("name", "")), data.get("value")
             editor = self.state.data["editor"]
             declaration = next((item for item in editor.get("declarations", ())
-                                if item.get("name") == name), None)
+                                if patch_manifest.qualify_param(item) == name), None)
             cleaned = self.clean_editor_value(declaration, value)
-            if (self.supervisor_mode == "edit" and cleaned is not None
-                    and re.fullmatch(r"[A-Za-z0-9_-]+", name)):
+            if self.supervisor_mode == "edit" and cleaned is not None:
                 editor.setdefault("params", {})[name] = cleaned
                 self.osc.set_param(0, name, cleaned)
                 await self.broadcast("state", self.state.public())
@@ -495,15 +497,18 @@ class Dashboard:
             self.state.data["master"] = master
             await self.broadcast("master", {"value": master})
             values = preset.get("seats") if isinstance(preset.get("seats"), dict) else {}
+            active = self.active_param_identities()
             for seat_id, params in values.items():
                 seat = self.state.seats.get(str(seat_id))
                 if seat is None or not isinstance(params, dict):
                     continue
-                seat["params"].update(params)
+                applicable = {str(name): value for name, value in params.items()
+                              if str(name) in active}
+                seat["params"].update(applicable)
                 device = self.state.devices.get(seat.get("bound"))
                 if device is None:
                     continue
-                for name, value in params.items():
+                for name, value in applicable.items():
                     device["params"][str(name)] = value
                     self.osc.set_param(int(seat["id"]), str(name), value)
                 await self.broadcast("device_update", device)
@@ -860,18 +865,27 @@ class Dashboard:
 
     def stage_catalog_patch(self, item):
         """Stage one validated catalog patch and apply its fleet schema."""
-        current = self.state.data.get("fleet_patch") or {}
-        if (current.get("name") != item["name"]
-                or self.state.data.get("params_patch") != item["name"]):
-            manifest, error = patch_manifest.load(
-                os.path.join(self.patches_dir, item["name"]))
-            if manifest is None:  # catalog validity and this load should agree
-                raise ValueError(error)
-            defaults = {declaration["name"]: declaration["default"]
-                        for declaration in manifest.get("params", ())
-                        if "default" in declaration}
-            self.state.reset_fleet_params(item["name"], defaults)
+        manifest, error = patch_manifest.load(
+            os.path.join(self.patches_dir, item["name"]))
+        if manifest is None:  # catalog validity and this load should agree
+            raise ValueError(error)
+        declarations = list(manifest.get("params", ()))
+        identities = [patch_manifest.qualify_param(item) for item in declarations]
+        defaults = {patch_manifest.qualify_param(declaration): declaration["default"]
+                    for declaration in declarations if "default" in declaration}
+        self.state.reconcile_fleet_params(item["name"], identities, defaults)
         return self.state.stage_fleet_patch(item["name"], item["fingerprint"])
+
+    def active_param_identities(self):
+        """Return the staged manifest identities; fail closed when unavailable."""
+        patch_name = self.state.data.get("params_patch")
+        if not patch_name:
+            return set()
+        manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
+        if manifest is None:
+            return set()
+        return {patch_manifest.qualify_param(item)
+                for item in manifest.get("params", ())}
 
     async def live_fleet_patch(self):
         staged = self.state.data.get("fleet_patch")
@@ -976,8 +990,10 @@ class Dashboard:
             await self.ws_error(ws, f"Manifest not saved: {error}")
             return
 
-        old_names = [item.get("name") for item in current.get("params", ())]
-        new_names = [item.get("name") for item in saved.get("params", ())]
+        old_names = [patch_manifest.qualify_param(item)
+                     for item in current.get("params", ())]
+        new_names = [patch_manifest.qualify_param(item)
+                     for item in saved.get("params", ())]
         removed = [item for item in old_names if item not in new_names]
         added = [item for item in new_names if item not in old_names]
         rename_candidates = [
@@ -986,8 +1002,9 @@ class Dashboard:
         ]
         warning = None
         if removed:
-            warning = ("Param names were renamed or removed. Update matching "
-                       "Pure Data receive names manually: " + ", ".join(removed))
+            warning = ("Parameter identities were moved, renamed, or removed. "
+                       "Update matching engine routes manually: "
+                       + ", ".join("/p/" + item for item in removed))
 
         # Manifest saves are live declaration changes, never engine restarts.
         previous_values = editor.get("params", {})
@@ -995,8 +1012,8 @@ class Dashboard:
         editor["declarations"] = declarations
         editor["cues"] = list(saved.get("cues", ()))
         editor["params"] = {
-            declaration["name"]: previous_values.get(
-                declaration["name"], declaration.get("default", ""))
+            patch_manifest.qualify_param(declaration): previous_values.get(
+                patch_manifest.qualify_param(declaration), declaration.get("default", ""))
             for declaration in declarations
         }
         response = {
@@ -1515,7 +1532,7 @@ class Dashboard:
         editor.clear()
         editor.update(active=True, status="starting", patch=patch_name,
                       engine_alive=None, generation=generation,
-                      params={item["name"]: item.get("default", "")
+                      params={patch_manifest.qualify_param(item): item.get("default", "")
                               for item in declarations},
                       declarations=declarations,
                       cues=list(manifest.get("cues", ())),

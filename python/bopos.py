@@ -821,7 +821,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     args = decoded[2:]
     # Relay provided terms to every engine on the common selector-stripped
     # localhost surface; the address shaping is shared with the audition rig.
-    if len(parts) == 3 and selector_matches(parts[0], state.id):
+    if len(parts) >= 3 and selector_matches(parts[0], state.id):
         shaped = relay.shape_provided_term(parts, args)
         if shaped is not None:
             return relay_provided_term(*shaped)

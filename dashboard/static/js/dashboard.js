@@ -353,15 +353,30 @@ function manifestValue(value) {
   if (Array.isArray(value)) return value.length?value.map(item=>typeof item==="string"?item:JSON.stringify(item)).join(", "):"none";
   return value??"—";
 }
+function paramIdentity(param) {
+  const path=Array.isArray(param?.path)?param.path:[];
+  return [...path,param?.name||""].join("/");
+}
+function manifestParamsForSave(params) {
+  return structuredClone(params).map(param=>{
+    if (!Array.isArray(param.path) || !param.path.length) delete param.path;
+    if (typeof param.group!=="string" || !param.group.trim()) delete param.group;
+    return param;
+  });
+}
 function paramManifestRow(param, index) {
   const legacy=param.type==="s", disabled=legacy?"disabled":"";
+  const path=Array.isArray(param.path)?param.path.join("/"):"";
+  const group=param.group||"";
+  const pathDisabled=legacy||Boolean(group), groupDisabled=legacy||Boolean(path);
   return `<div class="manifest-row manifest-param" data-param-index="${index}">
+    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="fx/reverb" autocomplete="off" ${pathDisabled?'disabled':''}></label>
     <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off" ${disabled}></label>
     <label>type<select data-manifest-field="type" ${disabled}><option value="f" ${param.type==="f"?"selected":""}>float</option><option value="i" ${param.type==="i"?"selected":""}>integer</option>${legacy?'<option value="s" selected>string (legacy, read-only)</option>':''}</select></label>
     <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}" ${disabled}></label>
     <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}" ${disabled}></label>
     <label>default<input data-manifest-field="default" type="number" step="any" value="${esc(param.default??"")}" ${disabled}></label>
-    <label>group<input data-manifest-field="group" type="text" value="${esc(param.group||"")}" autocomplete="off" ${disabled}></label>
+    <label>legacy group<input data-manifest-field="group" type="text" value="${esc(group)}" autocomplete="off" ${groupDisabled?'disabled':''}></label>
     <label class="manifest-check"><input data-manifest-field="facilitator" type="checkbox" ${param.facilitator===true?"checked":""} ${disabled}> facilitator</label>
     <button data-remove-param="${index}" class="danger" title="${legacy?'Legacy string declarations are read-only':'Remove parameter'}" ${disabled}>${legacy?'Read-only':'Remove'}</button>
   </div>`;
@@ -378,11 +393,15 @@ function bindManifestEditor(source) {
   document.querySelectorAll(".manifest-param").forEach(row=>{
     const index=Number(row.dataset.paramIndex);
     row.querySelectorAll("[data-manifest-field]").forEach(input=>{
-      input.oninput=input.onchange=()=>{
+      const update=()=>{
         const field=input.dataset.manifestField;
-        manifestDraft.params[index][field]=input.type==="checkbox"?input.checked:(input.type==="number"?(input.value===""?"":Number(input.value)):input.value);
+        manifestDraft.params[index][field]=field==="path"
+          ? (input.value===""?[]:input.value.split("/"))
+          : (input.type==="checkbox"?input.checked:(input.type==="number"?(input.value===""?"":Number(input.value)):input.value));
         manifestDirty=true;
       };
+      input.oninput=update;
+      input.onchange=()=>{update();if (["path","group"].includes(input.dataset.manifestField)) renderManifestEditor(source);};
     });
   });
   document.querySelectorAll(".manifest-cue").forEach(row=>{
@@ -393,7 +412,7 @@ function bindManifestEditor(source) {
   });
   document.querySelectorAll("[data-remove-param]").forEach(button=>button.onclick=()=>{
     const param=manifestDraft.params[Number(button.dataset.removeParam)];
-    if (!confirm(`Remove parameter "${param?.name||"unnamed"}"? Pure Data receives do not change automatically; update the corresponding [receive] in the patch.`)) return;
+    if (!confirm(`Remove parameter "${paramIdentity(param)||"unnamed"}"? Engine routes do not change automatically; update the corresponding route in the patch.`)) return;
     manifestDraft.params.splice(Number(button.dataset.removeParam),1); manifestDirty=true; renderManifestEditor(source);
   });
   document.querySelectorAll("[data-remove-cue]").forEach(button=>button.onclick=()=>{
@@ -412,21 +431,21 @@ function renderManifestEditor(source) {
   $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
   $("#manifest-cues").innerHTML=manifestDraft.cues.map(cueManifestRow).join("")||'<p class="dim">No cues declared.</p>';
   $("#manifest-feedback").textContent=manifestFeedback||(source.editable
-    ? "Renaming or removing a parameter does not update Pure Data: its [receive] name must be changed in the patch too."
+    ? "Path/name changes create a new OSC identity. Clear legacy group before adding a path; engine routes never change automatically."
     : "Launch this patch in edit mode to change its manifest.");
   const addParam=$("#manifest-add-param"), addCue=$("#manifest-add-cue");
   addParam.disabled=!source.editable; addCue.disabled=!source.editable;
-  addParam.onclick=()=>{manifestDraft.params.push({name:"",type:"f",min:0,max:1,default:0,group:"parameters",facilitator:false});manifestDirty=true;renderManifestEditor(source);};
+  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",type:"f",min:0,max:1,default:0,facilitator:false});manifestDirty=true;renderManifestEditor(source);};
   addCue.onclick=()=>{manifestDraft.cues.push({id:"",label:"",description:""});manifestDirty=true;renderManifestEditor(source);};
   const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
   save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
   save.onclick=()=>{
-    const before=(manifestBaseline?.params||[]).map(param=>param.name);
-    const after=manifestDraft.params.map(param=>param.name);
-    const changed=before.filter((name,index)=>name && (after[index]!==name || !after.includes(name)));
-    if (changed.length && !confirm(`Save parameter rename/removal (${changed.join(", ")})? Pure Data receives do not follow manifest changes; update each corresponding [receive] in the patch.`)) return;
+    const before=(manifestBaseline?.params||[]).map(paramIdentity);
+    const after=manifestDraft.params.map(paramIdentity);
+    const changed=before.filter(identity=>identity&&!after.includes(identity));
+    if (changed.length && !confirm(`Save parameter move/rename/removal (${changed.map(item=>`/p/${item}`).join(", ")})? Engine routes do not follow manifest changes.`)) return;
     manifestFeedback="Saving manifest…";
-    ws.send("save_patch_manifest",{patch,params:structuredClone(manifestDraft.params),cues:structuredClone(manifestDraft.cues)});
+    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),cues:structuredClone(manifestDraft.cues)});
     save.blur();
     $("#manifest-feedback").textContent=manifestFeedback;
   };
@@ -437,9 +456,32 @@ function renderManifestEditor(source) {
 function editorControl(declaration, value) {
   const badge=declaration.facilitator?'<b class="badge facilitator-badge">facilitator</b>':'';
   const name=`${esc(declaration.name)} ${badge}`;
-  if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(declaration.name)}" type="text" value="${esc(value)}"></label>`;
-  if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(declaration.name)}" type="checkbox" ${value?'checked':''}></label>`;
-  return `<label><span>${name}</span><output>${esc(value)}</output><input data-editor-param="${esc(declaration.name)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
+  const identity=paramIdentity(declaration);
+  if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
+  if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(identity)}" type="checkbox" ${value?'checked':''}></label>`;
+  return `<label><span>${name}</span><output>${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
+}
+function editorParamTree(declarations, values) {
+  const roots=[];
+  const branch=(siblings,name)=>{
+    let node=siblings.find(item=>item.name===name);
+    if (!node) { node={name,children:[],leaves:[]}; siblings.push(node); }
+    return node;
+  };
+  for (const declaration of declarations) {
+    const parents=Array.isArray(declaration.path)&&declaration.path.length
+      ? declaration.path : [declaration.group||"parameters"];
+    let siblings=roots, node=null;
+    for (const name of parents) { node=branch(siblings,name); siblings=node.children; }
+    node.leaves.push(declaration);
+  }
+  const render=(node,trail=[])=>{
+    const path=[...trail,node.name];
+    const leaves=node.leaves.map(item=>editorControl(
+      item,values?.[paramIdentity(item)]??item.default??"")).join("");
+    return `<section class="editor-param-branch" data-param-path="${esc(path.join("/"))}"><h3>${esc(node.name)}</h3>${leaves}${node.children.map(child=>render(child,path)).join("")}</section>`;
+  };
+  return roots.map(node=>render(node)).join("");
 }
 function renderEditorPreview(editor) {
   Spatial.renderEditor(editor,ws);
@@ -525,14 +567,7 @@ function renderEditor() {
   renderEditorPreview(editor);
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;
-  const groups=[];
-  for (const declaration of editor.declarations||[]) {
-    const name=declaration.group||"parameters";
-    let group=groups.find(item=>item.name===name);
-    if (!group) { group={name,items:[]}; groups.push(group); }
-    group.items.push(declaration);
-  }
-  const controls=groups.map(group=>`<h3>${esc(group.name)}</h3>${group.items.map(item=>editorControl(item,editor.params?.[item.name]??item.default??"")).join("")}`).join("");
+  const controls=editorParamTree(editor.declarations||[],editor.params||{});
   $("#editor-params").innerHTML=editor.active
     ? `<h3>master</h3><label><span>master</span><output>${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
   document.querySelectorAll("[data-editor-param]").forEach(input=>{

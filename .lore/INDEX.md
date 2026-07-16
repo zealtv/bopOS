@@ -1,5 +1,6 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-07-16-seat-group-spatial-membership-ux-proposal](items/2026-07-16-seat-group-spatial-membership-ux-proposal/) — Seat-group spatial membership UX proposal — The ratified interaction and hierarchy for revealing overlapping Seat-group membership on the Seats spatial map.
 - [2026-07-15-seat-group-selector-design-ratified](items/2026-07-15-seat-group-selector-design-ratified/) — Seat group selectors — ratified — Bob's accepted lowercase `/g<id>/...` selector, durable Seat membership, synchronization, dashboard-state, and nested-parameter composition design.
 - [2026-07-15-seat-group-selector-design](items/2026-07-15-seat-group-selector-design/) — Seat group selector proposal — Design proposal for lowercase `/g<id>/...` fleet selectors, durable Seat group membership on nodes, and clean composition with OSC-native nested patch parameter addresses.
 - [2026-07-15-seat-device-boundary-ratified](items/2026-07-15-seat-device-boundary-ratified/) — Seat / Device boundary and UID administration ratified — Bob's accepted boundary for one Seat binding edge, atomic Seat ID reindex, one physical Device roster, and an attributable UID-targeted administration seam.

@@ -19,6 +19,37 @@ MANIFEST_NAME = "bopos.patch.json"
 PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+")
 PARAM_TYPES = ("i", "f", "s")
 CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
+MAX_PARAM_SEGMENTS = 8
+MAX_PARAM_IDENTITY_BYTES = 255
+
+
+def qualify_param(declaration):
+    """Return the canonical slash-joined identity for one parameter.
+
+    ``name`` remains the leaf and optional ``path`` entries are its structural
+    parents.  This is the one qualification/validation boundary shared by
+    manifest consumers; it deliberately defines no escaping or normalization.
+    """
+    if not isinstance(declaration, dict):
+        raise ValueError(f"param {declaration!r} must be an object")
+    name = declaration.get("name")
+    if not isinstance(name, str) or PARAM_NAME.fullmatch(name) is None:
+        raise ValueError(f"bad param name {name!r}")
+    path = declaration.get("path", [])
+    if not isinstance(path, list):
+        raise ValueError(f"param {name}: path must be a list")
+    for segment in path:
+        if not isinstance(segment, str) or PARAM_NAME.fullmatch(segment) is None:
+            raise ValueError(f"param {name}: bad path segment {segment!r}")
+    segments = [*path, name]
+    if len(segments) > MAX_PARAM_SEGMENTS:
+        raise ValueError(
+            f"param {name}: qualified identity exceeds {MAX_PARAM_SEGMENTS} segments")
+    identity = "/".join(segments)
+    if len(identity.encode("ascii")) > MAX_PARAM_IDENTITY_BYTES:
+        raise ValueError(
+            f"param {name}: qualified identity exceeds {MAX_PARAM_IDENTITY_BYTES} bytes")
+    return identity
 
 
 def raw(patch_path):
@@ -77,16 +108,18 @@ def validate(candidate, patch_path, require_entrypoint=True):
     params = manifest.get("params", [])
     if not isinstance(params, list):
         return None, "params must be a list"
-    param_names = set()
+    param_identities = set()
     for param in params:
-        if not isinstance(param, dict):
-            return None, f"param {param!r} must be an object"
-        name = param.get("name")
-        if not isinstance(name, str) or PARAM_NAME.fullmatch(name) is None:
-            return None, f"bad param name {name!r}"
-        if name in param_names:
-            return None, f"duplicate param name {name!r}"
-        param_names.add(name)
+        try:
+            identity = qualify_param(param)
+        except ValueError as error:
+            return None, str(error)
+        name = param["name"]
+        if identity in param_identities:
+            return None, f"duplicate param identity {identity!r}"
+        param_identities.add(identity)
+        if param.get("path") and "group" in param:
+            return None, f"param {identity}: path and group are mutually exclusive"
         if param.get("type") not in PARAM_TYPES:
             return None, f"param {name}: type must be one of {'/'.join(PARAM_TYPES)}"
         low, high, default = param.get("min"), param.get("max"), param.get("default")

@@ -163,6 +163,7 @@ parameters, capabilities, and asset slots in `bopos.patch.json`:
   "entrypoint": "main.pd",
   "params": [
     {
+      "path": ["synthesis", "voice"],
       "name": "density",
       "type": "f",
       "min": 0,
@@ -192,7 +193,7 @@ The engine receives this selector-stripped localhost surface:
 ```text
 /id <n>
 /os/master <0..1>
-/p/<name> <values...>
+/p/<segment>[/<segment>...] <values...>
 /pt <point> <element> <value>
 /cue <cue-id>
 /notify <event>
@@ -202,6 +203,12 @@ The framework provides values; the patch decides what they mean. Master belongs
 at the final output stage, point values can drive any patch behavior, and a cue
 is already scheduled before the engine sees it. Ignoring an unused term is
 legal.
+
+Parameter `name` is the leaf OSC segment. An optional manifest `path` array
+supplies its parents, so `{"path":["synthesis","voice"],"name":"density"}`
+has canonical identity `synthesis/voice/density` and reaches every engine as
+`/p/synthesis/voice/density`. Existing declarations without `path` remain flat
+and unchanged.
 
 Pure Data patches receive the surface through `[bopos]` (`pd/bopos.pd`) and
 normally finish through `[bopos.out~]`, which applies master and the private

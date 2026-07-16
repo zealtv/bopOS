@@ -1,7 +1,7 @@
 # bopOS running order — quick reference
 
-Last reconciled: 2026-07-15 against live Loom and the handoff/design chain from
-the 2026-07-13 composer-experience brain dump.
+Last reconciled: 2026-07-16 against the live Loom and Bob's accepted next
+seven-stage sweep.
 
 This is the human-readable priority runway. `./.loom/loom.sh status` remains
 authoritative for claims and live stitch state; `CLAUDE.md` remains authoritative
@@ -9,60 +9,36 @@ for repository rules. Work one stitch at a time using claim → work → tie.
 
 ## Current position
 
-The brain-dump spill through dashboard UI, patch/asset distribution, seats,
-managed simulation, and fleet-wide patch software is complete. Patch-editor
-design and its v1.4 cue contract amendment are also complete.
-
-The bop000 fleet gate is complete and audibly confirmed. Patch editor PE-0..4
-is tied, including the real GUI-PD gate, manifest authoring, point/cue scratch
-UI, and the PE-4b live-delivery/element-target follow-up. Bob confirmed point
-and cue messages in the opened patch. Bob's clean-context notes have now been
-incorporated into `ui-tabs/tabs-0-ia-proposal`. Bob ratified its lore-kept
-Dashboard / Seats / Devices / Patches / Assets / Sequencer map with explicit
-fleet and single-device scopes for promoted Dashboard admin commands.
+The foundation, dashboard IA/review, patch editor, fleet patch workflow, and
+next-sweep stitches through Devices and Patches are tied. The parameter-address
+foundation is also tied: nested manifest identity, relay, simulator, dashboard
+state/presets/catch-up, and editor path CRUD are verified. The complete
+Seat-group spatial UX is ratified and tied. There is no active claim; Seat-group
+core and Assets 11a are the two loose ends, with Seat-group core first.
 
 ## Running order
 
-1. **Complete:** `fleet-patch/fp-4-bop000-gate` — Bob/hardware gate: prove fleet Set,
-   convergence, content fingerprint equality, induced drift, `stale`, Retry,
-   `current`, and Revert on bop000; confirm audible switching with Bob.
-2. **Complete:** `patch-editor/pe-2-edit-mode` — single-instance GUI edit runtime, exclusive
-   `off | simulate | edit` supervisor mode, patch list, live param panel, and
-   explicit relaunch/restart behavior.
-3. **Complete:** `patch-editor/pe-3-manifest-editor` — validated atomic param/cue editing and
-   New patch flow using Bob's `main.pd` template verbatim when available.
-4. **Complete:** `patch-editor/pe-3b-simulator-param-catchup` — bounded post-launch
-   parameter replay fixes silent managed Pd starts caused by the initial gain
-   catch-up arriving before the patch receive graph is ready.
-5. **Complete:** `patch-editor/pe-4-points-and-cues-ui` — session-only point
-   preview and cue firing through the normal `/pt` and `/cue` paths.
-6. **Complete:** `pe-4b-editor-delivery-and-element-target` — align the live
-   dashboard backend with PE-4 and add the element 0/1 editor point target.
-7. **Complete:** `ui-tabs/tabs-0-ia-proposal` — ratified Dashboard / Seats /
-   Devices / Patches / Assets / Sequencer information architecture.
-8. **Complete:** Bob ratifies the tabs-0 information architecture, with the
-   dual-scope Dashboard admin-command amendment.
-9. **Complete:** `ui-tabs/tabs-1-skeleton` — implemented and browser-verified
-   the ratified tab structure without the deferred polish review.
-10. **Complete:** `ui-tabs/tabs-2-review-session` — Bob's hands-on observations,
-    code diagnosis and independent interactive-installation UX review are
-    lore-kept; Bob accepted the next sweep except venue point persistence,
-    which was dropped because points intentionally remain runtime-only.
-11. `ui-tabs/tabs-3-next-sweep/01..14` — correctness first, then execution
-    target and Seat/Device boundaries, content workflows, live controls and
-    diagnostic/identity polish. `01-simulation-transition-coherence` is the sole
-    loose end; `04` is dropped and later children remain waiting.
-12. `patch-workflow-friction/friction-0-docs` — the simple composer workflow
-   guide, written against the finished editor and tabs.
-13. `patch-workflow-friction/friction-1-starter-kit` — finish the starter-kit
-   path and teaching copy.
+1. **Complete: Parameter-address foundation** — true nested OSC, flat
+   compatibility, canonical dashboard state, and editor authoring are tied.
+2. **Complete: Seat-group spatial UX gate** — the rail visualization,
+   eye/eye-off convention, authoring model, and subordinate Groups hierarchy
+   are ratified and tied.
+3. **Next: Seat-group core** — protocol, persistence,
+   matching, simulator/audition behavior, dashboard state, and synchronization.
+4. **Seat-group delivery** — implement group authoring and the ratified spatial
+   visualization.
+5. **Assets 11a then 11b** — observed per-device inventory followed by the
+   single-device Assets workspace; fleet-wide asset rollout remains a separate
+   parked thread.
+6. **Dashboard live controls** — the sole All / Group / Seat integration point
+   for flat and nested promoted parameters.
+7. **Finish and document** — diagnostic density, device-alias design gate, then
+   patch-workflow-friction docs and starter kit.
 
 Other hardware and co-design waits remain outside this runway until explicitly
-resumed.
-
-Two notes from tabs-0 are also parked outside the runway as Bob-gated design
-threads: `parameter-addresses` for nested custom `/p/...` parameter paths, and
-`framework-version-management` for honest bopOS currentness and update UX.
+resumed. In particular, the 2026-07-15 sequencer brainstorm is unratified input
+to `scene-sequencing`, not an implementation instruction and not part of this
+sweep. `framework-version-management` also remains parked.
 
 ## Source chain
 
@@ -71,4 +47,7 @@ threads: `parameter-addresses` for nested custom `/p/...` parameter paths, and
 - `.notes/handoff-2026-07-14.md`
 - `.notes/handoff-2026-07-14-fleetwide-patch-next.md`
 - `.notes/handoff-2026-07-15-patch-editor-next.md`
+- `.notes/handoff-2026-07-16-seven-stage-sweep.md`
+- `.loom/tied/param-address-0-design/proposal.md`
+- `.loom/tied/seat-groups-0-design/proposal.md`
 - ratified fleet-patch and patch-editor records under `.lore/items/`
