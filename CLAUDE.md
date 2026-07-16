@@ -86,11 +86,13 @@ and tie one concrete stitch at a time:
    deferred to `asset-fleet-distribution`.
 6. **Next — Dashboard live controls.** Use
    `12-dashboard-live-controls` as the single integration point for the
-   flat/nested parameter × All/Group/Seat target matrix.
-7. **Close the sweep.** Complete `13-diagnostic-density`, then the
-   `14-device-alias-design` decision gate, then resume
+   flat/nested parameter × All/Group/Seat target matrix. The device-alias
+   design gate was completed early; its implementation follow-up should land
+   before or with any new hostname-first target surface.
+7. **Close the sweep.** Complete `13-diagnostic-density`, then resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
-   copy describe the finished system.
+   copy describe the finished system. The device-alias design is already
+   ratified in `.lore/items/2026-07-16-device-alias-design-ratified/`.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
 `scene-sequencing` co-design. It is not part of this seven-stage sweep and does

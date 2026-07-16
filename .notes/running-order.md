@@ -9,12 +9,10 @@ for repository rules. Work one stitch at a time using claim → work → tie.
 
 ## Current position
 
-The foundation, dashboard IA/review, patch editor, fleet patch workflow, and
-next-sweep stitches through Devices and Patches are tied. The parameter-address
-foundation is also tied: nested manifest identity, relay, simulator, dashboard
-state/presets/catch-up, and editor path CRUD are verified. The complete
-Seat-group spatial UX is ratified and tied. There is no active claim; Seat-group
-core and Assets 11a are the two loose ends, with Seat-group core first.
+The sweep is complete through Seat groups and the single-device Assets
+workflow, including its first real `bop000` transfer and cache repair. Bob also
+brought the device-alias design gate forward and ratified the global “Freda
+Sparks” registry model. Its production implementation remains separate.
 
 ## Running order
 
@@ -23,17 +21,17 @@ core and Assets 11a are the two loose ends, with Seat-group core first.
 2. **Complete: Seat-group spatial UX gate** — the rail visualization,
    eye/eye-off convention, authoring model, and subordinate Groups hierarchy
    are ratified and tied.
-3. **Next: Seat-group core** — protocol, persistence,
-   matching, simulator/audition behavior, dashboard state, and synchronization.
-4. **Seat-group delivery** — implement group authoring and the ratified spatial
-   visualization.
-5. **Assets 11a then 11b** — observed per-device inventory followed by the
-   single-device Assets workspace; fleet-wide asset rollout remains a separate
-   parked thread.
-6. **Dashboard live controls** — the sole All / Group / Seat integration point
+3. **Complete: Seat-group core and delivery** — protocol, persistence,
+   synchronization, authoring and spatial visualization are tied.
+4. **Complete: Single-device Assets** — durable inventory, operational UI and
+   the first real-device transfer gate are tied; fleet rollout remains parked.
+5. **Complete: Device-alias design gate** — global durable aliases, `Freda
+   Sparks` naming tone, collision/edit/Forget semantics and identity hierarchy
+   are ratified; production implementation is a follow-up.
+6. **Next: Dashboard live controls** — the sole All / Group / Seat integration point
    for flat and nested promoted parameters.
-7. **Finish and document** — diagnostic density, device-alias design gate, then
-   patch-workflow-friction docs and starter kit.
+7. **Finish and document** — diagnostic density, then patch-workflow-friction
+   docs and starter kit.
 
 Other hardware and co-design waits remain outside this runway until explicitly
 resumed. In particular, the 2026-07-15 sequencer brainstorm is unratified input
