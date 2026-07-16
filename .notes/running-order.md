@@ -1,7 +1,7 @@
 # bopOS running order — quick reference
 
-Last reconciled: 2026-07-16 against the live Loom and Bob's accepted next
-seven-stage sweep.
+Last reconciled: 2026-07-16 against the live Loom and Bob's expanded dashboard
+sweep.
 
 This is the human-readable priority runway. `./.loom/loom.sh status` remains
 authoritative for claims and live stitch state; `CLAUDE.md` remains authoritative
@@ -12,7 +12,8 @@ for repository rules. Work one stitch at a time using claim → work → tie.
 The sweep is complete through Seat groups and the single-device Assets
 workflow, including its first real `bop000` transfer and cache repair. Bob also
 brought the device-alias design gate forward and ratified the global “Freda
-Sparks” registry model. Its production implementation remains separate.
+Sparks” registry model. Its registry and editing implementation has landed;
+final integration verification is active.
 
 ## Running order
 
@@ -25,13 +26,20 @@ Sparks” registry model. Its production implementation remains separate.
    synchronization, authoring and spatial visualization are tied.
 4. **Complete: Single-device Assets** — durable inventory, operational UI and
    the first real-device transfer gate are tied; fleet rollout remains parked.
-5. **Complete: Device-alias design gate** — global durable aliases, `Freda
-   Sparks` naming tone, collision/edit/Forget semantics and identity hierarchy
-   are ratified; production implementation is a follow-up.
-6. **Next: Dashboard live controls** — the sole All / Group / Seat integration point
-   for flat and nested promoted parameters.
-7. **Finish and document** — diagnostic density, then patch-workflow-friction
-   docs and starter kit.
+5. **Finish: Device aliases** — registry, editing and alias-only everyday
+   identity are implemented; complete restart/offline/venue and cross-surface
+   integration verification.
+6. **Repair Update bopOS** — remove the legacy interactive `sudo cp rc.local`
+   runtime path, audit non-interactive Git convergence, and prove a
+   Bob-triggered real-device update before relying on the command.
+7. **Dashboard live controls** — the sole All / Group / Seat integration point
+   for flat and nested promoted parameters, plus per-Seat/All **Send all**
+   replay and one-physical-device mute/unmute. Seat/Group mute and solo remain
+   deferred for a dedicated design.
+8. **Diagnostic density and polish** — add the host Git shorthand beside the
+   wordmark, remove the ratified extraneous copy, make desired/reported patch
+   identities vertically comparable, and finish the existing density pass.
+9. **Finish and document** — patch-workflow-friction docs and starter kit.
 
 Other hardware and co-design waits remain outside this runway until explicitly
 resumed. In particular, the 2026-07-15 sequencer brainstorm is unratified input

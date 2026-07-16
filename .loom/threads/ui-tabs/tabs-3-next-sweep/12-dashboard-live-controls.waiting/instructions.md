@@ -19,6 +19,17 @@ every member Seat's durable value, including offline/unbound members, before
 the one group OSC datagram is emitted. Preserve fleet/single-device promoted
 admin scopes and fail-closed promotion.
 
+Add compact **Send all** actions to the Dashboard for each Seat and for all
+Seats. These replay the current durable parameter snapshot to the selected
+scope so a running engine can be refreshed without touching every control.
+Keep the actions idempotent and do not add explanatory UI copy.
+
+Add mute/unmute for one physical device. Treat this as physical-box state,
+distinct from the existing fleet safety mute and from patch parameters. Audit
+the selector/UID targeting and convergence semantics before choosing the wire
+shape; do not silently make it Seat-owned. Seat and Group mute/solo are a
+separate, trickier design and are explicitly deferred from this stitch.
+
 Depends on:
 
 - 03 and stable Patches fleet schema;
@@ -26,5 +37,5 @@ Depends on:
 - tied Seat-group core plus the ratified spatial-membership UX and completed
   Seats group-authoring delivery.
 
-Verify the flat/nested × All/Seat/Group cross-product and include iPad/touch
-verification.
+Verify the flat/nested × All/Seat/Group cross-product, per-Seat and All
+parameter replay, individual-device mute convergence, and iPad/touch behavior.
