@@ -72,16 +72,21 @@ been repointed to a private or inaccessible remote, update will honestly return
 pre-provisioned noninteractive credential helper or deploy key; this stitch
 does not invent or distribute credentials.
 
-## Remaining real-device gate
+## Real-device gate
 
-No real update, root-file installation, or reboot was run locally. On `bop000`,
-Bob should trigger **Update bopOS** and confirm:
+Bob manually landed and rebooted Niko Cloud (`2c:cf:67:b3:0a:58`) onto
+`7d8a671`, then triggered the repaired **Update bopOS** action. A read-only
+dashboard WebSocket monitor observed:
 
-1. the helper journal records `status=ok phase=converged` with no prompt;
-2. the node reboots only after that receipt;
-3. it returns with the pulled short Git revision and the same active patch;
-4. an intentionally unauthorized or unreachable test (only if Bob chooses to
-   stage one safely) returns its phase and does not reboot.
+- `15:30:28`: attributable `status=ok phase=converged`, framework revision
+  `7d8a671`, active patch `bonks-pd`;
+- `15:30:48`: device offline for reboot, after the success receipt;
+- `15:31:47`: device online again at `7d8a671`, with `bonks-pd` still active.
+
+This proves receipt-before-reboot ordering, return at the converged revision,
+and active-patch preservation on the real persistent node. The helper journal
+was not separately inspected, and no deliberately unauthorized/unreachable
+failure or fresh root provisioning was exercised on hardware.
 
 The installed `/etc/sudoers.d/bopos-power` must already authorize exactly
 `/usr/bin/systemctl reboot` and `poweroff`; missing authorization is reported as

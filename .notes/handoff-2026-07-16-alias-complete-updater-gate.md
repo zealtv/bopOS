@@ -1,4 +1,4 @@
-# Handoff — aliases complete; unattended updater at hardware gate (2026-07-16)
+# Handoff — aliases and unattended updater complete (2026-07-16)
 
 This supersedes `.notes/handoff-2026-07-16-device-alias-design-ratified.md`.
 
@@ -23,19 +23,24 @@ This supersedes `.notes/handoff-2026-07-16-device-alias-design-ratified.md`.
   reboot only after a successful receipt. The existing selected-Device
   Converged line shows the terse outcome. Focused verification passes 50/50.
 
-## Gates and next actions
+## Real updater gate
 
-1. Commit and deploy the updater repair, then perform a Bob-triggered real
-   `bop000` update. Confirm `ok converged`, reboot, returned short revision and
-   unchanged active patch. The updater stitch remains waiting until this gate.
-2. Bob ratified
+Niko Cloud (`2c:cf:67:b3:0a:58`) emitted `ok converged` at `7d8a671` with
+`bonks-pd`, went offline only after that receipt, and returned online at the
+same revision with `bonks-pd` preserved. The updater hardware gate is complete.
+The helper journal, an intentional failure path, and fresh root provisioning
+were not exercised on hardware.
+
+## Next actions
+
+1. Bob ratified
    `.loom/threads/ui-tabs/tabs-3-next-sweep/12-dashboard-live-controls.waiting/device-mute-contract-proposal.md`.
    It adds exact-UID full-state mute with acknowledgement, persistent device
    mute, the existing fleet safety mute as a session OR overlay, a selected
    Device action, and a compact Devices-roster mute indication.
-3. Live parameter targeting and per-Seat/All **Send all** need no contract
+2. Live parameter targeting and per-Seat/All **Send all** need no contract
    amendment and may proceed after the gate/decision sequencing is settled.
-4. The diagnostic-density pass also owns Seats inspector dividers, a
+3. The diagnostic-density pass also owns Seats inspector dividers, a
    non-destructive two-element UI authoring cap, and bound-device IP display in
    the Physical device section. It must not expose hostname or UID there.
 

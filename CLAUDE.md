@@ -85,10 +85,10 @@ and tie one concrete stitch at a time:
    `samplepacks` compatibility path. Durable observations drive
    absent/current/stale/unknown/extra state; fleet-wide bulk rollout remains
    deferred to `asset-fleet-distribution`.
-6. **Hardware gate — unattended Update bopOS.** Runtime convergence is split
+6. **Complete — unattended Update bopOS.** Runtime convergence is split
    from privileged provisioning, fails without prompting, reports outcome
-   phases and reboots only after success. Software verification is complete;
-   a Bob-triggered `bop000` update remains before the stitch can tie.
+   phases and reboots only after success. Niko Cloud passed the real
+   receipt-before-reboot/return gate at `7d8a671` with `bonks-pd` preserved.
 7. **Next — Dashboard live controls.** Use
    `12-dashboard-live-controls` as the single integration point for the
    flat/nested parameter × All/Group/Seat target matrix, per-Seat/All parameter

@@ -14,8 +14,7 @@ workflow, including its first real `bop000` transfer and cache repair. Bob also
 brought the device-alias design gate forward and ratified the global “Freda
 Sparks” registry model. Its global registry, editing, alias-only everyday
 identity, late-discovery convergence and integration verification are complete.
-The unattended updater repair is software-complete and awaiting a real
-`bop000` update/reboot gate.
+The unattended updater repair passed its real Niko Cloud update/reboot gate.
 
 ## Running order
 
@@ -31,9 +30,9 @@ The unattended updater repair is software-complete and awaiting a real
 5. **Complete: Device aliases** — registry, editing, alias-only everyday
    identity, restart/offline/venue behavior, real-browser cross-surface
    verification and word-list review are complete.
-6. **Hardware gate: Update bopOS** — the legacy privileged runtime path is
-   removed; convergence is noninteractive, phase-reporting and success-gated.
-   Prove a Bob-triggered real-device update before tying it.
+6. **Complete: Update bopOS** — the legacy privileged runtime path is removed;
+   convergence is noninteractive, phase-reporting and success-gated. Niko
+   Cloud returned at the converged revision with its active patch preserved.
 7. **Dashboard live controls** — the sole All / Group / Seat integration point
    for flat and nested promoted parameters, plus per-Seat/All **Send all**
    replay and one-physical-device mute/unmute. Seat/Group mute and solo remain
