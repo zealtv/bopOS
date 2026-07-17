@@ -3,8 +3,8 @@
 Installation coordinates are metres with the origin at the top left, x
 increasing right, and y increasing down.  Heading is expressed in degrees:
 zero points map-up and positive angles turn clockwise.  This module derives
-only listener-relative stereo balance and smooth distance gain; rear
-forward-bias is deliberately deferred.
+listener-relative stereo balance, smooth distance gain, and a forward-bias
+scaling that attenuates elements behind the listener.
 """
 
 import math
@@ -14,6 +14,11 @@ try:
     from . import pointfield
 except ImportError:  # tools add the repository's python directory to sys.path
     import pointfield
+
+# Directly behind the listener is audible but clearly attenuated
+# (~ -9 dB); directly ahead is unity gain. The transition is a smooth
+# cosine ramp with no seam at +/-90 degrees (abeam).
+REAR_FLOOR = 0.35
 
 
 def _finite_number(name, value):
@@ -89,7 +94,16 @@ def element_terms(listener, position):
     right_x, right_y = math.cos(heading), math.sin(heading)
     balance = (dx * right_x + dy * right_y) / distance
     balance = max(-1.0, min(1.0, balance))
-    gain = pointfield.falloff(pointfield.SMOOTH, distance, listener.range_m)
+
+    # Forward vector: heading 0 is map-up (0, -1), positive clockwise,
+    # derived the same way as the right vector above (right rotated -90
+    # degrees).
+    forward_x, forward_y = math.sin(heading), -math.cos(heading)
+    cos_theta = (dx * forward_x + dy * forward_y) / distance
+    cos_theta = max(-1.0, min(1.0, cos_theta))
+    forward = REAR_FLOOR + (1 - REAR_FLOOR) * (1 + cos_theta) / 2
+
+    gain = pointfield.falloff(pointfield.SMOOTH, distance, listener.range_m) * forward
     return (balance, gain)
 
 

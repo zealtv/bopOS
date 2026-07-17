@@ -90,7 +90,7 @@ Three routes, depending on who you are today:
 ## Status — July 2026
 
 The software stack is implemented and exercised against a simulated fleet
-and real bench hardware: OSC contract v1.6, the engine boundary, clock
+and real bench hardware: OSC contract v1.7, the engine boundary, clock
 sync, spatial terms, the six-tab dashboard, patch/asset distribution, and
 unattended updates. Installation-scale hardware verification (rig timing
 sweeps, multi-room deployments) continues; claims that depend on it are
