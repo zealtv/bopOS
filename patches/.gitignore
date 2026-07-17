@@ -1,6 +1,7 @@
 # Ignore everything in this directory
 *
 # Except these files
+!.templates/bopos-template.pd
 !.gitignore
 !README.md
 !demo-pd/
