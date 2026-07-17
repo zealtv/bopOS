@@ -2,7 +2,10 @@
 
 Every UDP port bopOS uses, on one page. This is a quick reference; the
 normative table and transport rules are [OSC-CONTRACT.md §4](OSC-CONTRACT.md).
-Ports are fixed in production — nothing here is configurable per venue.
+Ports are fixed in production — nothing here is configurable per venue. For
+the complete message-by-message list (every address you can construct by
+hand, with the port it goes on), see
+[OSC-REFERENCE.md](OSC-REFERENCE.md).
 
 ## The six ports
 
@@ -15,7 +18,7 @@ inside each node.
 | **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, cues, point frames |
 | 6661 | localhost | active engine | `bopos.py` | the selector-stripped engine surface |
 | 6662 | localhost | active engine | `io/main.py` | bundled peripheral sensor data |
-| 7770 | localhost | `bopos.py` | active engine | engine requests: config, store, load, report |
+| 7770 | localhost | `bopos.py` | active engine | engine requests: config, store, load, report, admin (v1.7) |
 | 8880 | localhost | `io/main.py` | active engine | peripheral and I/O commands |
 
 ```mermaid

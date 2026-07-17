@@ -15,7 +15,10 @@ grammar; §4 pins ports, transport rules, and the engine-facing surface;
 manifest, distribution, persistence, and peripherals; §12–§14 hold the hard
 constraints, migration guarantees, and the list of designs deliberately
 rejected. A gentler, non-normative tour of the same system is
-[ARCHITECTURE.md](ARCHITECTURE.md).
+[ARCHITECTURE.md](ARCHITECTURE.md). To construct a specific message by hand
+— the complete address, args, port, and reply, for every sender and
+receiver — see [OSC-REFERENCE.md](OSC-REFERENCE.md); this document stays
+normative where the two disagree.
 
 ## 1. Purpose and scope
 

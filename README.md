@@ -71,6 +71,8 @@ Three routes, depending on who you are today:
 - [Port map](docs/PORTS.md) — every UDP port on one page
 - [OSC contract](docs/OSC-CONTRACT.md) — the ratified wire protocol
   (normative)
+- [OSC quick reference](docs/OSC-REFERENCE.md) — every message, complete
+  and ready to send by hand (no dashboard required)
 
 **Operations & hardware**
 
