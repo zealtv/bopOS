@@ -667,11 +667,22 @@ class InstallationState:
             return self.seats.get(str(device["seat_id"]))
         return next((seat for seat in self.seats.values() if seat.get("bound") == uid), None)
 
+    # Audition falloff range floor/ceiling: the listener heading widget's
+    # pull-out tip distance IS the range (audition-falloff/2-range-widget).
+    LISTENER_RANGE_MIN = 0.5
+
+    def room_diagonal(self):
+        room = self.data.get("room") or self.DEFAULT_ROOM
+        width, depth = float(room["width"]), float(room["depth"])
+        diagonal = math.hypot(width, depth)
+        return diagonal if math.isfinite(diagonal) and diagonal > 0 else self.LISTENER_RANGE_MIN
+
     def default_listener(self):
         room = self.data.get("room") or self.DEFAULT_ROOM
         return {"x": float(room["width"]) / 2.0,
                 "y": float(room["depth"]) / 2.0,
-                "heading": 0.0}
+                "heading": 0.0,
+                "range": self.room_diagonal()}
 
     def clean_listener(self, value):
         if not isinstance(value, dict):
@@ -690,9 +701,26 @@ class InstallationState:
             fields.append(number)
         room = self.data.get("room") or self.DEFAULT_ROOM
         width, depth = float(room["width"]), float(room["depth"])
+        diagonal = self.room_diagonal()
+        # Missing/invalid range falls back to the room diagonal -- exactly
+        # today's fixed-diagonal behaviour -- so older persisted state and
+        # in-flight edits that don't touch range sound unchanged.
+        raw_range = value.get("range")
+        if isinstance(raw_range, bool):
+            range_m = diagonal
+        else:
+            try:
+                range_m = float(raw_range)
+            except (TypeError, ValueError):
+                range_m = diagonal
+            else:
+                if not math.isfinite(range_m):
+                    range_m = diagonal
+        range_m = min(max(range_m, self.LISTENER_RANGE_MIN), diagonal)
         return {"x": min(max(fields[0], 0.0), width),
                 "y": min(max(fields[1], 0.0), depth),
-                "heading": fields[2] % 360.0}
+                "heading": fields[2] % 360.0,
+                "range": range_m}
 
     @staticmethod
     def clean_fleet_patch(value):

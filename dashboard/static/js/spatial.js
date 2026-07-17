@@ -4,6 +4,7 @@
 (function () {
   const NS = "http://www.w3.org/2000/svg";
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
+  const LISTENER_RANGE_MIN = 0.5; // audition-falloff/2-range-widget floor
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
   const POINT_COLOURS = ["#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2", "#45d483"];
   let seatDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
@@ -132,7 +133,8 @@
     const listener = installation.listener;
     if (listener && installation.simulation?.active) {
       const heading = Number(listener.heading) * Math.PI / 180;
-      const hx = Math.sin(heading) * 0.72, hy = -Math.cos(heading) * 0.72;
+      const range = Number(listener.range) || Math.hypot(W, D);
+      const hx = Math.sin(heading) * range, hy = -Math.cos(heading) * range;
       const g = el("g", {class: "listener-puck", "data-listener": "true",
                           transform: `translate(${listener.x} ${listener.y})`}, svg);
       el("line", {x1: 0, y1: 0, x2: hx, y2: hy, class: "listener-heading"}, g);
@@ -211,10 +213,13 @@
         const listener = last[0].listener;
         const [x, y] = toSvg(svg, event);
         const dx = x - listener.x, dy = y - listener.y;
-        if (Math.hypot(dx, dy) < MOVE_MIN) return;
+        const distance = Math.hypot(dx, dy);
+        if (distance < MOVE_MIN) return;
         listener.heading = round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
+        const diagonal = Math.hypot(W, D);
+        listener.range = round(Math.min(Math.max(distance, LISTENER_RANGE_MIN), diagonal));
         const angle = listener.heading * Math.PI / 180;
-        const hx = Math.sin(angle) * 0.72, hy = -Math.cos(angle) * 0.72;
+        const hx = Math.sin(angle) * listener.range, hy = -Math.cos(angle) * listener.range;
         headingDrag.group.querySelector(".listener-heading").setAttribute("x2", hx);
         headingDrag.group.querySelector(".listener-heading").setAttribute("y2", hy);
         headingDrag.group.querySelector(".listener-tip").setAttribute("cx", hx);
