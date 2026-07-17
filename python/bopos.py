@@ -934,7 +934,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.6",
+        "contract_version": "1.7",
         "groups": list(getattr(state, "groups", ())),
         "device_muted": bool(getattr(state, "device_muted", False)),
         "muted": effective_mute(state),
@@ -1589,7 +1589,10 @@ def report_callback(path='', tags='', args='', source=''):
 
 
 # /os/* admin verbs on the 6660 LAN listener call these implementation
-# functions directly. Engines cannot issue administrative commands.
+# functions directly. Engines otherwise cannot issue administrative
+# commands, except for the bounded /admin request on 7770 (contract sec
+# 4.2, v1.7) dispatched via ENGINE_ADMIN_VERBS below, which reuses these
+# same callbacks.
 LIFECYCLE_VERBS = {
     "reboot": reboot_callback,
     "shutdown": shutdown_callback,
@@ -1604,6 +1607,37 @@ PROVISION_VERBS = {
     "droppatch": drop_patch_callback,
     "dropassets": drop_assets_callback,
 }
+
+# Engine-sent /admin action -> the same implementation callback the LAN
+# /os/* verbs use (contract sec 4.2, v1.7). Bounded: only these four names.
+ENGINE_ADMIN_VERBS = {
+    "update-patch": pull_active_patch_callback,
+    "update-bopos": update_bopos_callback,
+    "shutdown": shutdown_callback,
+    "reboot": reboot_callback,
+}
+
+
+def admin_callback(path='', tags='', args='', source=''):
+    # /admin <action> on localhost 7770 -- a patch running on the node may
+    # request the same handful of node-lifecycle actions the dashboard
+    # already triggers over 6660/os/*. No selector, no reply to the engine:
+    # these actions are terminal or restart the engine anyway. run_admin_verb
+    # is called with reply_socket=None/requester=None, so its rev_reply path
+    # is skipped safely; outcome receipts still flow to the LAN model where
+    # a real dashboard-originated requester exists. Unknown/missing actions
+    # are logged and otherwise ignored, never fatal.
+    if not args:
+        print("WARNING: /admin received with no action")
+        return
+    action = str(args[0])
+    callback = ENGINE_ADMIN_VERBS.get(action)
+    if callback is None:
+        print(f"WARNING: /admin unknown action: {action}")
+        return
+    threading.Thread(target=run_admin_verb,
+                     args=(callback, [], node_state),
+                     daemon=True).start()
 
 
 def fire_cue_to_engine(cue_id):
@@ -1630,6 +1664,7 @@ server.addMsgHandler( "/config", config_callback )
 server.addMsgHandler( "/store", store_callback )
 server.addMsgHandler( "/load", load_callback )
 server.addMsgHandler( "/report", report_callback )
+server.addMsgHandler( "/admin", admin_callback )
 
 atexit.register(exit_handler)
 

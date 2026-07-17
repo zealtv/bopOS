@@ -694,6 +694,24 @@ class SimFleet:
         self.log(device, f"cue {cue_id} fired dev_deadline={deadline_dev} "
                          f"fire_mono={time.monotonic_ns()}" + (" LATE" if late else ""))
 
+    ADMIN_ACTIONS = ("update-patch", "update-bopos", "shutdown", "reboot")
+
+    def admin_request(self, device, action):
+        # a real node's engine sends /admin <action> to bopos.py on localhost
+        # 7770 (contract sec 4.2, v1.7); that channel is per-node and never
+        # touches the LAN wire this simulator answers on 5550/6660. N
+        # simulated devices share one process, so unlike N real Pis they
+        # cannot each bind a private localhost 7770 -- there is no socket
+        # for this method to listen on. It exists as the direct call a
+        # verify harness drives to exercise the same log/record-only,
+        # never-execute contract bopos.py's admin_callback implements
+        # (never actually reboot/shutdown/update the sim host; unknown
+        # actions are logged and otherwise ignored).
+        if action not in self.ADMIN_ACTIONS:
+            self.log(device, f"admin unknown-action={action}")
+            return
+        self.log(device, f"admin {action}")
+
     def receive(self):
         while True:
             try:
