@@ -40,9 +40,13 @@ eval "$MANIFEST_OUTPUT"
 eval "$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")"
 BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
 BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
+BOPOS_VERSION="${BOPOS_VERSION:-unknown}"
+BOPOS_PATCH_FINGERPRINT="${BOPOS_PATCH_FINGERPRINT:-unknown}"
 
 echo "SEED: $BOPOS_SEED"
 echo "RUN ID: $BOPOS_RUN_ID"
+echo "VERSION: $BOPOS_VERSION"
+echo "PATCH FINGERPRINT: $BOPOS_PATCH_FINGERPRINT"
 
 # Print the current active patch clearly
 echo "====================="
@@ -98,12 +102,12 @@ export BOPOS_ASSETS="$BOPOS_DIR/assets"
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."
     # PUREDATA — run context lands on the bopos-context bus in the same launch
-    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_DIR/assets" &
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_DIR/assets; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT" &
     ENGINE_PID=$!
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else
     echo "------------------- Starting $ENGINE..."
-    BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_SEED=$BOPOS_SEED BOPOS_RUN_ID=$BOPOS_RUN_ID BOPOS_ENGINE_PORT="${BOPOS_ENGINE_PORT:-6661}" "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
+    BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_SEED=$BOPOS_SEED BOPOS_RUN_ID=$BOPOS_RUN_ID BOPOS_VERSION=$BOPOS_VERSION BOPOS_PATCH_FINGERPRINT=$BOPOS_PATCH_FINGERPRINT BOPOS_ENGINE_PORT="${BOPOS_ENGINE_PORT:-6661}" "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
     ENGINE_PID=$!
 fi
 echo $ENGINE_PID > "$RUN_DIR/engine.pid"

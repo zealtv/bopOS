@@ -26,6 +26,8 @@ PATCH_ENTRYPOINT="$PATCH_PATH/main.pd"
 eval "$("$PYTHON_BIN" "$BOPOS_DIR/python/runcontext.py" "$ACTIVEPATCH")"
 BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
 BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
+BOPOS_VERSION="${BOPOS_VERSION:-unknown}"
+BOPOS_PATCH_FINGERPRINT="${BOPOS_PATCH_FINGERPRINT:-unknown}"
 
 echo "===================="
 echo "bopOS laptop mode"
@@ -34,6 +36,8 @@ echo "ACTIVE PATCH: $ACTIVEPATCH"
 echo "PATCH PATH:   $PATCH_PATH"
 echo "SEED:         $BOPOS_SEED"
 echo "RUN ID:       $BOPOS_RUN_ID"
+echo "VERSION:      $BOPOS_VERSION"
+echo "PATCH FP:     $BOPOS_PATCH_FINGERPRINT"
 echo "===================="
 
 # --- Start io/main.py ---
@@ -46,7 +50,7 @@ sleep 1
 # --- Start Pure Data (with GUI, no jack) ---
 echo "--- Starting Pure Data..."
 $PD_BIN -path "$BOPOS_DIR/pd" -open "$PATCH_ENTRYPOINT" \
-  -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVEPATCH; bopos-context assets $BOPOS_DIR/assets" &
+  -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVEPATCH; bopos-context assets $BOPOS_DIR/assets; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT" &
 echo $! > "$RUN_DIR/pd.pid"
 
 # --- Run patch start script if exists ---
