@@ -5,6 +5,7 @@
   const NS = "http://www.w3.org/2000/svg";
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
   const LISTENER_RANGE_MIN = 0.5; // audition-falloff/2-range-widget floor
+  const LISTENER_RANGE_DEFAULT = 3.0; // matches state.py LISTENER_RANGE_DEFAULT
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
   const POINT_COLOURS = ["#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2", "#45d483"];
   let seatDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
@@ -133,7 +134,7 @@
     const listener = installation.listener;
     if (listener && installation.simulation?.active) {
       const heading = Number(listener.heading) * Math.PI / 180;
-      const range = Number(listener.range) || Math.hypot(W, D);
+      const range = Number(listener.range) || Math.min(LISTENER_RANGE_DEFAULT, Math.hypot(W, D));
       const hx = Math.sin(heading) * range, hy = -Math.cos(heading) * range;
       const g = el("g", {class: "listener-puck", "data-listener": "true",
                           transform: `translate(${listener.x} ${listener.y})`}, svg);

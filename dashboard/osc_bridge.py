@@ -201,19 +201,17 @@ class OSCBridge:
         listener = self.state.data.get("listener")
         if not self.state.data.get("simulation", {}).get("active"):
             return
-        room = self.state.data.get("room") or {}
         if not listener or self.sender is None:
             return
         # The listener's own range (audition-falloff/2-range-widget) drives
-        # the audition falloff; fall back to the room diagonal for
+        # the audition falloff; fall back to the default range for
         # missing/invalid range (older persisted state, pre-widget clients).
         try:
             range_m = float(listener.get("range"))
         except (TypeError, ValueError):
             range_m = None
         if range_m is None or not math.isfinite(range_m) or range_m <= 0:
-            range_m = math.hypot(float(room.get("width", 0)),
-                                 float(room.get("depth", 0)))
+            range_m = self.state.default_range()
         if not math.isfinite(range_m) or range_m <= 0:
             return
         packet = self._datagram("/audition/listener", [

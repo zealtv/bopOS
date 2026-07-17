@@ -99,15 +99,20 @@ def pure_state_contract_tests():
         state = InstallationState(os.path.join(temp, "installation.json"))
 
         diagonal = math.hypot(state.DEFAULT_ROOM["width"], state.DEFAULT_ROOM["depth"])
+        # Sensible fixed default, clamped into the room (Bob, 2026-07-17):
+        # not the room diagonal.
+        expected_default = min(max(state.LISTENER_RANGE_DEFAULT,
+                                   state.LISTENER_RANGE_MIN), diagonal)
         default = state.default_listener()
-        check("default_listener range is the room diagonal (today's behaviour)",
-              close(default["range"], diagonal), repr(default))
+        check("default_listener range is the sensible default",
+              close(default["range"], expected_default), repr(default))
 
         # Missing range on an older persisted listener falls back to the
-        # diagonal -- existing installations sound unchanged until dragged.
+        # sensible default too.
         legacy = state.clean_listener({"x": 1, "y": 1, "heading": 0})
-        check("clean_listener fills in missing range with the room diagonal",
-              legacy is not None and close(legacy["range"], diagonal), repr(legacy))
+        check("clean_listener fills in missing range with the default",
+              legacy is not None and close(legacy["range"], expected_default),
+              repr(legacy))
 
         # Range below the floor clamps to 0.5.
         too_close = state.clean_listener({"x": 1, "y": 1, "heading": 0, "range": 0.01})
@@ -124,13 +129,14 @@ def pure_state_contract_tests():
         check("clean_listener passes a valid range through unchanged",
               mid is not None and mid["range"] == 3.5, repr(mid))
 
-        # Invalid range (non-numeric / bool) falls back to the diagonal too.
+        # Invalid range (non-numeric / bool) falls back to the default too.
         bad = state.clean_listener({"x": 1, "y": 1, "heading": 0, "range": "nope"})
-        check("clean_listener falls back to diagonal for non-numeric range",
-              bad is not None and close(bad["range"], diagonal), repr(bad))
+        check("clean_listener falls back to default for non-numeric range",
+              bad is not None and close(bad["range"], expected_default), repr(bad))
         bad_bool = state.clean_listener({"x": 1, "y": 1, "heading": 0, "range": True})
-        check("clean_listener falls back to diagonal for a boolean range",
-              bad_bool is not None and close(bad_bool["range"], diagonal), repr(bad_bool))
+        check("clean_listener falls back to default for a boolean range",
+              bad_bool is not None and close(bad_bool["range"], expected_default),
+              repr(bad_bool))
 
 
 def main():

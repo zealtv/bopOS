@@ -670,6 +670,7 @@ class InstallationState:
     # Audition falloff range floor/ceiling: the listener heading widget's
     # pull-out tip distance IS the range (audition-falloff/2-range-widget).
     LISTENER_RANGE_MIN = 0.5
+    LISTENER_RANGE_DEFAULT = 3.0
 
     def room_diagonal(self):
         room = self.data.get("room") or self.DEFAULT_ROOM
@@ -677,12 +678,16 @@ class InstallationState:
         diagonal = math.hypot(width, depth)
         return diagonal if math.isfinite(diagonal) and diagonal > 0 else self.LISTENER_RANGE_MIN
 
+    def default_range(self):
+        return min(max(self.LISTENER_RANGE_DEFAULT, self.LISTENER_RANGE_MIN),
+                   self.room_diagonal())
+
     def default_listener(self):
         room = self.data.get("room") or self.DEFAULT_ROOM
         return {"x": float(room["width"]) / 2.0,
                 "y": float(room["depth"]) / 2.0,
                 "heading": 0.0,
-                "range": self.room_diagonal()}
+                "range": self.default_range()}
 
     def clean_listener(self, value):
         if not isinstance(value, dict):
@@ -702,20 +707,20 @@ class InstallationState:
         room = self.data.get("room") or self.DEFAULT_ROOM
         width, depth = float(room["width"]), float(room["depth"])
         diagonal = self.room_diagonal()
-        # Missing/invalid range falls back to the room diagonal -- exactly
-        # today's fixed-diagonal behaviour -- so older persisted state and
-        # in-flight edits that don't touch range sound unchanged.
+        # Missing/invalid range falls back to the sensible default (Bob,
+        # 2026-07-17) so the widget starts at a usable, on-canvas radius.
+        fallback = self.default_range()
         raw_range = value.get("range")
         if isinstance(raw_range, bool):
-            range_m = diagonal
+            range_m = fallback
         else:
             try:
                 range_m = float(raw_range)
             except (TypeError, ValueError):
-                range_m = diagonal
+                range_m = fallback
             else:
                 if not math.isfinite(range_m):
-                    range_m = diagonal
+                    range_m = fallback
         range_m = min(max(range_m, self.LISTENER_RANGE_MIN), diagonal)
         return {"x": min(max(fields[0], 0.0), width),
                 "y": min(max(fields[1], 0.0), depth),
