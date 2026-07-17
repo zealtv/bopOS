@@ -55,6 +55,10 @@ Three routes, depending on who you are today:
 | **[Composing](docs/COMPOSING.md)** | writing and deploying a piece — no Git required | the above + Pure Data |
 | **[Installing a node](docs/INSTALL.md)** | building the physical fleet and its network | a Raspberry Pi + audio board |
 
+On a laptop, `./install.sh` then `./run.sh` from the repo root set up the venv
+and start the dashboard — no need to type the `python -m venv` / `server.py`
+commands by hand.
+
 ## Documentation map
 
 **Guides**

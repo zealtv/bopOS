@@ -22,6 +22,11 @@ python3 -m venv ~/.venvs/bopos
 ~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt
 ```
 
+Or just run `./install.sh` from the repo root, which does the two lines above
+for you. Then `./run.sh` starts the dashboard (it stands in for the
+`server.py` command in step 2 — add a simulated fleet in a second terminal as
+below).
+
 ## 2. Start the dashboard and a simulated fleet
 
 Two terminals, both from the repo root.
