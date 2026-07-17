@@ -1,5 +1,38 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-17 — engine admin requests + version context (contract v1.7)
+
+The v1.7 amendment adds a bounded engine-sent admin surface. The Python side
+is live and verified; the PD-side bus is the one edit Bob owns.
+
+### Add the `to-bopos-admin` bus to `pd/bopos.pd`
+
+- Add `[r to-bopos-admin]` feeding an OSC `/admin <action>` message into the
+  existing localhost **7770** request `netsend` (the same one `/config`,
+  `/store`, `/load`, and `/report` use).
+- A patch sends the bare action symbol on the bus:
+  `[update-patch( / [update-bopos( / [shutdown( / [reboot(` →
+  `[s to-bopos-admin]`. The abstraction wraps it as `/admin <action>`.
+- bopos.py accepts exactly those four actions and routes them to the same
+  code paths as the dashboard verbs; anything else is logged and ignored, so
+  a typo'd action is safe. There is no reply to the engine — the actions are
+  terminal or restart the engine anyway.
+- This supersedes the A4 sentence below ("Engines may not request update,
+  reboot, shutdown…") for exactly these four actions. Everything else A4
+  deleted stays deleted: no generic admin chain, no checkout, no
+  restart-engine, no patch switching from the engine.
+
+### Version context — no PD edit required
+
+The launcher's `-send` now also delivers `version <string>` and
+`patch-fingerprint <string>` on `bopos-context`, alongside seed/run-id/
+patch/assets/id. Patches opt in by extending their existing route:
+`[r bopos-context]` → `[route seed run-id patch assets id version
+patch-fingerprint]`. Both are symbols, never floats. `patch-fingerprint`
+reads `unknown` until the node's background patch warm has run once after
+boot (the warm is in place as of 2026-07-17; a fresh clone's very first
+launch may still say `unknown`).
+
 ## 2026-07-15 — nested patch parameter routes
 
 The parameter-address design now preserves true nested OSC from the fleet into
@@ -150,6 +183,10 @@ leave a compatibility copy named `bopos.osc.pd`.
 - Delete the entire `osc-in -> route helper -> process-helper-messages ->
   netsend 7770` admin chain. Engines may not request update, reboot, shutdown,
   restart-engine, patch changes, checkout, sample fetches, or other LAN admin.
+  **Amended 2026-07-17 (contract v1.7):** the four actions `update-patch`,
+  `update-bopos`, `shutdown`, `reboot` are now allowed via the dedicated
+  `/admin` request — see the 2026-07-17 section at the top. The generic
+  admin chain stays deleted.
 - Provide a narrow localhost 7770 request path for only `/config`, `/store`,
   and `/load`. Its patch-facing send bus should be explicit framework intent,
   not the retired generic `osc-out` bus. If no current patch consumes

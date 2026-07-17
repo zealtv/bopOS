@@ -65,15 +65,25 @@ def resolve_patch_fingerprint(patch_path):
     """Nonblocking: only a fully-warm identity cache answers; else "unknown".
 
     Never hashes file contents -- launching must not stall on a cold cache.
-    A background warm (as the asset inventory already does) is what makes
-    this resolve on a later launch; until then, "unknown" is the honest
-    answer.
+    bopos.py's background patch warm persists the cache this reads; a cold
+    or stale cache still answers "unknown" honestly.
     """
     if not patch_path or not os.path.isdir(patch_path):
         # also guards a missing/misspelled patch: an empty walk would
         # otherwise fingerprint as the empty manifest, not "unknown"
         return "unknown"
     try:
+        info = identity.cached_directory_info(patch_path)
+    except OSError:
+        return "unknown"
+    if info["fingerprint"]:
+        return info["fingerprint"]
+    try:
+        # In-process cache couldn't answer (the usual case in a fresh
+        # launcher process): bopos.py persists patches/.hashcache.json
+        # (background warm + /os/patches listings); loading it is
+        # stat-only, never a hash.
+        identity.load_hash_cache(os.path.dirname(os.path.abspath(patch_path)))
         info = identity.cached_directory_info(patch_path)
     except OSError:
         return "unknown"

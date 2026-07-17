@@ -799,6 +799,13 @@ def installed_patches():
         except OSError:
             pass  # unreadable content: honest listing without an identity
         result.append(entry)
+    if result:
+        try:
+            # a listing just paid for the hashes; persist them so the next
+            # engine launch resolves its run-context patch-fingerprint
+            identity.save_hash_cache(patches_dir)
+        except OSError as error:
+            print("WARNING: patch fingerprint cache save failed:", error)
     return result
 
 
@@ -839,6 +846,47 @@ def initialise_asset_cache(assets_root=None):
     except OSError as error:
         print("WARNING: asset fingerprint cache load failed:", error)
     return warm_asset_cache(assets_root)
+
+
+patch_warm_lock = threading.Lock()
+patch_warm_thread = None
+
+
+def _patch_warm_loop(patches_dir):
+    try:
+        try:
+            os.nice(10)
+        except OSError:
+            pass
+        identity.warm_hash_cache(patches_dir)
+    except OSError as error:
+        print("WARNING: patch fingerprint warm failed:", error)
+
+
+def warm_patch_cache(patches_dir=None):
+    """Start at most one low-priority patch cache warm without blocking.
+
+    Warming persists patches/.hashcache.json, which is what lets the
+    launch-time run context resolve patch-fingerprint (contract v1.7)
+    instead of degrading to "unknown"."""
+    global patch_warm_thread
+    patches_dir = patches_dir or os.path.join(BOPOS_DIR, "patches")
+    with patch_warm_lock:
+        if patch_warm_thread is not None and patch_warm_thread.is_alive():
+            return patch_warm_thread
+        patch_warm_thread = threading.Thread(target=_patch_warm_loop,
+                                             args=(patches_dir,), daemon=True)
+        patch_warm_thread.start()
+        return patch_warm_thread
+
+
+def initialise_patch_cache(patches_dir=None):
+    patches_dir = patches_dir or os.path.join(BOPOS_DIR, "patches")
+    try:
+        identity.load_hash_cache(patches_dir)
+    except OSError as error:
+        print("WARNING: patch fingerprint cache load failed:", error)
+    return warm_patch_cache(patches_dir)
 
 
 def installed_assets(assets_root=None):
@@ -1428,6 +1476,7 @@ def switch_patch_callback(path='', tags='', args='', source=''):
                 print(f"git pull failed: {result.stderr.decode()}")
         except Exception as error:
             print(f"git pull failed: {error}")
+        warm_patch_cache()
 
     stop_script = os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")
     start_script = os.path.join(BOPOS_DIR, "bash", "start-engine.sh")
@@ -1495,6 +1544,7 @@ def add_patch_callback(path='', tags='', args='', source=''):
     _patch_manifest, manifest_error = manifest.load(dest_dir)
     if _patch_manifest is None:
         print(f"Warning: cloned patch '{repo}' will not launch: {manifest_error}")
+    warm_patch_cache()
     try:
         msg = OSCMessage("/addpatch")
         msg.append(repo)
@@ -1530,6 +1580,7 @@ def drop_patch_callback(path='', tags='', args='', source=''):
         elif os.path.isdir(target):
             shutil.rmtree(target)
         print("Dropped patch '{}'".format(name))
+        warm_patch_cache()
     except OSError as error:
         print("Failed to drop patch '{}': {}".format(name, error))
 
@@ -1672,6 +1723,7 @@ if __name__ == "__main__":
     server.timeout = 1.0
     cue_scheduler.start()
     initialise_asset_cache()
+    initialise_patch_cache()
     # Persistent box intent is enforced as the helper comes up, before or
     # alongside the independently managed engine launch.
     enforce_mute(effective_mute(node_state), node_state)
