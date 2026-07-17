@@ -527,7 +527,7 @@ class SimFleet:
 
     def finish_patch_switch(self, device, source):
         device.engine_restart_until = 0.0
-        self.send_rev(device, source)
+        self.send_rev(device, source, "ok", "switched")
 
     def admin_verb(self, device, member, args, source):
         # bopos.py owns these, so a dead engine still answers
@@ -554,30 +554,42 @@ class SimFleet:
             self.bump(device)
             self.schedule(2.0, self.send_rev, device, source, "ok", "converged")
             self.schedule(5.0, self.reboot_after_silence, device, False)
-        elif member == "patch" and args:
+        elif member == "patch":
+            if not args:
+                self.send_rev(device, source, "err", "invalid-name")
+                return
             name = str(args[0])
             if name not in device.patches or not device.patches[name]["manifest"]:
-                self.send_rev(device, source)
+                self.send_rev(device, source, "err", "not-found")
                 return
             device.active_patch = name
             device.engine_restart_until = float("inf")
             self.schedule(2.0, self.finish_patch_switch, device, source)
-        elif member == "addpatch" and len(args) >= 2:
+        elif member == "addpatch":
+            if len(args) < 2:
+                self.send_rev(device, source, "err", "invalid-args")
+                return
             device.patches[str(args[1])] = {"git": True, "manifest": True,
                                             "fingerprint": host_patch_fingerprint(str(args[1]))}
-            self.schedule(1.0, self.send_rev, device, source)
+            self.schedule(1.0, self.send_rev, device, source, "ok", "cloned")
         elif member == "pullpatch":
-            self.schedule(1.0, self.send_rev, device, source)
-        elif member == "droppatch" and args:
+            self.schedule(1.0, self.send_rev, device, source, "ok", "pulled")
+        elif member == "droppatch":
+            if not args:
+                self.send_rev(device, source, "err", "invalid-name")
+                return
             name = str(args[0])
-            if name != device.active_patch:
-                device.patches.pop(name, None)
-            self.send_rev(device, source)
-        elif member == "dropassets" and args:
-            slot = str(args[0])
-            if identity.valid_asset_slot(slot):
-                device.asset_slots.pop(slot, None)
-            self.send_rev(device, source)
+            if name == device.active_patch:
+                self.send_rev(device, source, "err", "active-patch")
+                return
+            device.patches.pop(name, None)
+            self.send_rev(device, source, "ok", "dropped")
+        elif member == "dropassets":
+            if not args or not identity.valid_asset_slot(str(args[0])):
+                self.send_rev(device, source, "err", "invalid-name")
+                return
+            device.asset_slots.pop(str(args[0]), None)
+            self.send_rev(device, source, "ok", "dropped")
         else:
             # malformed args change nothing; the receipt is still the honest state
             self.send_rev(device, source)

@@ -1435,17 +1435,17 @@ def switch_patch_callback(path='', tags='', args='', source=''):
     active_patch_file = os.path.realpath(os.path.join(patches_dir, 'active_patch.txt'))
     if not args or not args[0]:
         print("No patch name provided to /patch")
-        return
+        return {"status": "err", "phase": "invalid-name"}
     patch_name = args[0].strip()
     if (patch_name.startswith(".")
             or re.fullmatch(r"[A-Za-z0-9_.-]+", patch_name) is None):
         print("Invalid patch name for /patch")
-        return
+        return {"status": "err", "phase": "invalid-name"}
     patch_path = os.path.join(patches_dir, patch_name)
     patch_manifest, _error = manifest.load(patch_path)
     if not os.path.isdir(patch_path) or patch_manifest is None:
         print(f"Patch '{patch_name}' not found or has no valid bopos.patch.json")
-        return
+        return {"status": "err", "phase": "not-found"}
     current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else None
     print(f"Switching patch: {current} -> {patch_name}")
 
@@ -1482,65 +1482,66 @@ def switch_patch_callback(path='', tags='', args='', source=''):
     start_script = os.path.join(BOPOS_DIR, "bash", "start-engine.sh")
     if run_command(["bash", stop_script]) != 0:
         print("Patch switch aborted: failed to stop current engine")
-        return False
+        return {"status": "err", "phase": "stop-failed"}
     hb_wake.set()
     if not select(patch_name):
         run_command(["bash", start_script], wait_for_start=True)
         hb_wake.set()
-        return False
+        return {"status": "err", "phase": "write-failed"}
     if run_command(["bash", start_script], wait_for_start=True) == 0 and engine_alive() == 1:
         print(f"Patch switch complete: {patch_name}")
         hb_wake.set()
-        return True
+        return {"status": "ok", "phase": "switched"}
 
     print(f"Patch switch failed to start {patch_name}; restoring {current}")
     run_command(["bash", stop_script])
-    if current and select(current):
+    restored = bool(current) and select(current)
+    if restored:
         run_command(["bash", start_script], wait_for_start=True)
     hb_wake.set()
-    return False
+    return {"status": "err", "phase": "start-failed" if restored else "restore-failed"}
 
 
 def add_patch_callback(path='', tags='', args='', source=''):
     patches_dir = os.path.join(BOPOS_DIR, 'patches')
     if not args or len(args) < 2:
         print("/addpatch requires two arguments: user and repo")
-        return
+        return {"status": "err", "phase": "invalid-args"}
     user, repo = str(args[0]).strip(), str(args[1]).strip()
     if not re.match(r'^[\w-]+$', user) or not re.match(r'^[\w.-]+$', repo):
         print("Invalid user or repo")
-        return
+        return {"status": "err", "phase": "invalid-name"}
     repo_url, dest_dir = f"https://github.com/{user}/{repo}.git", os.path.join(patches_dir, repo)
     try:
         result = subprocess.run(["git", "ls-remote", repo_url], stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, timeout=10)
         if result.returncode != 0:
             print(f"GitHub repo not found or not accessible: {repo_url}")
-            return
+            return {"status": "err", "phase": "not-found"}
     except Exception as error:
         print(f"Error checking repo: {error}")
-        return
+        return {"status": "err", "phase": "not-found"}
     if os.path.isdir(dest_dir):
         try:
             print(f"Removing existing patch folder: {dest_dir}")
             shutil.rmtree(dest_dir)
         except Exception as error:
             print(f"Failed to remove existing patch folder: {error}")
-            return
+            return {"status": "err", "phase": "remove-failed"}
     try:
         print(f"Cloning {repo_url} into {dest_dir}...")
         result = subprocess.run(["git", "clone", "--recursive", repo_url, dest_dir],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
         if result.returncode != 0:
             print(f"Failed to clone repo: {result.stderr.decode().strip()}")
-            return
+            return {"status": "err", "phase": "clone-failed"}
         print(f"Cloned {repo_url} into {dest_dir}")
     except subprocess.TimeoutExpired:
         print("Clone timed out after 120s — check network connection")
-        return
+        return {"status": "err", "phase": "clone-failed"}
     except Exception as error:
         print(f"Error cloning repo: {error}")
-        return
+        return {"status": "err", "phase": "clone-failed"}
     _patch_manifest, manifest_error = manifest.load(dest_dir)
     if _patch_manifest is None:
         print(f"Warning: cloned patch '{repo}' will not launch: {manifest_error}")
@@ -1551,28 +1552,48 @@ def add_patch_callback(path='', tags='', args='', source=''):
         send_to_engine(msg)
     except Exception as error:
         print(f"Failed to send OSC confirmation: {error}")
+    return {"status": "ok", "phase": "cloned"}
+
+# bash/pull_active_patch.sh's exit codes, mapped to receipt phases. The
+# script itself no longer reboots (contract sec 7 receipt-before-reboot);
+# a successful pull asks run_admin_verb to request the reboot only after
+# the /os/rev receipt has already gone out, mirroring converge_framework.
+_PULL_ACTIVE_PATCH_PHASES = {
+    1: "active-patch",   # active_patch.txt missing
+    2: "not-found",      # no .git repo for the active patch
+    3: "not-found",      # cd into the patch dir failed
+    4: "pull-failed",    # git pull failed
+}
+
 
 def pull_active_patch_callback(path='', tags='', args='', source=''):
     script_path = os.path.join(BOPOS_DIR, 'bash/pull_active_patch.sh')
     print(f"Running: {script_path}")
     try:
         result = subprocess.run(["bash", script_path], timeout=120)
-        if result.returncode != 0:
-            print(f"pull_active_patch.sh exited with code {result.returncode}")
+    except subprocess.TimeoutExpired:
+        print("[pull_active_patch_callback] timed out")
+        return {"status": "err", "phase": "timeout"}
     except Exception as error:
         print(f"[pull_active_patch_callback] Exception: {error}")
+        return {"status": "err", "phase": "exception"}
+    if result.returncode != 0:
+        print(f"pull_active_patch.sh exited with code {result.returncode}")
+        phase = _PULL_ACTIVE_PATCH_PHASES.get(result.returncode, "pull-failed")
+        return {"status": "err", "phase": phase}
+    return {"status": "ok", "phase": "pulled", "reboot": True}
 
 
 def drop_patch_callback(path='', tags='', args='', source=''):
     if (not args or str(args[0]).startswith(".")
             or re.fullmatch(r"[A-Za-z0-9_.-]+", str(args[0])) is None):
         print("/droppatch requires a valid patch name")
-        return
+        return {"status": "err", "phase": "invalid-name"}
     name = str(args[0])
     active_path = active_patch_path()
     if active_path is not None and os.path.basename(active_path) == name:
         print("Refusing to remove active patch '{}'".format(name))
-        return
+        return {"status": "err", "phase": "active-patch"}
     target = os.path.join(BOPOS_DIR, "patches", name)
     try:
         if os.path.islink(target) or os.path.isfile(target):
@@ -1583,12 +1604,14 @@ def drop_patch_callback(path='', tags='', args='', source=''):
         warm_patch_cache()
     except OSError as error:
         print("Failed to drop patch '{}': {}".format(name, error))
+        return {"status": "err", "phase": "remove-failed"}
+    return {"status": "ok", "phase": "dropped"}
 
 
 def drop_assets_callback(path='', tags='', args='', source=''):
     if not args or not identity.valid_asset_slot(str(args[0])):
         print("/dropassets requires a valid asset slot")
-        return
+        return {"status": "err", "phase": "invalid-name"}
     slot = str(args[0])
     target = os.path.join(BOPOS_DIR, "assets", slot)
     try:
@@ -1599,6 +1622,8 @@ def drop_assets_callback(path='', tags='', args='', source=''):
         print("Dropped asset slot '{}'".format(slot))
     except OSError as error:
         print("Failed to drop asset slot '{}': {}".format(slot, error))
+        return {"status": "err", "phase": "remove-failed"}
+    return {"status": "ok", "phase": "dropped"}
 
 
 def restart_engine_callback(path='', tags='', args='', source=''):

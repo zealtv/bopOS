@@ -1,0 +1,127 @@
+=== rev-outcome-receipts verify ===
+No patch name provided to /patch
+[PASS] switch: no args -> invalid-name
+Invalid patch name for /patch
+[PASS] switch: bad pattern -> invalid-name
+Patch 'ghost' not found or has no valid bopos.patch.json
+[PASS] switch: missing patch -> not-found
+Switching patch: old -> new
+Patch switch aborted: failed to stop current engine
+[PASS] switch: stop script fails -> stop-failed
+Switching patch: old -> new
+Failed to write active_patch.txt: [Errno 13] Permission denied: '/private/var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-glzo1qwl/patches/active_patch.txt.tmp'
+[PASS] switch: unwritable active_patch.txt -> write-failed
+Switching patch: old -> new
+Patch switch failed to start new; restoring old
+[PASS] switch: start fails then restores -> start-failed
+Switching patch: None -> new
+Patch switch failed to start new; restoring None
+[PASS] switch: start fails with nothing to restore -> restore-failed
+Switching patch: old -> new
+Patch switch complete: new
+[PASS] switch: clean switch -> ok switched
+/addpatch requires two arguments: user and repo
+[PASS] addpatch: too few args -> invalid-args
+Invalid user or repo
+[PASS] addpatch: invalid user -> invalid-name
+GitHub repo not found or not accessible: https://github.com/someone/repo.git
+[PASS] addpatch: repo not found -> not-found
+Removing existing patch folder: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo
+Failed to remove existing patch folder: locked
+[PASS] addpatch: cannot remove existing dir -> remove-failed
+Cloning https://github.com/someone/repo.git into /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo...
+Failed to clone repo: denied
+[PASS] addpatch: clone fails -> clone-failed
+Cloning https://github.com/someone/repo.git into /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo...
+Clone timed out after 120s — check network connection
+[PASS] addpatch: clone times out -> clone-failed
+Cloning https://github.com/someone/repo.git into /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo...
+Cloned https://github.com/someone/repo.git into /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo
+Warning: cloned patch 'repo' will not launch: entrypoint 'main.bin' not found in /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-euwb_0kr/patches/repo
+[PASS] addpatch: clean clone -> ok cloned
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+pull_active_patch.sh exited with code 1
+[PASS] pullpatch: exit 1 -> active-patch
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+pull_active_patch.sh exited with code 2
+[PASS] pullpatch: exit 2 -> not-found
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+pull_active_patch.sh exited with code 3
+[PASS] pullpatch: exit 3 -> not-found
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+pull_active_patch.sh exited with code 4
+[PASS] pullpatch: exit 4 -> pull-failed
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+pull_active_patch.sh exited with code 99
+[PASS] pullpatch: unmapped exit code -> pull-failed
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+[pull_active_patch_callback] timed out
+[PASS] pullpatch: timeout -> err timeout
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+[pull_active_patch_callback] Exception: boom
+[PASS] pullpatch: exception -> err exception
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+[PASS] pullpatch: success -> ok pulled, reboot requested
+[PASS] pull_active_patch.sh no longer reboots itself
+Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-bafqw8dm/bash/pull_active_patch.sh
+[PASS] pullpatch success sends receipt before requesting reboot
+/droppatch requires a valid patch name
+[PASS] droppatch: no args -> invalid-name
+/droppatch requires a valid patch name
+[PASS] droppatch: bad pattern -> invalid-name
+Refusing to remove active patch 'live'
+[PASS] droppatch: refuses active patch -> active-patch
+Failed to drop patch 'old': busy
+[PASS] droppatch: remove raises -> remove-failed
+Dropped patch 'old'
+[PASS] droppatch: clean drop -> ok dropped
+/dropassets requires a valid asset slot
+[PASS] dropassets: no args -> invalid-name
+/dropassets requires a valid asset slot
+[PASS] dropassets: invalid slot -> invalid-name
+Failed to drop asset slot 'pack1': busy
+[PASS] dropassets: remove raises -> remove-failed
+Dropped asset slot 'pack1'
+[PASS] dropassets: clean drop -> ok dropped
+[PASS] run_admin_verb appends err phase to /os/rev
+[PASS] run_admin_verb appends ok phase to /os/rev
+WARNING: admin verb failed: boom
+[PASS] run_admin_verb reports err exception if the callback raises
+[PASS] PROVISION_VERBS still maps all five verbs to their callbacks
+[PASS] ENGINE_ADMIN_VERBS still reuses pull_active_patch_callback for update-patch
+[PASS] simfleet patch with no args -> err invalid-name
+[PASS] simfleet patch unknown name -> err not-found
+[PASS] simfleet patch success -> ok switched
+[PASS] simfleet addpatch too few args -> err invalid-args
+[PASS] simfleet addpatch success -> ok cloned
+[PASS] simfleet pullpatch -> ok pulled
+[PASS] simfleet droppatch no args -> err invalid-name
+[PASS] simfleet droppatch refuses active patch -> err active-patch
+[PASS] simfleet droppatch success -> ok dropped
+[PASS] simfleet dropassets invalid slot -> err invalid-name
+[PASS] simfleet dropassets success -> ok dropped
+
+50/50 passed
+exiting.  closing server...
+
+=== regression gate: 2-engine-admin-requests ===
+[PASS] /admin update-patch dispatches its callback
+[PASS] /admin update-bopos dispatches its callback
+[PASS] /admin shutdown dispatches its callback
+[PASS] /admin reboot dispatches its callback
+WARNING: /admin unknown action: nonsense
+[PASS] unknown /admin action dispatches nothing
+WARNING: /admin received with no action
+[PASS] empty /admin dispatches nothing
+[PASS] /admin is registered on the engine-request server
+[PASS] engine-originated admin verb runs without a reply socket
+[PASS] update-patch reuses the LAN pullpatch callback
+[PASS] update-bopos reuses the LAN updatebopos callback
+[PASS] shutdown reuses the LAN shutdown callback
+[PASS] reboot reuses the LAN reboot callback
+[PASS] bopos.py reports contract_version 1.7
+[PASS] simfleet logs a known admin action instead of executing it
+[PASS] simfleet logs unknown admin actions without acting on them
+
+15/15 passed
+exiting.  closing server...

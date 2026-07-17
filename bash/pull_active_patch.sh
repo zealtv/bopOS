@@ -1,5 +1,8 @@
 #!/bin/bash
-# Pull the latest changes for the currently active patch repo
+# Pull the latest changes for the currently active patch repo. Does not
+# reboot itself: pull_active_patch_callback (python/bopos.py) sends the
+# /os/rev outcome receipt first, then requests the reboot, so an operator
+# always sees success/failure before the box goes down (contract sec 7).
 
 PATCHES_DIR="$(dirname "$(dirname "$(realpath "$0")")")/patches"
 ACTIVE_PATCH_FILE="$PATCHES_DIR/active_patch.txt"
@@ -30,5 +33,3 @@ else
   echo "Failed to update $PATCH_NAME."
   exit 4
 fi
-
-reboot

@@ -128,21 +128,21 @@ target one Seat, one group, or the whole fleet:
 | `restart-engine` | — | stop/relaunch the engine only | `/os/rev …` (5550) |
 | `updatebopos` | — | converge the bopOS framework (`/os/update` has no alias — removed) | `/os/rev … <status:s> <phase:s>` (5550) — this verb *does* set status/phase; success is sent before a reboot is requested, and a rejected reboot sends a second `err reboot` |
 | `checkout` | `<branch:s>` | checkout a branch, then converge | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set |
-| `patch` | `<name:s>` | stop engine, switch active patch, relaunch — never reboots | bare `/os/rev <sha:s> <model:s> <uid:s>` (5550) — no status/phase; success/failure is only in the node's own log |
-| `addpatch` | `<user:s> <repo:s>` | `git clone` `https://github.com/<user>/<repo>.git` into `patches/` | `/addpatch <repo:s>` to the engine (localhost) **and** a bare `/os/rev` (5550) |
-| `pullpatch` | — | `git pull` the active patch in place (this is what the engine-sent `/admin update-patch` also triggers, §3 below) | bare `/os/rev` (5550) — the contract's "every provisioning verb replies /os/rev" is not an exaggeration; it really does, even here |
-| `droppatch` | `<name:s>` | remove an installed, inactive patch (refuses the active one) | bare `/os/rev` (5550) — refusing the active patch or an `OSError` both still send the same bare reply; success/failure is only in the node's own log |
-| `dropassets` | `<slot:s>` | remove an installed asset slot | bare `/os/rev` (5550), same caveat as `droppatch` |
+| `patch` | `<name:s>` | stop engine, switch active patch, relaunch — never reboots | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set; phases: `invalid-name`, `not-found`, `stop-failed`, `write-failed`, `start-failed`, `restore-failed`, `ok switched` |
+| `addpatch` | `<user:s> <repo:s>` | `git clone` `https://github.com/<user>/<repo>.git` into `patches/` | `/addpatch <repo:s>` to the engine (localhost) **and** `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-args`, `invalid-name`, `not-found`, `remove-failed`, `clone-failed`, `ok cloned` |
+| `pullpatch` | — | `git pull` the active patch in place (this is what the engine-sent `/admin update-patch` also triggers, §3 below) | `/os/rev … <status:s> <phase:s>` (5550); success is sent before the reboot request (contract sec 7); phases: `active-patch`, `not-found`, `pull-failed`, `timeout`, `exception`, `ok pulled` |
+| `droppatch` | `<name:s>` | remove an installed, inactive patch (refuses the active one) | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `active-patch`, `remove-failed`, `ok dropped` |
+| `dropassets` | `<slot:s>` | remove an installed asset slot | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `remove-failed`, `ok dropped` |
 | `mute` | `<0\|1:i>` | same as `/all/os/mute` above, but selector-generic | — |
 
 `/os/rev`'s full shape is `<sha:s> <model:s> <uid:s> [<status:s>
-<phase:s>]` — the contract marks status/phase optional (v1.6), and in
-practice only `updatebopos`/`checkout` (which call the shared
-`converge_framework` helper) ever attach them; every other provisioning
-verb above sends the bare three-field form regardless of whether it
-actually succeeded. If you need to know whether a `droppatch`/`addpatch`/
-`patch`/`pullpatch` really worked, watch the node's log or re-query
-`/os/patches` — the `/os/rev` alone won't tell you.
+<phase:s>]` — the contract marks status/phase optional (v1.6). As of the
+2026-07-17 outcome-receipts revision, every verb in this table sets
+status/phase on both success and failure, so `/os/rev` alone tells you
+whether the operation landed. Older nodes running framework builds before
+this revision may still send the bare three-field form for `patch`,
+`addpatch`, `pullpatch`, `droppatch`, and `dropassets` — if you see a bare
+reply from one of those five verbs, that's an old node, not a refusal.
 
 An ephemeral (live-image) node answers every provisioning verb here with an
 honest no-op `/os/rev` (no filesystem write) rather than pretending to
@@ -202,7 +202,7 @@ sending the commands above, or unprompted (heartbeats):
 | `/os/mute <uid:s> <device-muted:i> <effective-muted:i>` | — | reply to the exact-uid `mute` verb |
 | `/os/hostname <uid:s> <name:s> <ok\|err:s>` | — | reply to the exact-uid `hostname` verb |
 | `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
-| `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); status/phase are only ever set by `updatebopos`/`checkout` — every other verb sends the bare three-field form |
+| `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
 | `/os/load <key:s> <values…>` | — | reply to `load` |
 | `/os/params <json:s>` | — | reply to `params` |
 | `/os/patches <json:s>` | — | reply to `patches` |
@@ -292,9 +292,8 @@ oscsend 10.0.0.5 6660 /g0/os/pullpatch
 
 ```sh
 oscsend 10.0.0.5 6660 /all/os/patch s demo-pd
-# listen on 5550 for: /os/rev <sha> <model> <uid>
-# (bare -- "patch" doesn't attach status/phase; check the node's log or
-# re-query /os/patches to confirm the switch actually landed)
+# listen on 5550 for: /os/rev <sha> <model> <uid> <status> <phase>
+# e.g. "ok switched" on success, "not-found" if demo-pd isn't installed
 ```
 
 **A raw Python one-liner** (no `liblo` needed) for the same mute, using the
@@ -315,9 +314,10 @@ actual handler tables in `python/bopos.py` — `handle_lan_datagram`,
 `LIFECYCLE_VERBS`/`PROVISION_VERBS`, and the 7770 callback map
 (`ENGINE_ADMIN_VERBS` plus `/config`/`/store`/`/load`/`/report`), plus a live
 run against `tools/simfleet.py` (mute and report). See
-`.loom/tied/4-osc-quickref/notes.md` for the full cross-check log, including
-the one real finding: several provisioning verbs (`addpatch`, `pullpatch`,
-`droppatch`, `dropassets`, `patch`) always reply with a **bare** `/os/rev`
-even on refusal or failure — the contract's `[<status> <phase>]` is
-optional, and only `updatebopos`/`checkout` ever populate it. That's
-documented above rather than papered over.
+`.loom/tied/4-osc-quickref/notes.md` for the original cross-check log that
+found the gap this doc now describes as fixed: through the 2026-07-17
+outcome-receipts revision, `addpatch`, `pullpatch`, `droppatch`,
+`dropassets`, and `patch` always replied with a **bare** `/os/rev` even on
+refusal or failure — the contract's `[<status> <phase>]` was optional, and
+only `updatebopos`/`checkout` populated it. See
+`.loom/tied/rev-outcome-receipts/notes.md` for that fix.
