@@ -367,3 +367,28 @@ args — are 0-indexed per the project-wide default.
   (e.g. stitch 4 already says "internal key stays lowercase `show`," stitch
   7 already describes the console taps exactly as designed in §3). Nothing
   needs editing.
+
+## Amendment — 2026-07-18, stitch 5c: target lists
+
+Bob's screenshot review: a message must target "a seat, a number of specific
+seats, or a group, groups, or a mix of all", and a dropdown is the wrong
+interface. §2's `target` field is amended:
+
+- `target` is a **non-empty list of selectors** — each entry `"all"`, a
+  decimal Seat id string, or `"g<group-id>"`, the same literal selector
+  strings as before. Examples: `["all"]`, `["3"]`, `["3", "7", "g1"]`.
+- **Legacy load:** a single selector string (every show written before this
+  amendment) is accepted anywhere a target is read and normalized to a
+  one-item list; shows are persisted with lists from now on.
+- **Normalization:** `clean_target` collapses exact duplicates (order
+  preserved) and collapses any list containing `"all"` to `["all"]`.
+- **Send semantics:** the playback engine fans a `/p/` message out as one
+  `set_param(selector, ...)` call per listed selector. A seat covered both
+  directly and via a listed group receives the write more than once; params
+  are idempotent full-state writes, so this is harmless and no set-algebra
+  is performed. `/cue` and `/pt` remain selector-free; they carry `target`
+  for uniformity and the send path still ignores it.
+- **UI:** the inspector's dropdown is replaced by a direct chip picker
+  (All toggle, group swatches in GROUP_SLOTS colours, numbered seat chips in
+  the bounded-roster idiom); the wire preview and pill titles render the
+  terse form `3+7+g1`.

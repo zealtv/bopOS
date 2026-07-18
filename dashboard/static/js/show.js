@@ -159,18 +159,52 @@
     return Object.values(state.groups || {}).sort((a, b) => Number(a.id) - Number(b.id));
   }
 
-  function targetOptions(selected) {
-    const groupOptions = groups().map(group => {
+  function targetList(message) {
+    const target = message?.target;
+    if (Array.isArray(target)) return target.length ? target : ["all"];
+    return typeof target === "string" && target ? [target] : ["all"];
+  }
+
+  function terseTargets(message) {
+    const list = targetList(message);
+    return list.includes("all") ? "all" : list.join("+");
+  }
+
+  function toggledTargets(message, selector) {
+    if (selector === "all") return ["all"];
+    const current = targetList(message).filter(entry => entry !== "all");
+    const next = current.includes(selector)
+      ? current.filter(entry => entry !== selector)
+      : [...current, selector];
+    return next.length ? next : ["all"];
+  }
+
+  function renderTargetPicker(message, disabled) {
+    const selected = targetList(message);
+    const isAll = selected.includes("all");
+    const off = disabled ? " disabled" : "";
+    const groupChips = groups().map((group, index) => {
       const value = `g${group.id}`;
-      return `<option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(group.name || `Group ${group.id}`)} · g${escapeHtml(group.id)}</option>`;
+      const on = !isAll && selected.includes(value);
+      return `<button type="button" class="show-target-chip show-target-group slot-${index % 4}${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" aria-pressed="${on}"${off}><span class="show-target-swatch" aria-hidden="true"></span>${escapeHtml(group.name || `Group ${group.id}`)}<small>g${escapeHtml(group.id)}</small></button>`;
     }).join("");
-    const seatOptions = seats().map(seat => {
+    const seatChips = seats().map(seat => {
       const value = String(seat.id);
-      return `<option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(seat.name || `Seat ${seat.id}`)} · Seat ${escapeHtml(seat.id)}</option>`;
+      const on = !isAll && selected.includes(value);
+      return `<button type="button" class="show-target-chip show-target-seat${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" aria-pressed="${on}" title="${escapeHtml(seat.name || `Seat ${seat.id}`)}"${off}>${escapeHtml(value)}</button>`;
     }).join("");
-    return `<option value="all" ${selected === "all" ? "selected" : ""}>All Seats</option>
-      ${groupOptions ? `<optgroup label="Groups">${groupOptions}</optgroup>` : ""}
-      ${seatOptions ? `<optgroup label="Seats">${seatOptions}</optgroup>` : ""}`;
+    const summary = isAll
+      ? '<span class="dim">every Seat</span>'
+      : selected.map(entry => `<button type="button" class="show-target-chip show-target-selected" data-target-remove="${escapeHtml(entry)}" title="Remove ${escapeHtml(entry)}"${off}>${escapeHtml(entry)}<span aria-hidden="true"> ×</span></button>`).join("");
+    return `<section class="show-inspector-section show-target-picker${disabled ? " show-disabled-field" : ""}">
+      <div class="show-inspector-subhead"><h4>Target</h4><output class="show-target-terse">${escapeHtml(terseTargets(message))}</output></div>
+      <div class="show-target-summary">${summary}</div>
+      <div class="show-target-chips">
+        <button type="button" class="show-target-chip show-target-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${off}>All</button>
+        ${groupChips}
+      </div>
+      ${seatChips ? `<div class="show-target-chips show-target-roster">${seatChips}</div>` : ""}
+    </section>`;
   }
 
   function inferMessageMode(message) {
@@ -197,7 +231,7 @@
 
   function wirePreview(message) {
     const args = (message.args || []).map(arg => `${arg.type}:${String(arg.value)}`).join(", ");
-    return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${message.target || "all"}`;
+    return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${terseTargets(message)}`;
   }
 
   function friendlyShowError() {
@@ -246,7 +280,7 @@
     if (!messages.length) return '<span class="show-no-messages">No messages</span>';
     return messages.map(message => {
       const selected = focused("message", message.uid) ? " focused" : "";
-      const title = `${message.address || ""} -> ${message.target || "all"}`;
+      const title = `${message.address || ""} -> ${terseTargets(message)}`;
       return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" title="${escapeHtml(title)}">${escapeHtml(messageLabel(message))}</button>`;
     }).join("");
   }
@@ -383,9 +417,7 @@
       <div class="show-inspector-form" data-show-message-editor="${escapeHtml(message.uid)}">
         <p class="show-inspector-context">${escapeHtml(stepLabel(step))}</p>
         <label>alias <input id="show-message-alias" type="text" autocomplete="off" value="${escapeHtml(message.alias || "")}" placeholder="${escapeHtml(messageLabel(message))}"></label>
-        <label class="${targetDisabled ? "show-disabled-field" : ""}">target
-          <select id="show-message-target" ${targetDisabled ? "disabled" : ""}>${targetOptions(message.target || "all")}</select>
-        </label>
+        ${renderTargetPicker(message, targetDisabled)}
         <label>payload mode
           <select id="show-message-mode">
             <option value="param" ${mode === "param" ? "selected" : ""}>parameter</option>
@@ -511,16 +543,16 @@
       const identity = declaration?.identity || "gain";
       const type = declaration?.type || "f";
       const value = declaration?.default ?? (type === "s" ? "" : 0);
-      updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: message.target || "all"});
+      updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
     } else if (mode === "cue") {
-      updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: manifest.cues[0]?.id || ""}], target: message.target || "all"});
+      updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: manifest.cues[0]?.id || ""}], target: targetList(message)});
     } else if (mode === "point") {
       updateMessage(message.uid, {address: "/pt", args: [
         {type: "i", value: 0}, {type: "f", value: 0}, {type: "f", value: 0},
         {type: "f", value: 1}, {type: "i", value: 1},
-      ], target: message.target || "all"});
+      ], target: targetList(message)});
     } else {
-      updateMessage(message.uid, {address: "/raw", args: message.args || [], target: message.target || "all"});
+      updateMessage(message.uid, {address: "/raw", args: message.args || [], target: targetList(message)});
     }
   }
 
@@ -583,7 +615,6 @@
       const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
       if (!message) return;
       if (event.target.id === "show-message-alias") updateMessage(message.uid, {alias: event.target.value.trim() || null});
-      if (event.target.id === "show-message-target") updateMessage(message.uid, {target: event.target.value});
       if (event.target.id === "show-message-mode") applyModeDefault(message, event.target.value);
       if (event.target.id === "show-param-picker") {
         const manifest = manifestFromStagedPatch();
@@ -632,7 +663,7 @@
       }
       if (event.target.id === "show-add-message") {
         pendingMessageAdd = {step_uid: step.uid, known: new Set((step.messages || []).map(message => message.uid))};
-        ws.send("add_message", {step_uid: step.uid, message: {alias: null, address: "/p/gain", args: [{type: "f", value: 0}], target: "all"}});
+        ws.send("add_message", {step_uid: step.uid, message: {alias: null, address: "/p/gain", args: [{type: "f", value: 0}], target: ["all"]}});
       }
     }
 
@@ -640,6 +671,15 @@
     if (messageEditor) {
       const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
       if (!message) return;
+      const toggle = event.target.closest("[data-target-toggle]");
+      if (toggle) {
+        updateMessage(message.uid, {target: toggledTargets(message, toggle.dataset.targetToggle)});
+      }
+      const removal = event.target.closest("[data-target-remove]");
+      if (removal) {
+        const remaining = targetList(message).filter(entry => entry !== removal.dataset.targetRemove);
+        updateMessage(message.uid, {target: remaining.length ? remaining : ["all"]});
+      }
       if (event.target.matches("[data-add-raw-arg]")) {
         updateMessage(message.uid, {args: [...(message.args || []), {type: "f", value: 0}]});
       }

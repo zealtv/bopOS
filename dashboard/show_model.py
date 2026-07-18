@@ -56,9 +56,22 @@ def clean_uid(value):
 
 
 def clean_target(value):
-    # "all", a decimal Seat id string, or "g<group-id>" -- the literal
-    # selector already passed into OSCBridge.set_param (design note sec 2).
-    return value if isinstance(value, str) and TARGET_RE.fullmatch(value) else None
+    # 5c amendment (design note sec 2 amendment): a target is a non-empty
+    # list of selectors -- "all", a decimal Seat id string, or "g<group-id>",
+    # each the literal selector passed into OSCBridge.set_param. A legacy
+    # single selector string still loads and normalizes to a one-item list;
+    # duplicates collapse and "all" subsumes every other selector.
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not value:
+        return None
+    selectors = []
+    for raw in value:
+        if not isinstance(raw, str) or not TARGET_RE.fullmatch(raw):
+            return None
+        if raw not in selectors:
+            selectors.append(raw)
+    return ["all"] if "all" in selectors else selectors
 
 
 def clean_arg(value):

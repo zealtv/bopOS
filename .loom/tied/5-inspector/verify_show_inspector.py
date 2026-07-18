@@ -289,7 +289,11 @@ def main():
                 check("cue builder preview is exact and target is greyed",
                       page.locator("#show-wire-preview").inner_text()
                       == "/cue [s:blackout] -> all"
-                      and page.locator("#show-message-target").is_disabled())
+                      # 5c: the target dropdown became a chip picker; greyed
+                      # now means the disabled picker section.
+                      and page.locator(
+                          ".show-target-picker.show-disabled-field "
+                          '[data-target-toggle="all"]').is_disabled())
 
                 page.locator('.show-step-row[data-show-step-row="11111111"]').click()
                 before_pills = page.locator(

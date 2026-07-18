@@ -265,7 +265,8 @@ def test_message_ops():
     show, updated, error = show_model.update_message(show, message["uid"], {
         "target": "3", "alias": "renamed"})
     check("update_message: partial patch updates only the given fields",
-          error is None and updated["target"] == "3" and updated["alias"] == "renamed"
+          # 5c: string target patches normalize to selector lists.
+          error is None and updated["target"] == ["3"] and updated["alias"] == "renamed"
           and updated["address"] == "/p/gain")
 
     show, moved, error = show_model.move_message(
@@ -508,7 +509,7 @@ async def run_part_b():
                 }, {"show"})
                 show_doc = result["show"][-1]
                 check("update_message over the wire applies its patch",
-                      show_doc["items"][0]["messages"][0]["target"] == "3"
+                      show_doc["items"][0]["messages"][0]["target"] == ["3"]
                       and show_doc["items"][0]["messages"][0]["alias"] == "gain up")
 
                 result = await send_and_wait(
@@ -578,7 +579,7 @@ async def run_part_b():
                       and step_uid in [item["uid"] for item in restored["items"]]
                       and restored["items"][0]["alias"] == "intro"
                       and restored["items"][0]["messages"][0]["uid"] == message_uid
-                      and restored["items"][0]["messages"][0]["target"] == "3",
+                      and restored["items"][0]["messages"][0]["target"] == ["3"],
                       json.dumps(restored, indent=2))
         finally:
             if server2.poll() is None:

@@ -13,8 +13,10 @@ address kind:
   - `/cue`      -> `fire_cue` (forward_sync) or `fire_cue_now` (immediate) --
                    the only two cue senders that exist, so behavior always
                    matches every other tab's cue traffic exactly.
-  - `/p/<name>` -> `set_param(target, name, value)` -- `target` is already
-                   the literal selector (design note sec 2), never re-derived.
+  - `/p/<name>` -> `set_param(selector, name, value)` once per selector in
+                   the message's `target` list -- each entry is already the
+                   literal selector (design note sec 2 + 5c amendment),
+                   never re-derived.
   - anything else (including `/pt`) -> `send(address, args)` verbatim. A show
     message's `args` already carry the exact wire-order OSC arguments for
     its address (this is how `/pt`'s selector-free contract plane -- and any
@@ -150,7 +152,14 @@ class ShowEngine:
                 self.bridge.fire_cue_now(cue_id)
         elif address.startswith("/p/") and len(address) > 3:
             name = address[len("/p/"):]
-            self.bridge.set_param(target, name, args[0] if args else 0)
+            # 5c: target is a selector list; fan one datagram out per
+            # selector. A seat covered twice (listed and in a listed group)
+            # receives the write twice -- harmless, params are idempotent
+            # full-state writes, so no set-algebra here. The model already
+            # collapses exact duplicates and lets "all" subsume the rest.
+            selectors = target if isinstance(target, list) else [target]
+            for selector in selectors:
+                self.bridge.set_param(selector, name, args[0] if args else 0)
         else:
             self.bridge.send(address, args)
 
