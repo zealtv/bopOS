@@ -107,13 +107,18 @@ and tie one concrete stitch at a time:
    name filtering, independently staged device mute beneath fleet safety, and
    exact-device alias-derived hostname action are tied. Existing Pis need one
    manual provisioning run before the hostname action is available.
-9. **Next — Close the sweep.** Resume
+9. **Active — Show tab first slice.** Bob's 2026-07-18 braindump authorizes
+   the first implemented slice of the reserved Sequencer tab (renamed
+   **Show**): thread `14-show-tab` (steps/sections/messages, playback engine
+   with follow actions, inspector/message builder, OSC consoles). It contains
+   no scene-language work; `scene-sequencing` stays paused and gated.
+10. **Next — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
-`scene-sequencing` co-design. It is not part of this nine-stage sweep and does
-not authorize implementation.
+`scene-sequencing` co-design. It does not itself authorize implementation;
+the 2026-07-18 braindump authorizes exactly the `14-show-tab` slice.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 
