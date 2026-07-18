@@ -59,10 +59,13 @@ vocabulary) remain open co-design questions Bob owns.
 ## Next work
 
 CLAUDE.md stage 10: resume `patch-workflow-friction/friction-0..1`.
-**Gotcha:** those stitches don't exist in `.loom/threads/` — only
-`friction-0a-readme-refresh` was ever tied. The next session must lay the
-thread out first (check `.loom/tied/friction-0a-readme-refresh/` for the
-original framing). The only current loose end besides that is
+**Gotcha:** those stitches don't exist in this repo's `.loom/threads/` —
+only `friction-0a-readme-refresh` was ever tied. After the tie ping, the
+gremlin filed a `patch-workflow-friction` loose end on the **host loom**
+(`~/repos/.loom/threads/patch-workflow-friction/instructions.md`) capturing
+the handoff, naming choices, and first action — start there, and lay the
+in-repo stitches out from it (check
+`.loom/tied/friction-0a-readme-refresh/` for the original framing). The only current loose end besides that is
 `notify-patch-lifecycle`; everything else is `.waiting` on Bob/hardware
 gates.
 
