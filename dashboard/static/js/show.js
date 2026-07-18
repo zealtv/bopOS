@@ -10,6 +10,7 @@
   let countdownTimer = null;
   let showError = "";
   let pendingMessageAdd = null;
+  let clipboard = null;
 
   const THEN_ACTIONS = [
     ["stop", "Stop"],
@@ -286,7 +287,8 @@
   }
 
   function dividerRow(item, index) {
-    return `<div class="show-divider-row" data-show-item="${escapeHtml(item.uid)}" data-show-index="${index}" role="separator" aria-label="Section divider"></div>`;
+    const selected = focused("divider", item.uid) ? " focused" : "";
+    return `<div class="show-divider-row${selected}" data-show-divider-row="${escapeHtml(item.uid)}" data-show-index="${index}" role="button" tabindex="0" aria-label="Section divider"></div>`;
   }
 
   function stepRow(step, index) {
@@ -297,11 +299,13 @@
     const time = remaining == null
       ? `<span class="show-step-duration">${terseDuration(step.duration_s)}</span>`
       : `<span class="show-remaining" title="${stateName === "paused" ? "paused" : "remaining"}">${terseDuration(remaining)}</span>`;
+    const gotoMissing = playbackState(step.uid).goto_missing
+      ? '<span class="show-goto-missing" title="goto target no longer exists; stopped">goto?</span>' : "";
     return `<div class="show-step-row show-step-${escapeHtml(stateName)}${selected}${playing}" data-show-step-row="${escapeHtml(step.uid)}" data-show-index="${index}" role="row" tabindex="0">
       <div class="show-step-transport">${stepTransport(step)}</div>
       <strong class="show-step-alias" title="${escapeHtml(stepLabel(step))}">${escapeHtml(stepLabel(step))}</strong>
       <div class="show-message-pills">${messagePills(step)}</div>
-      <div class="show-step-time">${time}</div>
+      <div class="show-step-time">${gotoMissing}${time}</div>
     </div>`;
   }
 
@@ -345,7 +349,13 @@
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
     root.innerHTML = `${renderTransport()}<div class="show-workspace">
-      <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
+      <div>
+        <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
+        <div class="show-add-bar">
+          <button type="button" data-item-add-end="step">+ Step</button>
+          <button type="button" data-item-add-end="divider">+ Divider</button>
+        </div>
+      </div>
       <aside class="show-inspector-shell" aria-label="Show inspector">${renderInspector()}</aside>
     </div>`;
   }
@@ -359,7 +369,36 @@
       const found = messageByUid(focus.uid);
       if (found.message) return renderMessageInspector(found.step, found.message);
     }
+    if (focus.kind === "divider") {
+      const divider = (show.items || []).find(item => item.kind === "divider" && item.uid === focus.uid);
+      if (divider) return renderDividerInspector(divider);
+    }
     return `<h3>Inspector</h3><p class="dim">Select a step or message.</p>`;
+  }
+
+  function renderArrange(item) {
+    const uid = escapeHtml(item.uid);
+    const paste = item.kind === "step"
+      ? `<button type="button" data-paste-message="${uid}" ${clipboard ? "" : "disabled"}>Paste message</button>` : "";
+    return `<section class="show-inspector-section">
+      <div class="show-inspector-subhead"><h4>Arrange</h4></div>
+      <div class="show-arrange-grid">
+        <button type="button" data-item-move="-1" data-item-uid="${uid}">Move up</button>
+        <button type="button" data-item-move="1" data-item-uid="${uid}">Move down</button>
+        <button type="button" data-item-add="step" data-item-uid="${uid}">Step below</button>
+        <button type="button" data-item-add="divider" data-item-uid="${uid}">Divider below</button>
+        ${paste}
+        <button type="button" class="danger" data-item-delete="${uid}">Delete ${item.kind}</button>
+      </div>
+    </section>`;
+  }
+
+  function renderDividerInspector(divider) {
+    return `<h3>Divider inspector</h3>
+      <div class="show-inspector-form" data-show-divider-editor="${escapeHtml(divider.uid)}">
+        <p class="show-inspector-context">Section divider</p>
+        ${renderArrange(divider)}
+      </div>`;
   }
 
   function renderStepInspector(step) {
@@ -393,6 +432,7 @@
         <label class="show-check"><input id="show-forward-sync" type="checkbox" ${step.forward_sync ? "checked" : ""}> forward-sync cue messages</label>
         ${syncHint}
         <button type="button" id="show-add-message">Add message</button>
+        ${renderArrange(step)}
         <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
       </div>`;
   }
@@ -401,8 +441,10 @@
     const type = action?.type || "stop";
     const options = THEN_ACTIONS.map(([value, label]) =>
       `<option value="${value}" ${value === type ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+    const stale = type === "goto" && action.target_uid && !stepByUid(action.target_uid)
+      ? `<option value="${escapeHtml(action.target_uid)}" selected>missing step · ${escapeHtml(action.target_uid)}</option>` : "";
     const goto = type === "goto"
-      ? `<select data-then-goto="${index}" aria-label="goto target">${stepOptions(action.target_uid) || '<option value="">No steps</option>'}</select>` : "";
+      ? `<select data-then-goto="${index}" aria-label="goto target">${stale}${stepOptions(action.target_uid) || '<option value="">No steps</option>'}</select>` : "";
     return `<div class="show-then-row" data-then-index="${index}">
       <select data-then-type="${index}" aria-label="then action">${options}</select>
       ${goto}
@@ -427,9 +469,31 @@
           </select>
         </label>
         ${renderPayloadBuilder(message, mode)}
+        ${renderMessageEdit(step, message)}
         <label>wire form <output id="show-wire-preview">${escapeHtml(wirePreview(message))}</output></label>
         <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
       </div>`;
+  }
+
+  function renderMessageEdit(step, message) {
+    const uid = escapeHtml(message.uid);
+    const others = allSteps().filter(candidate => candidate.uid !== step.uid);
+    const moveOptions = others.map(candidate =>
+      `<option value="${escapeHtml(candidate.uid)}">${escapeHtml(stepLabel(candidate))}</option>`).join("");
+    return `<section class="show-inspector-section">
+      <div class="show-inspector-subhead"><h4>Edit</h4></div>
+      <div class="show-arrange-grid">
+        <button type="button" data-message-copy="${uid}">Copy</button>
+        <button type="button" data-message-cut="${uid}">Cut</button>
+        <button type="button" data-message-move="-1" data-message-uid="${uid}">Move left</button>
+        <button type="button" data-message-move="1" data-message-uid="${uid}">Move right</button>
+        <button type="button" class="danger" data-message-delete="${uid}">Delete</button>
+      </div>
+      ${others.length ? `<label>move to step
+        <select data-message-move-step="${uid}">
+          <option value="" selected>choose a step…</option>${moveOptions}
+        </select></label>` : ""}
+    </section>`;
   }
 
   function renderPayloadBuilder(message, mode) {
@@ -501,6 +565,15 @@
   function render() {
     if (!shows.current) renderEmptyState();
     else renderLoadedShow();
+    // Re-rendering replaces the DOM and drops element focus, which breaks
+    // keyboard copy/paste on the focused pill/row; restore it unless the
+    // user is in a form control.
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const selector = focus.kind === "message" ? `[data-show-message-focus="${focus.uid}"]`
+      : focus.kind === "step" ? `[data-show-step-row="${focus.uid}"]`
+      : focus.kind === "divider" ? `[data-show-divider-row="${focus.uid}"]` : null;
+    if (selector) root.querySelector(selector)?.focus({preventScroll: true});
   }
 
   function sendTransport(type, uid) {
@@ -534,6 +607,70 @@
       return {type, target_uid: allSteps()[0]?.uid || ""};
     }
     return {type};
+  }
+
+  function itemByUid(uid) {
+    return (show.items || []).find(item => item.uid === uid) || null;
+  }
+
+  function moveItem(uid, direction) {
+    const items = show.items || [];
+    const index = items.findIndex(item => item.uid === uid);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= items.length) return;
+    const afterUid = direction < 0
+      ? (target > 0 ? items[target - 1].uid : null)
+      : items[target].uid;
+    showError = "";
+    ws.send("move_item", {uid, after_uid: afterUid});
+  }
+
+  function moveMessage(step, message, direction) {
+    const messages = step.messages || [];
+    const index = messages.findIndex(candidate => candidate.uid === message.uid);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= messages.length) return;
+    const afterUid = direction < 0
+      ? (target > 0 ? messages[target - 1].uid : null)
+      : messages[target].uid;
+    showError = "";
+    ws.send("move_message", {uid: message.uid, to_step_uid: step.uid, after_uid: afterUid});
+  }
+
+  function copyMessage(message) {
+    clipboard = {
+      alias: message.alias, address: message.address,
+      args: structuredClone(message.args || []),
+      target: structuredClone(targetList(message)),
+    };
+    render();
+  }
+
+  function pasteMessage(stepUid) {
+    const step = stepByUid(stepUid);
+    if (!clipboard || !step) return;
+    showError = "";
+    pendingMessageAdd = {step_uid: stepUid, known: new Set((step.messages || []).map(message => message.uid))};
+    ws.send("add_message", {step_uid: stepUid, message: structuredClone(clipboard)});
+  }
+
+  function deleteMessage(uid) {
+    showError = "";
+    ws.send("remove_message", {uid});
+  }
+
+  function deleteItem(uid) {
+    const item = itemByUid(uid);
+    if (!item) return;
+    if (item.kind === "step" && (item.messages || []).length
+        && !confirm(`Delete step "${stepLabel(item)}" and its ${item.messages.length} message(s)?`)) return;
+    showError = "";
+    ws.send("remove_item", {uid});
+  }
+
+  function addItem(kind, afterUid) {
+    showError = "";
+    ws.send(kind === "divider" ? "add_divider" : "add_step", {after_uid: afterUid || null});
   }
 
   function applyModeDefault(message, mode) {
@@ -576,6 +713,11 @@
     if (pill) {
       event.stopPropagation();
       setFocus("message", pill.dataset.showMessageFocus);
+      return;
+    }
+    const divider = event.target.closest("[data-show-divider-row]");
+    if (divider) {
+      setFocus("divider", divider.dataset.showDividerRow);
       return;
     }
     const row = event.target.closest("[data-show-step-row]");
@@ -636,6 +778,16 @@
           typedArg("f", values.r), typedArg("i", values.enabled),
         ]});
       }
+      if (event.target.matches("[data-message-move-step]")) {
+        const destinationUid = event.target.value;
+        const destination = stepByUid(destinationUid);
+        if (destination) {
+          const tail = (destination.messages || []).slice(-1)[0];
+          showError = "";
+          ws.send("move_message", {uid: message.uid, to_step_uid: destinationUid,
+                                   after_uid: tail ? tail.uid : null});
+        }
+      }
       if (event.target.id === "show-raw-address") updateMessage(message.uid, {address: event.target.value.trim() || "/"});
       if (event.target.matches("[data-raw-type], [data-raw-value]")) {
         const args = (message.args || []).map((arg, index) => {
@@ -649,6 +801,58 @@
   });
 
   root.addEventListener("click", event => {
+    const itemMove = event.target.closest("[data-item-move]");
+    if (itemMove) {
+      moveItem(itemMove.dataset.itemUid, Number(itemMove.dataset.itemMove));
+      return;
+    }
+    const itemAdd = event.target.closest("[data-item-add]");
+    if (itemAdd) {
+      addItem(itemAdd.dataset.itemAdd, itemAdd.dataset.itemUid);
+      return;
+    }
+    const itemAddEnd = event.target.closest("[data-item-add-end]");
+    if (itemAddEnd) {
+      const items = show.items || [];
+      addItem(itemAddEnd.dataset.itemAddEnd, items.length ? items[items.length - 1].uid : null);
+      return;
+    }
+    const itemDelete = event.target.closest("[data-item-delete]");
+    if (itemDelete) {
+      deleteItem(itemDelete.dataset.itemDelete);
+      return;
+    }
+    const copyButton = event.target.closest("[data-message-copy]");
+    if (copyButton) {
+      const {message} = messageByUid(copyButton.dataset.messageCopy);
+      if (message) copyMessage(message);
+      return;
+    }
+    const cutButton = event.target.closest("[data-message-cut]");
+    if (cutButton) {
+      const {message} = messageByUid(cutButton.dataset.messageCut);
+      if (message) {
+        copyMessage(message);
+        deleteMessage(message.uid);
+      }
+      return;
+    }
+    const pasteButton = event.target.closest("[data-paste-message]");
+    if (pasteButton) {
+      pasteMessage(pasteButton.dataset.pasteMessage);
+      return;
+    }
+    const messageDelete = event.target.closest("[data-message-delete]");
+    if (messageDelete) {
+      deleteMessage(messageDelete.dataset.messageDelete);
+      return;
+    }
+    const messageMove = event.target.closest("[data-message-move]");
+    if (messageMove) {
+      const {step, message} = messageByUid(messageMove.dataset.messageUid);
+      if (message) moveMessage(step, message, Number(messageMove.dataset.messageMove));
+      return;
+    }
     const stepEditor = event.target.closest("[data-show-step-editor]");
     if (stepEditor) {
       const step = stepByUid(stepEditor.dataset.showStepEditor);
@@ -692,10 +896,48 @@
   });
 
   root.addEventListener("keydown", event => {
+    if (event.target.closest("input, select, textarea")) return;
+    const pill = event.target.closest("[data-show-message-focus]");
     const row = event.target.closest("[data-show-step-row]");
-    if (!row || !["Enter", " "].includes(event.key)) return;
-    event.preventDefault();
-    setFocus("step", row.dataset.showStepRow);
+    const divider = event.target.closest("[data-show-divider-row]");
+    const meta = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (meta && key === "c" && pill) {
+      const {message} = messageByUid(pill.dataset.showMessageFocus);
+      if (message) copyMessage(message);
+      event.preventDefault();
+      return;
+    }
+    if (meta && key === "x" && pill) {
+      const {message} = messageByUid(pill.dataset.showMessageFocus);
+      if (message) {
+        copyMessage(message);
+        deleteMessage(message.uid);
+      }
+      event.preventDefault();
+      return;
+    }
+    if (meta && key === "v" && (pill || row)) {
+      pasteMessage(pill ? pill.dataset.showStep : row.dataset.showStepRow);
+      event.preventDefault();
+      return;
+    }
+    if (["Delete", "Backspace"].includes(event.key)) {
+      if (pill) deleteMessage(pill.dataset.showMessageFocus);
+      else if (row) deleteItem(row.dataset.showStepRow);
+      else if (divider) deleteItem(divider.dataset.showDividerRow);
+      if (pill || row || divider) event.preventDefault();
+      return;
+    }
+    if (["Enter", " "].includes(event.key)) {
+      if (divider) {
+        event.preventDefault();
+        setFocus("divider", divider.dataset.showDividerRow);
+      } else if (row && !pill) {
+        event.preventDefault();
+        setFocus("step", row.dataset.showStepRow);
+      }
+    }
   });
 
   root.addEventListener("submit", event => {
@@ -722,7 +964,9 @@
     }
     const validFocus = focus.kind === "step"
       ? stepByUid(focus.uid)
-      : (show.items || []).some(item => item.kind === "step" && (item.messages || []).some(message => message.uid === focus.uid));
+      : focus.kind === "divider"
+        ? (show.items || []).some(item => item.kind === "divider" && item.uid === focus.uid)
+        : (show.items || []).some(item => item.kind === "step" && (item.messages || []).some(message => message.uid === focus.uid));
     if (!validFocus) focus = {kind: null, uid: null};
     render();
   });
