@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 import points
 import device_aliases
+import show_model
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
@@ -143,6 +144,10 @@ class Dashboard:
         self.host_version = host_checkout_shorthand()
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
+        self.shows_dir = show_model.shows_dir(self.state.path)
+        current_show = self.state.data.get("current_show")
+        self.show = (show_model.load_show(self.shows_dir, current_show)
+                    if current_show else show_model.empty_show(""))
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
 
@@ -225,6 +230,10 @@ class Dashboard:
         await ws.send_json({"type": "venues", "data": {
             "venues": self.state.list_venues(),
             "current": self.state.data.get("name")}})
+        await ws.send_json({"type": "shows", "data": {
+            "names": show_model.list_shows(self.shows_dir),
+            "current": self.state.data.get("current_show")}})
+        await ws.send_json({"type": "show", "data": self.show})
         for device_uid, device in self.state.devices.items():
             if self.state.seat_for_uid(device_uid) and device.get("online"):
                 self.osc.request(device_uid, "patches")
@@ -997,10 +1006,116 @@ class Dashboard:
         elif kind == "list_venues":
             await self.broadcast("venues", {"venues": self.state.list_venues(),
                                             "current": self.state.data.get("name")})
+        elif kind == "list_shows":
+            await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
+                                           "current": self.state.data.get("current_show")})
+        elif kind == "create_show":
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
+            if not name:
+                await self.ws_error(ws, "Show names must be text.")
+                return
+            doc, error = show_model.create_show(self.shows_dir, name)
+            if error:
+                await self.ws_error(ws, error)
+                return
+            await self.set_current_show(name, doc)
+        elif kind == "load_show":
+            name = str(data.get("name", "")).strip()
+            if name not in show_model.list_shows(self.shows_dir):
+                await self.ws_error(ws, "That show could not be loaded.")
+                return
+            # TODO(stitch 3): stop all playback before switching documents
+            # (design note sec 3, load_show row) -- no playback engine exists
+            # yet, so there is nothing to stop.
+            await self.set_current_show(name, show_model.load_show(self.shows_dir, name))
+        elif kind == "save_show_as":
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
+            if not name:
+                await self.ws_error(ws, "Show names must be text.")
+                return
+            doc = dict(self.show)
+            doc["name"] = name
+            try:
+                show_model.save_show(self.shows_dir, doc)
+            except OSError:
+                await self.ws_error(ws, "The show could not be saved.")
+                return
+            await self.set_current_show(name, doc)
+        elif kind == "delete_show":
+            name = str(data.get("name", "")).strip()
+            if not name or not show_model.delete_show(self.shows_dir, name):
+                await self.ws_error(ws, "That show could not be deleted.")
+                return
+            if self.state.data.get("current_show") == name:
+                self.state.data["current_show"] = None
+                self.show = show_model.empty_show("")
+                self.state.save_debounced()
+                await self.broadcast("show", self.show)
+            await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
+                                           "current": self.state.data.get("current_show")})
+        elif kind == "add_step":
+            await self.apply_show_mutation(ws, show_model.add_step, data.get("after_uid"))
+        elif kind == "add_divider":
+            await self.apply_show_mutation(ws, show_model.add_divider, data.get("after_uid"))
+        elif kind == "update_step":
+            patch = {key: data[key] for key in
+                     ("alias", "duration_s", "play_count", "then_actions", "forward_sync")
+                     if key in data}
+            await self.apply_show_mutation(ws, show_model.update_step, data.get("uid"), patch)
+        elif kind == "move_item":
+            await self.apply_show_mutation(
+                ws, show_model.move_item, data.get("uid"), data.get("after_uid"))
+        elif kind == "remove_item":
+            await self.apply_show_mutation(ws, show_model.remove_item, data.get("uid"))
+        elif kind == "add_message":
+            await self.apply_show_mutation(
+                ws, show_model.add_message, data.get("step_uid"), data.get("message"))
+        elif kind == "update_message":
+            patch = {key: data[key] for key in ("alias", "address", "args", "target")
+                     if key in data}
+            await self.apply_show_mutation(ws, show_model.update_message, data.get("uid"), patch)
+        elif kind == "move_message":
+            await self.apply_show_mutation(
+                ws, show_model.move_message, data.get("uid"),
+                data.get("to_step_uid"), data.get("after_uid"))
+        elif kind == "remove_message":
+            await self.apply_show_mutation(ws, show_model.remove_message, data.get("uid"))
         elif kind == "request_params":
             self.osc.request(uid, "params")
         elif kind == "request_report":
             self.osc.request(uid, "report")
+
+    async def set_current_show(self, name, doc):
+        """Adopt `doc` as the loaded show and broadcast catalog + full-state."""
+        self.show = doc
+        self.state.data["current_show"] = name
+        self.state.save_debounced()
+        await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
+                                       "current": name})
+        await self.broadcast("show", self.show)
+
+    async def apply_show_mutation(self, ws, mutate, *args):
+        """Run one show_model edit op against the loaded show and persist it.
+
+        `mutate` is any show_model function shaped (show, *args) -> (new_show,
+        result, error); every WS edit message funnels through here so the
+        persist-then-broadcast sequence exists exactly once (design note sec
+        3: every mutation persists and re-broadcasts `show` full-state).
+        """
+        if not self.state.data.get("current_show"):
+            await self.ws_error(ws, "No show is loaded.")
+            return
+        new_show, _result, error = mutate(self.show, *args)
+        if error:
+            await self.ws_error(ws, error)
+            return
+        try:
+            show_model.save_show(self.shows_dir, new_show)
+        except OSError:
+            await self.ws_error(ws, "The show could not be saved.")
+            return
+        self.show = new_show
+        await self.broadcast("show", self.show)
 
     async def revoke_online(self, uid, ws, action):
         """Make an online physical node acknowledge id=-1 before mutation."""

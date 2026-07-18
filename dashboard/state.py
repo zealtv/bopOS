@@ -111,6 +111,7 @@ class InstallationState:
                      "facilitator_commands": [],
                      "fleet_patch": None,
                      "params_patch": None,
+                     "current_show": None,
                      "listener": None,
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
@@ -178,6 +179,8 @@ class InstallationState:
                 self.data["params_patch"] = (params_patch.strip()
                                              if isinstance(params_patch, str)
                                              and params_patch.strip() else None)
+                self.data["current_show"] = self.clean_current_show(
+                    loaded.get("current_show"))
                 if self.data["fleet_patch"]:
                     # simulation["patch"] is a read-through of the fleet choice
                     self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
@@ -350,6 +353,7 @@ class InstallationState:
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
                 "params_patch": self.data.get("params_patch"),
+                "current_show": self.clean_current_show(self.data.get("current_show")),
                 "listener": dict(self.data["listener"]),
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
@@ -753,6 +757,15 @@ class InstallationState:
         return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
                 "staged_at": staged_at, "previous": previous}
 
+    @staticmethod
+    def clean_current_show(value):
+        # Which show the playback engine has loaded (show-tab design note sec
+        # 2), parallel to fleet_patch/params_patch. The show document itself
+        # lives in dashboard/shows/<name>.json (show_model.py); this is only
+        # the name pointer, and a stale/renamed name is not an error here --
+        # show_model.load_show() tolerates a missing file as an empty show.
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
     def stage_fleet_patch(self, name, fingerprint):
         # rotate `previous` only on a name change: re-staging the same patch
         # (host edit, simulation restart) refreshes fingerprint/staged_at in
@@ -900,6 +913,9 @@ class InstallationState:
         snapshot["name"] = name
         # Physical-box identity belongs to this dashboard host, never a venue.
         snapshot.pop("device_registry", None)
+        # Which show is loaded is an authoring-session fact, not venue
+        # topology (room/seats/patch) -- a venue load leaves it untouched.
+        snapshot.pop("current_show", None)
         with open(temporary, "w", encoding="utf-8") as target:
             json.dump(snapshot, target, indent=2, sort_keys=True)
             target.write("\n")
