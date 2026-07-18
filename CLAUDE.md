@@ -107,12 +107,18 @@ and tie one concrete stitch at a time:
    name filtering, independently staged device mute beneath fleet safety, and
    exact-device alias-derived hostname action are tied. Existing Pis need one
    manual provisioning run before the hostname action is available.
-9. **Active — Show tab first slice.** Bob's 2026-07-18 braindump authorizes
-   the first implemented slice of the reserved Sequencer tab (renamed
-   **Show**): thread `14-show-tab` (steps/sections/messages, playback engine
-   with follow actions, inspector/message builder, OSC consoles). It contains
-   no scene-language work; `scene-sequencing` stays paused and gated.
-10. **Next — Close the sweep.** Resume
+9. **Complete — Show tab first slice.** Thread `14-show-tab` is fully tied
+   (2026-07-18): the Sequencer placeholder is gone, replaced by the **Show**
+   tab — steps/sections/messages document model with persistence, playback
+   engine with the full then-action vocabulary, compact Ableton-density
+   rows, context-sensitive inspector with message builder and multi-target
+   chip picker (targets are selector lists), structural editing
+   (copy/cut/paste/move/delete), and always-on outgoing/incoming OSC
+   consoles with client-side filtering. Deferred by design: musical time /
+   global transport, decomposed curves, point motion, the animated
+   visualisation view, and multi-column layout — those stay with the
+   Bob-gated `scene-sequencing` co-design.
+10. **Active — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.
 

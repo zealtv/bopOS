@@ -79,8 +79,10 @@ catalog, **Deploy As Fleet Patch** to converge every node to it, and edit
 patch manifests — parameters, cues, capabilities — right in the browser.
 
 **Assets** delivers big media (sample packs, textures) to one device at a
-time and shows exactly what each box has installed. **Sequencer** is a
-reserved placeholder for future show control.
+time and shows exactly what each box has installed. **Show** is the
+performance-control surface: author steps of OSC messages with durations
+and follow actions, play them against the fleet, and watch the outgoing
+and incoming OSC consoles.
 
 ## 4. Try the loop
 

@@ -32,10 +32,10 @@ Run a simulated fleet to play against (terminal 2):
 Then open:
 
 - **<http://localhost:8080/>** — Dashboard, Seats, Devices, Patches, Assets,
-  and Sequencer tabs. The landed controls cover device inspection, spatial
+  and Show tabs. The landed controls cover device inspection, spatial
   authoring, patch editing, host-to-node distribution, discovery/assignment,
-  synced named cues, venues, and presets; Assets and Sequencer are reserved
-  placeholders pending their design stitches.
+  synced named cues, venues, presets, single-device asset delivery, and
+  show authoring/playback (see "The Show tab" below).
 - **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
   with the patch's promoted (`facilitator: true`) params as labelled controls,
   master, Silence All, preset picker. On an iPad, "Add to Home
@@ -63,6 +63,39 @@ converge; live fleet devices are never driven while simulating.
 `tools/simfleet.py` is different: it is the protocol-only remote-node harness.
 It retains `/os/fetch` queue and receipt behaviour so distribution itself can be
 tested without hardware.
+
+## The Show tab
+
+The Show tab (previously the reserved "Sequencer" placeholder) is the
+primary performance-control surface. A **show** is an ordered list of
+**steps** — compact one-line rows, Ableton-session-view density — separated
+by **dividers**; the steps between two dividers form a **section**. Each
+step carries a set of OSC **messages** (rendered as pills, colour-coded by
+a stable hash of their alias) that all fire when the step starts.
+
+Steps have a duration (h/m/s), play-n-times or loop-forever, optional
+forward-sync for cue messages (schedules `/cue` ~500 ms ahead on the shared
+clock), and one or more **then-actions** resolved when playback exhausts:
+stop, play again, next/previous step, any/other in section (other has
+Ableton shuffle-bag semantics), goto a step by uid, next/previous section.
+Multiple then-actions choose randomly. A goto whose target step was deleted
+falls back to stop and flags the row. Per-row icon transport
+(play/stop/pause/trigger-next) plus a global Stop all.
+
+Messages are built in the context-sensitive inspector: parameter, cue,
+point, or raw payloads, and a target picker that composes any mix of seats
+and groups as chips (`3+7+g1`); cue/point payloads are selector-free so
+their target is greyed. Messages support copy/cut/paste/move/delete between
+steps (paste mints a fresh uid), with keyboard equivalents on the focused
+pill.
+
+Show documents persist as JSON in `shows/` next to the installation state
+file, one file per show; the schema and playback semantics live in
+`.notes/show-tab-design-2026-07-18.md`. Two collapsible OSC consoles sit
+under the table: outgoing (everything the dashboard sends) and incoming
+(everything the LAN surface receives, heartbeats included). Filter with
+space-separated terms that AND together, `*` wildcards, and `!` negation —
+e.g. `/p/* !/sync` — plus pause/clear and sticky auto-scroll.
 
 ## Real fleet
 
