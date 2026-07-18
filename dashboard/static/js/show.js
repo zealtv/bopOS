@@ -8,6 +8,20 @@
   let playbackAt = performance.now();
   let focus = {kind: null, uid: null};
   let countdownTimer = null;
+  let showError = "";
+  let pendingMessageAdd = null;
+
+  const THEN_ACTIONS = [
+    ["stop", "Stop"],
+    ["play_again", "Play again"],
+    ["next_step", "Next step"],
+    ["previous_step", "Previous step"],
+    ["any_in_section", "Any in section"],
+    ["other_in_section", "Other in section"],
+    ["goto", "Go to..."],
+    ["next_section", "Next section"],
+    ["previous_section", "Previous section"],
+  ];
 
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => (
     {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]
@@ -15,6 +29,15 @@
 
   function stepByUid(uid) {
     return (show.items || []).find(item => item.kind === "step" && item.uid === uid) || null;
+  }
+
+  function messageByUid(uid) {
+    for (const item of show.items || []) {
+      if (item.kind !== "step") continue;
+      const message = (item.messages || []).find(candidate => candidate.uid === uid);
+      if (message) return {step: item, message};
+    }
+    return {step: null, message: null};
   }
 
   function focused(kind, uid) {
@@ -69,6 +92,125 @@
       }
       return type.replaceAll("_", " ");
     }).join(" / ");
+  }
+
+  function allSteps() {
+    return (show.items || []).filter(item => item.kind === "step");
+  }
+
+  function stepOptions(selectedUid) {
+    return allSteps().map(step => {
+      const label = `${stepLabel(step)} · ${step.uid}`;
+      return `<option value="${escapeHtml(step.uid)}" ${step.uid === selectedUid ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    }).join("");
+  }
+
+  function secondsParts(value) {
+    const total = Math.max(0, Math.round(Number(value) || 0));
+    return {
+      h: Math.floor(total / 3600),
+      m: Math.floor((total % 3600) / 60),
+      s: total % 60,
+    };
+  }
+
+  function hasMixedForwardSync(step) {
+    if (!step?.forward_sync) return false;
+    const messages = step.messages || [];
+    return messages.some(message => message.address === "/cue") &&
+      messages.some(message => message.address !== "/cue");
+  }
+
+  function currentInstallation() {
+    try { return typeof installation === "object" && installation ? installation : {}; }
+    catch (_error) { return {}; }
+  }
+
+  function currentDistribution() {
+    try { return typeof distribution === "object" && distribution ? distribution : {}; }
+    catch (_error) { return {}; }
+  }
+
+  function paramIdentity(declaration) {
+    if (typeof declaration?.identity === "string" && declaration.identity) return declaration.identity;
+    const path = Array.isArray(declaration?.path) ? declaration.path.filter(Boolean).join("/") : "";
+    const name = declaration?.name || "";
+    return [path, name].filter(Boolean).join("/") || (declaration?.group || name);
+  }
+
+  function manifestFromStagedPatch() {
+    const state = currentInstallation();
+    const patch = state.live_controls?.patch || state.live_cues?.patch || state.params_patch || state.fleet_patch?.name;
+    const catalog = currentDistribution();
+    const item = (catalog.patches || []).find(candidate => candidate.name === patch);
+    const manifest = item?.manifest && typeof item.manifest === "object" ? item.manifest : null;
+    const params = Array.isArray(manifest?.params) ? manifest.params
+      : Array.isArray(state.live_controls?.declarations) ? state.live_controls.declarations : [];
+    const cues = Array.isArray(manifest?.cues) ? manifest.cues
+      : Array.isArray(state.live_cues?.cues) ? state.live_cues.cues : [];
+    return {
+      patch,
+      params: params.map(param => ({...param, identity: paramIdentity(param)})).filter(param => param.identity),
+      cues: cues.filter(cue => cue && typeof cue.id === "string" && cue.id),
+    };
+  }
+
+  function seats() {
+    const state = currentInstallation();
+    return Object.values(state.seats || {}).sort((a, b) => Number(a.id) - Number(b.id));
+  }
+
+  function groups() {
+    const state = currentInstallation();
+    return Object.values(state.groups || {}).sort((a, b) => Number(a.id) - Number(b.id));
+  }
+
+  function targetOptions(selected) {
+    const groupOptions = groups().map(group => {
+      const value = `g${group.id}`;
+      return `<option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(group.name || `Group ${group.id}`)} · g${escapeHtml(group.id)}</option>`;
+    }).join("");
+    const seatOptions = seats().map(seat => {
+      const value = String(seat.id);
+      return `<option value="${escapeHtml(value)}" ${selected === value ? "selected" : ""}>${escapeHtml(seat.name || `Seat ${seat.id}`)} · Seat ${escapeHtml(seat.id)}</option>`;
+    }).join("");
+    return `<option value="all" ${selected === "all" ? "selected" : ""}>All Seats</option>
+      ${groupOptions ? `<optgroup label="Groups">${groupOptions}</optgroup>` : ""}
+      ${seatOptions ? `<optgroup label="Seats">${seatOptions}</optgroup>` : ""}`;
+  }
+
+  function inferMessageMode(message) {
+    if (message.address === "/cue") return "cue";
+    if (message.address === "/pt") return "point";
+    if (message.address?.startsWith("/p/")) return "param";
+    return "raw";
+  }
+
+  function argValue(arg) {
+    return arg?.value ?? "";
+  }
+
+  function numberAttr(value, fallback = "") {
+    return Number.isFinite(Number(value)) ? Number(value) : fallback;
+  }
+
+  function typedArg(kind, value) {
+    if (kind === "s") return {type: "s", value: String(value ?? "")};
+    if (kind === "i") return {type: "i", value: Math.trunc(Number(value) || 0)};
+    const number = Number(value) || 0;
+    return {type: "f", value: Number(number.toPrecision(6))};
+  }
+
+  function wirePreview(message) {
+    const args = (message.args || []).map(arg => `${arg.type}:${String(arg.value)}`).join(", ");
+    return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${message.target || "all"}`;
+  }
+
+  function friendlyShowError() {
+    if (showError === "duration_s == 0 requires a finite play_count.") {
+      return "Duration 0 needs a finite play count.";
+    }
+    return showError;
   }
 
   function playbackState(uid) {
@@ -190,7 +332,157 @@
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
     root.innerHTML = `${renderTransport()}<div class="show-workspace">
       <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
-      <aside class="show-inspector-shell" aria-label="Show inspector"><h3>Inspector</h3><p class="dim">Select a step or message.</p></aside>
+      <aside class="show-inspector-shell" aria-label="Show inspector">${renderInspector()}</aside>
+    </div>`;
+  }
+
+  function renderInspector() {
+    if (focus.kind === "step") {
+      const step = stepByUid(focus.uid);
+      if (step) return renderStepInspector(step);
+    }
+    if (focus.kind === "message") {
+      const found = messageByUid(focus.uid);
+      if (found.message) return renderMessageInspector(found.step, found.message);
+    }
+    return `<h3>Inspector</h3><p class="dim">Select a step or message.</p>`;
+  }
+
+  function renderStepInspector(step) {
+    const parts = secondsParts(step.duration_s);
+    const loop = step.play_count == null;
+    const actions = Array.isArray(step.then_actions) ? step.then_actions : [];
+    const modelValidation = Number(step.duration_s) === 0 && step.play_count == null
+      ? "Duration 0 needs a finite play count." : "";
+    const validation = modelValidation || friendlyShowError()
+      ? `<p class="show-field-error">${escapeHtml(modelValidation || friendlyShowError())}</p>` : "";
+    const syncHint = hasMixedForwardSync(step)
+      ? '<p class="show-sync-hint">Forward-sync schedules /cue about 500 ms ahead; non-cue messages still send immediately.</p>' : "";
+    const actionRows = actions.map((action, index) => renderThenAction(action, index)).join("");
+    return `<h3>Step inspector</h3>
+      <div class="show-inspector-form" data-show-step-editor="${escapeHtml(step.uid)}">
+        <label>alias <input id="show-step-alias" type="text" autocomplete="off" value="${escapeHtml(step.alias || "")}" placeholder="Untitled step"></label>
+        <fieldset class="show-duration-fields"><legend>duration</legend>
+          <label>h <input data-duration-part="h" type="number" min="0" step="1" value="${parts.h}"></label>
+          <label>m <input data-duration-part="m" type="number" min="0" max="59" step="1" value="${parts.m}"></label>
+          <label>s <input data-duration-part="s" type="number" min="0" max="59" step="1" value="${parts.s}"></label>
+        </fieldset>
+        ${validation}
+        <div class="show-play-count-row">
+          <label>play n times <input id="show-play-count" type="number" min="1" step="1" value="${loop ? "" : escapeHtml(step.play_count)}" ${loop ? "disabled" : ""}></label>
+          <label class="show-check"><input id="show-play-forever" type="checkbox" ${loop ? "checked" : ""}> loop forever</label>
+        </div>
+        <section class="show-inspector-section">
+          <div class="show-inspector-subhead"><h4>Then actions</h4><button type="button" data-add-then-action>Add row</button></div>
+          <div class="show-then-list">${actionRows || '<p class="dim">No rows means stop.</p>'}</div>
+        </section>
+        <label class="show-check"><input id="show-forward-sync" type="checkbox" ${step.forward_sync ? "checked" : ""}> forward-sync cue messages</label>
+        ${syncHint}
+        <button type="button" id="show-add-message">Add message</button>
+        <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
+      </div>`;
+  }
+
+  function renderThenAction(action, index) {
+    const type = action?.type || "stop";
+    const options = THEN_ACTIONS.map(([value, label]) =>
+      `<option value="${value}" ${value === type ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+    const goto = type === "goto"
+      ? `<select data-then-goto="${index}" aria-label="goto target">${stepOptions(action.target_uid) || '<option value="">No steps</option>'}</select>` : "";
+    return `<div class="show-then-row" data-then-index="${index}">
+      <select data-then-type="${index}" aria-label="then action">${options}</select>
+      ${goto}
+      <button type="button" class="danger" data-remove-then="${index}">Remove</button>
+    </div>`;
+  }
+
+  function renderMessageInspector(step, message) {
+    const mode = inferMessageMode(message);
+    const targetDisabled = mode === "cue" || mode === "point";
+    return `<h3>Message inspector</h3>
+      <div class="show-inspector-form" data-show-message-editor="${escapeHtml(message.uid)}">
+        <p class="show-inspector-context">${escapeHtml(stepLabel(step))}</p>
+        <label>alias <input id="show-message-alias" type="text" autocomplete="off" value="${escapeHtml(message.alias || "")}" placeholder="${escapeHtml(messageLabel(message))}"></label>
+        <label class="${targetDisabled ? "show-disabled-field" : ""}">target
+          <select id="show-message-target" ${targetDisabled ? "disabled" : ""}>${targetOptions(message.target || "all")}</select>
+        </label>
+        <label>payload mode
+          <select id="show-message-mode">
+            <option value="param" ${mode === "param" ? "selected" : ""}>parameter</option>
+            <option value="cue" ${mode === "cue" ? "selected" : ""}>cue</option>
+            <option value="point" ${mode === "point" ? "selected" : ""}>point</option>
+            <option value="raw" ${mode === "raw" ? "selected" : ""}>raw</option>
+          </select>
+        </label>
+        ${renderPayloadBuilder(message, mode)}
+        <label>wire form <output id="show-wire-preview">${escapeHtml(wirePreview(message))}</output></label>
+        <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
+      </div>`;
+  }
+
+  function renderPayloadBuilder(message, mode) {
+    if (mode === "param") return renderParamBuilder(message);
+    if (mode === "cue") return renderCueBuilder(message);
+    if (mode === "point") return renderPointBuilder(message);
+    return renderRawBuilder(message);
+  }
+
+  function renderParamBuilder(message) {
+    const manifest = manifestFromStagedPatch();
+    const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : manifest.params[0]?.identity || "";
+    const declaration = manifest.params.find(param => param.identity === identity) || manifest.params[0] || {type: "f", min: 0, max: 1, default: 0, name: "value", identity};
+    const value = argValue(message.args?.[0]) || declaration.default || "";
+    const options = manifest.params.map(param => {
+      const label = `${param.path?.length ? `${param.path.join("/")} / ` : ""}${param.name || param.identity}`;
+      return `<option value="${escapeHtml(param.identity)}" ${param.identity === identity ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    }).join("");
+    const inputType = declaration.type === "s" ? "text" : "number";
+    const attrs = declaration.type === "s" ? "" : `step="${declaration.type === "i" ? "1" : "any"}" ${declaration.min != null ? `min="${escapeHtml(declaration.min)}"` : ""} ${declaration.max != null ? `max="${escapeHtml(declaration.max)}"` : ""}`;
+    return `<section class="show-inspector-section" data-payload-builder="param">
+      <label>parameter <select id="show-param-picker">${options || '<option value="">No staged params</option>'}</select></label>
+      <label>value <input id="show-param-value" type="${inputType}" ${attrs} value="${escapeHtml(value)}"></label>
+      <small class="dim">${escapeHtml(declaration.type || "f")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
+    </section>`;
+  }
+
+  function renderCueBuilder(message) {
+    const manifest = manifestFromStagedPatch();
+    const cueId = message.address === "/cue" ? String(argValue(message.args?.[0]) || "") : manifest.cues[0]?.id || "";
+    const options = manifest.cues.map(cue => `<option value="${escapeHtml(cue.id)}" ${cue.id === cueId ? "selected" : ""}>${escapeHtml(cue.label || cue.id)}</option>`).join("");
+    return `<section class="show-inspector-section" data-payload-builder="cue">
+      <label>cue <select id="show-cue-picker">${options || '<option value="">No staged cues</option>'}</select></label>
+    </section>`;
+  }
+
+  function renderPointBuilder(message) {
+    const args = message.address === "/pt" ? message.args || [] : [];
+    return `<section class="show-inspector-section show-point-builder" data-payload-builder="point">
+      <label>element <input data-point-field="element" type="number" min="0" step="1" value="${escapeHtml(numberAttr(args[0]?.value, 0))}"></label>
+      <label>x <input data-point-field="x" type="number" step="0.01" value="${escapeHtml(numberAttr(args[1]?.value, 0))}"></label>
+      <label>y <input data-point-field="y" type="number" step="0.01" value="${escapeHtml(numberAttr(args[2]?.value, 0))}"></label>
+      <label>radius <input data-point-field="r" type="number" min="0" step="0.01" value="${escapeHtml(numberAttr(args[3]?.value, 1))}"></label>
+      <label>enabled <input data-point-field="enabled" type="number" min="0" max="1" step="1" value="${escapeHtml(numberAttr(args[4]?.value, 1))}"></label>
+    </section>`;
+  }
+
+  function renderRawBuilder(message) {
+    const args = (message.args || []).map((arg, index) => renderRawArg(arg, index)).join("");
+    return `<section class="show-inspector-section" data-payload-builder="raw">
+      <label>address <input id="show-raw-address" type="text" value="${escapeHtml(message.address || "/")}" placeholder="/p/name"></label>
+      <div class="show-inspector-subhead"><h4>Arguments</h4><button type="button" data-add-raw-arg>Add arg</button></div>
+      <div class="show-raw-args">${args || '<p class="dim">No arguments.</p>'}</div>
+    </section>`;
+  }
+
+  function renderRawArg(arg, index) {
+    return `<div class="show-raw-arg" data-raw-arg="${index}">
+      <select data-raw-type="${index}" aria-label="arg type">
+        <option value="f" ${arg.type === "f" ? "selected" : ""}>f</option>
+        <option value="i" ${arg.type === "i" ? "selected" : ""}>i</option>
+        <option value="s" ${arg.type === "s" ? "selected" : ""}>s</option>
+      </select>
+      <input data-raw-value="${index}" type="${arg.type === "s" ? "text" : "number"}" step="any" value="${escapeHtml(arg.value ?? "")}" aria-label="arg value">
+      <button type="button" class="danger" data-remove-raw-arg="${index}">Remove</button>
     </div>`;
   }
 
@@ -202,6 +494,54 @@
   function sendTransport(type, uid) {
     if (type === "stop_all_steps") ws.send(type, {});
     else if (uid) ws.send(type, {uid});
+  }
+
+  function updateStep(uid, patch) {
+    showError = "";
+    ws.send("update_step", {uid, ...patch});
+  }
+
+  function updateMessage(uid, patch) {
+    showError = "";
+    ws.send("update_message", {uid, ...patch});
+  }
+
+  function readDuration() {
+    const h = Math.max(0, Math.trunc(Number(root.querySelector('[data-duration-part="h"]')?.value) || 0));
+    const m = Math.min(59, Math.max(0, Math.trunc(Number(root.querySelector('[data-duration-part="m"]')?.value) || 0)));
+    const s = Math.min(59, Math.max(0, Math.trunc(Number(root.querySelector('[data-duration-part="s"]')?.value) || 0)));
+    return h * 3600 + m * 60 + s;
+  }
+
+  function currentThenActions(step) {
+    return structuredClone(Array.isArray(step.then_actions) ? step.then_actions : []);
+  }
+
+  function normalizeAction(type) {
+    if (type === "goto") {
+      return {type, target_uid: allSteps()[0]?.uid || ""};
+    }
+    return {type};
+  }
+
+  function applyModeDefault(message, mode) {
+    const manifest = manifestFromStagedPatch();
+    if (mode === "param") {
+      const declaration = manifest.params[0];
+      const identity = declaration?.identity || "gain";
+      const type = declaration?.type || "f";
+      const value = declaration?.default ?? (type === "s" ? "" : 0);
+      updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: message.target || "all"});
+    } else if (mode === "cue") {
+      updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: manifest.cues[0]?.id || ""}], target: message.target || "all"});
+    } else if (mode === "point") {
+      updateMessage(message.uid, {address: "/pt", args: [
+        {type: "i", value: 0}, {type: "f", value: 0}, {type: "f", value: 0},
+        {type: "f", value: 1}, {type: "i", value: 1},
+      ], target: message.target || "all"});
+    } else {
+      updateMessage(message.uid, {address: "/raw", args: message.args || [], target: message.target || "all"});
+    }
   }
 
   root.addEventListener("click", event => {
@@ -230,6 +570,107 @@
     if (row) setFocus("step", row.dataset.showStepRow);
   });
 
+  root.addEventListener("change", event => {
+    const stepEditor = event.target.closest("[data-show-step-editor]");
+    if (stepEditor) {
+      const step = stepByUid(stepEditor.dataset.showStepEditor);
+      if (!step) return;
+      if (event.target.id === "show-step-alias") updateStep(step.uid, {alias: event.target.value.trim() || null});
+      if (event.target.matches("[data-duration-part]")) updateStep(step.uid, {duration_s: readDuration()});
+      if (event.target.id === "show-play-forever") {
+        const next = event.target.checked ? null : Math.max(1, Math.trunc(Number(root.querySelector("#show-play-count")?.value) || 1));
+        updateStep(step.uid, {play_count: next});
+      }
+      if (event.target.id === "show-play-count") updateStep(step.uid, {play_count: Math.max(1, Math.trunc(Number(event.target.value) || 1))});
+      if (event.target.id === "show-forward-sync") updateStep(step.uid, {forward_sync: event.target.checked});
+      if (event.target.matches("[data-then-type]")) {
+        const actions = currentThenActions(step);
+        const index = Number(event.target.dataset.thenType);
+        actions[index] = normalizeAction(event.target.value);
+        updateStep(step.uid, {then_actions: actions});
+      }
+      if (event.target.matches("[data-then-goto]")) {
+        const actions = currentThenActions(step);
+        const index = Number(event.target.dataset.thenGoto);
+        actions[index] = {type: "goto", target_uid: event.target.value};
+        updateStep(step.uid, {then_actions: actions});
+      }
+      return;
+    }
+
+    const messageEditor = event.target.closest("[data-show-message-editor]");
+    if (messageEditor) {
+      const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
+      if (!message) return;
+      if (event.target.id === "show-message-alias") updateMessage(message.uid, {alias: event.target.value.trim() || null});
+      if (event.target.id === "show-message-target") updateMessage(message.uid, {target: event.target.value});
+      if (event.target.id === "show-message-mode") applyModeDefault(message, event.target.value);
+      if (event.target.id === "show-param-picker") {
+        const manifest = manifestFromStagedPatch();
+        const declaration = manifest.params.find(param => param.identity === event.target.value) || {type: "f", default: 0};
+        updateMessage(message.uid, {address: `/p/${event.target.value}`, args: [typedArg(declaration.type || "f", declaration.default ?? 0)]});
+      }
+      if (event.target.id === "show-param-value") {
+        const manifest = manifestFromStagedPatch();
+        const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : "";
+        const declaration = manifest.params.find(param => param.identity === identity) || {type: message.args?.[0]?.type || "f"};
+        updateMessage(message.uid, {args: [typedArg(declaration.type || "f", event.target.value)]});
+      }
+      if (event.target.id === "show-cue-picker") updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: event.target.value}]});
+      if (event.target.matches("[data-point-field]")) {
+        const values = {};
+        messageEditor.querySelectorAll("[data-point-field]").forEach(input => values[input.dataset.pointField] = input.value);
+        updateMessage(message.uid, {address: "/pt", args: [
+          typedArg("i", values.element), typedArg("f", values.x), typedArg("f", values.y),
+          typedArg("f", values.r), typedArg("i", values.enabled),
+        ]});
+      }
+      if (event.target.id === "show-raw-address") updateMessage(message.uid, {address: event.target.value.trim() || "/"});
+      if (event.target.matches("[data-raw-type], [data-raw-value]")) {
+        const args = (message.args || []).map((arg, index) => {
+          const type = messageEditor.querySelector(`[data-raw-type="${index}"]`)?.value || arg.type || "f";
+          const value = messageEditor.querySelector(`[data-raw-value="${index}"]`)?.value ?? arg.value;
+          return typedArg(type, value);
+        });
+        updateMessage(message.uid, {args});
+      }
+    }
+  });
+
+  root.addEventListener("click", event => {
+    const stepEditor = event.target.closest("[data-show-step-editor]");
+    if (stepEditor) {
+      const step = stepByUid(stepEditor.dataset.showStepEditor);
+      if (!step) return;
+      if (event.target.matches("[data-add-then-action]")) {
+        updateStep(step.uid, {then_actions: [...currentThenActions(step), {type: "stop"}]});
+      }
+      if (event.target.matches("[data-remove-then]")) {
+        const actions = currentThenActions(step);
+        actions.splice(Number(event.target.dataset.removeThen), 1);
+        updateStep(step.uid, {then_actions: actions});
+      }
+      if (event.target.id === "show-add-message") {
+        pendingMessageAdd = {step_uid: step.uid, known: new Set((step.messages || []).map(message => message.uid))};
+        ws.send("add_message", {step_uid: step.uid, message: {alias: null, address: "/p/gain", args: [{type: "f", value: 0}], target: "all"}});
+      }
+    }
+
+    const messageEditor = event.target.closest("[data-show-message-editor]");
+    if (messageEditor) {
+      const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
+      if (!message) return;
+      if (event.target.matches("[data-add-raw-arg]")) {
+        updateMessage(message.uid, {args: [...(message.args || []), {type: "f", value: 0}]});
+      }
+      if (event.target.matches("[data-remove-raw-arg]")) {
+        const args = [...(message.args || [])];
+        args.splice(Number(event.target.dataset.removeRawArg), 1);
+        updateMessage(message.uid, {args});
+      }
+    }
+  });
+
   root.addEventListener("keydown", event => {
     const row = event.target.closest("[data-show-step-row]");
     if (!row || !["Enter", " "].includes(event.key)) return;
@@ -251,6 +692,14 @@
   });
   ws.on("show", data => {
     show = data || {schema: 1, name: "", items: []};
+    if (pendingMessageAdd) {
+      const step = stepByUid(pendingMessageAdd.step_uid);
+      const added = (step?.messages || []).find(message => !pendingMessageAdd.known.has(message.uid));
+      if (added) {
+        focus = {kind: "message", uid: added.uid};
+        pendingMessageAdd = null;
+      }
+    }
     const validFocus = focus.kind === "step"
       ? stepByUid(focus.uid)
       : (show.items || []).some(item => item.kind === "step" && (item.messages || []).some(message => message.uid === focus.uid));
@@ -267,6 +716,13 @@
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
+  });
+  window.ShowInspectorError = message => {
+    showError = message || "Show edit failed.";
+    if (shows.current) render();
+  };
+  ws.on("error", data => {
+    window.ShowInspectorError(data?.message);
   });
 
   render();

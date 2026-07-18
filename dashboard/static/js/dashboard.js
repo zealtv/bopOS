@@ -212,6 +212,10 @@ ws.on("error", data => {
     manifestFeedback=`Not saved: ${data.message}`;
     const feedback=$("#manifest-feedback"); if (feedback) feedback.textContent=manifestFeedback;
   }
+  if (activeTab==="show" && typeof window.ShowInspectorError==="function") {
+    window.ShowInspectorError(data.message);
+    return;
+  }
   alert(data.message);
 });
 let venues = {venues: [], current: null};
