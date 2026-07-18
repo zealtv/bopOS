@@ -407,7 +407,7 @@ async def drain_connect_messages(ws, wanted, timeout=5.0):
     """Collect the on-connect broadcast burst until every wanted type is seen."""
     collected = {}
     deadline = asyncio.get_event_loop().time() + timeout
-    while set(collected) < set(wanted):
+    while not set(wanted) <= set(collected):
         remaining = deadline - asyncio.get_event_loop().time()
         if remaining <= 0:
             break
@@ -420,7 +420,7 @@ async def send_and_wait(ws, kind, data, wanted_types, timeout=5.0):
     await ws.send(json.dumps({"type": kind, "data": data}))
     collected = {}
     deadline = asyncio.get_event_loop().time() + timeout
-    while set(collected) < set(wanted_types):
+    while not set(wanted_types) <= set(collected):
         remaining = deadline - asyncio.get_event_loop().time()
         if remaining <= 0:
             break

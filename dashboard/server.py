@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 import points
 import device_aliases
 import show_model
+from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
@@ -148,6 +149,8 @@ class Dashboard:
         current_show = self.state.data.get("current_show")
         self.show = (show_model.load_show(self.shows_dir, current_show)
                     if current_show else show_model.empty_show(""))
+        self.show_engine = ShowEngine(self.osc, self.broadcast)
+        self.show_engine.show = self.show
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
 
@@ -234,6 +237,7 @@ class Dashboard:
             "names": show_model.list_shows(self.shows_dir),
             "current": self.state.data.get("current_show")}})
         await ws.send_json({"type": "show", "data": self.show})
+        await ws.send_json({"type": "show_playback", "data": self.show_engine.snapshot()})
         for device_uid, device in self.state.devices.items():
             if self.state.seat_for_uid(device_uid) and device.get("online"):
                 self.osc.request(device_uid, "patches")
@@ -1024,9 +1028,7 @@ class Dashboard:
             if name not in show_model.list_shows(self.shows_dir):
                 await self.ws_error(ws, "That show could not be loaded.")
                 return
-            # TODO(stitch 3): stop all playback before switching documents
-            # (design note sec 3, load_show row) -- no playback engine exists
-            # yet, so there is nothing to stop.
+            await self.show_engine.stop_all_steps()
             await self.set_current_show(name, show_model.load_show(self.shows_dir, name))
         elif kind == "save_show_as":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
@@ -1047,8 +1049,10 @@ class Dashboard:
                 await self.ws_error(ws, "That show could not be deleted.")
                 return
             if self.state.data.get("current_show") == name:
+                await self.show_engine.stop_all_steps()
                 self.state.data["current_show"] = None
                 self.show = show_model.empty_show("")
+                self.show_engine.show = self.show
                 self.state.save_debounced()
                 await self.broadcast("show", self.show)
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
@@ -1066,6 +1070,7 @@ class Dashboard:
             await self.apply_show_mutation(
                 ws, show_model.move_item, data.get("uid"), data.get("after_uid"))
         elif kind == "remove_item":
+            await self.show_engine.step_stop(data.get("uid"))
             await self.apply_show_mutation(ws, show_model.remove_item, data.get("uid"))
         elif kind == "add_message":
             await self.apply_show_mutation(
@@ -1080,6 +1085,18 @@ class Dashboard:
                 data.get("to_step_uid"), data.get("after_uid"))
         elif kind == "remove_message":
             await self.apply_show_mutation(ws, show_model.remove_message, data.get("uid"))
+        elif kind == "step_start":
+            await self.show_engine.step_start(data.get("uid"))
+        elif kind == "step_stop":
+            await self.show_engine.step_stop(data.get("uid"))
+        elif kind == "step_pause":
+            await self.show_engine.step_pause(data.get("uid"))
+        elif kind == "step_resume":
+            await self.show_engine.step_resume(data.get("uid"))
+        elif kind == "step_trigger_next":
+            await self.show_engine.step_trigger_next(data.get("uid"))
+        elif kind == "stop_all_steps":
+            await self.show_engine.stop_all_steps()
         elif kind == "request_params":
             self.osc.request(uid, "params")
         elif kind == "request_report":
@@ -1088,6 +1105,7 @@ class Dashboard:
     async def set_current_show(self, name, doc):
         """Adopt `doc` as the loaded show and broadcast catalog + full-state."""
         self.show = doc
+        self.show_engine.show = doc
         self.state.data["current_show"] = name
         self.state.save_debounced()
         await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
@@ -1115,6 +1133,7 @@ class Dashboard:
             await self.ws_error(ws, "The show could not be saved.")
             return
         self.show = new_show
+        self.show_engine.show = new_show
         await self.broadcast("show", self.show)
 
     async def revoke_online(self, uid, ws, action):

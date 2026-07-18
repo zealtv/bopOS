@@ -683,6 +683,13 @@ class SimFleet:
         if len(args) < 2:
             return
         cue_id = str(args[0])
+        if not self.tty:
+            # PD float precision law (sec 12): sharedTimeNs must arrive as a
+            # wire string, never a float. The receipt type tag is otherwise
+            # invisible to a verify that only reads the eventual fire_mono
+            # log line, so record it explicitly (show-tab stitch 3).
+            print(f"{time.strftime('%H:%M:%S')} cue-recv id={cue_id} "
+                 f"shared_time_ns_type={type(args[1]).__name__} raw={args[1]!r}", flush=True)
         try:
             shared = int(str(args[1]))
         except (TypeError, ValueError):
