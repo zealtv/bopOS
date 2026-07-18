@@ -181,8 +181,24 @@ class OSCBridge:
         except asyncio.CancelledError:
             pass
 
+    @staticmethod
+    def _console_args(args):
+        # WS console tap payloads must be JSON-safe; OSC args are normally
+        # str/int/float already, anything exotic degrades to its repr.
+        return [arg if isinstance(arg, (str, int, float, bool)) else str(arg)
+                for arg in args]
+
     def send(self, address, args=()):
         self.sender.sendto(self._datagram(address, args), self.destination)
+        # Console tap (design note sec 3): everything the dashboard sends,
+        # any tab. Always-on; filtering is client-side. Guarded: sends can
+        # legally happen before the asyncio loop exists.
+        try:
+            self.broadcast("osc_out", {"ts": time.time(), "address": address,
+                                       "args": self._console_args(args),
+                                       "target": self.destination[0]})
+        except RuntimeError:
+            pass
 
     def set_target(self, host):
         self.destination = (str(host), self.destination[1])
@@ -621,6 +637,15 @@ class OSCBridge:
             self._schedule_asset_requery(uid)
 
     def handle(self, address, args, ip):
+        # Console tap (design note sec 3): everything observed on the LAN
+        # receive side, heartbeats included. Always-on; filtering is
+        # client-side. Same no-loop guard as the outgoing tap.
+        try:
+            self.broadcast("osc_in", {"ts": time.time(), "address": address,
+                                      "args": self._console_args(args),
+                                      "source": ip})
+        except RuntimeError:
+            pass
         if address == "/audition/ready":
             try:
                 local = ipaddress.ip_address(ip).is_loopback
