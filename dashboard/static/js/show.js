@@ -66,32 +66,26 @@
     return parts.length ? parts[parts.length - 1] : (address || "message");
   }
 
-  function formatDuration(seconds) {
-    seconds = Math.max(0, Math.round(Number(seconds) || 0));
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    const parts = [];
-    if (hours) parts.push(`${hours}h`);
-    if (minutes || hours) parts.push(`${minutes}m`);
-    parts.push(`${secs}s`);
-    return parts.join(" ");
+  function terseDuration(seconds) {
+    const parts = secondsParts(seconds);
+    if (!parts.h && !parts.m) return `${parts.s}s`;
+    let out = parts.h ? `${parts.h}h` : "";
+    if (parts.m || (parts.h && parts.s)) out += `${parts.m}m`;
+    if (parts.s) out += `${parts.s}`;
+    return out;
   }
 
-  function playCountSummary(value) {
-    return value == null ? "loop" : `${Number(value) || 1}x`;
-  }
+  const PILL_PALETTE_SIZE = 8;
 
-  function thenSummary(actions) {
-    if (!Array.isArray(actions) || !actions.length) return "stop";
-    return actions.map(action => {
-      const type = action?.type || "stop";
-      if (type === "goto") {
-        const target = stepByUid(action.target_uid);
-        return `goto ${target ? stepLabel(target) : action.target_uid || "missing"}`;
-      }
-      return type.replaceAll("_", " ");
-    }).join(" / ");
+  function pillColourClass(message) {
+    const alias = (message?.alias || "").trim();
+    if (!alias) return "";
+    let hash = 2166136261;
+    for (let index = 0; index < alias.length; index++) {
+      hash ^= alias.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return ` show-pill-${(hash >>> 0) % PILL_PALETTE_SIZE}`;
   }
 
   function allSteps() {
@@ -227,31 +221,24 @@
     return Math.max(0, base - ((performance.now() - playbackAt) / 1000));
   }
 
-  function transportLabel(uid) {
-    const state = playbackState(uid);
-    if (state.state === "playing") return "Stop";
-    if (state.state === "paused") return "Resume";
-    return "Play";
-  }
-
-  function primaryTransportVerb(uid) {
-    const state = playbackState(uid);
-    if (state.state === "playing") return "step_stop";
-    if (state.state === "paused") return "step_resume";
-    return "step_start";
+  function iconButton(action, uid, glyph, label, stateClass = "") {
+    return `<button class="show-icon-button${stateClass}" data-show-action="${action}" data-show-uid="${uid}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"><span class="show-glyph show-glyph-${glyph}" aria-hidden="true"></span></button>`;
   }
 
   function stepTransport(step) {
     const state = playbackState(step.uid).state;
     const uid = escapeHtml(step.uid);
-    const primary = `<button class="show-state-button show-state-${escapeHtml(state)}" data-show-action="${primaryTransportVerb(step.uid)}" data-show-uid="${uid}" title="${transportLabel(step.uid)} ${escapeHtml(stepLabel(step))}"><span class="show-control-icon" aria-hidden="true"></span><span>${transportLabel(step.uid)}</span></button>`;
+    const name = stepLabel(step);
     if (state === "playing") {
-      return `${primary}<button class="show-mini-button" data-show-action="step_pause" data-show-uid="${uid}">Pause</button><button class="show-mini-button" data-show-action="step_trigger_next" data-show-uid="${uid}">Next</button>`;
+      return iconButton("step_stop", uid, "stop", `Stop ${name}`, " show-state-playing")
+        + iconButton("step_pause", uid, "pause", `Pause ${name}`)
+        + iconButton("step_trigger_next", uid, "next", `Trigger next action for ${name}`);
     }
     if (state === "paused") {
-      return `${primary}<button class="show-mini-button" data-show-action="step_stop" data-show-uid="${uid}">Stop</button>`;
+      return iconButton("step_resume", uid, "play", `Resume ${name}`, " show-state-paused")
+        + iconButton("step_stop", uid, "stop", `Stop ${name}`);
     }
-    return primary;
+    return iconButton("step_start", uid, "play", `Play ${name}`, " show-state-stopped");
   }
 
   function messagePills(step) {
@@ -260,7 +247,7 @@
     return messages.map(message => {
       const selected = focused("message", message.uid) ? " focused" : "";
       const title = `${message.address || ""} -> ${message.target || "all"}`;
-      return `<button class="show-message-pill${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" title="${escapeHtml(title)}">${escapeHtml(messageLabel(message))}</button>`;
+      return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" title="${escapeHtml(title)}">${escapeHtml(messageLabel(message))}</button>`;
     }).join("");
   }
 
@@ -269,25 +256,18 @@
   }
 
   function stepRow(step, index) {
-    const state = playbackState(step.uid);
     const remaining = remainingSeconds(step.uid);
-    const stateName = state.state || "stopped";
+    const stateName = playbackState(step.uid).state || "stopped";
     const selected = focused("step", step.uid) ? " focused" : "";
     const playing = stateName === "playing" || stateName === "paused" ? " active" : "";
-    const remainingText = remaining == null ? "" : `<span class="show-remaining">${stateName === "paused" ? "paused" : "remaining"} ${formatDuration(remaining)}</span>`;
-    const iteration = Number(state.iteration) > 0 ? `<span>iteration ${Number(state.iteration)}</span>` : "";
+    const time = remaining == null
+      ? `<span class="show-step-duration">${terseDuration(step.duration_s)}</span>`
+      : `<span class="show-remaining" title="${stateName === "paused" ? "paused" : "remaining"}">${terseDuration(remaining)}</span>`;
     return `<div class="show-step-row show-step-${escapeHtml(stateName)}${selected}${playing}" data-show-step-row="${escapeHtml(step.uid)}" data-show-index="${index}" role="row" tabindex="0">
       <div class="show-step-transport">${stepTransport(step)}</div>
-      <div class="show-step-main">
-        <div class="show-step-title"><strong>${escapeHtml(stepLabel(step))}</strong><small>${escapeHtml(stateName)}</small></div>
-        <div class="show-message-pills">${messagePills(step)}</div>
-      </div>
-      <div class="show-step-facts">
-        <span>${formatDuration(step.duration_s)} / ${playCountSummary(step.play_count)}</span>
-        ${iteration}
-        ${remainingText}
-      </div>
-      <div class="show-step-then">${escapeHtml(thenSummary(step.then_actions))}</div>
+      <strong class="show-step-alias" title="${escapeHtml(stepLabel(step))}">${escapeHtml(stepLabel(step))}</strong>
+      <div class="show-message-pills">${messagePills(step)}</div>
+      <div class="show-step-time">${time}</div>
     </div>`;
   }
 

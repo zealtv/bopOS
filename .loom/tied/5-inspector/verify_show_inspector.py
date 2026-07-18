@@ -249,11 +249,16 @@ def main():
                 page.wait_for_selector("#ws-status.online")
                 page.click("#tab-button-show")
                 page.wait_for_selector('.show-step-row[data-show-step-row="11111111"]')
+                # 5b compact rows: the row shows alias + terse duration only;
+                # play count and then-actions moved to the inspector.
                 row_text = page.locator('.show-step-row[data-show-step-row="11111111"]').inner_text().lower()
-                check("step inspector edits persisted across reload",
-                      "edited intro" in row_text and "1h 2m 3s / 2x" in row_text
-                      and "goto landing" in row_text)
                 page.locator('.show-step-row[data-show-step-row="11111111"]').click()
+                page.wait_for_selector('[data-then-goto="1"]')
+                check("step inspector edits persisted across reload",
+                      "edited intro" in row_text and "1h2m3" in row_text
+                      and page.locator("#show-play-count").input_value() == "2"
+                      and page.locator('[data-then-goto="1"]').input_value() == "22222222",
+                      row_text)
                 check("forward-sync persisted and skew hint renders",
                       page.locator("#show-forward-sync").is_checked()
                       and page.locator(".show-sync-hint").is_visible())
