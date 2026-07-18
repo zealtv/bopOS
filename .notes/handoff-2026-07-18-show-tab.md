@@ -66,11 +66,11 @@ original framing). The only current loose end besides that is
 `notify-patch-lifecycle`; everything else is `.waiting` on Bob/hardware
 gates.
 
-## Usage at stop (session end, 2026-07-18 ~18:45 UTC+2)
+## Usage at stop (session end, 2026-07-18)
 
-- Claude 5-hour session: **~85%** (the binding cap; resets 12:00 UTC
-  2026-07-18)
-- Claude weekly (Fable): ~38%, weekly (all models): ~31% (reset 07-20
+- Claude 5-hour session: **88%** (the binding cap that ended the session;
+  resets 12:00 UTC 2026-07-18)
+- Claude weekly (Fable): 39%, weekly (all models): 31% (reset 07-20
   09:00 UTC) — the next session has plenty of weekly room.
 - Codex weekly: 76% used at session start; Bob's ≥20%-reserve rule meant
   no codex delegation this session (all stitches ran Claude-inline).

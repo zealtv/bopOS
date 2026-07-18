@@ -182,7 +182,8 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   re-read bounding boxes before a spatial drag, and clamp drag targets on-screen
   (the room can extend above the viewport); (3) one type-aware `page.on("dialog")`
   handler (prompt→text, else accept) — two handlers race and one eats the other's
-  prompt.
+  prompt; (4) `page.wait_for_function(expr, value)` fails — pass the argument
+  as `arg=value` (keyword-only in the sync API).
 
 ## Records
 
