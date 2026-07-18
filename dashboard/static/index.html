@@ -9,7 +9,7 @@
     <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
     <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
     <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
-    <button id="tab-button-sequencer" role="tab" aria-controls="tab-sequencer" aria-selected="false" data-tab="sequencer">Sequencer</button>
+    <button id="tab-button-show" role="tab" aria-controls="tab-show" aria-selected="false" data-tab="show">Show</button>
   </nav>
   <div class="tab-stage">
     <section id="tab-dashboard" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-dashboard" data-tab-panel="dashboard">
@@ -130,7 +130,7 @@
         <div id="asset-extras" class="asset-extras"></div>
       </section>
     </section>
-    <section id="tab-sequencer" class="tab-panel placeholder-tab" role="tabpanel" aria-labelledby="tab-button-sequencer" data-tab-panel="sequencer" hidden><p class="eyebrow">Reserved view</p><h2>Sequencer</h2><p>The show-control sequence system is a future co-design stitch.</p></section>
+    <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show" hidden><div id="show-root"></div></section>
   </div>
-  <script src="/js/ws.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/dashboard.js"></script>
+  <script src="/js/ws.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/dashboard.js"></script><script src="/js/show.js"></script>
 </body></html>

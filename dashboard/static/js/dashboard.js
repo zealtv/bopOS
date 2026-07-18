@@ -54,7 +54,7 @@ const GROUP_SLOTS = [
   {colour:"#00B98B", pattern:"dot"},
   {colour:"#CC79A7", pattern:"dash-dot"},
 ];
-const TAB_NAMES = ["dashboard", "seats", "devices", "patches", "assets", "sequencer"];
+const TAB_NAMES = ["dashboard", "seats", "devices", "patches", "assets", "show"];
 let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
 
 function activateTab(name, updateHash=true) {
