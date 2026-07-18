@@ -78,6 +78,12 @@ be recorded by stitch 1):
 4. `4-tab-ui` — the Show tab itself (Playwright verify).
 5. `5-inspector` — context-sensitive step/message inspector + message
    builder (Playwright verify).
+5b. `5b-compact-rows` — Bob's 2026-07-18 screenshot feedback: Ableton/QLab
+   density — short rows, icon transport, summaries move to the inspector,
+   alias-hash colour-coded pills (Playwright verify + screenshots).
+5c. `5c-target-model-and-picker` — multi-target messages (seats, groups,
+   mixes) and a chip/tap picker replacing the dropdown (schema + engine +
+   UI, Playwright + simfleet verify).
 6. `6-message-editing` — copy/cut/paste/move/delete of messages; step/divider
    insert, move, delete (Playwright verify).
 7. `7-osc-consoles` — outgoing + incoming OSC consoles with `*` wildcard and
