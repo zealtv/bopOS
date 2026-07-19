@@ -6,13 +6,14 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.7: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.8: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
    fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
-   unassignment revision, the device asset-inventory amendment, plus the
+   unassignment revision, the device asset-inventory amendment, the
    2026-07-17 patch-admin-surface amendment (engine-sent `/admin` requests,
-   version/patch-fingerprint in the run context)):
+   version/patch-fingerprint in the run context), plus the 2026-07-19
+   parameter-automation grammar (§3.2 generator slots on numeric `/p/*`)):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -47,10 +48,11 @@ remain the authority for a particular piece of work.
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.7** (2026-07-07 base + seam amendment + engine-boundary revision +
+**v1.8** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
 and unassignment revision + additive unattended-update outcome receipts +
-2026-07-17 patch-admin-surface amendment);
+2026-07-17 patch-admin-surface amendment + 2026-07-19 parameter-automation
+grammar §3.2);
 `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
@@ -134,11 +136,14 @@ and tie one concrete stitch at a time:
    LFO / stop, last message wins), string duration units, `c:<n>` curve
    exponent, clock-anchored idempotent LFOs, decomposition in bopos.py,
    Show-tab builder GUI, animated take-over controls, and a UX-gated
-   waveform visualisation. Thread `16-param-automation` runs **after**
-   `15-show-polish`, except its dashboard-free stitches (contract §3
-   amendment, bopos.py generator engine, simfleet parity) may interleave
-   with remaining polish. Strings/mixed-arrays as a non-param manifest
-   kind are deferred (name and plane undecided).
+   waveform visualisation. `automation-0` is tied: the contract now
+   carries the grammar as §3.2 (v1.8) and the implementation is decomposed
+   as `automation-1-engine-and-parity` (dashboard-free — may interleave
+   with remaining polish) → `automation-2-show-builder-gui` →
+   `automation-3-animated-takeover` → `automation-4-waveform-ux-gate`
+   (Bob-gated UX proposal before any visualisation code). Strings/
+   mixed-arrays as a non-param manifest kind are deferred (name and plane
+   undecided).
 12. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
    thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
    improvements; only `friction-0a-readme-refresh` tied). The surviving

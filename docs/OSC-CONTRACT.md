@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.7** — base ratified 2026-07-07; latest revision 2026-07-17. The
+**Version 1.8** — base ratified 2026-07-07; latest revision 2026-07-19. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -144,7 +144,7 @@ failure changes nothing and emits no success receipt.
 | `/sync/*` | framework (Python) | forward clock sync — shape pinned in §3.1 (clock-sync thread) |
 | `/cue` | framework (Python) | discrete scheduled fires; engines only ever see relative ms (§3.1) |
 | `/pt` (canonical `/point`) | framework/dashboard | point geometry broadcast — moving sound sources, arbitrary count; each device decomposes locally (§4.1) |
-| `/p/*` | **patch** | patch-declared parameters — the only place output semantics live |
+| `/p/*` | **patch** | patch-declared parameters — the only place output semantics live; numeric params also accept the framework-owned automation grammar (§3.2) |
 
 The framework planes are a **closed set**; `/p/*` is open and entirely
 patch-owned. `gain` `gain2` `backing` `echo` are patch parameters and live under
@@ -204,6 +204,82 @@ this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
   the selector — broadcast-only and always fleet-wide. `/sync/pong` is a 2-part
   node→controller reply like `/hb`; `/<id>/sync/offset` is the normal 3-part
   `/<selector>/<plane>/<member>` (selector always a concrete `<id>`).
+
+### 3.2 Parameter automation grammar (`/p/*` plane)
+
+Ratified 2026-07-19 (v1.8). Numeric patch parameters accept **framework-owned
+automation vocabulary** in the argument list. The ownership split is exact:
+the framework owns the grammar — parsing, duration units, curves, scheduling,
+LFO phase math, and the catch-up "value now" — while **output semantics remain
+entirely patch-owned** (§3 planes table unchanged in spirit: what the value
+*means* is still the patch's business). The grammar applies only to addresses
+whose manifest declaration is a numeric param (`f` or `i`); it never applies
+to string declarations (see the deferred kind below).
+
+**Model: one generator slot per numeric `/p/*` address; last message wins.**
+Every message on the address replaces its generator — no layering, no
+modulation routing. A plain value is the degenerate generator (a constant),
+which is also the dashboard take-over gesture: touching an automated control
+sends a plain value and thereby replaces the automation.
+
+```
+/<sel>/p/<identity> x                      set (constant)
+/<sel>/p/<identity> x <dur>                go to x in dur, from current
+/<sel>/p/<identity> x y <dur>              go from x to y in dur
+/<sel>/p/<identity> a <dur> b <dur> ...    segment list from current: to a in dur,
+                                           then b in dur, ... (even count; odd ≥5 = error)
+/<sel>/p/<identity> loop <fade-form>       replay the segment list forever, snapping
+                                           back to its start (ignored for 1–2 element forms)
+/<sel>/p/<identity> stop                   freeze at current output
+/<sel>/p/<identity> lfo <shape> <min> <max> <period> [p:<0..1>] [f] [c:<n>]
+```
+
+- **Arity shorthand** (kept from bop): the 3-element form is the only one
+  with an explicit start value; segment lists always start from current —
+  documented asymmetry.
+- **Durations**: a bare number is **ms** (legacy); a string with unit suffix
+  is `250ms`, `10s`, `1.5m`, `2h`. Musical units (beats/bars) never reach
+  the wire — the authoring layer compiles them to ms at send time; tempo and
+  transport stay out of the device contract (deferred with
+  `scene-sequencing`).
+- **Curve**: one optional trailing `c:<n>` token per message — a signed
+  exponent; `0`/omitted linear, `> 0` ease-in-ish, `< 0` ease-out-ish. It
+  applies to every segment in the message; there are no per-segment curves.
+- **Options**: short forms `c:<n>` `p:<0..1>` `f` are **canonical on the
+  wire** (the dashboard emits them; OSC strings pad to 4-byte boundaries);
+  `curve:` `phase:` `free` are accepted hand-typed aliases. Keywords lead
+  (`loop`, `stop`, `lfo`), options trail.
+- **LFO**: shapes `sine tri saw square sh drift` (`sh` sample-and-hold
+  random, `drift` smoothed random). Period takes the same duration forms as
+  fades. Phase is **clock-anchored to the sync plane by default** —
+  `((t_synced / period) + phase) mod 1` — which makes an LFO message
+  full-state and idempotent: resend is always safe and a late joiner lands
+  in phase with the fleet. `f` (free) opts into per-device random phase for
+  deliberate decorrelation. `c:` shapes segment interpolation where
+  meaningful (tri/saw/drift).
+- **Int params**: the generator interpolates continuously; output
+  **truncates (floor)** and is emitted **exactly once at each integer
+  crossing**, in either direction — no duplicates, no skips at control rate.
+- **Catch-up (the full-state law preserved)**: sync LFOs catch up by
+  verbatim replay; free LFOs restart phase on resend by design; fades are
+  not replay-safe mid-flight, so the catch-up source sends the **computed
+  current value** (a constant), and a completed fade's destination is the
+  stored full-state value.
+- **Decomposition lives in bopos.py, never in engines**: engines receive
+  only the existing selector-free go-to-x-in-y-ms primitive at segment
+  boundaries (and ~30–50 Hz smoothing segments for LFOs). 64-bit time and
+  absolute clocks never enter engines (§12); existing patches need zero
+  changes. This is the `/pt` node-side-decomposition precedent, not the
+  reverted dashboard-computed `/p/gain` composition (§14).
+
+**Deferred, noted not decided:** string and mixed-array addresses become a
+distinct **non-param manifest kind** in a later additive amendment — set-only,
+full-state, the grammar keywords never applying. Its name ("atom" was
+disliked; candidates: attribute, property) and its plane (`/p/*` vs a
+dedicated one such as `/a/*`) are both open. Until that amendment, string
+params remain plain set-only values and the automation vocabulary is
+reserved: a string-typed declaration whose value collides with a grammar
+keyword is the patch author's foot-gun to avoid.
 
 ## 4. Ports and transport
 
@@ -729,3 +805,4 @@ reasoning.
 | 1.5 am. | 2026-07-16 | Seat groups: canonical `g<id>` selectors route from node-local persisted Seat membership, synchronized by an attributable additive full-state envelope. | `.loom/tied/seat-groups-0-design/` |
 | 1.6 | 2026-07-16 | Asset-inventory amendment (design 2026-07-15): nodes expose durable observed asset-slot facts, including canonical fingerprints once the nonblocking cache resolves. Also carries the additive unattended-update outcome receipts (§7). | `.lore/items/2026-07-15-asset-management-direction/`; stitch `11a-device-asset-inventory` |
 | 1.7 | 2026-07-17 | Patch-admin-surface amendment (Bob, 2026-07-17): bounded engine-sent `/admin <action>` request (§4.2) softens the "administrative commands never cross" rule for `update-patch`, `update-bopos`, `shutdown`, `reboot`; run context additively carries `version` and `patch-fingerprint` to the engine (§4.2). | `.loom/tied/1-contract-amendment/` |
+| 1.8 | 2026-07-19 | Parameter-automation grammar (§3.2): generator-slot model on numeric `/p/*` params — constants, string-unit timed fades, `loop`, `stop`, clock-anchored idempotent LFOs, `c:`/`p:`/`f` option shorthand, floor-and-emit-per-crossing ints, fades catching up as computed constants. Decomposition in bopos.py; engines and existing patches unchanged. String/mixed-array kind explicitly deferred (name and plane open). | `.lore/items/2026-07-19-param-automation-design-ratified/`; stitch `automation-0-design-ratification` |
