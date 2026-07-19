@@ -1043,6 +1043,27 @@ class Dashboard:
                 await self.ws_error(ws, "The show could not be saved.")
                 return
             await self.set_current_show(name, doc)
+        elif kind == "rename_show":
+            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
+            if not name:
+                await self.ws_error(ws, "Show names must be text.")
+                return
+            old = self.state.data.get("current_show")
+            if not old:
+                await self.ws_error(ws, "No show is loaded.")
+                return
+            if name in show_model.list_shows(self.shows_dir):
+                await self.ws_error(ws, "A show with that name already exists.")
+                return
+            doc = dict(self.show)
+            doc["name"] = name
+            try:
+                show_model.save_show(self.shows_dir, doc)
+            except OSError:
+                await self.ws_error(ws, "The show could not be saved.")
+                return
+            show_model.delete_show(self.shows_dir, old)
+            await self.set_current_show(name, doc)
         elif kind == "delete_show":
             name = str(data.get("name", "")).strip()
             if not name or not show_model.delete_show(self.shows_dir, name):

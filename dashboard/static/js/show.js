@@ -338,6 +338,14 @@
     const overflow = playing.length > 4 ? ` +${playing.length - 4}` : "";
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
+      <div class="show-manage">
+        <select id="show-switch-select" aria-label="Saved shows">${(shows.names || []).map(name =>
+          `<option value="${escapeHtml(name)}" ${name === shows.current ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select>
+        <button id="show-switch-load" type="button">Load</button>
+        <button id="show-manage-new" type="button">New</button>
+        <button id="show-manage-rename" type="button">Rename</button>
+        <button id="show-manage-delete" class="danger" type="button">Delete</button>
+      </div>
       <div class="show-transport-actions">
         <output id="show-playing-indicator" aria-live="polite">${playing.length ? `${playing.length} playing: ${escapeHtml(aliases)}${overflow}` : "0 playing"}</output>
         <button id="show-stop-all" class="danger" type="button">Stop all</button>
@@ -707,6 +715,29 @@
     if (event.target.closest("#show-load-button")) {
       const name = root.querySelector("#show-load-select")?.value;
       if (name) ws.send("load_show", {name});
+      return;
+    }
+    if (event.target.closest("#show-switch-load")) {
+      const name = root.querySelector("#show-switch-select")?.value;
+      if (!name || name === shows.current) return;
+      const busy = Object.values(playback?.steps || {}).some(state => ["playing", "paused"].includes(state?.state));
+      if (busy && !confirm(`Load show "${name}"? Playback of the current show stops.`)) return;
+      ws.send("load_show", {name});
+      return;
+    }
+    if (event.target.closest("#show-manage-new")) {
+      const name = prompt("New show name:", "");
+      if (name?.trim()) ws.send("create_show", {name: name.trim()});
+      return;
+    }
+    if (event.target.closest("#show-manage-rename")) {
+      const name = prompt("Rename show:", shows.current || "");
+      if (name?.trim() && name.trim() !== shows.current) ws.send("rename_show", {name: name.trim()});
+      return;
+    }
+    if (event.target.closest("#show-manage-delete")) {
+      const name = root.querySelector("#show-switch-select")?.value;
+      if (name && confirm(`Delete show "${name}"? The file is removed.`)) ws.send("delete_show", {name});
       return;
     }
     const pill = event.target.closest("[data-show-message-focus]");

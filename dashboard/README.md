@@ -91,7 +91,10 @@ pill.
 
 Show documents persist as JSON in `shows/` next to the installation state
 file, one file per show; the schema and playback semantics live in
-`.notes/show-tab-design-2026-07-18.md`. Two collapsible OSC consoles sit
+`.notes/show-tab-design-2026-07-18.md`. The transport strip carries the
+show catalog: switch between saved shows (stops playback first), create,
+rename, or delete them; the active show persists across dashboard restarts
+and is shared by every connected client. Two collapsible OSC consoles sit
 under the table: outgoing (everything the dashboard sends) and incoming
 (everything the LAN surface receives, heartbeats included). Filter with
 space-separated terms that AND together, `*` wildcards, and `!` negation —
