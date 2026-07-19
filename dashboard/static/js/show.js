@@ -515,7 +515,7 @@
     const manifest = manifestFromStagedPatch();
     const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : manifest.params[0]?.identity || "";
     const declaration = manifest.params.find(param => param.identity === identity) || manifest.params[0] || {type: "f", min: 0, max: 1, default: 0, name: "value", identity};
-    const value = argValue(message.args?.[0]) || declaration.default || "";
+    const value = message.args?.[0]?.value ?? declaration.default ?? "";
     const options = manifest.params.map(param => {
       const label = `${param.path?.length ? `${param.path.join("/")} / ` : ""}${param.name || param.identity}`;
       return `<option value="${escapeHtml(param.identity)}" ${param.identity === identity ? "selected" : ""}>${escapeHtml(label)}</option>`;
@@ -585,6 +585,21 @@
   }
 
   function sendTransport(type, uid) {
+    playback.steps ||= {};
+    if (type === "step_start" && uid) {
+      playback.steps[uid] = {state: "playing", iteration: 1, remaining_s: null};
+    } else if (type === "step_stop" && uid) {
+      delete playback.steps[uid];
+    } else if (type === "step_pause" && uid) {
+      const remaining = remainingSeconds(uid);
+      playback.steps[uid] = {...playbackState(uid), state: "paused", remaining_s: remaining};
+    } else if (type === "step_resume" && uid) {
+      playback.steps[uid] = {...playbackState(uid), state: "playing"};
+      playbackAt = performance.now();
+    } else if (type === "stop_all_steps") {
+      playback = {steps: {}};
+    }
+    render();
     if (type === "stop_all_steps") ws.send(type, {});
     else if (uid) ws.send(type, {uid});
   }
