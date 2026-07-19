@@ -20,10 +20,12 @@ the accepted sweep numbering after `14-show-tab` and takes priority over
   rearranging is click-and-drag (within and between steps); the
   cut/copy/move buttons leave the edit section; keyboard delete stays;
   keyboard undo is required. Steps and dividers also reorder by drag.
-- **Patch tab:** "facilitator" renames to "Dashboard" in the UI; the legacy
-  presentation-only `group` manifest field is removed (nothing in the demo
-  patches uses it) and demo manifests tidied; the path field's example hint
-  must read unambiguously as an example.
+- **Patch tab:** "facilitator" renames to "Dashboard" — a **full rename**,
+  ratified by Bob 2026-07-19: the manifest key becomes `dashboard` (legacy
+  `facilitator` accepted on load, normalized on save; contract §8 gets the
+  amendment line). The legacy presentation-only `group` manifest field is
+  removed (nothing in the demo patches uses it) and demo manifests tidied;
+  the path field's example hint must read unambiguously as an example.
 
 ## House rules that bite here
 

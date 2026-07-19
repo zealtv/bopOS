@@ -3,12 +3,22 @@
 Three Patch tab items from the braindump. Independent of p1–p6; claimable
 alongside them.
 
-1. **"facilitator" → "Dashboard".** UI copy only: labels, checkboxes,
-   column heads, hints on the Patch tab / manifest editor render
-   "Dashboard" (the control appears on the dashboard's live surfaces).
-   The manifest key stays `facilitator` on the wire and in JSON — renaming
-   the contract term is not authorized here; note the divergence in the
-   editor's help text if one exists.
+1. **"facilitator" → "Dashboard" — full rename (Bob ratified 2026-07-19).**
+   Not just UI copy: the manifest key itself renames `facilitator` →
+   `dashboard` (boolean, same semantics: the param is promoted to the
+   dashboard's live-control surfaces, facilitator view included — that
+   view is a dashboard-served surface). Scope: `python/manifest.py`
+   validation, the launcher's validation path, `dashboard/server.py`,
+   `dashboard.js`/manifest editor, every demo `bopos.patch.json`, and the
+   verifies/fixtures that write `facilitator: true`. Compatibility: accept
+   the legacy `facilitator` key on load and normalize to `dashboard`
+   (saves write only the new key); reject a manifest carrying both with
+   conflicting values. Record the rename as a contract amendment line in
+   `docs/OSC-CONTRACT.md` §8 + revision table (ratified, so record it —
+   don't re-open it). Grep-sweep when done: rendered UI shows "Dashboard";
+   `facilitator` survives only in the legacy-load path, the facilitator
+   view's own filenames/routes (unchanged — it is an operator surface
+   name, not the manifest term), and historical lore/notes.
 2. **Legacy `group` removal.** Nothing in the demo patches uses it (Bob,
    2026-07-19 — verify with a grep before deleting). Remove: the "legacy
    group" field from the manifest editor, the group/path mutual-exclusion

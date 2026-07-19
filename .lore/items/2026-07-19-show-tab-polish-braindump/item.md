@@ -23,6 +23,8 @@ Notable rulings inside it:
   with a global (settable) cue lead time.
 - Message clipboard goes keyboard-only + drag-and-drop; the edit-section
   buttons are removed. Keyboard undo is required.
-- "facilitator" renames to "Dashboard" on the Patch tab; the legacy
-  presentation-only `group` manifest field is removed along with demo
-  manifest tidying.
+- "facilitator" renames to "Dashboard" on the Patch tab. Bob ratified the
+  **full rename** in the same-day follow-up: the manifest key itself
+  becomes `dashboard` (legacy key accepted on load), recorded as a
+  contract §8 amendment. The legacy presentation-only `group` manifest
+  field is removed along with demo manifest tidying.
