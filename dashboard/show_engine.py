@@ -10,9 +10,7 @@ a socket of its own and never re-derives `OSCBridge`'s send logic.
 
 Message emission always goes through existing `OSCBridge` methods, keyed by
 address kind:
-  - `/cue`      -> `fire_cue` (forward_sync) or `fire_cue_now` (immediate) --
-                   the only two cue senders that exist, so behavior always
-                   matches every other tab's cue traffic exactly.
+  - `/cue`      -> `fire_cue` with the current installation-wide cue lead.
   - `/p/<name>` -> `set_param(selector, name, value)` once per selector in
                    the message's `target` list -- each entry is already the
                    literal selector (design note sec 2 + 5c amendment),
@@ -47,9 +45,10 @@ MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
 
 class ShowEngine:
-    def __init__(self, bridge, broadcast, seed=None):
+    def __init__(self, bridge, broadcast, seed=None, cue_lead_ms=None):
         self.bridge = bridge
         self.broadcast = broadcast  # async callable(message_type, data)
+        self.cue_lead_ms = cue_lead_ms or (lambda: 500)
         if seed is None:
             # No existing mechanism threads a run-context seed into the
             # dashboard process (python/runcontext.py's BOPOS_SEED is
@@ -135,21 +134,15 @@ class ShowEngine:
     # ----------------------------------------------------------------
 
     def _emit_messages(self, step):
-        forward_sync = step.get("forward_sync", False)
         for message in step["messages"]:
-            self._send_message(message, forward_sync)
+            self._send_message(message)
 
-    def _send_message(self, message, forward_sync):
+    def _send_message(self, message):
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
         if address == "/cue":
             cue_id = str(args[0]) if args else ""
-            if forward_sync:
-                self.bridge.fire_cue(cue_id)
-            else:
-                # The existing "immediate cue path" (osc_bridge.py) -- same
-                # sender as fire_editor_cue, shared_time_ns == now.
-                self.bridge.fire_cue_now(cue_id)
+            self.bridge.fire_cue(cue_id, lead_ms=self.cue_lead_ms())
         elif address.startswith("/p/") and len(address) > 3:
             name = address[len("/p/"):]
             # 5c: target is a selector list; fan one datagram out per

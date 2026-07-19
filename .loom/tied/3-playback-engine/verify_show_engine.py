@@ -320,11 +320,11 @@ async def run():
         cue_sync_uid = await add_step(ws, divider_uid)
         await add_message(ws, cue_sync_uid, "/cue", [sarg("cueA")])
         await update_step(ws, cue_sync_uid, duration_s=0.05, play_count=1,
-                          then_actions=[], forward_sync=True)
+                          then_actions=[])
         cue_now_uid = await add_step(ws, cue_sync_uid)
         await add_message(ws, cue_now_uid, "/cue", [sarg("cueB")])
         await update_step(ws, cue_now_uid, duration_s=0.05, play_count=1,
-                          then_actions=[], forward_sync=False)
+                          then_actions=[])
 
         # ------------------------------------------------------------
         # Test 1: a step fires its whole message set together.
@@ -473,8 +473,7 @@ async def run():
               repr(latest.get("show_playback")))
 
         # ------------------------------------------------------------
-        # Test 9: forward-synced /cue via the scheduled path; a non-synced
-        # /cue via the immediate path. Also assert the wire type of
+        # Test 9: every Show /cue uses the scheduled path. Also assert the wire type of
         # sharedTimeNs is a string (PD float precision law, sec 12).
         # ------------------------------------------------------------
         mark = len(fleet_log)
@@ -482,13 +481,13 @@ async def run():
         await send(ws, "step_start", {"uid": cue_sync_uid})
         await settle(ws, 0.9)
         recv = matches(fleet_log, mark, r"cue-recv id=cueA")
-        check("forward-sync: cue receipt carries a string sharedTimeNs",
+        check("scheduled cue A: receipt carries a string sharedTimeNs",
               bool(recv) and "shared_time_ns_type=str" in recv[0], repr(recv))
         fired = matches(fleet_log, mark, r"cue cueA fired")
-        check("forward-sync: cue fired", bool(fired), repr(fired))
+        check("scheduled cue A: fired", bool(fired), repr(fired))
         if fired:
             delay = (fire_mono_of(fired[0]) - t0) / 1e9
-            check("forward-sync: fired via the ~500ms scheduled lead path",
+            check("scheduled cue A: fired via the ~500ms lead path",
                   0.35 <= delay <= 0.9, repr(delay))
         await send(ws, "stop_all_steps", {})
         await settle(ws, 0.1)
@@ -496,16 +495,16 @@ async def run():
         mark = len(fleet_log)
         t0 = time.monotonic_ns()
         await send(ws, "step_start", {"uid": cue_now_uid})
-        await settle(ws, 0.3)
+        await settle(ws, 0.9)
         recv = matches(fleet_log, mark, r"cue-recv id=cueB")
-        check("non-synced: cue receipt carries a string sharedTimeNs",
+        check("scheduled cue B: receipt carries a string sharedTimeNs",
               bool(recv) and "shared_time_ns_type=str" in recv[0], repr(recv))
         fired = matches(fleet_log, mark, r"cue cueB fired")
-        check("non-synced: cue fired", bool(fired), repr(fired))
+        check("scheduled cue B: fired", bool(fired), repr(fired))
         if fired:
             delay = (fire_mono_of(fired[0]) - t0) / 1e9
-            check("non-synced: fired via the immediate path (well under the 500ms lead)",
-                  delay < 0.2, repr(delay))
+            check("scheduled cue B: fired via the ~500ms lead path",
+                  0.35 <= delay <= 0.9, repr(delay))
         await send(ws, "stop_all_steps", {})
         await settle(ws, 0.1)
 

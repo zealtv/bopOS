@@ -392,3 +392,11 @@ interface. §2's `target` field is amended:
   (All toggle, group swatches in GROUP_SLOTS colours, numbered seat chips in
   the bounded-roster idiom); the wire preview and pill titles render the
   terse form `3+7+g1`.
+
+## Amendment — 2026-07-19, global cue policy
+
+All Show `/cue` messages use forward-sync scheduling. The per-step
+`forward_sync` flag is retired: legacy files may contain it, but loading and
+saving drops it. The scheduling lead is now one persisted, installation-level
+`cue_lead_ms` setting shared by all Show transports rather than a per-step
+choice.

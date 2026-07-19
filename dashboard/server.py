@@ -149,7 +149,9 @@ class Dashboard:
         current_show = self.state.data.get("current_show")
         self.show = (show_model.load_show(self.shows_dir, current_show)
                     if current_show else show_model.empty_show(""))
-        self.show_engine = ShowEngine(self.osc, self.broadcast)
+        self.show_engine = ShowEngine(
+            self.osc, self.broadcast,
+            cue_lead_ms=lambda: self.state.data.get("cue_lead_ms", 500))
         self.show_engine.show = self.show
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
@@ -582,6 +584,20 @@ class Dashboard:
             self.state.save_debounced()
             self.osc.send_master()
             await self.broadcast("master", {"value": master})
+        elif kind == "set_cue_lead":
+            raw_ms = data.get("ms")
+            if isinstance(raw_ms, bool):
+                await self.ws_error(ws, "Cue lead must be a whole number of milliseconds.")
+                return
+            try:
+                ms = int(raw_ms)
+            except (TypeError, ValueError):
+                await self.ws_error(ws, "Cue lead must be a whole number of milliseconds.")
+                return
+            ms = min(max(ms, 100), 10000)
+            self.state.data["cue_lead_ms"] = ms
+            self.state.save_debounced()
+            await self.broadcast("state", await self.public_state())
         elif kind == "fire_cue":
             cue_id = data.get("cue_id") if isinstance(data.get("cue_id"), str) else ""
             if patch_manifest.CUE_ID.fullmatch(cue_id) is None:
@@ -1084,7 +1100,7 @@ class Dashboard:
             await self.apply_show_mutation(ws, show_model.add_divider, data.get("after_uid"))
         elif kind == "update_step":
             patch = {key: data[key] for key in
-                     ("alias", "duration_s", "play_count", "then_actions", "forward_sync")
+                     ("alias", "duration_s", "play_count", "then_actions")
                      if key in data}
             await self.apply_show_mutation(ws, show_model.update_step, data.get("uid"), patch)
         elif kind == "move_item":

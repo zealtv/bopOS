@@ -225,8 +225,6 @@ def main():
                 page.select_option('[data-then-type="1"]', "goto")
                 page.wait_for_selector('[data-then-goto="1"]')
                 page.select_option('[data-then-goto="1"]', "22222222")
-                page.click("#show-forward-sync")
-                page.wait_for_selector(".show-sync-hint")
 
                 page.click("#show-play-forever")
                 page.fill('[data-duration-part="h"]', "0")
@@ -259,9 +257,9 @@ def main():
                       and page.locator("#show-play-count").input_value() == "2"
                       and page.locator('[data-then-goto="1"]').input_value() == "22222222",
                       row_text)
-                check("forward-sync persisted and skew hint renders",
-                      page.locator("#show-forward-sync").is_checked()
-                      and page.locator(".show-sync-hint").is_visible())
+                check("retired forward-sync control and skew hint stay absent",
+                      page.locator("#show-forward-sync").count() == 0
+                      and page.locator(".show-sync-hint").count() == 0)
 
                 page.locator('[data-show-message-focus="aaaa0001"]').click()
                 page.wait_for_selector("#show-param-picker")

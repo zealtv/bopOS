@@ -173,12 +173,9 @@ def clean_step(value):
         if action is None:
             return None
         then_actions.append(action)
-    forward_sync = value.get("forward_sync", False)
-    if not isinstance(forward_sync, bool):
-        return None
     return {"kind": "step", "uid": uid, "alias": alias, "messages": messages,
             "duration_s": duration_s, "play_count": play_count,
-            "then_actions": then_actions, "forward_sync": forward_sync}
+            "then_actions": then_actions}
 
 
 def clean_divider(value):
@@ -321,7 +318,7 @@ def add_step(show, after_uid=None):
         return show, None, "after_uid not found."
     step = {"kind": "step", "uid": mint_uid(_item_uids(show)), "alias": None,
             "messages": [], "duration_s": 5.0, "play_count": 1,
-            "then_actions": [], "forward_sync": False}
+            "then_actions": []}
     items = list(show["items"])
     items.insert(index, step)
     return {**show, "items": items}, step, None
@@ -338,7 +335,7 @@ def add_divider(show, after_uid=None):
 
 
 def update_step(show, uid, patch):
-    """Partial patch over alias/duration_s/play_count/then_actions/forward_sync.
+    """Partial patch over alias/duration_s/play_count/then_actions.
 
     `messages` is not patchable here -- it is owned by add_message/
     update_message/move_message/remove_message.
@@ -379,11 +376,6 @@ def update_step(show, uid, patch):
                 return show, None, "invalid then_action."
             then_actions.append(action)
         candidate["then_actions"] = then_actions
-    if "forward_sync" in patch:
-        forward_sync = patch["forward_sync"]
-        if not isinstance(forward_sync, bool):
-            return show, None, "forward_sync must be a boolean."
-        candidate["forward_sync"] = forward_sync
     if candidate["duration_s"] == 0 and candidate["play_count"] is None:
         return show, None, "duration_s == 0 requires a finite play_count."
     items[index] = candidate

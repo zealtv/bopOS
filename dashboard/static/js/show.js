@@ -109,13 +109,6 @@
     };
   }
 
-  function hasMixedForwardSync(step) {
-    if (!step?.forward_sync) return false;
-    const messages = step.messages || [];
-    return messages.some(message => message.address === "/cue") &&
-      messages.some(message => message.address !== "/cue");
-  }
-
   function currentInstallation() {
     try { return typeof installation === "object" && installation ? installation : {}; }
     catch (_error) { return {}; }
@@ -256,8 +249,8 @@
     return Math.max(0, base - ((performance.now() - playbackAt) / 1000));
   }
 
-  function iconButton(action, uid, glyph, label, stateClass = "") {
-    return `<button class="show-icon-button${stateClass}" data-show-action="${action}" data-show-uid="${uid}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"><span class="show-glyph show-glyph-${glyph}" aria-hidden="true"></span></button>`;
+  function iconButton(action, uid, glyph, label, stateClass = "", disabled = false) {
+    return `<button class="show-icon-button${stateClass}" data-show-action="${action}" data-show-uid="${uid}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" ${disabled ? "disabled" : ""}><span class="show-glyph show-glyph-${glyph}" aria-hidden="true"></span></button>`;
   }
 
   function stepTransport(step) {
@@ -337,12 +330,23 @@
   }
 
   function renderTransport() {
-    const playing = Object.entries(playback?.steps || {})
-      .filter(([_uid, state]) => state?.state === "playing")
-      .map(([uid]) => stepByUid(uid))
-      .filter(Boolean);
-    const aliases = playing.map(stepLabel).slice(0, 4).join(", ");
-    const overflow = playing.length > 4 ? ` +${playing.length - 4}` : "";
+    const activeEntry = Object.entries(playback?.steps || {})
+      .find(([_uid, state]) => ["playing", "paused"].includes(state?.state));
+    const activeUid = activeEntry?.[0] || null;
+    const activeState = activeEntry?.[1]?.state || null;
+    const activeStep = stepByUid(activeUid);
+    const focusedUid = focus.kind === "step" ? focus.uid
+      : focus.kind === "message" ? messageByUid(focus.uid).step?.uid : null;
+    const startUid = focusedUid || allSteps()[0]?.uid || null;
+    const playAction = activeState === "playing" ? "step_pause"
+      : activeState === "paused" ? "step_resume" : "step_start";
+    const playUid = activeUid || startUid;
+    const playGlyph = activeState === "playing" ? "pause" : "play";
+    const playLabel = activeState === "playing" ? `Pause ${stepLabel(activeStep)}`
+      : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
+      : `Play ${stepLabel(stepByUid(startUid))}`;
+    const indicator = activeStep ? `1 ${activeState}: ${stepLabel(activeStep)}` : "0 playing";
+    const cueLead = currentInstallation().cue_lead_ms ?? 500;
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
       <div class="show-manage">
@@ -354,8 +358,12 @@
         <button id="show-manage-delete" class="danger" type="button">Delete</button>
       </div>
       <div class="show-transport-actions">
-        <output id="show-playing-indicator" aria-live="polite">${playing.length ? `${playing.length} playing: ${escapeHtml(aliases)}${overflow}` : "0 playing"}</output>
-        <button id="show-stop-all" class="danger" type="button">Stop all</button>
+        <label class="show-cue-lead">cue lead · ms <input id="show-cue-lead" type="number" min="100" max="10000" step="50" value="${escapeHtml(cueLead)}"></label>
+        ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
+        ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
+        ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
+        <output id="show-playing-indicator" aria-live="polite">${escapeHtml(indicator)}</output>
+        <button id="show-stop-all" class="show-icon-button danger" data-show-action="stop_all_steps" data-show-uid="" type="button" title="Stop all steps" aria-label="Stop all steps"><span class="show-glyph show-glyph-stop" aria-hidden="true"></span></button>
       </div>
     </div>`;
   }
@@ -424,8 +432,6 @@
       ? "Duration 0 needs a finite play count." : "";
     const validation = modelValidation || friendlyShowError()
       ? `<p class="show-field-error">${escapeHtml(modelValidation || friendlyShowError())}</p>` : "";
-    const syncHint = hasMixedForwardSync(step)
-      ? '<p class="show-sync-hint">Forward-sync schedules /cue about 500 ms ahead; non-cue messages still send immediately.</p>' : "";
     const actionRows = actions.map((action, index) => renderThenAction(action, index)).join("");
     return `<h3>Step inspector</h3>
       <div class="show-inspector-form" data-show-step-editor="${escapeHtml(step.uid)}">
@@ -444,8 +450,6 @@
           <div class="show-inspector-subhead"><h4>Then actions</h4><button type="button" data-add-then-action>Add row</button></div>
           <div class="show-then-list">${actionRows || '<p class="dim">No rows means stop.</p>'}</div>
         </section>
-        <label class="show-check"><input id="show-forward-sync" type="checkbox" ${step.forward_sync ? "checked" : ""}> forward-sync cue messages</label>
-        ${syncHint}
         <button type="button" id="show-add-message">Add message</button>
         ${renderArrange(step)}
         <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
@@ -585,12 +589,22 @@
     const oldPicker = root.querySelector("#show-switch-select");
     const renderedShow = oldPicker?.querySelector("option[selected]")?.value;
     const pickedShow = oldPicker && oldPicker.value !== renderedShow ? oldPicker.value : null;
+    const oldCueLead = root.querySelector("#show-cue-lead");
+    const cueLeadDraft = oldCueLead && document.activeElement === oldCueLead
+      ? oldCueLead.value : null;
     if (!shows.current) renderEmptyState();
     else renderLoadedShow();
     if (pickedShow) {
       const picker = root.querySelector("#show-switch-select");
       if (picker && [...picker.options].some(option => option.value === pickedShow)) {
         picker.value = pickedShow;
+      }
+    }
+    if (cueLeadDraft != null) {
+      const cueLead = root.querySelector("#show-cue-lead");
+      if (cueLead) {
+        cueLead.value = cueLeadDraft;
+        cueLead.focus({preventScroll: true});
       }
     }
     // Re-rendering replaces the DOM and drops element focus, which breaks
@@ -743,10 +757,6 @@
       sendTransport(action.dataset.showAction, action.dataset.showUid);
       return;
     }
-    if (event.target.closest("#show-stop-all")) {
-      sendTransport("stop_all_steps");
-      return;
-    }
     if (event.target.closest("#show-load-button")) {
       const name = root.querySelector("#show-load-select")?.value;
       if (name) ws.send("load_show", {name});
@@ -791,6 +801,12 @@
   });
 
   root.addEventListener("change", event => {
+    if (event.target.id === "show-cue-lead") {
+      const ms = Math.min(10000, Math.max(100, Math.trunc(Number(event.target.value) || 500)));
+      event.target.value = ms;
+      ws.send("set_cue_lead", {ms});
+      return;
+    }
     const stepEditor = event.target.closest("[data-show-step-editor]");
     if (stepEditor) {
       const step = stepByUid(stepEditor.dataset.showStepEditor);
@@ -802,7 +818,6 @@
         updateStep(step.uid, {play_count: next});
       }
       if (event.target.id === "show-play-count") updateStep(step.uid, {play_count: Math.max(1, Math.trunc(Number(event.target.value) || 1))});
-      if (event.target.id === "show-forward-sync") updateStep(step.uid, {forward_sync: event.target.checked});
       if (event.target.matches("[data-then-type]")) {
         const actions = currentThenActions(step);
         const index = Number(event.target.dataset.thenType);
@@ -1047,6 +1062,7 @@
       countdownTimer = null;
     }
   });
+  ws.on("state", () => render());
   // ------------------------------------------------------------------
   // OSC consoles (stitch 7). These live outside #show-root so the
   // high-rate osc_in/osc_out stream never re-renders the show table, and

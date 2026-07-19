@@ -3,6 +3,7 @@
 if (new URLSearchParams(location.search).get("embedded") === "1") document.body.classList.add("embedded");
 const ws = new BopSocket("/ws");
 let installation = {devices: {}, seats: {}, groups: {}};
+let cueLeadModified = false;
 let muted = false;
 let master = 1.0;
 let presetNames = [];
@@ -136,7 +137,12 @@ function liveCard(scope, item, members, declarations, schemaAvailable) {
 }
 
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "" : "reconnecting…"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); render(); });
+ws.on("state", data => {
+  installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
+  presetNames = Object.keys(data.presets || {}).sort();
+  if (!cueLeadModified) $("#cue-lead").value = Number(data.cue_lead_ms ?? 500);
+  render();
+});
 ws.on("device_update", data => {
   if (data?.devices) installation = data;
   else if (data?.uid) installation.devices[data.uid] = data;
@@ -154,6 +160,7 @@ ws.on("cue_scheduled", data => {
 });
 
 let interacting = false;
+$("#cue-lead").addEventListener("input", () => { cueLeadModified = true; });
 document.addEventListener("pointerdown", event => { if (event.target.matches('input[type="range"]')) interacting = true; });
 document.addEventListener("pointerup", () => { if (interacting) { interacting = false; render(); } });
 
