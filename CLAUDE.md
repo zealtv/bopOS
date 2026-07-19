@@ -118,13 +118,24 @@ and tie one concrete stitch at a time:
    global transport, decomposed curves, point motion, the animated
    visualisation view, and multi-column layout — those stay with the
    Bob-gated `scene-sequencing` co-design.
-10. **Active — Close the sweep.** Resume
+10. **Active — Show polish sweep.** Bob's 2026-07-19 braindump (lore item
+   `2026-07-19-show-tab-polish-braindump`) authorizes thread
+   `15-show-polish`: Show tab bug fixes (0-values, lost transport clicks),
+   exclusive one-step playback with progress/armed visualisation, a global
+   transport with a settable cue lead time (per-step forward-sync retired —
+   all cues forward-sync), step-list scroll box, inspector defaults,
+   drag + keyboard/undo editing, and the Patch tab tidy
+   (facilitator→Dashboard copy, legacy `group` removal, path-hint clarity).
+   Work stitches p1→p8 in order; `6b-show-management` (show
+   create/switch/rename/delete) is already tied.
+11. **Next — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
    copy describe the finished system.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
 `scene-sequencing` co-design. It does not itself authorize implementation;
-the 2026-07-18 braindump authorizes exactly the `14-show-tab` slice.
+the 2026-07-18 braindump authorized the `14-show-tab` slice and the
+2026-07-19 braindump authorizes exactly the `15-show-polish` sweep.
 
 Everything else is `.waiting` for a reason stated in its stitch:
 
