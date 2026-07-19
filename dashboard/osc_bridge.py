@@ -22,6 +22,7 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import manifest as patch_manifest
+from python.paramgen import ParamGrammarError, parse_message
 
 
 LEGACY_DECLARATIONS = [
@@ -94,6 +95,10 @@ class OSCBridge:
         # uid -> bounded retry generation for inventories whose background
         # fingerprint warming has not completed yet.
         self._asset_requeries = {}
+        # Last generator the dashboard sent, deliberately runtime-only.  The
+        # durable state serializer has an explicit allowlist and omits this.
+        self.automation = {}
+        self.state.data["automation"] = self.automation
 
     async def start(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -242,7 +247,61 @@ class OSCBridge:
     def set_param(self, selector, name, value):
         # Show automation passes the full §3.2 argument list; plain writes
         # stay a single scalar.
-        self.send(f"/{selector}/p/{name}", value if isinstance(value, list) else [value])
+        args = value if isinstance(value, list) else [value]
+        try:
+            spec = parse_message(args, "f")
+        except ParamGrammarError:
+            spec = None
+        seats = self._selector_seats(selector)
+        changed = False
+        if spec is not None and spec.kind in {"fade", "loop", "lfo"}:
+            entry = {"args": list(args), "kind": spec.kind,
+                     "shape": getattr(spec, "shape", None),
+                     "free": bool(getattr(spec, "free", False)),
+                     "sent_at": time.time()}
+            for seat in seats:
+                self.automation.setdefault(str(seat["id"]), {})[name] = dict(entry)
+                changed = True
+            if spec.kind == "fade":
+                self._store_fade_destination(seats, name, spec.segments[-1][0])
+        else:
+            for seat in seats:
+                per_seat = self.automation.get(str(seat["id"]), {})
+                if per_seat.pop(name, None) is not None:
+                    changed = True
+                if not per_seat:
+                    self.automation.pop(str(seat["id"]), None)
+        self.send(f"/{selector}/p/{name}", args)
+        if changed:
+            self.broadcast("state", self.state.public())
+
+    def _selector_seats(self, selector):
+        value = str(selector)
+        if value == "all":
+            return list(self.state.seats.values())
+        if value.startswith("g"):
+            group_id = self.state.clean_group_id(value[1:])
+            if str(group_id) not in self.state.data.get("groups", {}):
+                return []
+            return [seat for seat in self.state.seats.values()
+                    if group_id in seat.get("groups", [])]
+        seat_id = self.state.clean_seat_id(value)
+        seat = self.state.seats.get(str(seat_id))
+        return [seat] if seat is not None else []
+
+    def _store_fade_destination(self, seats, identity, destination):
+        touched = set()
+        for seat in seats:
+            seat.setdefault("params", {})[identity] = destination
+            for device in self.state.devices.values():
+                if (device.get("uid") == seat.get("bound")
+                        or (device.get("virtual")
+                            and str(device.get("seat_id")) == str(seat["id"]))):
+                    device.setdefault("params", {})[identity] = destination
+                    touched.add(device["uid"])
+        self.state.save_debounced()
+        for uid in touched:
+            self.broadcast("device_update", self.state.devices[uid])
 
     def set_group_param(self, group_id, name, value):
         """Update all durable member mirrors, then emit one group datagram."""

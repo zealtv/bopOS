@@ -10,6 +10,7 @@ let presetNames = [];
 let liveScopeView = "aggregate";
 let renderedCueSignature = null;
 const openCommandDevices = new Set();
+const takeoverAnnouncements = new Map();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -55,10 +56,31 @@ function valueForSeat(seat, declaration) {
   return seat.params?.[declaration.identity] ?? declaration.default ?? "";
 }
 
+function automationForSeat(seat, declaration) {
+  if (!seat || declaration.type === "s") return null;
+  const entry = installation.automation?.[String(seat.id)]?.[declaration.identity];
+  return entry && ["fade", "loop", "lfo"].includes(entry.kind) ? entry : null;
+}
+
 function aggregateValue(members, declaration) {
-  if (!members.length) return {value: declaration.default ?? "", mixed: false};
+  if (!members.length) return {value: declaration.default ?? "", mixed: false, automation: null, automationMixed: false};
   const values = members.map(seat => valueForSeat(seat, declaration));
-  return {value: values[0], mixed: values.some(value => !Object.is(value, values[0]))};
+  const automation = members.map(seat => automationForSeat(seat, declaration));
+  const signature = entry => entry ? JSON.stringify(entry.args) : null;
+  const firstSignature = signature(automation[0]);
+  const automationMixed = automation.some(entry => signature(entry) !== firstSignature);
+  return {value: values[0], mixed: values.some(value => !Object.is(value, values[0])),
+          automation: automationMixed ? null : automation[0], automationMixed};
+}
+
+function automationPresentation(entry, mixed = false) {
+  if (mixed) return {glyph: "∿̸", label: "mixed"};
+  if (!entry) return null;
+  if (entry.kind === "fade") return {glyph: "╱", label: "fade"};
+  if (entry.kind === "loop") return {glyph: "⟳", label: "loop"};
+  const shape = entry.shape || "unknown";
+  const glyph = ["sine", "tri", "drift"].includes(shape) ? "∿" : "⌁";
+  return {glyph, label: `${shape} LFO`};
 }
 
 function scopeAttrs(scope, id, declaration) {
@@ -67,24 +89,29 @@ function scopeAttrs(scope, id, declaration) {
 
 function paramControl(scope, id, members, declaration, disabled) {
   const state = scope === "seat"
-    ? {value: valueForSeat(members[0], declaration), mixed: false}
+    ? {value: valueForSeat(members[0], declaration), mixed: false,
+       automation: automationForSeat(members[0], declaration), automationMixed: false}
     : aggregateValue(members, declaration);
-  const mixed = state.mixed;
+  const mixed = state.mixed || state.automationMixed;
   const value = state.value;
+  const automation = automationPresentation(state.automation, state.automationMixed);
   const attrs = scopeAttrs(scope, id, declaration);
-  const label = mixed ? `${declaration.name}, mixed values` : declaration.name;
-  const common = `${attrs} aria-label="${esc(label)}" ${disabled ? "disabled" : ""}`;
+  const valueLabel = state.mixed ? `${declaration.name}, mixed values` : declaration.name;
+  const label = automation ? `${valueLabel}, automated, ${automation.label}` : valueLabel;
+  const common = `${attrs} data-param-name="${esc(declaration.name)}" aria-label="${esc(label)}" ${automation ? 'data-automated="true"' : ""} ${disabled ? "disabled" : ""}`;
+  const mixedText = state.automationMixed ? '<span class="live-param-auto-mixed">auto·mixed</span>' : "";
   let input;
   if (declaration.type === "s") {
     input = `<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
   } else if (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1) {
     input = `<input ${common} type="checkbox" ${!mixed && Number(value) ? "checked" : ""} ${mixed ? 'data-mixed="true"' : ""}>`;
   } else {
-    const display = mixed ? "mixed" : value;
+    const display = state.automationMixed ? "auto·mixed" : state.mixed ? "mixed" : value;
     const rangeValue = mixed ? (declaration.default ?? declaration.min ?? 0) : value;
     input = `<output>${esc(display)}</output><input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""}>`;
   }
-  return `<label class="live-param${mixed ? " mixed" : ""}" data-param-path="${esc(declaration.identity)}"><span>${esc(declaration.name)}</span>${input}</label>`;
+  const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
+  return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
 }
 
 function paramTree(scope, id, members, declarations, disabled) {
@@ -130,9 +157,10 @@ function liveCard(scope, item, members, declarations, schemaAvailable) {
     ? `g${item.id} · ${members.length} ${members.length === 1 ? "Seat" : "Seats"}`
     : `Seat ${item.id} · ${device ? (device.online ? "online" : "offline") : (item.bound ? "offline" : "unbound")}`;
   const controls = declarations.length ? `<div class="promoted-controls">${paramTree(scope, id, members, declarations, empty)}</div>` : "";
-  return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}" data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${id}"`}>
+  const cardKey = `${scope}:${id ?? "all"}`;
+  return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${id}"`}>
     <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, id, !schemaAvailable) : ""}</div>
-    ${controls}${scope === "seat" ? deviceCommands(device) : ""}
+    ${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status visually-hidden" aria-live="polite">${esc(takeoverAnnouncements.get(cardKey) || "")}</output>
   </article>`;
 }
 
@@ -256,8 +284,25 @@ function updateLocalParams(scope, id, identity, value) {
 function bindCards() {
   document.querySelectorAll("[data-live-param]").forEach(input => {
     if (input.type === "checkbox" && input.dataset.mixed === "true") input.indeterminate = true;
-    let last = 0, timer = null;
+    let last = 0, timer = null, takingOver = false, takeoverSent = false;
+    const beginTakeover = () => {
+      if (input.dataset.automated !== "true") return;
+      takingOver = true;
+      input.closest(".live-param")?.classList.add("taking-over");
+    };
+    const announceTakeover = value => {
+      if (!takingOver) return;
+      const card = input.closest(".live-card");
+      const cardId = card?.dataset.liveId ?? "all";
+      const key = `${card?.dataset.liveScope}:${cardId}`;
+      const message = `${input.dataset.paramName} automation stopped, set to ${value}`;
+      takeoverAnnouncements.set(key, message);
+      const status = card?.querySelector(".live-param-status");
+      if (status) status.value = message;
+      setTimeout(() => takeoverAnnouncements.delete(key), 2000);
+    };
     const send = () => {
+      if (takingOver && takeoverSent) return;
       input.indeterminate = false;
       input.dataset.mixed = "false";
       input.closest(".live-param")?.classList.remove("mixed");
@@ -268,12 +313,18 @@ function bindCards() {
       if (id != null) payload.id = id;
       ws.send("set_live_param", payload);
       updateLocalParams(scope, id, input.dataset.paramPath, value);
+      if (takingOver) {
+        takeoverSent = true;
+        announceTakeover(value);
+      }
     };
+    input.onpointerdown = beginTakeover;
     if (input.type === "range") {
       input.oninput = () => {
         const output = input.previousElementSibling;
         if (output?.tagName === "OUTPUT") output.value = input.value;
         const now = performance.now();
+        if (takingOver) return;
         if (now - last >= 33) { last = now; send(); }
         else { clearTimeout(timer); timer = setTimeout(send, 33 - (now - last)); }
       };

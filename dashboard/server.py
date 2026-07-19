@@ -288,16 +288,18 @@ class Dashboard:
             if not name or selector is None:
                 return
             targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
-            if selector == "all":
-                for seat in self.state.seats.values():
-                    seat["params"][name] = value
-            for device in targets:
-                device["params"][name] = value
-                seat = self.state.seat_for_uid(device["uid"])
-                if seat is not None and selector != "all":
-                    seat["params"][name] = value
+            if not isinstance(value, list):
+                if selector == "all":
+                    for seat in self.state.seats.values():
+                        seat["params"][name] = value
+                for device in targets:
+                    device["params"][name] = value
+                    seat = self.state.seat_for_uid(device["uid"])
+                    if seat is not None and selector != "all":
+                        seat["params"][name] = value
             self.osc.set_param(selector, name, value)
-            self.state.save_debounced()
+            if not isinstance(value, list):
+                self.state.save_debounced()
             for device in targets:
                 await self.broadcast("device_update", device)
         elif kind == "set_live_param":
