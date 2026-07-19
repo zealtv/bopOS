@@ -2,8 +2,8 @@
   "engine": "sclang",
   "entrypoint": "main.scd",
   "params": [
-    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.7, "group": "mix", "facilitator": true},
-    {"name": "frequency", "type": "f", "min": 80, "max": 2000, "default": 220, "group": "sound", "facilitator": true}
+    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.7, "dashboard": true},
+    {"name": "frequency", "type": "f", "min": 80, "max": 2000, "default": 220, "dashboard": true}
   ],
   "caps": [],
   "slots": []

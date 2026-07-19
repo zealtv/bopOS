@@ -37,7 +37,7 @@ Then open:
   synced named cues, venues, presets, single-device asset delivery, and
   show authoring/playback (see "The Show tab" below).
 - **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
-  with the patch's promoted (`facilitator: true`) params as labelled controls,
+  with the patch's promoted (`dashboard: true`) params as labelled controls,
   master, Silence All, preset picker. On an iPad, "Add to Home
   Screen" launches it fullscreen.
 
@@ -173,9 +173,9 @@ only identities declared by the active manifest.
 
 In Patch edit, `path` is authored as slash-separated text and saved as a JSON
 array while `name` remains the leaf. Nested declarations render as a tree and
-send their complete `/p/<path>/<name>` address. The legacy `group` field stays
-presentation-only: clear it before adding a path, and path/name moves are shown
-as explicit remove-plus-add identity changes.
+send their complete `/p/<path>/<name>` address. Flat declarations stay in the
+default parameters section, and path/name moves are shown as explicit
+remove-plus-add identity changes.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
 visual coordinate origin, listener, master, presets). The Seats and Devices tabs let
@@ -185,7 +185,7 @@ through the same assignment path used by map dragging. Named snapshots live in
 via the Venue save/load buttons. Both are gitignored.
 
 The Dashboard is fail-closed. Patch parameters appear there only when their
-manifest declaration has `"facilitator": true`. Framework commands default to
+manifest declaration has `"dashboard": true`. Framework commands default to
 none; a venue may opt in supported fleet-wide commands in its installation
 state, for example:
 

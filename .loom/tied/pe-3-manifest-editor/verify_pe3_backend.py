@@ -66,8 +66,7 @@ def seed_patch(root):
     value = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [{"name": "gain", "type": "f", "min": 0,
-                    "max": 1, "default": 0.25, "group": "Sound",
-                    "facilitator": True}],
+                    "max": 1, "default": 0.25, "dashboard": True}],
         "cues": [{"id": "snap", "label": "Snap"}],
         "caps": ["audio"], "slots": ["samples"],
     }
@@ -90,8 +89,7 @@ async def main_async():
 
         ws = FakeWS()
         replacement = [{"name": "tone", "type": "i", "min": 1,
-                        "max": 8, "default": 3, "group": "Sound",
-                        "facilitator": False}]
+                        "max": 8, "default": 3, "dashboard": False}]
         await dashboard.handle_ws({"type": "save_patch_manifest", "data": {
             "patch": "alpha", "params": replacement,
             "cues": [{"id": "go", "label": "Go", "description": "Begin"}],

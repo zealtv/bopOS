@@ -559,24 +559,22 @@ function paramIdentity(param) {
 function manifestParamsForSave(params) {
   return structuredClone(params).map(param=>{
     if (!Array.isArray(param.path) || !param.path.length) delete param.path;
-    if (typeof param.group!=="string" || !param.group.trim()) delete param.group;
+    delete param.group;
+    delete param.facilitator;
     return param;
   });
 }
 function paramManifestRow(param, index) {
   const legacy=param.type==="s", disabled=legacy?"disabled":"";
   const path=Array.isArray(param.path)?param.path.join("/"):"";
-  const group=param.group||"";
-  const pathDisabled=legacy||Boolean(group), groupDisabled=legacy||Boolean(path);
   return `<div class="manifest-row manifest-param" data-param-index="${index}">
-    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="fx/reverb" autocomplete="off" ${pathDisabled?'disabled':''}></label>
+    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off" ${disabled}></label>
     <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off" ${disabled}></label>
     <label>type<select data-manifest-field="type" ${disabled}><option value="f" ${param.type==="f"?"selected":""}>float</option><option value="i" ${param.type==="i"?"selected":""}>integer</option>${legacy?'<option value="s" selected>string (legacy, read-only)</option>':''}</select></label>
     <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}" ${disabled}></label>
     <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}" ${disabled}></label>
     <label>default<input data-manifest-field="default" type="number" step="any" value="${esc(param.default??"")}" ${disabled}></label>
-    <label>legacy group<input data-manifest-field="group" type="text" value="${esc(group)}" autocomplete="off" ${groupDisabled?'disabled':''}></label>
-    <label class="manifest-check"><input data-manifest-field="facilitator" type="checkbox" ${param.facilitator===true?"checked":""} ${disabled}> facilitator</label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""} ${disabled}> Dashboard</label>
     <button data-remove-param="${index}" class="danger" title="${legacy?'Legacy string declarations are read-only':'Remove parameter'}" ${disabled}>${legacy?'Read-only':'Remove'}</button>
   </div>`;
 }
@@ -600,7 +598,7 @@ function bindManifestEditor(source) {
         manifestDirty=true;
       };
       input.oninput=update;
-      input.onchange=()=>{update();if (["path","group"].includes(input.dataset.manifestField)) renderManifestEditor(source);};
+      input.onchange=update;
     });
   });
   document.querySelectorAll(".manifest-cue").forEach(row=>{
@@ -630,11 +628,11 @@ function renderManifestEditor(source) {
   $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
   $("#manifest-cues").innerHTML=manifestDraft.cues.map(cueManifestRow).join("")||'<p class="dim">No cues declared.</p>';
   $("#manifest-feedback").textContent=manifestFeedback||(source.editable
-    ? "Path/name changes create a new OSC identity. Clear legacy group before adding a path; engine routes never change automatically."
+    ? "Path/name changes create a new OSC identity; engine routes never change automatically."
     : "Launch this patch in edit mode to change its manifest.");
   const addParam=$("#manifest-add-param"), addCue=$("#manifest-add-cue");
   addParam.disabled=!source.editable; addCue.disabled=!source.editable;
-  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",type:"f",min:0,max:1,default:0,facilitator:false});manifestDirty=true;renderManifestEditor(source);};
+  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",type:"f",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
   addCue.onclick=()=>{manifestDraft.cues.push({id:"",label:"",description:""});manifestDirty=true;renderManifestEditor(source);};
   const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
   save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
@@ -653,7 +651,7 @@ function renderManifestEditor(source) {
 }
 
 function editorControl(declaration, value) {
-  const badge=declaration.facilitator?'<b class="badge facilitator-badge">facilitator</b>':'';
+  const badge=declaration.dashboard?'<b class="badge dashboard-badge">Dashboard</b>':'';
   const name=`${esc(declaration.name)} ${badge}`;
   const identity=paramIdentity(declaration);
   if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
@@ -669,7 +667,7 @@ function editorParamTree(declarations, values) {
   };
   for (const declaration of declarations) {
     const parents=Array.isArray(declaration.path)&&declaration.path.length
-      ? declaration.path : [declaration.group||"parameters"];
+      ? declaration.path : ["parameters"];
     let siblings=roots, node=null;
     for (const name of parents) { node=branch(siblings,name); siblings=node.children; }
     node.leaves.push(declaration);

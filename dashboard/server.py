@@ -1289,7 +1289,7 @@ class Dashboard:
             return []
         declarations = []
         for item in manifest.get("params", ()):
-            if item.get("facilitator") is True:
+            if item.get("dashboard") is True:
                 projected = dict(item)
                 projected["identity"] = patch_manifest.qualify_param(item)
                 declarations.append(projected)

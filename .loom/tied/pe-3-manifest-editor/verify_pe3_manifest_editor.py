@@ -129,15 +129,14 @@ def receive_value(capture, address, expected, timeout=3):
 
 
 def fill_param(row, *, name, kind="f", minimum="0", maximum="1",
-               default="0", group="parameters", facilitator=False):
+               default="0", dashboard=False):
     row.locator('[data-manifest-field="name"]').fill(name)
     row.locator('[data-manifest-field="type"]').select_option(kind)
     row.locator('[data-manifest-field="min"]').fill(minimum)
     row.locator('[data-manifest-field="max"]').fill(maximum)
     row.locator('[data-manifest-field="default"]').fill(default)
-    row.locator('[data-manifest-field="group"]').fill(group)
-    checkbox = row.locator('[data-manifest-field="facilitator"]')
-    if facilitator:
+    checkbox = row.locator('[data-manifest-field="dashboard"]')
+    if dashboard:
         checkbox.check()
     else:
         checkbox.uncheck()
@@ -217,6 +216,7 @@ def main():
                 page.on("dialog", handle_dialog)
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
+                page.click("#tab-button-patches")
                 page.select_option("#editor-patch", "alpha")
                 page.click("#editor-launch")
                 page.wait_for_function(
@@ -242,7 +242,7 @@ def main():
                 page.click("#manifest-add-param")
                 new_param = page.locator(".manifest-param").last
                 fill_param(new_param, name="tone", minimum="100", maximum="1000",
-                           default="440", group="sound", facilitator=True)
+                           default="440", dashboard=True)
 
                 # Cue create and update are persisted in the same atomic save.
                 first_cue = page.locator(".manifest-cue").first
@@ -284,8 +284,8 @@ def main():
                 page.click("#manifest-save")
                 wait_manifest_result(page)
                 warning = page.locator("#manifest-feedback").inner_text().lower()
-                check("parameter rename/removal warns that PD receives must follow",
-                      "pure data" in warning and "gain" in warning,
+                check("parameter rename/removal warns that engine routes must follow",
+                      "engine routes" in warning and "gain" in warning,
                       warning)
 
                 # Cue deletion completes CRUD and re-renders from disk.

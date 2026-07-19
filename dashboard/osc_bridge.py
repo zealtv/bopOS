@@ -25,10 +25,10 @@ from python import manifest as patch_manifest
 
 
 LEGACY_DECLARATIONS = [
-    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.75, "group": "mix"},
-    {"name": "gain2", "type": "f", "min": 0, "max": 1, "default": 0.3, "group": "mix"},
-    {"name": "backing", "type": "f", "min": 0, "max": 1, "default": 0.8, "group": "mix"},
-    {"name": "echo", "type": "i", "min": 0, "max": 1, "default": 0, "group": "fx"},
+    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.75},
+    {"name": "gain2", "type": "f", "min": 0, "max": 1, "default": 0.3},
+    {"name": "backing", "type": "f", "min": 0, "max": 1, "default": 0.8},
+    {"name": "echo", "type": "i", "min": 0, "max": 1, "default": 0},
 ]
 log = logging.getLogger("bopos.osc")
 

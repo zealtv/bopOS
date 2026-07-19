@@ -83,13 +83,13 @@ def write_patch(root):
     (patch / "main.bin").write_bytes(b"live-controls-verifier")
     params = [
         {"path": ["synth", "voice"], "name": "density", "type": "f",
-         "min": 0, "max": 1, "default": .25, "facilitator": True},
+         "min": 0, "max": 1, "default": .25, "dashboard": True},
         {"name": "gate", "type": "i", "min": 0, "max": 1,
-         "default": 0, "facilitator": True},
+         "default": 0, "dashboard": True},
         {"path": ["labels"], "name": "word", "type": "s",
-         "facilitator": True},
+         "dashboard": True},
         {"name": "hidden", "type": "f", "min": 0, "max": 1,
-         "default": .4, "facilitator": False},
+         "default": .4, "dashboard": False},
     ]
     saved, error = manifest.write_atomic(patch, {
         "engine": "test", "entrypoint": "main.bin", "params": params,

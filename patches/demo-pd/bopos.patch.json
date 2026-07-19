@@ -8,8 +8,7 @@
       "min": 0,
       "max": 1,
       "default": 0.75,
-      "group": "mix",
-      "facilitator": true
+      "dashboard": true
     },
     {
       "name": "gain1",
@@ -17,8 +16,7 @@
       "min": 0,
       "max": 1,
       "default": 0.8,
-      "group": "mix",
-      "facilitator": true
+      "dashboard": true
     }
   ],
   "cues": [

@@ -17,7 +17,7 @@ function liveSchema() {
   const schema = installation.live_controls;
   if (!schema || typeof schema.patch !== "string" || !Array.isArray(schema.declarations)) return null;
   const valid = schema.declarations.every(declaration =>
-    declaration && declaration.facilitator === true &&
+    declaration && declaration.dashboard === true &&
     typeof declaration.identity === "string" && declaration.identity.length > 0 &&
     typeof declaration.name === "string" &&
     (declaration.path == null || Array.isArray(declaration.path)));

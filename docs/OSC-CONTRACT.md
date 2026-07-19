@@ -600,9 +600,9 @@ A patch ships **`bopos.patch.json`** in its patch root:
 ```json
 { "engine": "pd", "entrypoint": "main.pd",
   "params": [
-    {"path":["instrument","marimba"], "name":"gain", "type":"f", "min":0, "max":1, "default":0.75, "facilitator":true},
-    {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8,  "group":"mix"},
-    {"name":"echo",    "type":"i", "min":0, "max":1, "default":0,    "group":"fx"} ],
+    {"path":["instrument","marimba"], "name":"gain", "type":"f", "min":0, "max":1, "default":0.75, "dashboard":true},
+    {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8},
+    {"name":"echo",    "type":"i", "min":0, "max":1, "default":0} ],
   "cues": [
     {"id":"snap", "label":"Snap", "description":"Fire the snap gesture"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
@@ -623,8 +623,9 @@ A patch ships **`bopos.patch.json`** in its patch root:
   entry match `[A-Za-z0-9_-]+` exactly. There is no escaping, normalization,
   dot syntax, or slash syntax inside a segment. A qualified identity is at
   most eight segments and 255 ASCII bytes, and must be unique in its manifest;
-  duplicate leaves in distinct paths are legal. Nested declarations do not
-  also use the legacy presentation-only `group` field.
+  duplicate leaves in distinct paths are legal. The retired presentation-only
+  `group` field is ignored when loading old manifests and stripped on save;
+  an absent `path` is simply flat.
 - An omitted or empty `path` retains byte-for-behavior compatibility: `gain`
   remains `/p/gain`. The dashboard **renders controls from the declaration** —
   no more hardcoded sliders. Nested values flow as
@@ -638,12 +639,12 @@ A patch ships **`bopos.patch.json`** in its patch root:
 - **`role` — removed (Bob, 2026-07-12):** the param `role` concept is gone
   entirely. `role: "meter"` fell with the 2026-07-12 engine-boundary
   ratification; `role: "volume"` (ratified 2026-07-08) is superseded by
-  `facilitator` promotion below — there is no anointed volume param and no
+  `dashboard` promotion below — there is no anointed volume param and no
   `gain`-name fallback. Gain staging is purely the patch's business; the
   framework only provides the `master` term (§4.1). Per-element volumes are
   just N promoted params. Validation rejects any `role` key, loudly.
-- **`facilitator` (optional; additive, ratified 2026-07-10):** a param
-  declaration may carry `"facilitator": true` to promote it onto the
+- **`dashboard` (optional; renamed 2026-07-19):** a param declaration may
+  carry `"dashboard": true` to promote it onto the
   `/facilitator` surface as a control (rendered as a labelled control on the
   device card; values flow as ordinary
   `/<sel>/p/<segment>[/<segment>...]`; a card with no
@@ -653,7 +654,9 @@ A patch ships **`bopos.patch.json`** in its patch root:
   opts specific verbs onto the surface, confirm-gated, with destructive
   convergence verbs (updatebopos/checkout/reboot/shutdown) at minimum
   hold-to-confirm. The patch promotes its params; the venue promotes its
-  verbs.
+  verbs. Loaders accept the legacy `facilitator` spelling and normalize it to
+  `dashboard`; saves emit only `dashboard`. If both spellings are present with
+  conflicting values, the manifest is invalid.
 - **`cues` (optional; additive, v1.4):** a list of cue declarations the patch
   responds to: `{"id": <string>, "label": <string, optional>,
   "description": <string, optional>}`. `id` is the exact string delivered as
@@ -806,3 +809,4 @@ reasoning.
 | 1.6 | 2026-07-16 | Asset-inventory amendment (design 2026-07-15): nodes expose durable observed asset-slot facts, including canonical fingerprints once the nonblocking cache resolves. Also carries the additive unattended-update outcome receipts (§7). | `.lore/items/2026-07-15-asset-management-direction/`; stitch `11a-device-asset-inventory` |
 | 1.7 | 2026-07-17 | Patch-admin-surface amendment (Bob, 2026-07-17): bounded engine-sent `/admin <action>` request (§4.2) softens the "administrative commands never cross" rule for `update-patch`, `update-bopos`, `shutdown`, `reboot`; run context additively carries `version` and `patch-fingerprint` to the engine (§4.2). | `.loom/tied/1-contract-amendment/` |
 | 1.8 | 2026-07-19 | Parameter-automation grammar (§3.2): generator-slot model on numeric `/p/*` params — constants, string-unit timed fades, `loop`, `stop`, clock-anchored idempotent LFOs, `c:`/`p:`/`f` option shorthand, floor-and-emit-per-crossing ints, fades catching up as computed constants. Decomposition in bopos.py; engines and existing patches unchanged. String/mixed-array kind explicitly deferred (name and plane open). | `.lore/items/2026-07-19-param-automation-design-ratified/`; stitch `automation-0-design-ratification` |
+| 1.8 am. | 2026-07-19 | Patch-manifest presentation tidy (§8): promotion key renamed `facilitator` → `dashboard` with compatible normalization and conflicting dual-key rejection; retired `group` is ignored on load and stripped on save. | stitch `p7-patch-tab-tidy` |

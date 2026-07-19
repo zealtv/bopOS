@@ -172,13 +172,12 @@ def main():
                 page.wait_for_selector('[data-editor-param="synth/voice/gain"]')
 
                 paths = page.locator('[data-manifest-field="path"]')
-                groups = page.locator('[data-manifest-field="group"]')
                 check("manifest renders slash-separated path arrays",
                       paths.nth(0).input_value() == "synth/voice"
                       and paths.nth(1).input_value() == "fx/reverb")
-                check("path and legacy group inputs are mutually exclusive",
-                      groups.nth(0).is_disabled() and groups.nth(1).is_disabled()
-                      and paths.nth(2).is_disabled() and not groups.nth(2).is_disabled())
+                check("legacy group inputs are absent and flat paths stay editable",
+                      page.locator('[data-manifest-field="group"]').count() == 0
+                      and not paths.nth(2).is_disabled())
                 check("nested editor renders duplicate leaves in distinct branches",
                       page.locator('[data-param-path="synth/voice"]').count() == 1
                       and page.locator('[data-param-path="fx/reverb"]').count() == 1
@@ -193,18 +192,14 @@ def main():
                 ok, seen = receive(capture, "/p/fx/reverb/gain", .6)
                 check("duplicate leaf control stays bound to its own branch", ok, repr(seen))
 
-                # Explicit legacy-group conversion: clear it first, then author path.
-                groups.nth(2).fill("")
-                groups.nth(2).press("Tab")
-                page.wait_for_function(
-                    "() => !document.querySelectorAll('[data-manifest-field=path]')[2].disabled")
+                # Legacy presentation groups normalize away on load.
                 paths.nth(2).fill("mix/main")
                 paths.nth(2).press("Tab")
                 paths.nth(0).fill("synth/main")
                 page.click("#manifest-save")
                 wait_saved(page)
                 saved = json.loads(manifest_path.read_text())
-                check("path updates serialize as arrays without group conversion",
+                check("path updates serialize as arrays after group normalization",
                       saved["params"][0]["path"] == ["synth", "main"]
                       and saved["params"][2]["path"] == ["mix", "main"]
                       and "group" not in saved["params"][2], repr(saved["params"]))

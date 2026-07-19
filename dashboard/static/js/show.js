@@ -135,7 +135,7 @@
     if (typeof declaration?.identity === "string" && declaration.identity) return declaration.identity;
     const path = Array.isArray(declaration?.path) ? declaration.path.filter(Boolean).join("/") : "";
     const name = declaration?.name || "";
-    return [path, name].filter(Boolean).join("/") || (declaration?.group || name);
+    return [path, name].filter(Boolean).join("/") || name;
   }
 
   function manifestFromStagedPatch() {

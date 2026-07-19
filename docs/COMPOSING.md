@@ -65,7 +65,7 @@ when done), or edit the JSON directly:
   "entrypoint": "main.pd",
   "params": [
     { "name": "density", "type": "f", "min": 0, "max": 1,
-      "default": 0.5, "facilitator": true }
+      "default": 0.5, "dashboard": true }
   ],
   "cues": [
     { "id": "snap", "label": "Snap", "description": "Fire the snap gesture" }
@@ -83,7 +83,7 @@ Line by line:
   `"main.pd"` for Pure Data; `"sc"` patches declare their own entry point.
 - **`params`** — every control the dashboard may offer. Each declared
   parameter becomes a rendered control; the dashboard never invents
-  sliders. Add `"facilitator": true` to promote a parameter onto the live
+  sliders. Add `"dashboard": true` to promote a parameter onto the live
   **Dashboard** tab for performance-time control. An optional `"path"`
   array nests parameters (`{"path": ["texture"], "name": "density"}`
   arrives as `/p/texture/density`).
@@ -218,7 +218,7 @@ useful for collaboration and history, never required.
 | I want to… | where |
 |---|---|
 | start a new patch | **Patches → New patch…**, or copy `patches/demo-pd/` |
-| declare a control | manifest `params` (+ `"facilitator": true` for live use) |
+| declare a control | manifest `params` (+ `"dashboard": true` for live use) |
 | hear my patch now | Execution target → **Simulation** |
 | ship to the fleet | **Patches →** select **→ Deploy as fleet patch** |
 | ship big media | `assets/<slot>/` + **Assets → Send** |

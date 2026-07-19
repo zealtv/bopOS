@@ -21,6 +21,7 @@ PARAM_TYPES = ("i", "f", "s")
 CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
 MAX_PARAM_SEGMENTS = 8
 MAX_PARAM_IDENTITY_BYTES = 255
+_MISSING = object()
 
 
 def qualify_param(declaration):
@@ -108,8 +109,24 @@ def validate(candidate, patch_path, require_entrypoint=True):
     params = manifest.get("params", [])
     if not isinstance(params, list):
         return None, "params must be a list"
+    normalized_params = []
     param_identities = set()
-    for param in params:
+    for original in params:
+        if not isinstance(original, dict):
+            return None, f"param {original!r} must be an object"
+        param = dict(original)
+        legacy_dashboard = param.pop("facilitator", _MISSING)
+        if legacy_dashboard is not _MISSING and not isinstance(legacy_dashboard, bool):
+            return None, f"param {param.get('name')}: facilitator must be true or false"
+        if ("dashboard" in param and legacy_dashboard is not _MISSING
+                and param["dashboard"] != legacy_dashboard):
+            return None, (f"param {param.get('name')!r}: dashboard and legacy "
+                          "facilitator values conflict")
+        if "dashboard" not in param and legacy_dashboard is not _MISSING:
+            param["dashboard"] = legacy_dashboard
+        # ``group`` was presentation-only. Accept old manifests, but do not
+        # preserve it in the normalized model or any subsequent save.
+        param.pop("group", None)
         try:
             identity = qualify_param(param)
         except ValueError as error:
@@ -118,8 +135,6 @@ def validate(candidate, patch_path, require_entrypoint=True):
         if identity in param_identities:
             return None, f"duplicate param identity {identity!r}"
         param_identities.add(identity)
-        if param.get("path") and "group" in param:
-            return None, f"param {identity}: path and group are mutually exclusive"
         if param.get("type") not in PARAM_TYPES:
             return None, f"param {name}: type must be one of {'/'.join(PARAM_TYPES)}"
         low, high, default = param.get("min"), param.get("max"), param.get("default")
@@ -136,13 +151,13 @@ def validate(candidate, patch_path, require_entrypoint=True):
                 return None, f"param {name}: default {default} above max {high}"
         if "role" in param:
             return None, (f"param {name}: role was removed (2026-07-12); "
-                          "facilitator controls come from facilitator:true, "
+                          "dashboard controls come from dashboard:true, "
                           "inspection from /report")
-        facilitator = param.get("facilitator")
-        if facilitator is not None and not isinstance(facilitator, bool):
-            return None, f"param {name}: facilitator must be true or false"
-        if "group" in param and not isinstance(param["group"], str):
-            return None, f"param {name}: group must be a string"
+        dashboard = param.get("dashboard")
+        if dashboard is not None and not isinstance(dashboard, bool):
+            return None, f"param {name}: dashboard must be true or false"
+        normalized_params.append(param)
+    manifest["params"] = normalized_params
 
     cues = manifest.get("cues", [])
     if not isinstance(cues, list):
@@ -221,9 +236,9 @@ def warnings(manifest):
     """Non-fatal advisories for a manifest that load() accepted."""
     notes = []
     params = manifest.get("params", [])
-    if params and not any(param.get("facilitator") is True for param in params):
-        notes.append("no param with facilitator:true: "
-                     "the facilitator device card will be status-only")
+    if params and not any(param.get("dashboard") is True for param in params):
+        notes.append("no param with dashboard:true: "
+                     "the dashboard device card will be status-only")
     return notes
 
 

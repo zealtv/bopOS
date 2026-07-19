@@ -921,7 +921,7 @@ class InstallationState:
     def save_venue(self, name):
         # snapshot the durable state (name, room, devices) under a venue name;
         # runtime liveness is not part of a venue (presets land here once the
-        # facilitator stitch adds them to durable())
+        # Dashboard live-control stitch adds them to durable())
         path = os.path.join(self.venues_dir(), name + ".json")
         temporary = path + ".tmp"
         snapshot = self.durable()
