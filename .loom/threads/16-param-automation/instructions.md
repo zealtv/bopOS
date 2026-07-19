@@ -6,24 +6,23 @@ sent as single messages and decomposed in bopos.py, with the Show-tab builder
 GUI, animated dashboard controls with take-over, and the UX-gated waveform
 visualisation.
 
-Design: `.lore/items/2026-07-19-param-automation-generator-design/`
-(braindump + draft proposal). Source authorization is Bob's 2026-07-19
-braindump; direction agreed in-session, exact grammar **not yet ratified**.
+Design: `.lore/items/2026-07-19-param-automation-design-ratified/` is the
+ratification authority; the earlier braindump/draft remains at
+`.lore/items/2026-07-19-param-automation-generator-design/`. The exact grammar
+is ratified and recorded in OSC contract v1.8 §3.2.
 
-Separate from `15-show-polish` (Bob, 2026-07-19). Implies a contract
-revision (§3 shorthand registry; deferred §8 kind for strings/arrays —
-name and plane open, see the ratification stitch). Do not implement past
-the unratified design — decompose implementation stitches only after
-`automation-0-design-ratification` ties.
+Separate from `15-show-polish` (Bob, 2026-07-19), which is now fully tied.
+`automation-0-design-ratification` and `automation-1-engine-and-parity` are
+tied: contract §3.2, the bopos.py generator engine, and simfleet parity are
+landed. The next stitch is `automation-2-show-builder-gui`. The deferred §8
+kind for strings/arrays still has no name or plane and is not part of this
+thread's remaining GUI work.
 
-**Ordering (2026-07-19):** this thread runs **after** `15-show-polish`
-(bugs-first; and this thread's GUI stitches edit the same Show/live-control
-panels p3–p7 touch — landing polish first avoids double churn and repeated
-Playwright re-verification). One permitted interleave: once the design is
-ratified, the dashboard-free stitches — contract amendment, bopos.py
-generator engine, simfleet parity — may proceed in parallel with remaining
-polish stitches. The docs close-out (ex-`patch-workflow-friction`, dropped
-in-repo 2026-07-17; surviving pointer on the host loom at
+**Remaining ordering (2026-07-19):**
+`automation-2-show-builder-gui` → `automation-3-animated-takeover` →
+`automation-4-waveform-ux-gate`. The last stitch must stop for Bob's UX
+ratification before waveform implementation. The docs close-out
+(ex-`patch-workflow-friction`, dropped in-repo 2026-07-17; surviving pointer on the host loom at
 `~/repos/.loom/threads/patch-workflow-friction/`) should land after this
 thread, not before, or the docs go stale immediately.
 

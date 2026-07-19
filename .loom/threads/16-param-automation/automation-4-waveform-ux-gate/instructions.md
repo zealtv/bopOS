@@ -16,5 +16,5 @@ treatment before any implementation (ratification record,
 2. Mark this stitch `.waiting` and surface the proposal to Bob.
 3. Implement only after ratification, then the usual Playwright verify.
 
-Do not implement past the unratified design. `automation-3` ships with at
+Do not implement past the unratified waveform UX proposal. `automation-3` ships with at
 most a minimal placeholder indication.
