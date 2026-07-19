@@ -240,7 +240,9 @@ class OSCBridge:
         self.send("/audition/editor-element", [int(element)])
 
     def set_param(self, selector, name, value):
-        self.send(f"/{selector}/p/{name}", [value])
+        # Show automation passes the full §3.2 argument list; plain writes
+        # stay a single scalar.
+        self.send(f"/{selector}/p/{name}", value if isinstance(value, list) else [value])
 
     def set_group_param(self, group_id, name, value):
         """Update all durable member mirrors, then emit one group datagram."""

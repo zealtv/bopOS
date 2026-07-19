@@ -152,7 +152,7 @@ class ShowEngine:
             # collapses exact duplicates and lets "all" subsume the rest.
             selectors = target if isinstance(target, list) else [target]
             for selector in selectors:
-                self.bridge.set_param(selector, name, args[0] if args else 0)
+                self.bridge.set_param(selector, name, args if args else [0])
         else:
             self.bridge.send(address, args)
 

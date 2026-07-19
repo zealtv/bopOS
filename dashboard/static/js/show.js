@@ -249,6 +249,104 @@
     return {type: "f", value: Number(number.toPrecision(6))};
   }
 
+  const PARAM_DURATION = /^(?:\d+(?:\.\d*)?|\.\d+)(ms|s|m|h)$/;
+  const PARAM_OPTION = /^(c|curve|p|phase):(.*)$/;
+  const PARAM_FLOAT = /^\s*[+-]?(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:e[+-]?\d(?:_?\d)*)?\s*$/i;
+  const PARAM_SHAPES = new Set(["sine", "tri", "saw", "square", "sh", "drift"]);
+
+  function paramNumber(value, label = "value") {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(`${label} must be numeric`);
+    }
+    return value;
+  }
+
+  function paramDuration(value, label = "duration") {
+    if (typeof value === "number") {
+      paramNumber(value, label);
+      if (value < 0) throw new Error(`${label} must not be negative`);
+      return {ms: value, amount: String(Number(value)), unit: "ms"};
+    }
+    if (typeof value !== "string") throw new Error(`${label} must be a duration`);
+    const match = value.match(PARAM_DURATION);
+    if (!match) throw new Error(`bad ${label}`);
+    const amount = Number(value.slice(0, -match[1].length));
+    const ms = amount * {ms: 1, s: 1000, m: 60000, h: 3600000}[match[1]];
+    if (ms < 0) throw new Error(`${label} must not be negative`);
+    return {ms, amount: String(Number(amount)), unit: match[1]};
+  }
+
+  function parseParamArgs(args, declType) {
+    if (!new Set(["f", "i"]).has(declType)) throw new Error("automation requires a numeric declaration");
+    if (!Array.isArray(args) || !args.length) throw new Error("parameter message has no arguments");
+    const positional = args.map(arg => arg?.value);
+    const options = {curve: 0, phase: 0, free: false};
+    const seen = new Set();
+    while (positional.length && typeof positional[positional.length - 1] === "string") {
+      const token = positional[positional.length - 1];
+      const match = token.match(PARAM_OPTION);
+      let name;
+      let value;
+      if (token === "f" || token === "free") {
+        name = "free";
+        value = true;
+      } else if (match) {
+        name = match[1] === "c" || match[1] === "curve" ? "curve" : "phase";
+        if (!PARAM_FLOAT.test(match[2])) throw new Error(`bad option ${token}`);
+        value = Number(match[2].replaceAll("_", ""));
+        if (!Number.isFinite(value)) throw new Error(`bad option ${token}`);
+        if (name === "phase" && (value < 0 || value > 1)) throw new Error("phase must be between 0 and 1");
+      } else {
+        break;
+      }
+      if (seen.has(name)) throw new Error(`duplicate ${name} option`);
+      seen.add(name);
+      options[name] = value;
+      positional.pop();
+    }
+    if (!positional.length) throw new Error("parameter message contains only options");
+    const head = positional[0];
+    if (head === "stop") {
+      if (positional.length !== 1 || seen.size) throw new Error("stop takes no arguments or options");
+      return {mode: "stop"};
+    }
+    if (head === "lfo") {
+      if (positional.length !== 5) throw new Error("lfo requires shape, min, max, and period");
+      if (!PARAM_SHAPES.has(positional[1])) throw new Error("unknown lfo shape");
+      const period = paramDuration(positional[4], "period");
+      if (period.ms <= 0) throw new Error("lfo period must be greater than zero");
+      return {
+        mode: "lfo", shape: positional[1], min: paramNumber(positional[2], "minimum"),
+        max: paramNumber(positional[3], "maximum"), period,
+        phase: options.phase, free: options.free, curve: options.curve,
+      };
+    }
+    if (seen.has("phase") || seen.has("free")) throw new Error("phase/free options are lfo-only");
+    const loop = head === "loop";
+    const values = loop ? positional.slice(1) : positional;
+    if (loop && !values.length) throw new Error("loop requires a fade form");
+    if (!loop && typeof head === "string") throw new Error("unknown keyword or option");
+    let result;
+    if (values.length === 1) {
+      result = {mode: "value", value: paramNumber(values[0])};
+    } else if (values.length === 2) {
+      result = {mode: "fade", from: null, segments: [{value: paramNumber(values[0]), duration: paramDuration(values[1])}], curve: options.curve};
+    } else if (values.length === 3) {
+      result = {mode: "fade", from: paramNumber(values[0]), segments: [{value: paramNumber(values[1]), duration: paramDuration(values[2])}], curve: options.curve};
+    } else if (values.length >= 4 && values.length % 2 === 0) {
+      result = {mode: loop ? "loop" : "fade", from: null, segments: [], curve: options.curve};
+      for (let index = 0; index < values.length; index += 2) {
+        result.segments.push({value: paramNumber(values[index]), duration: paramDuration(values[index + 1])});
+      }
+    } else if (values.length >= 5) {
+      throw new Error("fade segment list must contain destination/duration pairs");
+    } else {
+      throw new Error("bad fade arity");
+    }
+    if (result.mode === "value" && seen.has("curve")) throw new Error("curve option requires automation");
+    return result;
+  }
+
   function wirePreview(message) {
     const args = (message.args || []).map(arg => `${arg.type}:${String(arg.value)}`).join(", ");
     return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${terseTargets(message)}`;
@@ -531,18 +629,88 @@
     const manifest = manifestFromStagedPatch();
     const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : manifest.params[0]?.identity || "";
     const declaration = manifest.params.find(param => param.identity === identity) || manifest.params[0] || {type: "f", min: 0, max: 1, default: 0, name: "value", identity};
-    const value = message.args?.[0]?.value ?? declaration.default ?? "";
     const options = manifest.params.map(param => {
       const label = `${param.path?.length ? `${param.path.join("/")} / ` : ""}${param.name || param.identity}`;
       return `<option value="${escapeHtml(param.identity)}" ${param.identity === identity ? "selected" : ""}>${escapeHtml(label)}</option>`;
     }).join("");
-    const inputType = declaration.type === "s" ? "text" : "number";
-    const attrs = declaration.type === "s" ? "" : `step="${declaration.type === "i" ? "1" : "any"}" ${declaration.min != null ? `min="${escapeHtml(declaration.min)}"` : ""} ${declaration.max != null ? `max="${escapeHtml(declaration.max)}"` : ""}`;
+    const numeric = declaration.type === "f" || declaration.type === "i";
+    let parsed = null;
+    if (numeric) {
+      try { parsed = parseParamArgs(message.args || [], declaration.type); }
+      catch (_error) { parsed = null; }
+    }
+    const rawFallback = numeric && !parsed;
+    const mode = parsed?.mode || "value";
+    const generator = numeric && !rawFallback ? `<label>generator
+      <select id="show-param-generator">
+        ${["value", "fade", "loop", "lfo", "stop"].map(kind => `<option value="${kind}" ${mode === kind ? "selected" : ""}>${kind}</option>`).join("")}
+      </select>
+    </label>` : "";
+    const fields = rawFallback
+      ? renderParamRawFallback(message)
+      : renderParamGeneratorFields(declaration, parsed || {mode: "value", value: message.args?.[0]?.value ?? declaration.default ?? ""});
     return `<section class="show-inspector-section" data-payload-builder="param">
       <label>parameter <select id="show-param-picker">${options || '<option value="">No staged params</option>'}</select></label>
-      <label>value <input id="show-param-value" type="${inputType}" ${attrs} value="${escapeHtml(value)}"></label>
+      ${generator}
+      ${fields}
       <small class="dim">${escapeHtml(declaration.type || "f")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
     </section>`;
+  }
+
+  function paramValueAttrs(declaration) {
+    return `step="${declaration.type === "i" ? "1" : "any"}" ${declaration.min != null ? `min="${escapeHtml(declaration.min)}"` : ""} ${declaration.max != null ? `max="${escapeHtml(declaration.max)}"` : ""}`;
+  }
+
+  function renderParamGeneratorFields(declaration, parsed) {
+    if (declaration.type === "s") {
+      return `<label>value <input id="show-param-value" type="text" value="${escapeHtml(parsed.value ?? declaration.default ?? "")}"></label>`;
+    }
+    if (parsed.mode === "value") {
+      return `<label>value <input id="show-param-value" type="number" ${paramValueAttrs(declaration)} value="${escapeHtml(parsed.value)}"></label>`;
+    }
+    if (parsed.mode === "stop") return '<p class="dim show-param-stop">Stops automation and holds its current output.</p>';
+    if (parsed.mode === "lfo") {
+      const shapes = ["sine", "tri", "saw", "square", "sh", "drift"];
+      return `<div class="show-param-lfo">
+        <label>shape <select data-param-lfo="shape">${shapes.map(shape => `<option value="${shape}" ${parsed.shape === shape ? "selected" : ""}>${shape}</option>`).join("")}</select></label>
+        <label>min <input data-param-lfo="min" type="number" ${paramValueAttrs(declaration)} value="${escapeHtml(parsed.min)}"></label>
+        <label>max <input data-param-lfo="max" type="number" ${paramValueAttrs(declaration)} value="${escapeHtml(parsed.max)}"></label>
+        <label>period <span class="show-param-duration"><input data-param-lfo="period" type="number" min="0" step="any" value="${escapeHtml(parsed.period.amount)}"><select data-param-lfo="period-unit">${renderUnitOptions(parsed.period.unit)}</select></span></label>
+        <label>phase <input data-param-lfo="phase" type="number" min="0" max="1" step="0.01" value="${escapeHtml(parsed.phase)}"></label>
+        <label class="show-check">free <input data-param-lfo="free" type="checkbox" ${parsed.free ? "checked" : ""}></label>
+        <label>curve <input data-param-lfo="curve" type="number" step="any" value="${escapeHtml(parsed.curve || "")}"></label>
+      </div>`;
+    }
+    const from = parsed.mode === "fade" && parsed.segments.length === 1
+      ? `<label>from · optional <input data-param-from type="number" ${paramValueAttrs(declaration)} value="${escapeHtml(parsed.from ?? "")}"></label>` : "";
+    return `<div class="show-param-segments" data-param-segments>
+      ${parsed.segments.map((segment, index) => renderParamSegment(segment, index, declaration, parsed.segments.length)).join("")}
+    </div>
+    <button type="button" data-add-param-segment>Add segment</button>
+    ${from}
+    <label>curve <input data-param-curve type="number" step="any" value="${escapeHtml(parsed.curve || "")}"></label>
+    <p class="show-field-error show-param-loop-hint" ${parsed.mode === "loop" && parsed.segments.length < 2 ? "" : "hidden"}>loop needs at least two segments</p>`;
+  }
+
+  function renderUnitOptions(selected) {
+    return ["ms", "s", "m", "h"].map(unit => `<option value="${unit}" ${unit === selected ? "selected" : ""}>${unit}</option>`).join("");
+  }
+
+  function renderParamSegment(segment, index, declaration, count) {
+    return `<div class="show-param-segment" data-param-segment="${index}">
+      <label>destination <input data-param-segment-value type="number" ${paramValueAttrs(declaration)} value="${escapeHtml(segment.value)}"></label>
+      <label>duration <span class="show-param-duration"><input data-param-segment-duration type="number" min="0" step="any" value="${escapeHtml(segment.duration.amount)}"><select data-param-segment-unit>${renderUnitOptions(segment.duration.unit)}</select></span></label>
+      <button type="button" class="danger" data-remove-param-segment aria-label="Remove segment" ${count <= 1 ? "disabled" : ""}>Remove</button>
+    </div>`;
+  }
+
+  function renderParamRawFallback(message) {
+    const args = (message.args || []).map((arg, index) => renderRawArg(arg, index)).join("");
+    return `<div class="show-param-raw" data-param-raw-fallback>
+      <p class="show-field-error">unrecognised automation form — raw arguments</p>
+      <div class="show-inspector-subhead"><h4>Arguments</h4><button type="button" data-add-raw-arg>Add arg</button></div>
+      <div class="show-raw-args">${args || '<p class="dim">No arguments.</p>'}</div>
+    </div>`;
   }
 
   function renderCueBuilder(message) {
@@ -921,6 +1089,90 @@
     targetDisclosure = {uid: disclosure.dataset.targetDisclosure, open: disclosure.open};
   }, true);
 
+  function paramModeDefaultArgs(declaration, mode) {
+    const type = declaration?.type || "f";
+    const value = declaration?.default ?? (type === "s" ? "" : 0);
+    if (type === "s" || mode === "value") return [typedArg(type, value)];
+    if (mode === "fade") return [typedArg(type, value), typedArg("s", "1s")];
+    if (mode === "loop") return [
+      typedArg("s", "loop"), typedArg(type, value), typedArg("s", "1s"),
+      typedArg(type, value), typedArg("s", "1s"),
+    ];
+    if (mode === "lfo") return [
+      typedArg("s", "lfo"), typedArg("s", "sine"),
+      typedArg(type, declaration?.min ?? 0), typedArg(type, declaration?.max ?? 1),
+      typedArg("s", "4s"),
+    ];
+    return [typedArg("s", "stop")];
+  }
+
+  function currentParamDeclaration(message, identity = null) {
+    const manifest = manifestFromStagedPatch();
+    const selected = identity ?? (message.address?.startsWith("/p/") ? message.address.slice(3) : "");
+    return manifest.params.find(param => param.identity === selected)
+      || manifest.params[0] || {identity: selected, type: "f", default: 0};
+  }
+
+  function inputNumber(editor, selector) {
+    const value = Number(editor.querySelector(selector)?.value);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function durationString(editor, amountSelector, unitSelector) {
+    const amount = inputNumber(editor, amountSelector);
+    const unit = editor.querySelector(unitSelector)?.value || "ms";
+    if (amount == null || amount < 0) return null;
+    return `${String(Number(amount))}${unit}`;
+  }
+
+  function compileParamEditor(message, editor) {
+    const declaration = currentParamDeclaration(message);
+    const type = declaration.type || "f";
+    const mode = editor.querySelector("#show-param-generator")?.value || "value";
+    if (mode === "value") {
+      const input = editor.querySelector("#show-param-value");
+      return input ? [typedArg(type, input.value)] : null;
+    }
+    if (mode === "stop") return [typedArg("s", "stop")];
+    if (mode === "lfo") {
+      const minimum = inputNumber(editor, '[data-param-lfo="min"]');
+      const maximum = inputNumber(editor, '[data-param-lfo="max"]');
+      const periodAmount = inputNumber(editor, '[data-param-lfo="period"]');
+      const period = durationString(editor, '[data-param-lfo="period"]', '[data-param-lfo="period-unit"]');
+      const phase = inputNumber(editor, '[data-param-lfo="phase"]');
+      const curve = inputNumber(editor, '[data-param-lfo="curve"]');
+      if (minimum == null || maximum == null || periodAmount == null || periodAmount <= 0 || period == null
+          || phase == null || phase < 0 || phase > 1 || curve == null) return null;
+      const args = [
+        typedArg("s", "lfo"), typedArg("s", editor.querySelector('[data-param-lfo="shape"]')?.value || "sine"),
+        typedArg(type, minimum), typedArg(type, maximum), typedArg("s", period),
+      ];
+      if (phase !== 0) args.push(typedArg("s", `p:${String(Number(phase))}`));
+      if (editor.querySelector('[data-param-lfo="free"]')?.checked) args.push(typedArg("s", "f"));
+      if (curve !== 0) args.push(typedArg("s", `c:${String(Number(curve))}`));
+      return args;
+    }
+    const rows = [...editor.querySelectorAll("[data-param-segment]")];
+    const hint = editor.querySelector(".show-param-loop-hint");
+    if (hint) hint.hidden = !(mode === "loop" && rows.length < 2);
+    if (!rows.length || (mode === "loop" && rows.length < 2)) return null;
+    const args = mode === "loop" ? [typedArg("s", "loop")] : [];
+    if (mode === "fade" && rows.length === 1) {
+      const from = editor.querySelector("[data-param-from]")?.value.trim();
+      if (from) args.push(typedArg(type, from));
+    }
+    for (const row of rows) {
+      const value = row.querySelector("[data-param-segment-value]")?.value;
+      const duration = durationString(row, "[data-param-segment-duration]", "[data-param-segment-unit]");
+      if (value == null || duration == null) return null;
+      args.push(typedArg(type, value), typedArg("s", duration));
+    }
+    const curve = inputNumber(editor, "[data-param-curve]");
+    if (curve == null) return null;
+    if (curve !== 0) args.push(typedArg("s", `c:${String(Number(curve))}`));
+    return args;
+  }
+
   function applyModeDefault(message, mode) {
     const manifest = manifestFromStagedPatch();
     if (mode === "param") {
@@ -1031,15 +1283,25 @@
       if (event.target.id === "show-message-alias") updateMessage(message.uid, {alias: event.target.value.trim() || null});
       if (event.target.id === "show-message-mode") applyModeDefault(message, event.target.value);
       if (event.target.id === "show-param-picker") {
-        const manifest = manifestFromStagedPatch();
-        const declaration = manifest.params.find(param => param.identity === event.target.value) || {type: "f", default: 0};
-        updateMessage(message.uid, {address: `/p/${event.target.value}`, args: [typedArg(declaration.type || "f", declaration.default ?? 0)]});
+        const oldDeclaration = currentParamDeclaration(message);
+        let mode = "value";
+        try { mode = parseParamArgs(message.args || [], oldDeclaration.type).mode; }
+        catch (_error) { mode = "value"; }
+        const declaration = currentParamDeclaration(message, event.target.value);
+        if (declaration.type === "s") mode = "value";
+        updateMessage(message.uid, {address: `/p/${event.target.value}`, args: paramModeDefaultArgs(declaration, mode)});
+      }
+      if (event.target.id === "show-param-generator") {
+        const declaration = currentParamDeclaration(message);
+        updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, event.target.value)});
       }
       if (event.target.id === "show-param-value") {
-        const manifest = manifestFromStagedPatch();
-        const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : "";
-        const declaration = manifest.params.find(param => param.identity === identity) || {type: message.args?.[0]?.type || "f"};
+        const declaration = currentParamDeclaration(message);
         updateMessage(message.uid, {args: [typedArg(declaration.type || "f", event.target.value)]});
+      }
+      if (event.target.matches("[data-param-segment-value], [data-param-segment-duration], [data-param-segment-unit], [data-param-from], [data-param-curve], [data-param-lfo]")) {
+        const args = compileParamEditor(message, messageEditor);
+        if (args) updateMessage(message.uid, {args});
       }
       if (event.target.id === "show-cue-picker") updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: event.target.value}]});
       if (event.target.matches("[data-point-field]")) {
@@ -1103,6 +1365,29 @@
     if (messageEditor) {
       const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
       if (!message) return;
+      if (event.target.matches("[data-add-param-segment]")) {
+        const declaration = currentParamDeclaration(message);
+        const segments = messageEditor.querySelector("[data-param-segments]");
+        const count = segments?.querySelectorAll("[data-param-segment]").length || 0;
+        if (segments) {
+          segments.insertAdjacentHTML("beforeend", renderParamSegment({
+            value: declaration.default ?? 0,
+            duration: {amount: "1", unit: "s"},
+          }, count, declaration, count + 1));
+          segments.querySelectorAll("[data-remove-param-segment]").forEach(button => button.disabled = false);
+          const args = compileParamEditor(message, messageEditor);
+          if (args) updateMessage(message.uid, {args});
+        }
+      }
+      if (event.target.matches("[data-remove-param-segment]")) {
+        const rows = messageEditor.querySelectorAll("[data-param-segment]");
+        if (rows.length <= 1) return;
+        event.target.closest("[data-param-segment]")?.remove();
+        const remaining = messageEditor.querySelectorAll("[data-param-segment]");
+        if (remaining.length === 1) remaining[0].querySelector("[data-remove-param-segment]").disabled = true;
+        const args = compileParamEditor(message, messageEditor);
+        if (args) updateMessage(message.uid, {args});
+      }
       const toggle = event.target.closest("[data-target-toggle]");
       if (toggle) {
         updateMessage(message.uid, {target: toggledTargets(message, toggle.dataset.targetToggle)});
