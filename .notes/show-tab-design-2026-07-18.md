@@ -28,9 +28,9 @@ aren't track-scoped (see below). Rung 1 before language design (§05, §08 Q3)
 
 **Simplified:** one column, not tracks × clips — braindump's "more columns
 later to be more Ableton like" defers that explicitly; no track concept
-means no "one playing clip per track" conflict rule, so any number of steps
-may be `playing` at once (a real gap the future multi-column work must
-reconcile — flagged for stitch 3). Rows hold concrete OSC messages, not
+initially meant no "one playing clip per track" conflict rule. The polish
+amendment now makes playback exclusive across this single column; future
+multi-column work must define its own lane conflict rule. Rows hold concrete OSC messages, not
 scripted clips — sidesteps "polymorphic clip types round-tripping to text"
 (§08 Q2) entirely; a step's messages are structured data built through
 pickers (stitch 5), never a script, avoiding scene-language syntax
@@ -50,7 +50,8 @@ stays paused, no syntax invented anywhere in this thread.
 co-design): **Q1** — tab + separable module, shows as files, file shape
 narrowed to single-file JSON. **Q3** — Rung 1 before language work,
 confirmed by construction. **Q11** — short horizon, no cancellation term:
-forward-sync reuses `OSCBridge.fire_cue`'s fixed lead (default 500 ms).
+forward-sync reuses `OSCBridge.fire_cue` with the installation's persisted
+lead (default 500 ms).
 **Q12** — a concrete follow-action vocabulary (stop, play again, next/
 previous step, any/other-in-section, goto, next/previous section, multi-then
 uniform random).
@@ -105,8 +106,7 @@ engine has loaded. Stitch 2 owns the exact `InstallationState` plumbing.
           "target": "all" }
       ],
       "duration_s": 45.0, "play_count": 1,
-      "then_actions": [ {"type": "next_step"} ],
-      "forward_sync": false },
+      "then_actions": [ {"type": "next_step"} ] },
 
     { "kind": "step", "uid": "e5f6a7b8", "alias": null,
       "messages": [
@@ -118,8 +118,7 @@ engine has loaded. Stitch 2 owns the exact `InstallationState` plumbing.
       "then_actions": [
         {"type": "any_in_section"},
         {"type": "goto", "target_uid": "a1b2c3d4"}
-      ],
-      "forward_sync": true },
+      ] },
 
     { "kind": "divider", "uid": "d0001" },
 
@@ -136,8 +135,7 @@ engine has loaded. Stitch 2 owns the exact `InstallationState` plumbing.
           "target": "all" }
       ],
       "duration_s": 20.0, "play_count": null,
-      "then_actions": [],
-      "forward_sync": false }
+      "then_actions": [{"type": "stop"}] }
   ]
 }
 ```
@@ -154,8 +152,8 @@ generated word-pairs, a step's alias is authored, not identity) · `messages`
 (ordered array; order is authoring convenience, all fire together) ·
 `duration_s` (number ≥ 0, canonical seconds; stitch-5 edits h/m/s fields,
 converts on save/load) · `play_count` (integer ≥ 1, or `null` = loop
-indefinitely — §4) · `then_actions` (tagged-action array; empty = implicit
-`stop`) · `forward_sync` (bool; §4).
+indefinitely — §4) · `then_actions` (non-empty tagged-action array; missing or
+empty legacy values normalize to `[{"type": "stop"}]`).
 
 **Divider:** `{"kind": "divider", "uid": "..."}` only — needs a uid too since
 stitch 6's move/delete address items by uid regardless of kind.
@@ -218,7 +216,7 @@ server-side): **uids are always server-minted**, never client-supplied.
 | type | data |
 |---|---|
 | `add_step` / `add_divider` | `{after_uid: uid\|null}` |
-| `update_step` | `{uid, alias?, duration_s?, play_count?, then_actions?, forward_sync?}` (partial patch) |
+| `update_step` | `{uid, alias?, duration_s?, play_count?, then_actions?}` (partial patch) |
 | `move_item` | `{uid, after_uid: uid\|null}` |
 | `remove_item` | `{uid}` — stops the step first if playing/paused (§4) |
 | `add_message` | `{step_uid, message}` — mints a fresh uid; also used for paste (stitch 6's clipboard is client-local; paste = `add_message` with the copied payload) |
@@ -266,13 +264,14 @@ stitch-7 instructions; the server does no filtering.
 **State machine** (per step): `stopped --step_start--> playing`,
 `playing <--step_pause/step_resume--> paused`, `playing/paused
 --step_stop--> stopped`, `playing --duration/play_count exhausted-->`
-then-action resolution. `playing`/`paused` carry `iteration` (1-indexed
+then-action resolution. Starting or resuming a step first stops every other
+playing or paused step. `playing`/`paused` carry `iteration` (1-indexed
 loop count in the current run) and an expiry timestamp (`paused` freezes it,
 recording remaining time).
 
 **Trigger/duration/play_count.** `step_start` (UI click, `goto`,
 `next_step`, …): (1) `iteration = 1`; (2) emit all messages together (per
-`forward_sync` below); (3) arm a `duration_s` timer (0 fires per the guard
+the cue policy below); (3) arm a `duration_s` timer (0 fires per the guard
 below); (4) on expiry — if `play_count` is `null` or `iteration <
 play_count`: `iteration += 1`, re-emit, re-arm (the "play n times" loop,
 distinct from the `play_again` then-action which restarts the whole run
@@ -282,8 +281,9 @@ from `iteration = 1`); else (`iteration == play_count`, finite): resolve
 duration or the step busy-loops; `duration_s == 0` with a finite count
 resolves all iterations and the then-action synchronously in one tick.
 
-**Then-action resolution.** Empty list → implicit `stop`. One action →
-execute it. Multiple → uniform random pick via the show engine's own
+**Then-action resolution.** Missing or empty legacy lists normalize to the
+explicit stop action. One action → execute it. Multiple → uniform random pick
+via the show engine's own
 `random.Random`, seeded from the installation's run-context seed (same seed
 threaded through `bopos-context`/`BOPOS_SEED`) for reproducibility.
 `stop`: → `stopped`. `play_again`: `iteration` resets to 1, behaves like a
@@ -322,18 +322,19 @@ becomes empty (its only step deleted): stops being enumerable by
 section-walks — no special cleanup, falls out of the "skip empty section"
 rule.
 
-**Forward-sync.** `forward_sync: true` means: at `step_start` (and each
-internal `play_count` repeat), each message's `address` is checked for
-scheduled-delivery support. **Only `/cue` has it** — the contract's cue
+**Cue scheduling.** At `step_start` (and each internal `play_count` repeat),
+each message's `address` is checked for scheduled-delivery support. **Every
+`/cue` uses it** — the contract's cue
 plane (§3.1) is the only address with a wire-level shared-time argument.
 The show engine reuses `OSCBridge.fire_cue(cue_id, lead_ms)`
-(`osc_bridge.py:251-256`) verbatim — same default `lead_ms=500`, same
+(`osc_bridge.py:251-256`) verbatim — using the persisted installation-level
+`cue_lead_ms` (default 500), with the same
 `shared_time_ns` computation/encoding — rather than re-deriving the math, so
 behavior matches exactly and there's no second `/cue` sender to disagree.
 Every other kind (`/p/*`, `/pt`, raw addresses) has no scheduled variant
 (§08 Q8 open) and **falls back to immediate send**, per the parent
-instructions. A forward-synced step mixing cue and non-cue messages
-therefore sends cue messages pre-scheduled and others immediately in the
+instructions. A step mixing cue and non-cue messages therefore sends cue
+messages pre-scheduled and others immediately in the
 same trigger — a real skew bounded by `lead_ms` (~500 ms) that stitch 5's
 inspector should surface explicitly rather than implying uniform
 scheduling.
@@ -341,7 +342,7 @@ scheduling.
 **PD float precision and 0-indexing.** `duration_s`, `remaining_s`,
 `iteration` never cross the wire — dashboard-side scheduling/UI state only,
 so the 32-bit-float law doesn't constrain them. The one wire-crossing time
-value, `shared_time_ns` inside a forward-synced `/cue` send, is already
+value, `shared_time_ns` inside a `/cue` send, is already
 encoded as a decimal string by the reused `fire_cue` path
 (`osc_bridge.py:254-255`), never a float, per §12. All indices — `items`
 positions, Seat ids in `target`, the element index inside a `/pt` message's
@@ -400,6 +401,26 @@ All Show `/cue` messages use forward-sync scheduling. The per-step
 saving drops it. The scheduling lead is now one persisted, installation-level
 `cue_lead_ms` setting shared by all Show transports rather than a per-step
 choice.
+
+## Amendment — 2026-07-19, exclusive playback and global transport
+
+The single-column Show has one active step. Starting or resuming any step
+stops every other playing or paused step before emitting the new step. This
+supersedes the first-slice allowance for concurrent steps; future columns must
+define their own lane conflict rule rather than inheriting that old gap.
+
+The focused step is also the global transport's armed step. The transport
+plays or pauses it (falling back to the first step when none is focused), stops
+the active step, and triggers the active step's next action.
+Rows render elapsed progress and pulse the armed step, while their local
+transport remains available.
+
+## Amendment — 2026-07-19, bounded step-list workspace
+
+The ordered items render inside a roughly 480 px resizable scroll box with a
+pinned add bar. Native resize serves pointer devices and a bounded drag handle
+serves touch. Height and scroll position survive live transport re-renders;
+newly added items scroll into view once.
 
 ## Amendment — 2026-07-19, inspector defaults
 

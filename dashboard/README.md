@@ -73,21 +73,30 @@ by **dividers**; the steps between two dividers form a **section**. Each
 step carries a set of OSC **messages** (rendered as pills, colour-coded by
 a stable hash of their alias) that all fire when the step starts.
 
-Steps have a duration (h/m/s), play-n-times or loop-forever, optional
-forward-sync for cue messages (schedules `/cue` ~500 ms ahead on the shared
-clock), and one or more **then-actions** resolved when playback exhausts:
+Steps have a duration (h/m/s), play-n-times or loop-forever, and one or more
+**then-actions** resolved when playback exhausts:
 stop, play again, next/previous step, any/other in section (other has
 Ableton shuffle-bag semantics), goto a step by uid, next/previous section.
 Multiple then-actions choose randomly. A goto whose target step was deleted
-falls back to stop and flags the row. Per-row icon transport
-(play/stop/pause/trigger-next) plus a global Stop all.
+falls back to stop and flags the row. Playback is exclusive: starting or
+resuming one step stops any other active step. Rows show elapsed progress and
+an armed pulse for the focused next step. Per-row transport remains available;
+the global transport plays/pauses the focused step (or the first step), stops
+the active step, and triggers its next action.
+
+Every Show `/cue` message is forward-scheduled on the shared clock. The lead
+time is one persisted installation setting (default 500 ms) in the global
+transport; parameters, points, and raw messages still send immediately because
+their wire planes have no scheduled variant.
 
 Messages are built in the context-sensitive inspector: parameter, cue,
 point, or raw payloads, and a target picker that composes any mix of seats
 and groups as chips (`3+7+g1`); cue/point payloads are selector-free so
-their target is greyed. Messages support copy/cut/paste/move/delete between
-steps (paste mints a fresh uid), with keyboard equivalents on the focused
-pill.
+their target is greyed. Message pills drag within or between steps, while
+explicit handles drag steps and dividers. Copy, cut, paste, and delete are
+keyboard operations on the focused pill or row (paste mints a fresh uid).
+Ctrl/Cmd+Z is a global, server-authoritative undo shared by every connected
+client; redo is deferred.
 
 Show documents persist as JSON in `shows/` next to the installation state
 file, one file per show; the schema and playback semantics live in
@@ -98,7 +107,10 @@ and is shared by every connected client. Two collapsible OSC consoles sit
 under the table: outgoing (everything the dashboard sends) and incoming
 (everything the LAN surface receives, heartbeats included). Filter with
 space-separated terms that AND together, `*` wildcards, and `!` negation —
-e.g. `/p/* !/sync` — plus pause/clear and sticky auto-scroll.
+e.g. `/p/* !/sync` — plus pause/clear and sticky auto-scroll. The ordered step
+list has its own resizable scroll box (about 480 px by default), bounded touch
+resize handle, and pinned add bar; height and scroll position survive live
+transport redraws.
 
 ## Real fleet
 
@@ -175,7 +187,9 @@ In Patch edit, `path` is authored as slash-separated text and saved as a JSON
 array while `name` remains the leaf. Nested declarations render as a tree and
 send their complete `/p/<path>/<name>` address. Flat declarations stay in the
 default parameters section, and path/name moves are shown as explicit
-remove-plus-add identity changes.
+remove-plus-add identity changes. Old presentation-only `group` fields are
+ignored when loaded and stripped on the next save; the editor no longer shows
+them.
 
 State lives in `dashboard/installation.json` (devices, positions, room,
 visual coordinate origin, listener, master, presets). The Seats and Devices tabs let

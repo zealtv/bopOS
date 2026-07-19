@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Playwright verification for the compact (Ableton/QLab density) Show rows.
 
-Asserts the 5b redesign: a seeded 20-step show fits a 768x1024 viewport
+Asserts the 5b redesign: a seeded 20-step show stays dense in the bounded list
 without scrolling, transport is driven by compact icon buttons, and message
 pill colours hash stably from aliases (same alias => same colour, different
 alias => different colour, unaliased => neutral).
@@ -247,16 +247,21 @@ def main(screenshot_only=None):
                 metrics = page.evaluate("""() => {
                     const rows = [...document.querySelectorAll('.show-step-row')];
                     const container = document.querySelector('.show-rows');
+                    const box = document.querySelector('.show-rows-box');
                     return {
                       maxRow: Math.max(...rows.map(row => row.getBoundingClientRect().height)),
                       bottom: container.getBoundingClientRect().bottom,
+                      boxHeight: box.clientHeight,
+                      boxScrollHeight: box.scrollHeight,
                       scrollY: window.scrollY,
                     };
                 }""")
                 check("every row fits the compact height budget (<= 40 px)",
                       metrics["maxRow"] <= 40, json.dumps(metrics))
-                check("20 steps + divider fit the 768x1024 viewport unscrolled",
-                      metrics["scrollY"] == 0 and metrics["bottom"] <= 1024,
+                check("20 steps + divider stay in the bounded list scrollbox",
+                      metrics["scrollY"] == 0
+                      and metrics["boxHeight"] <= 500
+                      and metrics["boxScrollHeight"] > metrics["boxHeight"],
                       json.dumps(metrics))
 
                 play = page.locator(

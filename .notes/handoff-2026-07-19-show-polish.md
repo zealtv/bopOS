@@ -1,59 +1,81 @@
-# Handoff — 2026-07-19: 15-show-polish laid out, ready to work
+# Handoff — 2026-07-19: Show polish complete
 
 ## State of play
 
-- `14-show-tab` is fully tied, including this session's `6b-show-management`
-  (show create/switch/rename/delete in the transport strip; `rename_show`
-  WS handler; verify + full tied-sweep green at `5a5930e`).
-- Bob's 2026-07-19 braindump is kept verbatim in lore:
-  `.lore/items/2026-07-19-show-tab-polish-braindump/`. It authorizes the
-  **`15-show-polish`** thread, laid out on the loom in sequence of attack:
+`15-show-polish` is fully tied through p8. The Show tab now behaves as one
+coherent performance surface: legitimate zero values survive authoring, rapid
+transport clicks are honest, playback is exclusive, progress and armed state
+are visible, and the global transport owns one persisted cue lead used by every
+Show cue. The ordered list scrolls/resizes independently, inspector defaults
+state the persisted truth, items and message pills arrange directly by drag,
+keyboard editing is primary, and Ctrl/Cmd+Z performs bounded global
+server-authoritative undo.
 
-  1. `p1-zero-value-and-transport-bugs` — **start here.**
-  2. `p2-exclusive-playback-and-progress`
-  3. `p3-global-transport-and-cue-lead`
-  4. `p4-step-list-scrollbox`
-  5. `p5-inspector-defaults`
-  6. `p6-drag-and-keyboard-editing` (biggest; split permission granted)
-  7. `p7-patch-tab-tidy` (independent — claimable alongside p1–p6)
-  8. `p8-docs-and-handoff`
+The adjacent Patch tab now calls manifest promotion `dashboard`, accepts and
+normalizes the legacy `facilitator` key, rejects conflicting dual keys, ignores
+and strips the retired presentation-only `group`, and gives the path field an
+unmistakable example. OSC contract §8 records this as the ratified v1.8
+amendment. No `.pd` files changed.
 
-  Each stitch's instructions.md carries scope, investigation leads, and
-  the verify plan. Thread-level rulings (exclusive playback, forward-sync
-  retirement, keyboard+drag editing, Patch tab copy) are in the thread
-  instructions — read those first.
+## Tied stitches and commits
 
-## Leads the next session should not re-derive
+- p1 zero values / transport bugs — `69753f8`
+- p2 exclusive playback / progress — `c4d123b`
+- p3 global transport / cue lead — `520b9cf`
+- p4 step-list scrollbox — `5f75741`
+- p5 inspector defaults — `5e93045`
+- p6 drag / keyboard editing / global undo — `17aa08a`
+- p7 Patch-tab tidy — `23bcc7c`
+- p8 operator docs, reconciled design note, and this handoff — this commit
 
-- **p1 zero-value bug:** falsy `||` chains in `show.js` message builder
-  (`renderParamBuilder`: `argValue(...) || declaration.default || ""`);
-  audit all value chains for legitimate 0.
-- **p1 lost clicks:** row re-render on every broadcast means a click can
-  hit a stale-verb button; fix by sending intended verb / idempotent verb
-  mapping engine-side, then prove with rapid play→stop.
-- **p3 lead time:** `fire_cue(cue_id, lead_ms=500)` in `osc_bridge.py`
-  already parameterizes the horizon; the stitch pipes a persisted setting
-  into it. Wire shape (§3.1) unchanged.
-- **p5/p6:** backend ops (`move_message`, `move_item`, empty
-  `then_actions` ≡ stop) already exist — these are authoring-surface
-  changes plus the undo design (client-local snapshot stack +
-  `apply_show` full-document op is the sketched shape; design in worklog
-  before coding).
-- Amending tied 14-show-tab verifies as the UI moves is expected — log
-  every amendment (5b/5c precedent).
+## Verification retained
 
-## Verify infrastructure
+The complete 16-script Show regression sweep is green. Run each with
+`PYTHONPYCACHEPREFIX=/tmp/bopos-pycache ~/.venvs/bopos/bin/python`:
 
-House pattern unchanged: `~/.venvs/bopos/bin/python <verify>.py`, real
-`dashboard/server.py` + `tools/simfleet.py` on random loopback ports,
-headless Chromium, repo by marker, one type-aware dialog handler. Copy
-`.loom/tied/6b-show-management/verify_show_management.py` as the newest
-template (includes a server-restart pattern past the 1 s debounced state
-save).
+- `.loom/tied/2-model-and-persistence/verify_show_model.py`
+- `.loom/tied/3-playback-engine/verify_show_engine.py`
+- `.loom/tied/4-tab-ui/verify_show_tab.py`
+- `.loom/tied/5-inspector/verify_show_inspector.py`
+- `.loom/tied/5b-compact-rows/verify_show_compact.py`
+- `.loom/tied/5c-target-model-and-picker/verify_show_targets.py`
+- `.loom/tied/6-message-editing/verify_show_editing.py`
+- `.loom/tied/6b-show-management/verify_show_management.py`
+- `.loom/tied/7-osc-consoles/verify_show_consoles.py`
+- `.loom/tied/p1-zero-value-and-transport-bugs/verify_show_polish_bugs.py`
+- `.loom/tied/p2-exclusive-playback-and-progress/verify_show_exclusive.py`
+- `.loom/tied/p3-global-transport-and-cue-lead/verify_show_transport.py`
+- `.loom/tied/p4-step-list-scrollbox/verify_show_scrollbox.py`
+- `.loom/tied/p5-inspector-defaults/verify_show_inspector_defaults.py`
+- `.loom/tied/p6-drag-and-keyboard-editing/verify_show_drag_editing.py`
+- `.loom/tied/p7-patch-tab-tidy/verify_patch_tab_tidy.py`
 
-## Also open on the loom (not this sweep)
+The sweep exercises the real dashboard on random loopback ports and headless
+Chromium where UI behavior is involved. p7 additionally reran and amended the
+tied PE-3 manifest-editor backend/browser verifies and nested-parameter
+backend/browser verifies. Earlier polish stitches amended tied 5c target-picker,
+6 message-editing, and related Show verifiers as their old affordances were
+retired; each stitch worklog records the exact changes and counts.
 
-`dashboard-loading-spinner`, `live-param-catchup`,
-`notify-patch-lifecycle`; `patch-workflow-friction` resumes after
-15-show-polish (host-loom loose end has the framing — see
-`.notes/handoff-2026-07-18-show-tab.md`).
+No hardware, iPad/touch-device, audio, or audible PD gate was run. Bob's
+untracked `dashboard/shows/` content remains deliberately untouched.
+
+## Deferred by design
+
+- Redo; p6 ships bounded undo only.
+- Musical time, tempo/quantization, scheduled parameter writes, curves and
+  decomposed point motion, polymorphic/script clips, multi-column layout, and
+  the animated visualisation view remain with the Bob-gated
+  `scene-sequencing` co-design.
+- Parameter-automation string/mixed-array kind remains unnamed and without a
+  wire plane.
+
+## Next
+
+Continue `16-param-automation` at `automation-2-show-builder-gui`, then
+`automation-3-animated-takeover`; `automation-4-waveform-ux-gate` stops for
+Bob's UX ratification before visualisation code. The host-loom
+`patch-workflow-friction` documentation/starter-kit close-out resumes after
+thread 16 so it documents the finished system.
+
+Long-standing hardware and co-design waits are unchanged.

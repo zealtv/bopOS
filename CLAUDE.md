@@ -120,7 +120,7 @@ and tie one concrete stitch at a time:
    global transport, decomposed curves, point motion, the animated
    visualisation view, and multi-column layout — those stay with the
    Bob-gated `scene-sequencing` co-design.
-10. **Active — Show polish sweep.** Bob's 2026-07-19 braindump (lore item
+10. **Complete — Show polish sweep.** Bob's 2026-07-19 braindump (lore item
    `2026-07-19-show-tab-polish-braindump`) authorizes thread
    `15-show-polish`: Show tab bug fixes (0-values, lost transport clicks),
    exclusive one-step playback with progress/armed visualisation, a global
@@ -128,9 +128,8 @@ and tie one concrete stitch at a time:
    all cues forward-sync), step-list scroll box, inspector defaults,
    drag + keyboard/undo editing, and the Patch tab tidy
    (facilitator→Dashboard copy, legacy `group` removal, path-hint clarity).
-   Work stitches p1→p8 in order; `6b-show-management` (show
-   create/switch/rename/delete) is already tied.
-11. **Next — Parameter automation.** Bob ratified the generator-slot
+   All p1→p8 stitches are tied, including final operator docs and handoff.
+11. **Active / next — Parameter automation.** Bob ratified the generator-slot
    design 2026-07-19 (lore `2026-07-19-param-automation-design-ratified`):
    one generator per numeric `/p/*` param (constant / timed fades / loop /
    LFO / stop, last message wins), string duration units, `c:<n>` curve
@@ -138,8 +137,8 @@ and tie one concrete stitch at a time:
    Show-tab builder GUI, animated take-over controls, and a UX-gated
    waveform visualisation. `automation-0` is tied: the contract now
    carries the grammar as §3.2 (v1.8) and the implementation is decomposed
-   as `automation-1-engine-and-parity` (dashboard-free — may interleave
-   with remaining polish) → `automation-2-show-builder-gui` →
+   as `automation-1-engine-and-parity` (tied) →
+   `automation-2-show-builder-gui` (next) →
    `automation-3-animated-takeover` → `automation-4-waveform-ux-gate`
    (Bob-gated UX proposal before any visualisation code). Strings/
    mixed-arrays as a non-param manifest kind are deferred (name and plane
@@ -167,9 +166,9 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
-  Dashboard live controls and diagnostic density are complete. The next
-  software stitches in the accepted sweep are patch-workflow friction
-  documentation and starter-kit copy.
+  Dashboard live controls, diagnostic density, and Show polish are complete.
+  The next software stitch is `automation-2-show-builder-gui`; the host-loom
+  patch-workflow documentation/starter-kit close-out resumes after thread 16.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
