@@ -128,9 +128,21 @@ and tie one concrete stitch at a time:
    (facilitator→Dashboard copy, legacy `group` removal, path-hint clarity).
    Work stitches p1→p8 in order; `6b-show-management` (show
    create/switch/rename/delete) is already tied.
-11. **Next — Close the sweep.** Resume
+11. **Next — Parameter automation.** Bob ratified the generator-slot
+   design 2026-07-19 (lore `2026-07-19-param-automation-design-ratified`):
+   one generator per numeric `/p/*` param (constant / timed fades / loop /
+   LFO / stop, last message wins), string duration units, `c:<n>` curve
+   exponent, clock-anchored idempotent LFOs, decomposition in bopos.py,
+   Show-tab builder GUI, animated take-over controls, and a UX-gated
+   waveform visualisation. Thread `16-param-automation` runs **after**
+   `15-show-polish`, except its dashboard-free stitches (contract §3
+   amendment, bopos.py generator engine, simfleet parity) may interleave
+   with remaining polish. Strings/mixed-arrays as a non-param manifest
+   kind are deferred (name and plane undecided).
+12. **Then — Close the sweep.** Resume
    `patch-workflow-friction/friction-0..1` so documentation and starter-kit
-   copy describe the finished system.
+   copy describe the finished system — after `16-param-automation`, or the
+   docs go stale immediately.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
 `scene-sequencing` co-design. It does not itself authorize implementation;
