@@ -11,6 +11,11 @@ state the persisted truth, items and message pills arrange directly by drag,
 keyboard editing is primary, and Ctrl/Cmd+Z performs bounded global
 server-authoritative undo.
 
+Post-close transport spot fixes remove the redundant Stop-all/count UI under
+exclusive playback, align divider and step grips, keep transport DOM stable
+across unrelated fleet-state/countdown updates, and use the same CSS-keyframe
+pattern as Dashboard cue scheduling for a smooth authoritative progress fill.
+
 The adjacent Patch tab now calls manifest promotion `dashboard`, accepts and
 normalizes the legacy `facilitator` key, rejects conflicting dual keys, ignores
 and strips the retired presentation-only `group`, and gives the path field an

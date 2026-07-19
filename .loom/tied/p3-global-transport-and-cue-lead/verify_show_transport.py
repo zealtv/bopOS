@@ -109,6 +109,7 @@ def make_fixture(root):
              "duration_s": 8.0, "play_count": 1,
              "then_actions": [{"type": "goto", "target_uid": "bbbbbbbb"}],
              "forward_sync": True},
+            {"kind": "divider", "uid": "dddddddd"},
             {"kind": "step", "uid": "bbbbbbbb", "alias": "B", "messages": [],
              "duration_s": 8.0, "play_count": 1,
              "then_actions": [{"type": "goto", "target_uid": "aaaaaaaa"}],
@@ -176,16 +177,29 @@ def main():
                     client.wait_for_selector("#ws-status.online")
                     client.click("#tab-button-show")
                     client.wait_for_selector('[data-show-step-row="aaaaaaaa"]')
+                page.bring_to_front()
 
                 row_a = '[data-show-step-row="aaaaaaaa"]'
                 row_b = '[data-show-step-row="bbbbbbbb"]'
                 actions = ".show-transport-actions"
 
-                # 1. No focus falls back to the first step; global stop stops it.
+                # 1. No focus falls back to the first step; progress is CSS-smooth.
                 page.locator(f'{actions} [data-show-action="step_start"]').click()
                 page.wait_for_selector(f"{row_a}.show-step-playing")
                 check("global play with no focus starts first step",
-                      "A" in page.locator("#show-playing-indicator").inner_text())
+                      page.locator(f"{row_a}.active").count() == 1)
+                progress = page.locator(f"{row_a} .show-step-progress")
+                progress_handle = progress.element_handle()
+                before_width = progress.evaluate("el => el.getBoundingClientRect().width")
+                animation = progress.evaluate("el => ({name:getComputedStyle(el).animationName,duration:getComputedStyle(el).animationDuration,state:getComputedStyle(el).animationPlayState,row:el.parentElement.getBoundingClientRect().width})")
+                page.wait_for_timeout(650)
+                after_width = progress_handle.evaluate(
+                    "el => el.getBoundingClientRect().width")
+                check("progress uses a continuous CSS animation",
+                      animation["name"] == "show-step-progress-fill"
+                      and progress_handle.evaluate("el => el.isConnected")
+                      and after_width > before_width,
+                      repr((animation, before_width, after_width)))
                 page.locator(f'{actions} [data-show-action="step_stop"]').click()
                 page.wait_for_selector(f"{row_a}.show-step-stopped")
                 check("global stop stops the active step",
@@ -197,15 +211,19 @@ def main():
                 page.wait_for_selector(f"{row_b}.show-step-playing")
                 check("focused row makes global play start B",
                       page.locator(f"{row_a}.active").count() == 0
-                      and "B" in page.locator("#show-playing-indicator").inner_text())
+                      and page.locator(f"{row_b}.active").count() == 1)
                 page.locator(f'{actions} [data-show-action="step_pause"]').click()
                 page.wait_for_selector(f"{row_b}.show-step-paused")
                 check("global play-pause pauses B",
-                      "paused" in page.locator("#show-playing-indicator").inner_text().lower())
-                page.locator(f'{actions} [data-show-action="step_resume"]').click()
+                      page.locator(f"{row_b}.show-step-paused").count() == 1)
+                page.wait_for_timeout(150)
+                resume = page.locator(f'{actions} [data-show-action="step_resume"]').element_handle()
+                page.wait_for_timeout(650)
+                resume_stable = resume.evaluate("el => el.isConnected")
+                resume.click()
                 page.wait_for_selector(f"{row_b}.show-step-playing")
-                check("same global button resumes B",
-                      "playing" in page.locator("#show-playing-indicator").inner_text().lower())
+                check("paused Resume remains stable and immediately clickable",
+                      resume_stable and page.locator(f"{row_b}.show-step-playing").count() == 1)
 
                 # 3. B's immediate then-action goes to A.
                 page.locator(f'{actions} [data-show-action="step_trigger_next"]').click()
@@ -213,16 +231,19 @@ def main():
                 check("global next resolves the active then-action now",
                       page.locator(f"{row_b}.active").count() == 0)
 
-                # 4. Stop-all is glyph-only and keeps its behavior.
-                stop_all = page.locator("#show-stop-all")
-                check("stop-all is a labelled glyph button with no visible text",
-                      stop_all.inner_text().strip() == ""
-                      and stop_all.locator(".show-glyph-stop").count() == 1
-                      and stop_all.get_attribute("aria-label") == "Stop all steps")
-                stop_all.click()
-                page.wait_for_function("() => document.querySelectorAll('.show-step-row.active').length === 0")
-                check("glyph stop-all still stops playback",
-                      page.locator(".show-step-row.active").count() == 0)
+                # 4. Exclusive playback needs one Stop and no playing count.
+                check("redundant stop-all and playing-count UI are absent",
+                      page.locator("#show-stop-all, #show-playing-indicator").count() == 0
+                      and page.locator(
+                          f'{actions} [data-show-action="step_stop"]').count() == 1)
+                grip_x = page.locator(f"{row_a} .show-drag-handle").bounding_box()["x"]
+                divider_x = page.locator(
+                    '[data-show-divider-row="dddddddd"] .show-divider-drag').bounding_box()["x"]
+                check("divider grip is left-aligned with step grips",
+                      abs(grip_x - divider_x) <= 1, repr((grip_x, divider_x)))
+                page.locator(f'{actions} [data-show-action="step_stop"]').click()
+                page.wait_for_function(
+                    "() => document.querySelectorAll('.show-step-row.active').length === 0")
 
                 # 5. Persisted lead broadcasts to page2 and schedules the cue near +1200 ms.
                 page.fill("#show-cue-lead", "1200")

@@ -20,6 +20,7 @@
   let showDrag = null;
   let suppressDragClick = false;
   let renderPending = false;
+  let relevantStateSignature = null;
 
   const THEN_ACTIONS = [
     ["stop", "Stop"],
@@ -163,6 +164,16 @@
   function groups() {
     const state = currentInstallation();
     return Object.values(state.groups || {}).sort((a, b) => Number(a.id) - Number(b.id));
+  }
+
+  function showRelevantStateSignature() {
+    const state = currentInstallation();
+    return JSON.stringify({
+      cue_lead_ms: state.cue_lead_ms ?? 500,
+      manifest: manifestFromStagedPatch(),
+      seats: seats().map(seat => ({id: seat.id, name: seat.name, groups: seat.groups || []})),
+      groups: groups().map(group => ({id: group.id, name: group.name})),
+    });
   }
 
   function targetList(message) {
@@ -310,8 +321,10 @@
     const duration = Number(step.duration_s);
     const fraction = remaining != null && duration > 0
       ? Math.min(1, Math.max(0, 1 - (remaining / duration))) : null;
+    const progressDuration = stateName === "playing" && remaining > 0
+      ? `;--show-progress-duration:${remaining}s` : "";
     const progress = fraction == null ? ""
-      : `<div class="show-step-progress" style="width:${fraction * 100}%"></div>`;
+      : `<div class="show-step-progress" style="width:${fraction * 100}%${progressDuration}"></div>`;
     const time = remaining == null
       ? `<span class="show-step-duration">${terseDuration(step.duration_s)}</span>`
       : `<span class="show-remaining" title="${stateName === "paused" ? "paused" : "remaining"}">${terseDuration(remaining)}</span>`;
@@ -363,7 +376,6 @@
     const playLabel = activeState === "playing" ? `Pause ${stepLabel(activeStep)}`
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
-    const indicator = activeStep ? `1 ${activeState}: ${stepLabel(activeStep)}` : "0 playing";
     const cueLead = currentInstallation().cue_lead_ms ?? 500;
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
@@ -380,8 +392,6 @@
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
         ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
-        <output id="show-playing-indicator" aria-live="polite">${escapeHtml(indicator)}</output>
-        <button id="show-stop-all" class="show-icon-button danger" data-show-action="stop_all_steps" data-show-uid="" type="button" title="Stop all steps" aria-label="Stop all steps"><span class="show-glyph show-glyph-stop" aria-hidden="true"></span></button>
       </div>
     </div>`;
   }
@@ -650,6 +660,7 @@
     } else if (type === "stop_all_steps") {
       playback = {steps: {}};
     }
+    syncCountdownTimer();
     render();
     if (type === "stop_all_steps") ws.send(type, {});
     else if (uid) ws.send(type, {uid});
@@ -1200,15 +1211,35 @@
   ws.on("show_playback", data => {
     playback = data || {steps: {}};
     playbackAt = performance.now();
+    syncCountdownTimer();
     render();
-    const hasTimedState = Object.values(playback.steps || {}).some(state => ["playing", "paused"].includes(state?.state) && Number.isFinite(Number(state.remaining_s)));
-    if (hasTimedState && !countdownTimer) countdownTimer = setInterval(render, 500);
-    if (!hasTimedState && countdownTimer) {
+  });
+  function syncCountdownTimer() {
+    const hasTimedPlaying = Object.values(playback.steps || {}).some(state =>
+      state?.state === "playing" && Number.isFinite(Number(state.remaining_s)));
+    if (hasTimedPlaying && !countdownTimer) {
+      countdownTimer = setInterval(updateCountdownLabels, 500);
+    }
+    if (!hasTimedPlaying && countdownTimer) {
       clearInterval(countdownTimer);
       countdownTimer = null;
     }
-  });
-  ws.on("state", () => render());
+  }
+  function updateCountdownLabels() {
+    root.querySelectorAll("[data-show-step-row]").forEach(row => {
+      const remaining = remainingSeconds(row.dataset.showStepRow);
+      const label = row.querySelector(".show-remaining");
+      if (label && remaining != null) label.textContent = terseDuration(remaining);
+    });
+  }
+  function renderForRelevantStateChange() {
+    const signature = showRelevantStateSignature();
+    if (signature === relevantStateSignature) return;
+    relevantStateSignature = signature;
+    render();
+  }
+  ws.on("state", renderForRelevantStateChange);
+  ws.on("distribution", renderForRelevantStateChange);
   // ------------------------------------------------------------------
   // OSC consoles (stitch 7). These live outside #show-root so the
   // high-rate osc_in/osc_out stream never re-renders the show table, and

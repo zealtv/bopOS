@@ -245,10 +245,10 @@ def main():
                     height: document.querySelector('.show-rows-box').clientHeight,
                     scrollTop: document.querySelector('.show-rows-box').scrollTop,
                 })""")
-                check("resize height survives a later countdown render",
+                check("resize height survives a later countdown update",
                       abs(after_tick["height"] - before_tick["height"]) <= 1,
                       json.dumps({"before": before_tick, "after": after_tick}))
-                check("internal scroll position survives a later countdown render",
+                check("internal scroll position survives a later countdown update",
                       abs(after_tick["scrollTop"] - before_tick["scrollTop"]) <= 1,
                       json.dumps({"before": before_tick, "after": after_tick}))
 

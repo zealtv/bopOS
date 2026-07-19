@@ -213,19 +213,19 @@ def main():
                 page.wait_for_selector(f"{row_a}.show-step-playing .show-step-progress")
                 time.sleep(.55)
                 first = float(page.locator(f"{row_a} .show-step-progress").evaluate(
-                    "node => parseFloat(node.style.width)"))
+                    "node => node.getBoundingClientRect().width / node.parentElement.getBoundingClientRect().width"))
                 time.sleep(1.2)
                 second = float(page.locator(f"{row_a} .show-step-progress").evaluate(
-                    "node => parseFloat(node.style.width)"))
+                    "node => node.getBoundingClientRect().width / node.parentElement.getBoundingClientRect().width"))
                 check("progress fill grows", second > first, f"first={first}, second={second}")
                 action(row_a, "step_pause")
                 page.wait_for_selector(f"{row_a}.show-step-paused")
                 time.sleep(.55)
                 paused_first = float(page.locator(f"{row_a} .show-step-progress").evaluate(
-                    "node => parseFloat(node.style.width)"))
+                    "node => node.getBoundingClientRect().width / node.parentElement.getBoundingClientRect().width"))
                 time.sleep(1.1)
                 paused_second = float(page.locator(f"{row_a} .show-step-progress").evaluate(
-                    "node => parseFloat(node.style.width)"))
+                    "node => node.getBoundingClientRect().width / node.parentElement.getBoundingClientRect().width"))
                 check("paused progress fill freezes",
                       abs(paused_second - paused_first) < .001,
                       f"first={paused_first}, second={paused_second}")
