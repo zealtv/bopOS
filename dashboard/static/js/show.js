@@ -10,7 +10,13 @@
   let countdownTimer = null;
   let showError = "";
   let pendingMessageAdd = null;
+  let pendingItemAdd = null;
+  let scrollFocusedRow = false;
   let clipboard = null;
+  let showRowsHeight = 480;
+  let showRowsScrollTop = 0;
+  let rowsResizeDrag = null;
+  let renderPending = false;
 
   const THEN_ACTIONS = [
     ["stop", "Stop"],
@@ -372,8 +378,11 @@
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
     root.innerHTML = `${renderTransport()}<div class="show-workspace">
-      <div>
-        <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
+      <div class="show-list-shell">
+        <div class="show-rows-box" style="height:${showRowsHeight}px">
+          <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
+        </div>
+        <div class="show-rows-resize" role="separator" aria-label="Resize Show step list" aria-orientation="horizontal" tabindex="0"></div>
         <div class="show-add-bar">
           <button type="button" data-item-add-end="step">+ Step</button>
           <button type="button" data-item-add-end="divider">+ Divider</button>
@@ -582,6 +591,10 @@
   }
 
   function render() {
+    if (rowsResizeDrag) {
+      renderPending = true;
+      return;
+    }
     // Re-rendering rebuilds the saved-shows picker with the current show
     // selected, which would wipe an operator's uncommitted dropdown choice
     // on every countdown tick. An uncommitted choice is a live value that
@@ -592,8 +605,17 @@
     const oldCueLead = root.querySelector("#show-cue-lead");
     const cueLeadDraft = oldCueLead && document.activeElement === oldCueLead
       ? oldCueLead.value : null;
+    const oldRowsBox = root.querySelector(".show-rows-box");
+    if (oldRowsBox) {
+      // Hidden tabs report a zero clientHeight during startup broadcasts;
+      // keep the intended default until the box has real layout geometry.
+      if (oldRowsBox.clientHeight >= 160) showRowsHeight = oldRowsBox.clientHeight;
+      showRowsScrollTop = oldRowsBox.scrollTop;
+    }
     if (!shows.current) renderEmptyState();
     else renderLoadedShow();
+    const rowsBox = root.querySelector(".show-rows-box");
+    if (rowsBox) rowsBox.scrollTop = showRowsScrollTop;
     if (pickedShow) {
       const picker = root.querySelector("#show-switch-select");
       if (picker && [...picker.options].some(option => option.value === pickedShow)) {
@@ -606,6 +628,15 @@
         cueLead.value = cueLeadDraft;
         cueLead.focus({preventScroll: true});
       }
+    }
+    if (scrollFocusedRow) {
+      const row = focus.kind === "step"
+        ? root.querySelector(`[data-show-step-row="${focus.uid}"]`)
+        : focus.kind === "divider"
+          ? root.querySelector(`[data-show-divider-row="${focus.uid}"]`) : null;
+      row?.scrollIntoView({block: "nearest"});
+      if (rowsBox) showRowsScrollTop = rowsBox.scrollTop;
+      scrollFocusedRow = false;
     }
     // Re-rendering replaces the DOM and drops element focus, which breaks
     // keyboard copy/paste on the focused pill/row; restore it unless the
@@ -727,8 +758,44 @@
 
   function addItem(kind, afterUid) {
     showError = "";
+    if (kind === "step") {
+      pendingItemAdd = {kind, known: new Set((show.items || []).map(item => item.uid))};
+    }
     ws.send(kind === "divider" ? "add_divider" : "add_step", {after_uid: afterUid || null});
   }
+
+  root.addEventListener("pointerdown", event => {
+    const handle = event.target.closest(".show-rows-resize");
+    if (!handle || event.button !== 0) return;
+    const box = root.querySelector(".show-rows-box");
+    if (!box) return;
+    rowsResizeDrag = {pointerId: event.pointerId, startY: event.clientY, startHeight: box.clientHeight};
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  });
+
+  root.addEventListener("pointermove", event => {
+    if (!rowsResizeDrag || event.pointerId !== rowsResizeDrag.pointerId) return;
+    const box = root.querySelector(".show-rows-box");
+    if (!box) return;
+    showRowsHeight = Math.max(160, Math.round(rowsResizeDrag.startHeight + event.clientY - rowsResizeDrag.startY));
+    box.style.height = `${showRowsHeight}px`;
+    event.preventDefault();
+  });
+
+  function finishRowsResize(event) {
+    if (!rowsResizeDrag || event.pointerId !== rowsResizeDrag.pointerId) return;
+    const handle = event.target.closest(".show-rows-resize");
+    if (handle?.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+    rowsResizeDrag = null;
+    if (renderPending) {
+      renderPending = false;
+      render();
+    }
+  }
+
+  root.addEventListener("pointerup", finishRowsResize);
+  root.addEventListener("pointercancel", finishRowsResize);
 
   function applyModeDefault(message, mode) {
     const manifest = manifestFromStagedPatch();
@@ -1035,6 +1102,15 @@
   });
   ws.on("show", data => {
     show = data || {schema: 1, name: "", items: []};
+    if (pendingItemAdd) {
+      const added = (show.items || []).find(item =>
+        item.kind === pendingItemAdd.kind && !pendingItemAdd.known.has(item.uid));
+      if (added) {
+        focus = {kind: added.kind, uid: added.uid};
+        scrollFocusedRow = true;
+        pendingItemAdd = null;
+      }
+    }
     if (pendingMessageAdd) {
       const step = stepByUid(pendingMessageAdd.step_uid);
       const added = (step?.messages || []).find(message => !pendingMessageAdd.known.has(message.uid));
@@ -1134,6 +1210,11 @@
       `${shown.length} shown · ${state.total} seen`;
     if (state.autoScroll) log.scrollTop = log.scrollHeight;
     state.dirty = false;
+  }
+
+  for (const kind of ["out", "in"]) {
+    consolePanel(kind).open = false;
+    renderConsole(kind);
   }
 
   function scheduleConsoleFlush() {
