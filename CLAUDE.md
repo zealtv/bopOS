@@ -129,20 +129,21 @@ and tie one concrete stitch at a time:
    drag + keyboard/undo editing, and the Patch tab tidy
    (facilitator→Dashboard copy, legacy `group` removal, path-hint clarity).
    All p1→p8 stitches are tied, including final operator docs and handoff.
-11. **Active / next — Parameter automation.** Bob ratified the generator-slot
-   design 2026-07-19 (lore `2026-07-19-param-automation-design-ratified`):
-   one generator per numeric `/p/*` param (constant / timed fades / loop /
-   LFO / stop, last message wins), string duration units, `c:<n>` curve
-   exponent, clock-anchored idempotent LFOs, decomposition in bopos.py,
-   Show-tab builder GUI, animated take-over controls, and a UX-gated
-   waveform visualisation. `automation-0` is tied: the contract now
-   carries the grammar as §3.2 (v1.8) and the implementation is decomposed
-   as `automation-1-engine-and-parity` (tied) →
-   `automation-2-show-builder-gui` (next) →
-   `automation-3-animated-takeover` → `automation-4-waveform-ux-gate`
-   (Bob-gated UX proposal before any visualisation code). Strings/
-   mixed-arrays as a non-param manifest kind are deferred (name and plane
-   undecided).
+11. **Complete — Parameter automation.** Bob ratified the generator-slot
+   design 2026-07-19 (lore `2026-07-19-param-automation-design-ratified`);
+   the full thread is tied (2026-07-20): grammar as contract §3.2 (v1.8),
+   engine + simfleet parity (`automation-1`), the Show-tab generator
+   builder GUI compiling to the wire grammar (`automation-2`, which also
+   fixed `/p/*` playback truncating automation args), the waveform UX
+   council + ratified design (`automation-4`, pre-ratified by Bob —
+   authority is the tied stitch's `judgment.md`), runtime generator
+   tracking with the Slice-1 static treatment and take-over
+   (`automation-3`), and the CSS value-axis markers + Show-inspector
+   preview (`automation-5-waveform-marker`). Dashboard restart forgets
+   runtime automation state by design. Strings/mixed-arrays as a
+   non-param manifest kind stay deferred (name and plane undecided);
+   muted-device markers keep moving (Bob may veto — see the tied
+   ratification note).
 12. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
    thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
    improvements; only `friction-0a-readme-refresh` tied). The surviving
@@ -166,9 +167,11 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (SC strategy is co-design), and `framework-version-management` (device
   framework-currentness/update design, parked on the UI-tabs-runway basis).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
-  Dashboard live controls, diagnostic density, and Show polish are complete.
-  The next software stitch is `automation-2-show-builder-gui`; the host-loom
-  patch-workflow documentation/starter-kit close-out resumes after thread 16.
+  Dashboard live controls, diagnostic density, Show polish, and parameter
+  automation are complete. Next software work: the host-loom patch-workflow
+  documentation/starter-kit close-out (stage 12), or the new
+  `dashboard-bop-accents` follow-ups / `dashboard-theme-toggle` thread
+  (light/dark switch for daytime use).
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
