@@ -414,3 +414,18 @@ The authoring surface now states two existing truths more compactly:
   collapsed; a freshly added message opens it for immediate authoring. Cue and
   point targets retain their disabled presentation because their send paths are
   selector-free.
+
+## Amendment — 2026-07-19, drag editing and undo
+
+Show structure is now arranged directly in the step list. Message pills drag
+within or between steps; explicit handles drag steps and dividers. The browser
+uses Pointer Events with a movement threshold and bounded list auto-scroll, so
+the same interaction works for mouse and touch without sacrificing tap-to-focus
+or transport buttons.
+
+Message copy, cut, paste, and delete are keyboard operations on the focused pill
+or row; the former message edit/move buttons and on-screen paste affordance are
+retired. Ctrl/Cmd+Z asks the dashboard server to restore its latest persisted
+Show snapshot. Undo is therefore global and authoritative for all connected
+clients, following the same last-writer-wins order as ordinary edits. Loading or
+switching a show clears that bounded history. Redo remains deferred.

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import copy
 import contextlib
 import ipaddress
 import json
@@ -127,6 +128,8 @@ class Dashboard:
         self.sim_process = None
         self.supervisor_lock = asyncio.Lock()
         self.manifest_lock = asyncio.Lock()
+        self.show_edit_lock = asyncio.Lock()
+        self.show_undo = []
         self.supervisor_generation = 0
         # One managed-audition subprocess owns the loopback command port.  Keep
         # sim_process as the compatibility handle used by the existing focused
@@ -1090,10 +1093,13 @@ class Dashboard:
                 self.state.data["current_show"] = None
                 self.show = show_model.empty_show("")
                 self.show_engine.show = self.show
+                self.show_undo.clear()
                 self.state.save_debounced()
                 await self.broadcast("show", self.show)
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                            "current": self.state.data.get("current_show")})
+        elif kind == "undo_show":
+            await self.undo_show(ws)
         elif kind == "add_step":
             await self.apply_show_mutation(ws, show_model.add_step, data.get("after_uid"))
         elif kind == "add_divider":
@@ -1143,6 +1149,7 @@ class Dashboard:
         """Adopt `doc` as the loaded show and broadcast catalog + full-state."""
         self.show = doc
         self.show_engine.show = doc
+        self.show_undo.clear()
         self.state.data["current_show"] = name
         self.state.save_debounced()
         await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
@@ -1157,21 +1164,42 @@ class Dashboard:
         persist-then-broadcast sequence exists exactly once (design note sec
         3: every mutation persists and re-broadcasts `show` full-state).
         """
-        if not self.state.data.get("current_show"):
-            await self.ws_error(ws, "No show is loaded.")
-            return
-        new_show, _result, error = mutate(self.show, *args)
-        if error:
-            await self.ws_error(ws, error)
-            return
-        try:
-            show_model.save_show(self.shows_dir, new_show)
-        except OSError:
-            await self.ws_error(ws, "The show could not be saved.")
-            return
-        self.show = new_show
-        self.show_engine.show = new_show
-        await self.broadcast("show", self.show)
+        async with self.show_edit_lock:
+            if not self.state.data.get("current_show"):
+                await self.ws_error(ws, "No show is loaded.")
+                return
+            new_show, _result, error = mutate(self.show, *args)
+            if error:
+                await self.ws_error(ws, error)
+                return
+            if new_show == self.show:
+                return
+            try:
+                show_model.save_show(self.shows_dir, new_show)
+            except OSError:
+                await self.ws_error(ws, "The show could not be saved.")
+                return
+            self.show_undo.append(copy.deepcopy(self.show))
+            del self.show_undo[:-100]
+            self.show = new_show
+            self.show_engine.show = new_show
+            await self.broadcast("show", self.show)
+
+    async def undo_show(self, ws):
+        """Restore the last persisted Show edit for every connected client."""
+        async with self.show_edit_lock:
+            if not self.state.data.get("current_show") or not self.show_undo:
+                return
+            previous = self.show_undo.pop()
+            try:
+                show_model.save_show(self.shows_dir, previous)
+            except OSError:
+                self.show_undo.append(previous)
+                await self.ws_error(ws, "The show undo could not be saved.")
+                return
+            self.show = previous
+            self.show_engine.show = previous
+            await self.broadcast("show", self.show)
 
     async def revoke_online(self, uid, ws, action):
         """Make an online physical node acknowledge id=-1 before mutation."""

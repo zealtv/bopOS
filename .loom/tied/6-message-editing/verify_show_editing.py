@@ -219,18 +219,16 @@ def main():
                              '[data-show-step-row], [data-show-divider-row]'
                            )].map(row => row.dataset.showStepRow || `div:${row.dataset.showDividerRow}`)""")
 
-                # -- copy / paste with fresh uid ------------------------------
-                page.locator('[data-show-message-focus="aaaa0001"]').click()
-                page.wait_for_selector('[data-message-copy="aaaa0001"]')
-                check("paste starts disabled with an empty clipboard",
-                      page.locator('.show-step-row[data-show-step-row="11111111"]').click() is None
-                      and page.wait_for_selector("[data-paste-message]") is not None
-                      and page.locator("[data-paste-message]").is_disabled())
-                page.locator('[data-show-message-focus="aaaa0001"]').click()
-                page.locator('[data-message-copy="aaaa0001"]').click()
-                page.locator('.show-step-row[data-show-step-row="33333333"]').click()
-                page.wait_for_selector("[data-paste-message]:not([disabled])")
-                page.locator("[data-paste-message]").click()
+                # -- keyboard-only copy / paste with fresh uid ----------------
+                check("message edit/move/paste buttons are absent",
+                      page.locator("[data-message-copy],[data-message-cut],"
+                                   "[data-message-move],[data-message-move-step],"
+                                   "[data-message-delete],[data-paste-message],"
+                                   "[data-item-move]").count() == 0)
+                page.locator('[data-show-message-focus="aaaa0001"]').focus()
+                page.keyboard.press("Control+c")
+                page.locator('.show-step-row[data-show-step-row="33333333"]').focus()
+                page.keyboard.press("Control+v")
                 page.wait_for_function(
                     """() => document.querySelectorAll(
                          '.show-step-row[data-show-step-row="33333333"] [data-show-message-focus]'
@@ -245,17 +243,15 @@ def main():
                 check("paste focuses the new pill and opens its inspector",
                       page.locator(f'[data-show-message-focus="{pasted[0]}"].focused').count() == 1)
 
-                # -- cut / paste moves content, fresh uid ---------------------
-                page.locator('[data-show-message-focus="bbbb0001"]').click()
-                page.wait_for_selector('[data-message-cut="bbbb0001"]')
-                page.locator('[data-message-cut="bbbb0001"]').click()
+                # -- keyboard cut / paste moves content, fresh uid ------------
+                page.locator('[data-show-message-focus="bbbb0001"]').focus()
+                page.keyboard.press("Control+x")
                 page.wait_for_function(
                     """() => document.querySelectorAll(
                          '.show-step-row[data-show-step-row="22222222"] [data-show-message-focus]'
                        ).length === 0""")
-                page.locator('.show-step-row[data-show-step-row="11111111"]').click()
-                page.wait_for_selector("[data-paste-message]:not([disabled])")
-                page.locator("[data-paste-message]").click()
+                page.locator('.show-step-row[data-show-step-row="11111111"]').focus()
+                page.keyboard.press("Control+v")
                 page.wait_for_function(
                     """() => document.querySelectorAll(
                          '.show-step-row[data-show-step-row="11111111"] [data-show-message-focus]'
@@ -269,9 +265,9 @@ def main():
                       repr(pill_uids("11111111")))
 
                 # -- keyboard copy / paste ------------------------------------
-                page.locator('[data-show-message-focus="aaaa0002"]').click()
+                page.locator('[data-show-message-focus="aaaa0002"]').focus()
                 page.keyboard.press("Control+c")
-                page.locator('.show-step-row[data-show-step-row="22222222"]').click()
+                page.locator('.show-step-row[data-show-step-row="22222222"]').focus()
                 page.keyboard.press("Control+v")
                 page.wait_for_function(
                     """() => document.querySelectorAll(
@@ -280,44 +276,18 @@ def main():
                 check("keyboard copy on a pill and paste on a row clone the message",
                       pill_uids("22222222")[0] != "aaaa0002")
 
-                # -- delete a message -----------------------------------------
+                # -- keyboard delete and undo ---------------------------------
                 keyboard_clone = pill_uids("22222222")[0]
-                page.locator(f'[data-show-message-focus="{keyboard_clone}"]').click()
-                page.wait_for_selector(f'[data-message-delete="{keyboard_clone}"]')
-                page.locator(f'[data-message-delete="{keyboard_clone}"]').click()
+                page.locator(f'[data-show-message-focus="{keyboard_clone}"]').focus()
+                page.keyboard.press("Delete")
                 page.wait_for_function(
                     """() => document.querySelectorAll(
                          '.show-step-row[data-show-step-row="22222222"] [data-show-message-focus]'
                        ).length === 0""")
-                check("delete removes the message", True)
-
-                # -- move a message between steps via the picker --------------
-                sparkle_uid = moved[0]
-                page.locator(f'[data-show-message-focus="{sparkle_uid}"]').click()
-                page.wait_for_selector(f'[data-message-move-step="{sparkle_uid}"]')
-                page.select_option(f'[data-message-move-step="{sparkle_uid}"]', "22222222")
-                page.wait_for_function(
-                    """() => document.querySelectorAll(
-                         '.show-step-row[data-show-step-row="22222222"] [data-show-message-focus]'
-                       ).length === 1""")
-                check("move-to-step relocates the message keeping its uid",
-                      pill_uids("22222222") == [sparkle_uid],
-                      repr(pill_uids("22222222")))
-
-                # -- reorder a message within a step --------------------------
-                first_pair = pill_uids("11111111")
-                page.locator('[data-show-message-focus="aaaa0002"]').click()
-                page.wait_for_selector('[data-message-move][data-message-uid="aaaa0002"]')
-                page.locator('[data-message-move="-1"][data-message-uid="aaaa0002"]').click()
-                page.wait_for_function(
-                    """(before) => {
-                        const now = [...document.querySelectorAll(
-                          '.show-step-row[data-show-step-row=\\"11111111\\"] [data-show-message-focus]'
-                        )].map(pill => pill.dataset.showMessageFocus);
-                        return JSON.stringify(now) !== JSON.stringify(before);
-                    }""", arg=first_pair)
-                check("move-left reorders the pill within its step",
-                      pill_uids("11111111")[0] == "aaaa0002", repr(pill_uids("11111111")))
+                check("keyboard delete removes the message", True)
+                page.keyboard.press("Control+z")
+                page.wait_for_selector(f'[data-show-message-focus="{keyboard_clone}"]')
+                check("keyboard undo restores the deleted message", True)
 
                 # -- structural: add step / divider, move, delete -------------
                 base_order = row_order()
@@ -336,24 +306,6 @@ def main():
                     "() => document.querySelectorAll('[data-show-divider-row]').length === 2")
                 check("inspector adds a divider below the focused step",
                       row_order()[-1].startswith("div:"), repr(row_order()))
-
-                page.locator(f'[data-item-move="-1"][data-item-uid="{appended}"]').click()
-                page.wait_for_function(
-                    """(uid) => {
-                        const order = [...document.querySelectorAll(
-                          '[data-show-step-row], [data-show-divider-row]'
-                        )].map(row => row.dataset.showStepRow || row.dataset.showDividerRow);
-                        return order.indexOf(uid) === order.length - 3;
-                    }""", arg=appended)
-                check("move-up walks the step above its neighbour", True)
-                page.locator(f'[data-item-move="1"][data-item-uid="{appended}"]').click()
-                page.wait_for_function(
-                    """(uid) => {
-                        const order = [...document.querySelectorAll(
-                          '[data-show-step-row], [data-show-divider-row]'
-                        )].map(row => row.dataset.showStepRow || row.dataset.showDividerRow);
-                        return order.indexOf(uid) === order.length - 2;
-                    }""", arg=appended)
 
                 new_divider = row_order()[-1].split(":", 1)[1]
                 page.locator(f'[data-show-divider-row="{new_divider}"]').click()
@@ -383,7 +335,8 @@ def main():
                       len(dialogs) == dialog_count + 1
                       and "bravo" in dialogs[-1], repr(dialogs[dialog_count:]))
 
-                page.locator('.show-step-row[data-show-step-row="11111111"]').click()
+                page.locator(
+                    '.show-step-row[data-show-step-row="11111111"] .show-step-alias').click()
                 page.wait_for_selector('[data-then-goto="0"]')
                 check("stale goto renders as a missing-step option",
                       "missing step" in page.locator('[data-then-goto="0"]')

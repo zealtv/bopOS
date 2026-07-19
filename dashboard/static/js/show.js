@@ -17,6 +17,8 @@
   let showRowsHeight = 480;
   let showRowsScrollTop = 0;
   let rowsResizeDrag = null;
+  let showDrag = null;
+  let suppressDragClick = false;
   let renderPending = false;
 
   const THEN_ACTIONS = [
@@ -288,13 +290,15 @@
     return messages.map(message => {
       const selected = focused("message", message.uid) ? " focused" : "";
       const title = `${message.address || ""} -> ${terseTargets(message)}`;
-      return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" title="${escapeHtml(title)}">${escapeHtml(messageLabel(message))}</button>`;
+      return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" data-drag-message="${escapeHtml(message.uid)}" title="${escapeHtml(title)}"><span class="show-pill-drag" aria-hidden="true">⋮</span>${escapeHtml(messageLabel(message))}</button>`;
     }).join("");
   }
 
   function dividerRow(item, index) {
     const selected = focused("divider", item.uid) ? " focused" : "";
-    return `<div class="show-divider-row${selected}" data-show-divider-row="${escapeHtml(item.uid)}" data-show-index="${index}" role="button" tabindex="0" aria-label="Section divider"></div>`;
+    return `<div class="show-divider-row${selected}" data-show-divider-row="${escapeHtml(item.uid)}" data-show-index="${index}" role="button" tabindex="0" aria-label="Section divider">
+      <button type="button" class="show-drag-handle show-divider-drag" data-drag-item="${escapeHtml(item.uid)}" aria-label="Drag section divider">⋮⋮</button>
+    </div>`;
   }
 
   function stepRow(step, index) {
@@ -315,6 +319,7 @@
       ? '<span class="show-goto-missing" title="goto target no longer exists; stopped">goto?</span>' : "";
     return `<div class="show-step-row show-step-${escapeHtml(stateName)}${selected}${playing}${armed}" data-show-step-row="${escapeHtml(step.uid)}" data-show-index="${index}" role="row" tabindex="0">
       ${progress}
+      <button type="button" class="show-drag-handle" data-drag-item="${escapeHtml(step.uid)}" aria-label="Drag ${escapeHtml(stepLabel(step))}">⋮⋮</button>
       <div class="show-step-transport">${stepTransport(step)}</div>
       <strong class="show-step-alias" title="${escapeHtml(stepLabel(step))}">${escapeHtml(stepLabel(step))}</strong>
       <div class="show-message-pills">${messagePills(step)}</div>
@@ -417,16 +422,11 @@
 
   function renderArrange(item) {
     const uid = escapeHtml(item.uid);
-    const paste = item.kind === "step"
-      ? `<button type="button" data-paste-message="${uid}" ${clipboard ? "" : "disabled"}>Paste message</button>` : "";
     return `<section class="show-inspector-section">
       <div class="show-inspector-subhead"><h4>Arrange</h4></div>
       <div class="show-arrange-grid">
-        <button type="button" data-item-move="-1" data-item-uid="${uid}">Move up</button>
-        <button type="button" data-item-move="1" data-item-uid="${uid}">Move down</button>
         <button type="button" data-item-add="step" data-item-uid="${uid}">Step below</button>
         <button type="button" data-item-add="divider" data-item-uid="${uid}">Divider below</button>
-        ${paste}
         <button type="button" class="danger" data-item-delete="${uid}">Delete ${item.kind}</button>
       </div>
     </section>`;
@@ -505,31 +505,9 @@
           </select>
         </label>
         ${renderPayloadBuilder(message, mode)}
-        ${renderMessageEdit(step, message)}
         <label>wire form <output id="show-wire-preview">${escapeHtml(wirePreview(message))}</output></label>
         <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
       </div>`;
-  }
-
-  function renderMessageEdit(step, message) {
-    const uid = escapeHtml(message.uid);
-    const others = allSteps().filter(candidate => candidate.uid !== step.uid);
-    const moveOptions = others.map(candidate =>
-      `<option value="${escapeHtml(candidate.uid)}">${escapeHtml(stepLabel(candidate))}</option>`).join("");
-    return `<section class="show-inspector-section">
-      <div class="show-inspector-subhead"><h4>Edit</h4></div>
-      <div class="show-arrange-grid">
-        <button type="button" data-message-copy="${uid}">Copy</button>
-        <button type="button" data-message-cut="${uid}">Cut</button>
-        <button type="button" data-message-move="-1" data-message-uid="${uid}">Move left</button>
-        <button type="button" data-message-move="1" data-message-uid="${uid}">Move right</button>
-        <button type="button" class="danger" data-message-delete="${uid}">Delete</button>
-      </div>
-      ${others.length ? `<label>move to step
-        <select data-message-move-step="${uid}">
-          <option value="" selected>choose a step…</option>${moveOptions}
-        </select></label>` : ""}
-    </section>`;
   }
 
   function renderPayloadBuilder(message, mode) {
@@ -599,7 +577,7 @@
   }
 
   function render() {
-    if (rowsResizeDrag) {
+    if (rowsResizeDrag || showDrag?.active) {
       renderPending = true;
       return;
     }
@@ -711,30 +689,6 @@
     return (show.items || []).find(item => item.uid === uid) || null;
   }
 
-  function moveItem(uid, direction) {
-    const items = show.items || [];
-    const index = items.findIndex(item => item.uid === uid);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= items.length) return;
-    const afterUid = direction < 0
-      ? (target > 0 ? items[target - 1].uid : null)
-      : items[target].uid;
-    showError = "";
-    ws.send("move_item", {uid, after_uid: afterUid});
-  }
-
-  function moveMessage(step, message, direction) {
-    const messages = step.messages || [];
-    const index = messages.findIndex(candidate => candidate.uid === message.uid);
-    const target = index + direction;
-    if (index < 0 || target < 0 || target >= messages.length) return;
-    const afterUid = direction < 0
-      ? (target > 0 ? messages[target - 1].uid : null)
-      : messages[target].uid;
-    showError = "";
-    ws.send("move_message", {uid: message.uid, to_step_uid: step.uid, after_uid: afterUid});
-  }
-
   function copyMessage(message) {
     clipboard = {
       alias: message.alias, address: message.address,
@@ -773,6 +727,149 @@
     }
     ws.send(kind === "divider" ? "add_divider" : "add_step", {after_uid: afterUid || null});
   }
+
+  function clearDragMarkers() {
+    root.querySelectorAll(".show-drop-row,.show-drop-before,.show-drop-after")
+      .forEach(node => node.classList.remove("show-drop-row", "show-drop-before", "show-drop-after"));
+  }
+
+  function rowItemUid(row) {
+    return row?.dataset.showStepRow || row?.dataset.showDividerRow || null;
+  }
+
+  function autoScrollShowRows(clientY) {
+    const box = root.querySelector(".show-rows-box");
+    if (!box) return;
+    const bounds = box.getBoundingClientRect();
+    if (clientY < bounds.top + 36) box.scrollTop -= 14;
+    else if (clientY > bounds.bottom - 36) box.scrollTop += 14;
+  }
+
+  function messageDropAt(clientX, clientY) {
+    const hit = document.elementFromPoint(clientX, clientY);
+    const row = hit?.closest?.("[data-show-step-row]");
+    if (!row) return null;
+    const pills = [...row.querySelectorAll("[data-drag-message]")]
+      .filter(pill => pill.dataset.dragMessage !== showDrag.uid);
+    let afterUid = null;
+    let nextPill = null;
+    for (const pill of pills) {
+      const bounds = pill.getBoundingClientRect();
+      const before = clientY < bounds.top + bounds.height / 2
+        || (clientY <= bounds.bottom && clientX < bounds.left + bounds.width / 2);
+      if (before) {
+        nextPill = pill;
+        break;
+      }
+      afterUid = pill.dataset.dragMessage;
+    }
+    clearDragMarkers();
+    row.classList.add("show-drop-row");
+    if (nextPill) nextPill.classList.add("show-drop-before");
+    else if (pills.length) pills[pills.length - 1].classList.add("show-drop-after");
+    return {toStepUid: row.dataset.showStepRow, afterUid};
+  }
+
+  function itemDropAt(clientY) {
+    const rows = [...root.querySelectorAll("[data-show-step-row],[data-show-divider-row]")]
+      .filter(row => rowItemUid(row) !== showDrag.uid);
+    let afterUid = null;
+    let nextRow = null;
+    for (const row of rows) {
+      const bounds = row.getBoundingClientRect();
+      if (clientY < bounds.top + bounds.height / 2) {
+        nextRow = row;
+        break;
+      }
+      afterUid = rowItemUid(row);
+    }
+    clearDragMarkers();
+    if (nextRow) nextRow.classList.add("show-drop-before");
+    else if (rows.length) rows[rows.length - 1].classList.add("show-drop-after");
+    return {afterUid};
+  }
+
+  root.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || rowsResizeDrag || showDrag) return;
+    const itemHandle = event.target.closest("[data-drag-item]");
+    const message = event.target.closest("[data-drag-message]");
+    const source = itemHandle || message;
+    if (!source) return;
+    showDrag = {
+      pointerId: event.pointerId,
+      kind: itemHandle ? "item" : "message",
+      uid: itemHandle?.dataset.dragItem || message.dataset.dragMessage,
+      source,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      drop: null,
+    };
+    source.setPointerCapture(event.pointerId);
+    if (itemHandle) event.preventDefault();
+  });
+
+  root.addEventListener("pointermove", event => {
+    if (!showDrag || event.pointerId !== showDrag.pointerId) return;
+    const distance = Math.hypot(event.clientX - showDrag.startX, event.clientY - showDrag.startY);
+    if (!showDrag.active && distance < 7) return;
+    if (!showDrag.active) {
+      showDrag.active = true;
+      suppressDragClick = true;
+      showDrag.source.classList.add("show-dragging");
+      root.classList.add("show-drag-active");
+    }
+    autoScrollShowRows(event.clientY);
+    showDrag.drop = showDrag.kind === "message"
+      ? messageDropAt(event.clientX, event.clientY)
+      : itemDropAt(event.clientY);
+    event.preventDefault();
+  });
+
+  function finishShowDrag(event, commit) {
+    if (!showDrag || event.pointerId !== showDrag.pointerId) return;
+    const drag = showDrag;
+    showDrag = null;
+    if (drag.source.hasPointerCapture?.(event.pointerId)) drag.source.releasePointerCapture(event.pointerId);
+    drag.source.classList.remove("show-dragging");
+    root.classList.remove("show-drag-active");
+    clearDragMarkers();
+    if (commit && drag.active && drag.drop) {
+      showError = "";
+      if (drag.kind === "message") {
+        ws.send("move_message", {uid: drag.uid, to_step_uid: drag.drop.toStepUid,
+                                  after_uid: drag.drop.afterUid});
+      } else {
+        ws.send("move_item", {uid: drag.uid, after_uid: drag.drop.afterUid});
+      }
+    }
+    if (drag.active) {
+      event.preventDefault();
+      setTimeout(() => { suppressDragClick = false; }, 0);
+    }
+    if (renderPending) {
+      renderPending = false;
+      render();
+    }
+  }
+
+  root.addEventListener("pointerup", event => finishShowDrag(event, true));
+  root.addEventListener("pointercancel", event => finishShowDrag(event, false));
+  root.addEventListener("click", event => {
+    if (!suppressDragClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  document.addEventListener("keydown", event => {
+    const showPanel = root.closest(".tab-panel");
+    const meta = event.ctrlKey || event.metaKey;
+    if (showPanel?.hidden || event.target.closest?.("input,select,textarea")
+        || !meta || event.shiftKey || event.key.toLowerCase() !== "z") return;
+    ws.send("undo_show", {});
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   root.addEventListener("pointerdown", event => {
     const handle = event.target.closest(".show-rows-resize");
@@ -942,16 +1039,6 @@
           typedArg("f", values.r), typedArg("i", values.enabled),
         ]});
       }
-      if (event.target.matches("[data-message-move-step]")) {
-        const destinationUid = event.target.value;
-        const destination = stepByUid(destinationUid);
-        if (destination) {
-          const tail = (destination.messages || []).slice(-1)[0];
-          showError = "";
-          ws.send("move_message", {uid: message.uid, to_step_uid: destinationUid,
-                                   after_uid: tail ? tail.uid : null});
-        }
-      }
       if (event.target.id === "show-raw-address") updateMessage(message.uid, {address: event.target.value.trim() || "/"});
       if (event.target.matches("[data-raw-type], [data-raw-value]")) {
         const args = (message.args || []).map((arg, index) => {
@@ -965,11 +1052,6 @@
   });
 
   root.addEventListener("click", event => {
-    const itemMove = event.target.closest("[data-item-move]");
-    if (itemMove) {
-      moveItem(itemMove.dataset.itemUid, Number(itemMove.dataset.itemMove));
-      return;
-    }
     const itemAdd = event.target.closest("[data-item-add]");
     if (itemAdd) {
       addItem(itemAdd.dataset.itemAdd, itemAdd.dataset.itemUid);
@@ -984,37 +1066,6 @@
     const itemDelete = event.target.closest("[data-item-delete]");
     if (itemDelete) {
       deleteItem(itemDelete.dataset.itemDelete);
-      return;
-    }
-    const copyButton = event.target.closest("[data-message-copy]");
-    if (copyButton) {
-      const {message} = messageByUid(copyButton.dataset.messageCopy);
-      if (message) copyMessage(message);
-      return;
-    }
-    const cutButton = event.target.closest("[data-message-cut]");
-    if (cutButton) {
-      const {message} = messageByUid(cutButton.dataset.messageCut);
-      if (message) {
-        copyMessage(message);
-        deleteMessage(message.uid);
-      }
-      return;
-    }
-    const pasteButton = event.target.closest("[data-paste-message]");
-    if (pasteButton) {
-      pasteMessage(pasteButton.dataset.pasteMessage);
-      return;
-    }
-    const messageDelete = event.target.closest("[data-message-delete]");
-    if (messageDelete) {
-      deleteMessage(messageDelete.dataset.messageDelete);
-      return;
-    }
-    const messageMove = event.target.closest("[data-message-move]");
-    if (messageMove) {
-      const {step, message} = messageByUid(messageMove.dataset.messageUid);
-      if (message) moveMessage(step, message, Number(messageMove.dataset.messageMove));
       return;
     }
     const stepEditor = event.target.closest("[data-show-step-editor]");
@@ -1062,12 +1113,12 @@
   });
 
   root.addEventListener("keydown", event => {
+    const meta = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
     if (event.target.closest("input, select, textarea")) return;
     const pill = event.target.closest("[data-show-message-focus]");
     const row = event.target.closest("[data-show-step-row]");
     const divider = event.target.closest("[data-show-divider-row]");
-    const meta = event.ctrlKey || event.metaKey;
-    const key = event.key.toLowerCase();
     if (meta && key === "c" && pill) {
       const {message} = messageByUid(pill.dataset.showMessageFocus);
       if (message) copyMessage(message);

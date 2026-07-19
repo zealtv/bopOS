@@ -259,9 +259,11 @@ def browser_checks():
                 check("fresh message target defaults expanded",
                       page.locator(".show-target-picker").evaluate("node => node.open"))
 
-                page.click("[data-message-copy]")
-                page.locator(f'[data-show-step-row="{new_uid}"] .show-step-alias').click()
-                page.click(f'[data-paste-message="{new_uid}"]')
+                page.locator(
+                    f'[data-show-step-row="{new_uid}"] .show-message-pill').focus()
+                page.keyboard.press("Control+c")
+                page.locator(f'[data-show-step-row="{new_uid}"]').focus()
+                page.keyboard.press("Control+v")
                 page.wait_for_function(
                     "() => document.querySelectorAll('.show-message-pill').length === 5")
                 check("pasted message target defaults collapsed",
