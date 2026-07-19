@@ -17,6 +17,9 @@ Scope:
   client stays consistent.
 - Keyboard where natural (copy/paste on focused pill) but buttons must
   exist — touch is first-class.
+- Empty-state dead end (Bob's 2026-07-19 screenshot: a fresh show says
+  "This show has no steps yet." with no affordance anywhere): the empty
+  state must itself offer Add step, not only the populated table.
 
 Verify: `verify_show_editing.py`, Playwright. Cover: copy/cut/paste a
 message between steps (uid freshness on paste), delete a message, add/move/
