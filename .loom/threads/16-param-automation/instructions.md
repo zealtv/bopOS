@@ -22,8 +22,10 @@ panels p3–p7 touch — landing polish first avoids double churn and repeated
 Playwright re-verification). One permitted interleave: once the design is
 ratified, the dashboard-free stitches — contract amendment, bopos.py
 generator engine, simfleet parity — may proceed in parallel with remaining
-polish stitches. The `patch-workflow-friction` docs resume should land
-after this thread, not before, or the docs go stale immediately.
+polish stitches. The docs close-out (ex-`patch-workflow-friction`, dropped
+in-repo 2026-07-17; surviving pointer on the host loom at
+`~/repos/.loom/threads/patch-workflow-friction/`) should land after this
+thread, not before, or the docs go stale immediately.
 
 Deferred by design (recorded in the proposal): musical time on the wire
 (authoring layer + `scene-sequencing`), atom manifest kind for

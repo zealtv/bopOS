@@ -139,10 +139,13 @@ and tie one concrete stitch at a time:
    amendment, bopos.py generator engine, simfleet parity) may interleave
    with remaining polish. Strings/mixed-arrays as a non-param manifest
    kind are deferred (name and plane undecided).
-12. **Then — Close the sweep.** Resume
-   `patch-workflow-friction/friction-0..1` so documentation and starter-kit
-   copy describe the finished system — after `16-param-automation`, or the
-   docs go stale immediately.
+12. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
+   thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
+   improvements; only `friction-0a-readme-refresh` tied). The surviving
+   pointer is a host-loom loose end
+   (`~/repos/.loom/threads/patch-workflow-friction/`) — lay any final
+   documentation/starter-kit stitches out from there, after
+   `16-param-automation` so the docs describe the finished system.
 
 The latest sequencer brainstorm is input to the separately Bob-gated
 `scene-sequencing` co-design. It does not itself authorize implementation;
