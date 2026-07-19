@@ -228,6 +228,7 @@ def main():
                       and page.locator(".show-target-terse").inner_text() == "all"
                       and "-> all" in page.locator("#show-wire-preview").inner_text())
 
+                page.locator(".show-target-picker summary").click()
                 page.locator('[data-target-toggle="1"]').click()
                 page.wait_for_function(
                     "() => document.querySelector('.show-target-terse')?.innerText === '1'")

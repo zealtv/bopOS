@@ -11,6 +11,7 @@
   let showError = "";
   let pendingMessageAdd = null;
   let pendingItemAdd = null;
+  let targetDisclosure = {uid: null, open: false};
   let scrollFocusedRow = false;
   let clipboard = null;
   let showRowsHeight = 480;
@@ -52,6 +53,9 @@
   }
 
   function setFocus(kind, uid) {
+    if (kind !== "message" || targetDisclosure.uid !== uid) {
+      targetDisclosure = {uid: null, open: false};
+    }
     focus = {kind, uid};
     render();
   }
@@ -196,15 +200,18 @@
     const summary = isAll
       ? '<span class="dim">every Seat</span>'
       : selected.map(entry => `<button type="button" class="show-target-chip show-target-selected" data-target-remove="${escapeHtml(entry)}" title="Remove ${escapeHtml(entry)}"${off}>${escapeHtml(entry)}<span aria-hidden="true"> ×</span></button>`).join("");
-    return `<section class="show-inspector-section show-target-picker${disabled ? " show-disabled-field" : ""}">
-      <div class="show-inspector-subhead"><h4>Target</h4><output class="show-target-terse">${escapeHtml(terseTargets(message))}</output></div>
-      <div class="show-target-summary">${summary}</div>
-      <div class="show-target-chips">
-        <button type="button" class="show-target-chip show-target-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${off}>All</button>
-        ${groupChips}
+    const open = targetDisclosure.uid === message.uid && targetDisclosure.open ? " open" : "";
+    return `<details class="show-inspector-section show-target-picker${disabled ? " show-disabled-field" : ""}" data-target-disclosure="${escapeHtml(message.uid)}"${open}>
+      <summary><span>Target</span><output class="show-target-terse">${escapeHtml(terseTargets(message))}</output></summary>
+      <div class="show-target-body">
+        <div class="show-target-summary">${summary}</div>
+        <div class="show-target-chips">
+          <button type="button" class="show-target-chip show-target-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${off}>All</button>
+          ${groupChips}
+        </div>
+        ${seatChips ? `<div class="show-target-chips show-target-roster">${seatChips}</div>` : ""}
       </div>
-      ${seatChips ? `<div class="show-target-chips show-target-roster">${seatChips}</div>` : ""}
-    </section>`;
+    </details>`;
   }
 
   function inferMessageMode(message) {
@@ -436,7 +443,8 @@
   function renderStepInspector(step) {
     const parts = secondsParts(step.duration_s);
     const loop = step.play_count == null;
-    const actions = Array.isArray(step.then_actions) ? step.then_actions : [];
+    const actions = Array.isArray(step.then_actions) && step.then_actions.length
+      ? step.then_actions : [{type: "stop"}];
     const modelValidation = Number(step.duration_s) === 0 && step.play_count == null
       ? "Duration 0 needs a finite play count." : "";
     const validation = modelValidation || friendlyShowError()
@@ -457,7 +465,7 @@
         </div>
         <section class="show-inspector-section">
           <div class="show-inspector-subhead"><h4>Then actions</h4><button type="button" data-add-then-action>Add row</button></div>
-          <div class="show-then-list">${actionRows || '<p class="dim">No rows means stop.</p>'}</div>
+          <div class="show-then-list">${actionRows}</div>
         </section>
         <button type="button" id="show-add-message">Add message</button>
         ${renderArrange(step)}
@@ -476,7 +484,7 @@
     return `<div class="show-then-row" data-then-index="${index}">
       <select data-then-type="${index}" aria-label="then action">${options}</select>
       ${goto}
-      <button type="button" class="danger" data-remove-then="${index}">Remove</button>
+      ${index > 0 ? `<button type="button" class="danger" data-remove-then="${index}">Remove</button>` : ""}
     </div>`;
   }
 
@@ -687,7 +695,9 @@
   }
 
   function currentThenActions(step) {
-    return structuredClone(Array.isArray(step.then_actions) ? step.then_actions : []);
+    const actions = Array.isArray(step.then_actions) && step.then_actions.length
+      ? step.then_actions : [{type: "stop"}];
+    return structuredClone(actions);
   }
 
   function normalizeAction(type) {
@@ -738,7 +748,7 @@
     const step = stepByUid(stepUid);
     if (!clipboard || !step) return;
     showError = "";
-    pendingMessageAdd = {step_uid: stepUid, known: new Set((step.messages || []).map(message => message.uid))};
+    pendingMessageAdd = {step_uid: stepUid, known: new Set((step.messages || []).map(message => message.uid)), expand_target: false};
     ws.send("add_message", {step_uid: stepUid, message: structuredClone(clipboard)});
   }
 
@@ -796,6 +806,12 @@
 
   root.addEventListener("pointerup", finishRowsResize);
   root.addEventListener("pointercancel", finishRowsResize);
+
+  root.addEventListener("toggle", event => {
+    const disclosure = event.target.closest?.("[data-target-disclosure]");
+    if (!disclosure) return;
+    targetDisclosure = {uid: disclosure.dataset.targetDisclosure, open: disclosure.open};
+  }, true);
 
   function applyModeDefault(message, mode) {
     const manifest = manifestFromStagedPatch();
@@ -1010,11 +1026,13 @@
       }
       if (event.target.matches("[data-remove-then]")) {
         const actions = currentThenActions(step);
-        actions.splice(Number(event.target.dataset.removeThen), 1);
+        const index = Number(event.target.dataset.removeThen);
+        if (index <= 0) return;
+        actions.splice(index, 1);
         updateStep(step.uid, {then_actions: actions});
       }
       if (event.target.id === "show-add-message") {
-        pendingMessageAdd = {step_uid: step.uid, known: new Set((step.messages || []).map(message => message.uid))};
+        pendingMessageAdd = {step_uid: step.uid, known: new Set((step.messages || []).map(message => message.uid)), expand_target: true};
         ws.send("add_message", {step_uid: step.uid, message: {alias: null, address: "/p/gain", args: [{type: "f", value: 0}], target: ["all"]}});
       }
     }
@@ -1116,6 +1134,7 @@
       const added = (step?.messages || []).find(message => !pendingMessageAdd.known.has(message.uid));
       if (added) {
         focus = {kind: "message", uid: added.uid};
+        targetDisclosure = {uid: added.uid, open: Boolean(pendingMessageAdd.expand_target)};
         pendingMessageAdd = null;
       }
     }

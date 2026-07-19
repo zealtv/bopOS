@@ -400,3 +400,17 @@ All Show `/cue` messages use forward-sync scheduling. The per-step
 saving drops it. The scheduling lead is now one persisted, installation-level
 `cue_lead_ms` setting shared by all Show transports rather than a per-step
 choice.
+
+## Amendment — 2026-07-19, inspector defaults
+
+The authoring surface now states two existing truths more compactly:
+
+- A step's canonical `then_actions` is never empty. Missing or empty legacy
+  lists normalize to one `{"type": "stop"}` action, new steps start with that
+  action, and the first row cannot be removed. This does not change playback:
+  the engine already treated an empty list as stop.
+- A message's target chip picker is a disclosure headed by its terse wire form
+  (`all`, `3+7+g1`, and so on). Existing messages open with the picker
+  collapsed; a freshly added message opens it for immediate authoring. Cue and
+  point targets retain their disabled presentation because their send paths are
+  selector-free.

@@ -173,6 +173,8 @@ def clean_step(value):
         if action is None:
             return None
         then_actions.append(action)
+    if not then_actions:
+        then_actions = [{"type": "stop"}]
     return {"kind": "step", "uid": uid, "alias": alias, "messages": messages,
             "duration_s": duration_s, "play_count": play_count,
             "then_actions": then_actions}
@@ -318,7 +320,7 @@ def add_step(show, after_uid=None):
         return show, None, "after_uid not found."
     step = {"kind": "step", "uid": mint_uid(_item_uids(show)), "alias": None,
             "messages": [], "duration_s": 5.0, "play_count": 1,
-            "then_actions": []}
+            "then_actions": [{"type": "stop"}]}
     items = list(show["items"])
     items.insert(index, step)
     return {**show, "items": items}, step, None
@@ -375,7 +377,7 @@ def update_step(show, uid, patch):
             if action is None:
                 return show, None, "invalid then_action."
             then_actions.append(action)
-        candidate["then_actions"] = then_actions
+        candidate["then_actions"] = then_actions or [{"type": "stop"}]
     if candidate["duration_s"] == 0 and candidate["play_count"] is None:
         return show, None, "duration_s == 0 requires a finite play_count."
     items[index] = candidate
