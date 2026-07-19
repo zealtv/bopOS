@@ -25,6 +25,7 @@ import fetcher
 import pointfield
 import relay
 import groups as group_protocol
+import paramgen
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -1043,6 +1044,30 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
     return dispatch_admin_verb(member, args, state, reply_socket, requester)
 
 
+# Param-declaration lookup cache: /p/* traffic can arrive at slider-drag
+# rates, and a Zero 2 W must not re-read and re-validate the manifest JSON
+# per datagram. One stat() per message; reparse only on path/mtime change.
+_declared_params = {"path": None, "mtime": None, "params": {}}
+
+
+def declared_param(identity):
+    patch_path = active_patch_path()
+    if not patch_path:
+        return None
+    try:
+        mtime = os.stat(os.path.join(patch_path, manifest.MANIFEST_NAME)).st_mtime_ns
+    except OSError:
+        return None
+    if _declared_params["path"] != patch_path or _declared_params["mtime"] != mtime:
+        data, _error = manifest.load(patch_path)
+        params = {}
+        if data is not None:
+            for item in data.get("params", []):
+                params[manifest.qualify_param(item)] = item
+        _declared_params.update(path=patch_path, mtime=mtime, params=params)
+    return _declared_params["params"].get(identity)
+
+
 def handle_lan_datagram(datagram, source, reply_socket, state=None):
     state = state or node_state
     try:
@@ -1059,6 +1084,17 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if len(parts) >= 3 and selector_matches(parts[0], state.id, memberships):
         shaped = relay.shape_provided_term(parts, args)
         if shaped is not None:
+            address, shaped_args = shaped
+            if address.startswith("/p/"):
+                declaration = declared_param(address[3:])
+                identity = address[3:]
+                if declaration is not None and declaration.get("type") in ("f", "i"):
+                    try:
+                        spec = paramgen.parse_message(shaped_args, declaration["type"])
+                    except paramgen.ParamGrammarError as error:
+                        print(f"WARNING: {address} parameter grammar: {error}")
+                        return True
+                    return param_generator.apply(identity, spec, declaration)
             return relay_provided_term(*shaped)
     # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
     # fleet-wide), offset is per-device. Handled before the /os gate below.
@@ -1729,10 +1765,13 @@ def fire_cue_to_engine(cue_id):
 
 sync_state = SyncState()
 cue_scheduler = CueScheduler(sync_state, fire_cue_to_engine)
+param_generator = paramgen.GeneratorEngine(
+    lambda identity, args: relay_provided_term("/p/" + identity, args), sync_state)
 
 
 def exit_handler():
     print("exiting.  closing server...")
+    param_generator.close()
     server.close()
 
 

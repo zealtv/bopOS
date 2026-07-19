@@ -48,7 +48,9 @@ def free_port():
 
 
 def helper_checks():
-    assert sorted(helper.server.callbacks) == ["/config", "/load", "/report", "/store"]
+    # /admin joined the engine surface with the v1.7 patch-admin-surface
+    # amendment (2026-07-17); amended here 2026-07-19 (automation-1 worklog).
+    assert sorted(helper.server.callbacks) == ["/admin", "/config", "/load", "/report", "/store"]
     state = helper.node_state
     original_id, original_reports = state.id, state.reports
     state.id, state.reports = 7, {}

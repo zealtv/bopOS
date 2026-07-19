@@ -46,6 +46,7 @@ import identity  # noqa: E402
 import manifest as patch_manifest  # noqa: E402
 import pointfield  # noqa: E402
 import groups as group_protocol  # noqa: E402
+import paramgen  # noqa: E402
 
 
 def load_manifest(path):
@@ -65,6 +66,16 @@ def load_manifest(path):
         return text, set(identities)
     except (OSError, ValueError, TypeError, KeyError, UnicodeEncodeError):
         return None, set()
+
+
+def manifest_declarations(text):
+    if text is None:
+        return {}
+    try:
+        params = json.loads(text).get("params", [])
+        return {patch_manifest.qualify_param(item): item for item in params}
+    except (ValueError, TypeError, AttributeError):
+        return {}
 
 
 DEFAULT_MANIFEST_TEXT, _DEFAULT_DECLARED_PARAMS = load_manifest(DEFAULT_MANIFEST_PATH)
@@ -173,6 +184,7 @@ class Device:
         # clock, plus the offset the leader has pushed for cue conversion
         self.sync_skew_ns = 0
         self.sync_offset_ns = 0
+        self.sync_synced = False
         # /pt decomposition (contract sec 4.1): element positions from the
         # assignment (one [x, y] per element) and the held point field
         self.elements = []
@@ -240,6 +252,17 @@ class Device:
             return False
 
 
+class _DeviceSyncState:
+    def __init__(self, device):
+        self.device = device
+
+    def offset(self):
+        return self.device.sync_offset_ns
+
+    def synced(self):
+        return self.device.sync_synced
+
+
 class SimFleet:
     def __init__(self, args, devices):
         self.args = args
@@ -247,6 +270,7 @@ class SimFleet:
         self.protocol = ContractProtocol()
         self.manifest_text, self.declared_params = load_manifest(
             getattr(args, "manifest", None) or DEFAULT_MANIFEST_PATH)
+        self.param_declarations = manifest_declarations(self.manifest_text)
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", ASSETS_DIR))
         self.events = []
         self.fetch_jobs = {}
@@ -274,6 +298,22 @@ class SimFleet:
             device.sync_skew_ns = random.randint(-skew_ns, skew_ns) if skew_ns else 0
             if skew_ns:
                 self.log(device, f"sync_skew={device.sync_skew_ns}ns")
+            device.param_generator = paramgen.GeneratorEngine(
+                lambda member, values, target=device: self.emit_param(target, member, values),
+                _DeviceSyncState(device),
+                lambda target=device: self.device_now_ns(target))
+
+    def emit_param(self, device, member, values):
+        if device.unresponsive or not device.engine_alive() or not values:
+            return
+        value = values[0]
+        device.params[member] = value
+        if member in ("gain", "gain2", "backing"):
+            try:
+                setattr(device, member, float(value))
+            except (TypeError, ValueError):
+                pass
+        self.log(device, f"p/{member}={format_token(value)}")
 
     def schedule(self, delay, callback, *values):
         heapq.heappush(
@@ -644,6 +684,7 @@ class SimFleet:
             if not self.protocol.matches(selector, device.device_id, device.groups):
                 continue
             device.sync_offset_ns = offset
+            device.sync_synced = True
             self.log(device, f"sync offset={offset}ns")
 
     def apply_points(self, device, parts, args):
@@ -820,15 +861,16 @@ class SimFleet:
                 if member not in self.declared_params and member not in ("gain", "gain2", "backing"):
                     self.log(device, f"p/{member} undeclared, dropped")
                     continue
-                device.params[member] = args[0]
-                if member in ("gain", "gain2", "backing"):
+                declaration = getattr(self, "param_declarations", {}).get(member)
+                if declaration is not None and declaration.get("type") in ("f", "i"):
                     try:
-                        setattr(device, member, float(args[0]))
-                    except (TypeError, ValueError):
-                        pass
-                # log the applied patch value so spatial/gain automation is
-                # observable off the wire (spatial-0 verify reads /p/gain here)
-                self.log(device, f"p/{member}={format_token(args[0])}")
+                        spec = paramgen.parse_message(args, declaration["type"])
+                    except paramgen.ParamGrammarError as error:
+                        self.log(device, f"p/{member} grammar error: {error}")
+                        continue
+                    device.param_generator.apply(member, spec, declaration)
+                else:
+                    self.emit_param(device, member, args)
                 continue
             if member == "ping" and args:
                 try:
@@ -990,6 +1032,10 @@ class SimFleet:
         except KeyboardInterrupt:
             pass
         finally:
+            for device in self.devices:
+                generator = getattr(device, "param_generator", None)
+                if generator is not None:
+                    generator.close()
             self.sock.close()
             if self.tty:
                 print("\033[?25h\n", end="", flush=True)
