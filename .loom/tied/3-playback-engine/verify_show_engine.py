@@ -23,6 +23,7 @@ Deps: fastapi, uvicorn[standard], websockets (dashboard/requirements.txt).
 import asyncio
 import json
 import os
+import random
 import re
 import socket
 import subprocess
@@ -43,6 +44,7 @@ while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
     REPO = parent
 
 FAILURES = []
+RESERVED = set()
 
 
 def check(label, condition, detail=""):
@@ -53,9 +55,18 @@ def check(label, condition, detail=""):
 
 
 def free_port(kind):
-    with socket.socket(socket.AF_INET, kind) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
+    for _attempt in range(256):
+        port = random.SystemRandom().randrange(20000, 60000)
+        if (kind, port) in RESERVED:
+            continue
+        with socket.socket(socket.AF_INET, kind) as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+        RESERVED.add((kind, port))
+        return port
+    raise RuntimeError("cannot reserve loopback port")
 
 
 # --------------------------------------------------------------------------
@@ -224,7 +235,8 @@ async def run():
         ws = await websockets.connect(f"ws://127.0.0.1:{http_port}/ws")
         connect = await drain_connect_messages(
             ws, {"state", "distribution", "venues", "shows", "show", "show_playback"})
-        check("show_playback sent on connect", connect.get("show_playback") == {"steps": {}},
+        check("show_playback sent on connect",
+              connect.get("show_playback") == {"steps": {}, "armed": None},
               repr(connect.get("show_playback")))
 
         # Let the one simulated device boot so /cue reaches a "running" node
@@ -451,8 +463,8 @@ async def run():
         await send(ws, "step_start", {"uid": stopb_uid})
         latest = await settle(ws, 0.05)
         snap = latest.get("show_playback", {}).get("steps", {})
-        check("stop_all: both playing before stop",
-              snap.get(stopa_uid, {}).get("state") == "playing"
+        check("stop_all: latest start is exclusively playing before stop",
+              stopa_uid not in snap
               and snap.get(stopb_uid, {}).get("state") == "playing", repr(snap))
         await send(ws, "stop_all_steps", {})
         latest = await settle(ws, 0.1)

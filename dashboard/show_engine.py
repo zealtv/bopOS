@@ -220,6 +220,9 @@ class ShowEngine:
         step = self.step_by_uid(uid)
         if step is None:
             return
+        for active_uid in list(self.playback):
+            if active_uid != uid:
+                await self._stop_step(active_uid)
         self._cancel_timer(uid)
         self.playback[uid] = {"state": "playing", "iteration": 1,
                               "remaining_s": None, "expiry_mono": None, "timer": None}
@@ -378,6 +381,28 @@ class ShowEngine:
     def snapshot(self):
         """Full `show_playback` payload (design note sec 3)."""
         self._reap_stale_bags()
+        armed = None
+        if len(self.playback) == 1:
+            uid = next(iter(self.playback))
+            step = self.step_by_uid(uid)
+            actions = step.get("then_actions", []) if step is not None else []
+            if len(actions) == 1:
+                action = actions[0]
+                kind = action.get("type")
+                if kind == "play_again":
+                    armed = uid
+                elif kind == "next_step":
+                    armed = self._adjacent_step_uid(uid, 1)
+                elif kind == "previous_step":
+                    armed = self._adjacent_step_uid(uid, -1)
+                elif kind == "next_section":
+                    armed = self._adjacent_section_first_uid(uid, 1)
+                elif kind == "previous_section":
+                    armed = self._adjacent_section_first_uid(uid, -1)
+                elif kind == "goto":
+                    target_uid = action.get("target_uid")
+                    if self.step_by_uid(target_uid) is not None:
+                        armed = target_uid
         steps = {}
         now = time.monotonic()
         for uid, state in self.playback.items():
@@ -394,7 +419,7 @@ class ShowEngine:
                 steps[uid] = {"state": "stopped", "iteration": 0,
                              "remaining_s": None, "section_bag": None}
             steps[uid]["goto_missing"] = True
-        return {"steps": steps}
+        return {"steps": steps, "armed": armed}
 
     async def _broadcast_playback(self):
         snapshot = self.snapshot()

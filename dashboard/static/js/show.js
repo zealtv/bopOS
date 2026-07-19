@@ -296,12 +296,19 @@
     const stateName = playbackState(step.uid).state || "stopped";
     const selected = focused("step", step.uid) ? " focused" : "";
     const playing = stateName === "playing" || stateName === "paused" ? " active" : "";
+    const armed = playback?.armed === step.uid ? " show-step-armed" : "";
+    const duration = Number(step.duration_s);
+    const fraction = remaining != null && duration > 0
+      ? Math.min(1, Math.max(0, 1 - (remaining / duration))) : null;
+    const progress = fraction == null ? ""
+      : `<div class="show-step-progress" style="width:${fraction * 100}%"></div>`;
     const time = remaining == null
       ? `<span class="show-step-duration">${terseDuration(step.duration_s)}</span>`
       : `<span class="show-remaining" title="${stateName === "paused" ? "paused" : "remaining"}">${terseDuration(remaining)}</span>`;
     const gotoMissing = playbackState(step.uid).goto_missing
       ? '<span class="show-goto-missing" title="goto target no longer exists; stopped">goto?</span>' : "";
-    return `<div class="show-step-row show-step-${escapeHtml(stateName)}${selected}${playing}" data-show-step-row="${escapeHtml(step.uid)}" data-show-index="${index}" role="row" tabindex="0">
+    return `<div class="show-step-row show-step-${escapeHtml(stateName)}${selected}${playing}${armed}" data-show-step-row="${escapeHtml(step.uid)}" data-show-index="${index}" role="row" tabindex="0">
+      ${progress}
       <div class="show-step-transport">${stepTransport(step)}</div>
       <strong class="show-step-alias" title="${escapeHtml(stepLabel(step))}">${escapeHtml(stepLabel(step))}</strong>
       <div class="show-message-pills">${messagePills(step)}</div>
@@ -571,8 +578,21 @@
   }
 
   function render() {
+    // Re-rendering rebuilds the saved-shows picker with the current show
+    // selected, which would wipe an operator's uncommitted dropdown choice
+    // on every countdown tick. An uncommitted choice is a live value that
+    // differs from the option rendered selected; carry it across the rebuild.
+    const oldPicker = root.querySelector("#show-switch-select");
+    const renderedShow = oldPicker?.querySelector("option[selected]")?.value;
+    const pickedShow = oldPicker && oldPicker.value !== renderedShow ? oldPicker.value : null;
     if (!shows.current) renderEmptyState();
     else renderLoadedShow();
+    if (pickedShow) {
+      const picker = root.querySelector("#show-switch-select");
+      if (picker && [...picker.options].some(option => option.value === pickedShow)) {
+        picker.value = pickedShow;
+      }
+    }
     // Re-rendering replaces the DOM and drops element focus, which breaks
     // keyboard copy/paste on the focused pill/row; restore it unless the
     // user is in a form control.
