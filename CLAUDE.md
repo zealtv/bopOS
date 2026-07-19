@@ -213,7 +213,16 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   (the room can extend above the viewport); (3) one type-aware `page.on("dialog")`
   handler (prompt→text, else accept) — two handlers race and one eats the other's
   prompt; (4) `page.wait_for_function(expr, value)` fails — pass the argument
-  as `arg=value` (keyword-only in the sync API).
+  as `arg=value` (keyword-only in the sync API); (5) the facilitator page's
+  `#ws-status` is an *empty* span when online — wait with
+  `state="attached"`, the default visible-wait never fires; (6)
+  `scroll_into_view_if_needed`/auto-scrolling actions wait for element
+  *stability*, and CSS-animated controls (automation markers) plus
+  heartbeat re-renders keep nodes perpetually unstable or detach them
+  mid-wait — use a one-shot `page.evaluate` `scrollIntoView` and a fresh
+  `bounding_box()` instead; (7) fixture manifests: the validator only
+  allows *numeric* `min`/`max`/`default`, so a string param declaration
+  must omit `default` or the whole manifest silently fails to load.
 
 ## Records
 
