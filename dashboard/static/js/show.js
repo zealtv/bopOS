@@ -553,12 +553,67 @@
     const fields = rawFallback
       ? renderParamRawFallback(message)
       : renderParamGeneratorFields(declaration, parsed || {mode: "value", value: message.args?.[0]?.value ?? declaration.default ?? ""});
+    const preview = !rawFallback && parsed ? renderParamPreview(parsed, declaration) : "";
     return `<section class="show-inspector-section" data-payload-builder="param">
       <label>parameter <select id="show-param-picker">${options || '<option value="">No staged params</option>'}</select></label>
       ${generator}
       ${fields}
+      ${preview}
       <small class="dim">${escapeHtml(declaration.type || "f")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
     </section>`;
+  }
+
+  function renderParamPreview(parsed, declaration) {
+    if (!["fade", "loop", "lfo"].includes(parsed.mode)) return "";
+    if (parsed.mode === "lfo" && ["sh", "drift"].includes(parsed.shape)) {
+      return '<p class="show-param-preview-random" data-param-preview-random>random — not previewable</p>';
+    }
+    const points = [];
+    if (parsed.mode === "lfo") {
+      const count = 64;
+      for (let index = 0; index <= count; index += 1) {
+        const time = index / count * 2;
+        points.push([time, window.ParamSpec.shapeFraction(parsed.shape, time + parsed.phase, parsed.curve)]);
+      }
+    } else {
+      const cycles = parsed.mode === "loop" ? 2 : 1;
+      const duration = Math.max(1, window.ParamSpec.totalDuration(parsed));
+      let time = 0;
+      let start = Number(parsed.from ?? declaration.default ?? parsed.segments[0]?.value ?? 0);
+      points.push([0, start]);
+      for (let cycle = 0; cycle < cycles; cycle += 1) {
+        for (const segment of parsed.segments) {
+          const steps = Math.max(2, Math.min(16, Math.ceil(segment.duration.ms / 100)));
+          for (let index = 1; index <= steps; index += 1) {
+            const fraction = index / steps;
+            const bent = window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
+            points.push([(time + segment.duration.ms * fraction) / duration,
+              start + (segment.value - start) * bent]);
+          }
+          time += segment.duration.ms;
+          start = segment.value;
+        }
+        if (parsed.mode === "loop" && cycle + 1 < cycles) {
+          start = Number(declaration.default ?? parsed.segments[0]?.value ?? 0);
+          points.push([time / duration, start]);
+        }
+      }
+    }
+    if (!points.length) return "";
+    const values = points.map(point => point[1]);
+    let low = parsed.mode === "lfo" ? 0 : Number(declaration.min ?? Math.min(...values));
+    let high = parsed.mode === "lfo" ? 1 : Number(declaration.max ?? Math.max(...values));
+    if (!Number.isFinite(low)) low = Math.min(...values);
+    if (!Number.isFinite(high)) high = Math.max(...values);
+    if (high === low) high = low + 1;
+    const maxTime = Math.max(...points.map(point => point[0]), 1);
+    const path = points.map(([time, value], index) => {
+      const x = 8 + time / maxTime * 224;
+      const y = 64 - (value - low) / (high - low) * 56;
+      return `${index ? "L" : "M"}${x.toFixed(2)} ${Math.min(64, Math.max(8, y)).toFixed(2)}`;
+    }).join(" ");
+    const label = parsed.mode === "lfo" ? `${parsed.shape} LFO preview` : `${parsed.mode} preview`;
+    return `<figure class="show-param-preview" data-param-preview><figcaption>${escapeHtml(label)} · value / time</figcaption><svg viewBox="0 0 240 72" role="img" aria-label="${escapeHtml(label)}"><path class="show-param-preview-axis" d="M8 8V64H232"></path><path class="show-param-preview-line" d="${path}"></path></svg></figure>`;
   }
 
   function paramValueAttrs(declaration) {

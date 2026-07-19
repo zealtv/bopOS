@@ -31,7 +31,7 @@
   function parse(args, declType) {
     if (!new Set(["f", "i"]).has(declType)) throw new Error("automation requires a numeric declaration");
     if (!Array.isArray(args) || !args.length) throw new Error("parameter message has no arguments");
-    const positional = args.map(arg => arg?.value);
+    const positional = args.map(arg => arg && typeof arg === "object" && "value" in arg ? arg.value : arg);
     const options = {curve: 0, phase: 0, free: false};
     const seen = new Set();
     while (positional.length && typeof positional[positional.length - 1] === "string") {
@@ -99,5 +99,52 @@
     return result;
   }
 
-  window.ParamSpec = Object.freeze({parse});
+  function totalDuration(parsed) {
+    if (parsed?.mode === "lfo") return parsed.period.ms;
+    if (!new Set(["fade", "loop"]).has(parsed?.mode)) return 0;
+    return parsed.segments.reduce((total, segment) => total + segment.duration.ms, 0);
+  }
+
+  function phaseAnchor(entry, parsed, nowMs = Date.now()) {
+    const periodMs = totalDuration(parsed);
+    if (!(periodMs > 0)) return {elapsedMs: 0, periodMs: 0};
+    const sentAtMs = Number(entry?.sent_at) * 1000;
+    const sinceSent = Number.isFinite(sentAtMs) ? Math.max(0, nowMs - sentAtMs) : 0;
+    let offset = 0;
+    if (parsed.mode === "lfo") {
+      if (parsed.free) {
+        const seed = JSON.stringify(entry?.args || []);
+        let hash = 2166136261;
+        for (let index = 0; index < seed.length; index += 1) {
+          hash ^= seed.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        offset = (hash >>> 0) / 4294967296 * periodMs;
+      } else {
+        offset = parsed.phase * periodMs;
+      }
+    }
+    return {elapsedMs: sinceSent + offset, periodMs};
+  }
+
+  function position(value, declaration) {
+    const minimum = Number(declaration?.min ?? 0);
+    const maximum = Number(declaration?.max ?? 1);
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || !Number.isFinite(minimum) || !Number.isFinite(maximum) || maximum === minimum) return 0;
+    return Math.min(1, Math.max(0, (numeric - minimum) / (maximum - minimum)));
+  }
+
+  function shapeFraction(shape, phase, curve = 0) {
+    const frac = ((phase % 1) + 1) % 1;
+    const exponent = 2 ** Number(curve || 0);
+    const bend = value => value === 0 ? 0 : value ** exponent;
+    if (shape === "sine") return .5 - .5 * Math.cos(frac * Math.PI * 2);
+    if (shape === "tri") return bend(frac < .5 ? frac * 2 : (1 - frac) * 2);
+    if (shape === "saw") return bend(frac);
+    if (shape === "square") return frac < .5 ? 1 : 0;
+    return null;
+  }
+
+  window.ParamSpec = Object.freeze({parse, totalDuration, phaseAnchor, position, shapeFraction});
 }());

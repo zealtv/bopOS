@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real Dashboard + simfleet verification for automation tracking/take-over."""
+"""Real Dashboard + simfleet verification for waveform markers and previews."""
 
 import json
 import random
@@ -89,7 +89,7 @@ def stop(process):
 
 
 class DatagramProxy:
-    """Record dashboard datagrams and forward them unchanged to simfleet."""
+    """Record Dashboard datagrams and forward them unchanged to simfleet."""
 
     def __init__(self, listen_port, target_port):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -126,87 +126,75 @@ class DatagramProxy:
 
 def make_fixture(root):
     root = Path(root)
-    patches = root / "patches"
-    assets = root / "assets"
-    state_dir = root / "fleet-state"
-    shows = root / "shows"
+    patches, assets = root / "patches", root / "assets"
+    state_dir, shows = root / "fleet-state", root / "shows"
     patch = patches / "automation"
     patch.mkdir(parents=True)
     assets.mkdir()
     state_dir.mkdir()
     shows.mkdir()
-    (patch / "main.bin").write_bytes(b"automation-takeover")
+    (patch / "main.bin").write_bytes(b"waveform-marker")
     manifest = {
         "engine": "test", "entrypoint": "main.bin", "caps": [], "slots": [],
         "params": [
             {"name": "gain", "type": "f", "min": 0, "max": 1,
              "default": .25, "dashboard": True},
-            {"name": "voices", "type": "i", "min": 0, "max": 8,
-             "default": 2, "dashboard": True},
-            {"name": "label", "type": "s", "dashboard": True},
+            {"name": "random", "type": "f", "min": 0, "max": 1,
+             "default": .25, "dashboard": True},
+            {"name": "fade", "type": "f", "min": 0, "max": 1,
+             "default": .1, "dashboard": True},
+            {"name": "preview", "type": "f", "min": 0, "max": 1,
+             "default": .25, "dashboard": True},
         ],
         "cues": [],
     }
     manifest_path = patch / "bopos.patch.json"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    uid0 = "02:53:49:4d:00:01"
-    uid1 = "02:53:49:4d:00:02"
+    uid = "02:53:49:4d:00:01"
     devices_path = root / "devices.csv"
-    devices_path.write_text(
-        "mac,hostname,id\n"
-        f"{uid0},sim0,0\n{uid1},sim1,1\n", encoding="utf-8")
-    seats = {
-        "0": {"id": 0, "name": "Zero", "positions": [[1, 1]], "groups": [],
-              "bound": uid0, "patch": "automation",
-              "params": {"gain": .25, "voices": 2, "label": "zero"}},
-        "1": {"id": 1, "name": "One", "positions": [[2, 1]], "groups": [],
-              "bound": uid1, "patch": "automation",
-              "params": {"gain": .25, "voices": 2, "label": "one"}},
-        "2": {"id": 2, "name": "Offline", "positions": [[3, 1]], "groups": [],
-              "bound": "not-present-uid", "patch": "automation",
-              "params": {"gain": .25, "voices": 2, "label": "offline"}},
-    }
+    devices_path.write_text(f"mac,hostname,id\n{uid},sim0,0\n", encoding="utf-8")
     state = {
-        "schema": 1, "name": "Automation takeover verifier",
+        "schema": 1, "name": "Waveform marker verifier",
         "current_show": "automation", "params_patch": "automation",
         "fleet_patch": {"name": "automation", "fingerprint": "a" * 64,
                         "staged_at": time.time(), "previous": None},
-        "seats": seats, "groups": {}, "next_group_id": 0,
+        "seats": {"0": {"id": 0, "name": "Zero", "positions": [[1, 1]],
+                          "groups": [], "bound": uid, "patch": "automation",
+                          "params": {"gain": .25, "random": .25, "fade": .1,
+                                     "preview": .25}}},
+        "groups": {}, "next_group_id": 0,
     }
     messages = [
-        {"uid": "aaaa0001", "address": "/p/gain", "target": ["0"],
-         "args": [{"type": "s", "value": "lfo"},
-                  {"type": "s", "value": "sine"},
-                  {"type": "f", "value": 0.1}, {"type": "f", "value": 0.9},
-                  {"type": "s", "value": "2s"}]},
-        {"uid": "aaaa0002", "address": "/p/gain", "target": ["1"],
-         "args": [{"type": "f", "value": 0.9},
-                  {"type": "s", "value": "2s"}]},
-        {"uid": "aaaa0003", "address": "/p/gain", "target": ["2"],
-         "args": [{"type": "s", "value": "lfo"},
-                  {"type": "s", "value": "square"},
+        {"uid": "aaaa0001", "alias": "sine", "address": "/p/gain", "target": ["0"],
+         "args": [{"type": "s", "value": "lfo"}, {"type": "s", "value": "sine"},
+                  {"type": "f", "value": .1}, {"type": "f", "value": .9},
+                  {"type": "s", "value": "2s"}, {"type": "s", "value": "p:0.25"}]},
+        {"uid": "aaaa0002", "alias": "random", "address": "/p/random", "target": ["0"],
+         "args": [{"type": "s", "value": "lfo"}, {"type": "s", "value": "sh"},
                   {"type": "f", "value": 0}, {"type": "f", "value": 1},
-                  {"type": "s", "value": "4s"}]},
-        # A hand-authored string generator is tracked server-side by the
-        # declared-f classification rule but must never gain UI automation.
-        {"uid": "aaaa0004", "address": "/p/label", "target": ["0"],
-         "args": [{"type": "s", "value": "lfo"},
-                  {"type": "s", "value": "sine"},
-                  {"type": "f", "value": 0}, {"type": "f", "value": 1},
-                  {"type": "s", "value": "2s"}]},
+                  {"type": "s", "value": "1s"}]},
+        {"uid": "aaaa0003", "alias": "fade", "address": "/p/fade", "target": ["0"],
+         "args": [{"type": "f", "value": .9}, {"type": "s", "value": "1800ms"}]},
+        {"uid": "aaaa0004", "alias": "preview", "address": "/p/preview", "target": ["all"],
+         "args": [{"type": "f", "value": .25}]},
     ]
-    show = {
-        "schema": 1, "name": "automation", "items": [{
-            "kind": "step", "uid": "11111111", "alias": "automation",
-            "messages": messages, "duration_s": 10, "play_count": 1,
-            "then_actions": [{"type": "stop"}],
-        }],
-    }
+    show = {"schema": 1, "name": "automation", "items": [{
+        "kind": "step", "uid": "11111111", "alias": "automation",
+        "messages": messages, "duration_s": 10, "play_count": 1,
+        "then_actions": [{"type": "stop"}],
+    }]}
     state_path = root / "installation.json"
+    show_path = shows / "automation.json"
     state_path.write_text(json.dumps(state), encoding="utf-8")
-    (shows / "automation.json").write_text(
-        json.dumps(show, indent=2) + "\n", encoding="utf-8")
-    return patches, assets, state_dir, manifest_path, state_path, devices_path
+    show_path.write_text(json.dumps(show, indent=2) + "\n", encoding="utf-8")
+    return (patches, assets, state_dir, manifest_path, state_path,
+            devices_path, show_path)
+
+
+def saved_args(show_path, uid):
+    show = json.loads(show_path.read_text(encoding="utf-8"))
+    messages = show["items"][0]["messages"]
+    return next(message["args"] for message in messages if message["uid"] == uid)
 
 
 def param_messages(proxy, address):
@@ -214,16 +202,15 @@ def param_messages(proxy, address):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="bopos-automation-takeover-") as root:
-        (patches, assets, state_dir, manifest_path,
-         state_path, devices_path) = make_fixture(root)
+    with tempfile.TemporaryDirectory(prefix="bopos-waveform-marker-") as root:
+        (patches, assets, state_dir, manifest_path, state_path,
+         devices_path, show_path) = make_fixture(root)
         http_port = free_port(socket.SOCK_STREAM)
         listen_port = free_port(socket.SOCK_DGRAM)
         proxy_port = free_port(socket.SOCK_DGRAM)
         fleet_port = free_port(socket.SOCK_DGRAM)
         base_url = f"http://127.0.0.1:{http_port}"
-        server_log_path = Path(root, "server.log")
-        fleet_log_path = Path(root, "fleet.log")
+        server_log_path, fleet_log_path = Path(root, "server.log"), Path(root, "fleet.log")
         server_log = server_log_path.open("w", encoding="utf-8")
         fleet_log = fleet_log_path.open("w", encoding="utf-8")
         server = fleet = proxy = None
@@ -241,7 +228,7 @@ def main():
             wait_http(base_url, server)
             fleet = subprocess.Popen([
                 sys.executable, str(ROOT / "tools" / "simfleet.py"),
-                "--devices", "2", "--devices-file", str(devices_path),
+                "--devices", "1", "--devices-file", str(devices_path),
                 "--target", "127.0.0.1", "--report-port", str(listen_port),
                 "--cmd-port", str(fleet_port), "--hb-interval", "0.2",
                 "--boot-secs", "0.2", "--state-dir", str(state_dir),
@@ -259,45 +246,40 @@ def main():
                         if message.type == "error" else None)
                 page.goto(base_url + "/facilitator.html")
                 page.wait_for_selector("#ws-status.online", state="attached")
-                page.wait_for_function("() => Object.keys(installation.devices || {}).length >= 2")
+                page.wait_for_function("() => Object.keys(installation.devices || {}).length >= 1")
                 page.evaluate("() => ws.send('step_start', {uid: '11111111'})")
+                page.click("#live-scope-seats")
 
-                all_gain = '.all-card label[data-param-path="gain"]'
-                page.wait_for_selector(all_gain + " .live-param-glyph")
-                check("All row exposes divergent generators as auto mixed",
-                      "auto·mixed" in page.locator(all_gain).inner_text().lower()
-                      and "automated, mixed" in
-                      page.locator(all_gain + " [data-live-param]").get_attribute("aria-label"))
+                gain = '.seat-card[data-live-id="0"] label[data-param-path="gain"]'
+                random_row = '.seat-card[data-live-id="0"] label[data-param-path="random"]'
+                fade = '.seat-card[data-live-id="0"] label[data-param-path="fade"]'
+                page.wait_for_selector(gain + " .live-param-marker")
+                marker_style = page.locator(gain + " .live-param-marker").evaluate(
+                    "el => { const s=getComputedStyle(el); return {name:s.animationName,duration:s.animationDuration,delay:s.animationDelay}; }")
+                check("sine LFO has the sine marker animation", marker_style["name"] == "auto-sine")
+                check("sine LFO marker uses the declared period", marker_style["duration"] == "2s",
+                      repr(marker_style))
+                check("sine LFO marker is phase anchored with a negative delay",
+                      marker_style["delay"].startswith("-"), repr(marker_style))
+                check("sh keeps its glyph", page.locator(random_row + " .live-param-glyph").count() == 1)
+                check("sh has no fabricated marker", page.locator(random_row + " .live-param-marker").count() == 0)
 
-                saved = wait_for(
-                    lambda: json.loads(state_path.read_text(encoding="utf-8"))
-                    ["seats"]["1"]["params"].get("gain") == .9)
-                check("fade destination lands in durable Seat params", saved)
+                page.wait_for_selector(fade + " [data-auto-fade-progress]")
+                fade_duration = page.locator(fade + " [data-auto-fade-progress]").evaluate(
+                    "el => getComputedStyle(el).animationDuration")
+                check("in-flight fade uses finite CSS progress", fade_duration.endswith("s")
+                      and fade_duration not in ("0s", "infinite"), fade_duration)
+                page.wait_for_function(
+                    "selector => !document.querySelector(selector + ' [data-auto-fade-progress]')"
+                    " && !document.querySelector(selector)?.classList.contains('automated')",
+                    arg=fade, timeout=4000)
+                check("completed fade clears to a plain control", True)
 
                 before_idle = len([item for item in proxy.messages if "/p/" in item[0]])
                 time.sleep(.45)
                 after_idle = len([item for item in proxy.messages if "/p/" in item[0]])
-                check("automation indication adds zero OSC traffic",
-                      after_idle == before_idle, f"{before_idle} -> {after_idle}")
-
-                page.click('#live-scope-seats')
-                seat0 = '.seat-card[data-live-id="0"] label[data-param-path="gain"]'
-                seat1 = '.seat-card[data-live-id="1"] label[data-param-path="gain"]'
-                seat2 = '.seat-card[data-live-id="2"] label[data-param-path="gain"]'
-                page.wait_for_selector(seat0 + " .live-param-glyph")
-                check("seat 0 shows smooth LFO glyph and accessible state",
-                      page.locator(seat0 + " .live-param-glyph").inner_text() == "∿"
-                      and "automated, sine LFO" in
-                      page.locator(seat0 + " input").get_attribute("aria-label"))
-                check("seat 1 shows fade glyph while in flight",
-                      page.locator(seat1 + " .live-param-glyph").inner_text() == "╱")
-                check("string params never gain an automation glyph",
-                      page.locator('.seat-card[data-live-id="0"] label[data-param-path="label"] .live-param-glyph').count() == 0)
-                offline_glyph = page.locator(seat2 + " .live-param-glyph")
-                check("offline-bound automation is a dim static glyph",
-                      offline_glyph.inner_text() == "⌁"
-                      and float(offline_glyph.evaluate("el => getComputedStyle(el).opacity")) < 1
-                      and offline_glyph.evaluate("el => getComputedStyle(el).animationName") == "none")
+                check("CSS animation emits zero extra parameter OSC",
+                      before_idle == after_idle, f"{before_idle} -> {after_idle}")
 
                 reduced = browser.new_context(
                     viewport={"width": 900, "height": 900}, reduced_motion="reduce")
@@ -308,41 +290,66 @@ def main():
                                 if message.type == "error" else None)
                 reduced_page.goto(base_url + "/facilitator.html")
                 reduced_page.wait_for_selector("#ws-status.online", state="attached")
-                reduced_page.click('#live-scope-seats')
-                reduced_page.wait_for_selector(seat0 + " .live-param-glyph")
-                check("reduced motion retains the static glyph",
-                      reduced_page.locator(seat0 + " .live-param-glyph").inner_text() == "∿")
+                reduced_page.click("#live-scope-seats")
+                reduced_page.wait_for_selector(gain + " .live-param-glyph")
+                reduced_animation = reduced_page.locator(gain + " .live-param-marker").evaluate(
+                    "el => getComputedStyle(el).animationName")
+                check("reduced motion disables marker animation", reduced_animation == "none",
+                      reduced_animation)
+                check("reduced motion keeps the static glyph",
+                      reduced_page.locator(gain + " .live-param-glyph").count() == 1)
                 reduced.close()
 
                 baseline = len(param_messages(proxy, "/0/p/gain"))
-                slider = page.locator(seat0 + ' input[type="range"]')
-                # scroll_into_view_if_needed waits for stability; the a5 marker
-                # animation keeps the node perpetually "unstable" and heartbeat
-                # re-renders can detach it mid-wait. One-shot JS scroll instead.
+                slider = page.locator(gain + ' input[type="range"]')
+                # scroll_into_view_if_needed waits for stability, but heartbeat
+                # broadcasts re-render the cards and detach the node mid-wait;
+                # a one-shot JS scroll plus a fresh bounding box is stable.
                 page.evaluate(
                     "sel => document.querySelector(sel).scrollIntoView({block: 'center'})",
-                    seat0 + ' input[type="range"]')
+                    gain + ' input[type="range"]')
                 box = slider.bounding_box()
                 page.mouse.move(box["x"] + box["width"] * .25, box["y"] + box["height"] / 2)
                 page.mouse.down()
-                check("pointerdown starts the take-over drain",
-                      page.locator(seat0).evaluate("el => el.classList.contains('taking-over')"))
-                page.mouse.move(box["x"] + box["width"] * .68,
+                paused = page.locator(gain + " .live-param-marker").evaluate(
+                    "el => getComputedStyle(el).animationPlayState")
+                check("take-over pauses the marker under the pointer", paused == "paused", paused)
+                page.mouse.move(box["x"] + box["width"] * .7,
                                 box["y"] + box["height"] / 2, steps=8)
                 page.mouse.up()
+                page.wait_for_function("() => !installation.automation?.['0']?.gain")
                 page.wait_for_function(
-                    "() => !installation.automation?.['0']?.gain")
-                page.wait_for_function(
-                    "() => !document.querySelector('.seat-card[data-live-id=\"0\"] label[data-param-path=\"gain\"] .live-param-glyph')")
-                takeover_packets = param_messages(proxy, "/0/p/gain")[baseline:]
-                plain_packets = [args for args, _stamp in takeover_packets if len(args) == 1]
-                check("take-over sends exactly one plain single-arg datagram",
-                      len(takeover_packets) == 1 and len(plain_packets) == 1,
-                      repr([args for args, _stamp in takeover_packets]))
-                check("take-over announces the resulting constant once",
-                      "gain automation stopped, set to" in
-                      page.locator('.seat-card[data-live-id="0"] .live-param-status').text_content())
-                check("take-over clears the glyph", page.locator(seat0 + " .live-param-glyph").count() == 0)
+                    "selector => !document.querySelector(selector + ' .live-param-marker')",
+                    arg=gain)
+                takeover = param_messages(proxy, "/0/p/gain")[baseline:]
+                check("take-over sends one plain datagram and clears the marker",
+                      len(takeover) == 1 and len(takeover[0][0]) == 1, repr(takeover))
+
+                page.goto(base_url)
+                page.wait_for_selector("#ws-status.online", state="attached")
+                page.click("#tab-button-show")
+                page.wait_for_selector('[data-show-step-row="11111111"]')
+                page.locator('[data-show-message-focus="aaaa0004"]').click()
+                page.select_option("#show-param-generator", "lfo")
+                page.wait_for_selector("[data-param-preview] svg")
+                check("Show inspector renders exactly one static SVG preview",
+                      page.locator("[data-param-preview] svg").count() == 1
+                      and page.locator("[data-param-preview] svg animate").count() == 0)
+                persisted = wait_for(
+                    lambda: saved_args(show_path, "aaaa0004")[0]["value"] == "lfo")
+                check("authored LFO persists before reload", persisted)
+                authored_args = saved_args(show_path, "aaaa0004")
+                page.reload()
+                page.wait_for_selector("#ws-status.online", state="attached")
+                page.click("#tab-button-show")
+                page.locator('[data-show-message-focus="aaaa0004"]').click()
+                page.wait_for_selector("[data-param-preview] svg")
+                check("preview reload/refocus does not rewrite message args",
+                      saved_args(show_path, "aaaa0004") == authored_args)
+                page.select_option('[data-param-lfo="shape"]', "sh")
+                check("sh authoring shows the honest no-preview label",
+                      "not previewable" in page.locator("[data-param-preview-random]").inner_text().lower()
+                      and page.locator("[data-param-preview] svg").count() == 0)
 
                 check("browser emitted no console errors",
                       not browser_errors and not reduced_errors,
@@ -363,7 +370,7 @@ def main():
     if FAILURES:
         print(f"\n{len(FAILURES)} failure(s): {', '.join(FAILURES)}")
         raise SystemExit(1)
-    print("\nAll automation take-over checks passed.")
+    print("\nAll waveform marker checks passed.")
 
 
 if __name__ == "__main__":

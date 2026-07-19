@@ -11,6 +11,7 @@ let liveScopeView = "aggregate";
 let renderedCueSignature = null;
 const openCommandDevices = new Set();
 const takeoverAnnouncements = new Map();
+const automationAnchors = new Map();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -83,6 +84,80 @@ function automationPresentation(entry, mixed = false) {
   return {glyph, label: `${shape} LFO`};
 }
 
+function automationKey(seat, declaration) {
+  return `${seat?.id ?? "none"}:${declaration.identity}`;
+}
+
+function refreshAutomationAnchors(state) {
+  const declarations = new Map((state.live_controls?.declarations || []).map(item => [item.identity, item]));
+  const now = Date.now();
+  const present = new Set();
+  for (const [seatId, entries] of Object.entries(state.automation || {})) {
+    for (const [identity, entry] of Object.entries(entries || {})) {
+      const declaration = declarations.get(identity);
+      if (!declaration || declaration.type === "s") continue;
+      let parsed;
+      try { parsed = window.ParamSpec.parse(entry.args || [], declaration.type); }
+      catch (_error) { continue; }
+      const key = `${seatId}:${identity}`;
+      const signature = JSON.stringify([entry.args, entry.sent_at]);
+      const expected = window.ParamSpec.phaseAnchor(entry, parsed, now);
+      const previous = automationAnchors.get(key);
+      const predicted = previous ? previous.elapsedMs + now - previous.atMs : 0;
+      const period = expected.periodMs;
+      const rawError = period > 0 ? Math.abs(((expected.elapsedMs - predicted + period / 2) % period + period) % period - period / 2) : Math.abs(expected.elapsedMs - predicted);
+      const meaningful = rawError > Math.max(40, period * .02);
+      if (!previous || previous.signature !== signature || meaningful) {
+        automationAnchors.set(key, {...expected, atMs: now, signature});
+      }
+      present.add(key);
+    }
+  }
+  for (const key of automationAnchors.keys()) if (!present.has(key)) automationAnchors.delete(key);
+}
+
+function automationModel(entry, declaration, seat, catchupValue) {
+  if (!entry) return null;
+  let parsed;
+  try { parsed = window.ParamSpec.parse(entry.args || [], declaration.type); }
+  catch (_error) { return null; }
+  const anchor = automationAnchors.get(automationKey(seat, declaration)) ||
+    {...window.ParamSpec.phaseAnchor(entry, parsed), atMs: Date.now()};
+  const elapsedMs = Math.max(0, anchor.elapsedMs + Date.now() - anchor.atMs);
+  const periodMs = window.ParamSpec.totalDuration(parsed);
+  if (parsed.mode === "fade" && elapsedMs >= periodMs) return null;
+  const model = {parsed, elapsedMs, periodMs, target: parsed.segments?.at(-1)?.value};
+  if (parsed.mode === "lfo") {
+    model.minimum = window.ParamSpec.position(parsed.min, declaration);
+    model.maximum = window.ParamSpec.position(parsed.max, declaration);
+    model.marker = !["sh", "drift"].includes(parsed.shape);
+  } else if (parsed.mode === "loop") {
+    model.marker = true;
+    const samples = [];
+    const total = Math.max(1, periodMs);
+    let start = Number(catchupValue);
+    if (!Number.isFinite(start)) start = Number(declaration.default ?? parsed.segments[0].value);
+    let offset = 0;
+    samples.push(`${window.ParamSpec.position(start, declaration).toFixed(5)} 0%`);
+    for (const segment of parsed.segments) {
+      const duration = segment.duration.ms;
+      const steps = Math.max(1, Math.min(12, Math.ceil(duration / 80)));
+      for (let index = 1; index <= steps; index += 1) {
+        const fraction = index / steps;
+        const bent = window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
+        const value = start + (segment.value - start) * bent;
+        const time = (offset + duration * fraction) / total * 100;
+        samples.push(`${window.ParamSpec.position(value, declaration).toFixed(5)} ${time.toFixed(3)}%`);
+      }
+      offset += duration;
+      start = segment.value;
+    }
+    samples.push(`${window.ParamSpec.position(catchupValue, declaration).toFixed(5)} 100%`);
+    model.loopEasing = `linear(${samples.join(",")})`;
+  }
+  return model;
+}
+
 function scopeAttrs(scope, id, declaration) {
   return `data-live-param data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"`;
 }
@@ -94,7 +169,9 @@ function paramControl(scope, id, members, declaration, disabled) {
     : aggregateValue(members, declaration);
   const mixed = state.mixed || state.automationMixed;
   const value = state.value;
-  const automation = automationPresentation(state.automation, state.automationMixed);
+  const sourceSeat = members[0];
+  const model = state.automationMixed ? null : automationModel(state.automation, declaration, sourceSeat, value);
+  const automation = automationPresentation(model ? state.automation : null, state.automationMixed);
   const attrs = scopeAttrs(scope, id, declaration);
   const valueLabel = state.mixed ? `${declaration.name}, mixed values` : declaration.name;
   const label = automation ? `${valueLabel}, automated, ${automation.label}` : valueLabel;
@@ -106,12 +183,34 @@ function paramControl(scope, id, members, declaration, disabled) {
   } else if (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1) {
     input = `<input ${common} type="checkbox" ${!mixed && Number(value) ? "checked" : ""} ${mixed ? 'data-mixed="true"' : ""}>`;
   } else {
-    const display = state.automationMixed ? "auto·mixed" : state.mixed ? "mixed" : value;
+    const kind = model?.parsed.mode === "lfo" ? model.parsed.shape : model?.parsed.mode;
+    const display = state.automationMixed ? "auto·mixed" : state.mixed ? "mixed"
+      : model?.parsed.mode === "fade" ? `→ ${model.target}`
+      : model ? `${value} · ${kind}` : value;
     const rangeValue = mixed ? (declaration.default ?? declaration.min ?? 0) : value;
-    input = `<output>${esc(display)}</output><input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""}>`;
+    let motion = "";
+    if (model) {
+      const shape = model.parsed.mode === "lfo" ? model.parsed.shape : model.parsed.mode;
+      const styles = [`--auto-period:${model.periodMs}ms`, `--auto-elapsed:${model.elapsedMs}ms`];
+      if (model.minimum != null) {
+        const span = model.maximum - model.minimum;
+        styles.push(`--auto-min-pos:${model.minimum * 100}%`, `--auto-max-pos:${model.maximum * 100}%`);
+        for (const fraction of [.03806, .14645, .30866, .5, .69134, .85355, .96194]) {
+          styles.push(`--auto-p${String(fraction).slice(1)}:${(model.minimum + span * fraction) * 100}%`);
+        }
+      }
+      if (model.loopEasing) styles.push(`--auto-loop-easing:${model.loopEasing}`);
+      const marker = model.marker ? `<span class="live-param-marker auto-shape-${esc(shape)}${model.parsed.free ? " free" : ""}" style="${esc(styles.join(";"))}" aria-hidden="true"></span>` : "";
+      const progress = model.parsed.mode === "fade"
+        ? `<span class="live-param-fade-progress" data-auto-fade-progress style="width:${Math.min(100, model.elapsedMs / model.periodMs * 100)}%;--auto-fade-remaining:${Math.max(1, model.periodMs - model.elapsedMs)}ms" aria-hidden="true"></span>` : "";
+      motion = progress + marker;
+    }
+    input = `<output>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""}></span>`;
   }
   const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
-  return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
+  const online = scope !== "seat" || (!!deviceForSeat(sourceSeat)?.online && Number(deviceForSeat(sourceSeat)?.engine_alive) !== 0);
+  const deviceMuted = scope === "seat" && !!(deviceForSeat(sourceSeat)?.device_muted || deviceForSeat(sourceSeat)?.effective_muted);
+  return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceMuted ? " automation-muted" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
 }
 
 function paramTree(scope, id, members, declarations, disabled) {
@@ -167,6 +266,7 @@ function liveCard(scope, item, members, declarations, schemaAvailable) {
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "" : "reconnecting…"; $("#ws-status").className = connected ? "online" : "offline"; });
 ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
+  refreshAutomationAnchors(data);
   presetNames = Object.keys(data.presets || {}).sort();
   if (!cueLeadModified) $("#cue-lead").value = Number(data.cue_lead_ms ?? 500);
   render();
@@ -189,8 +289,15 @@ ws.on("cue_scheduled", data => {
 
 let interacting = false;
 $("#cue-lead").addEventListener("input", () => { cueLeadModified = true; });
-document.addEventListener("pointerdown", event => { if (event.target.matches('input[type="range"]')) interacting = true; });
-document.addEventListener("pointerup", () => { if (interacting) { interacting = false; render(); } });
+document.addEventListener("pointerdown", event => {
+  if (event.target.matches('input[type="range"], input[type="checkbox"][data-automated="true"]')) interacting = true;
+});
+document.addEventListener("pointerup", () => {
+  if (!interacting) return;
+  // Checkbox change/click follows pointerup; keep the render guard through that
+  // event so the automated input survives long enough to send its plain value.
+  setTimeout(() => { interacting = false; render(); }, 0);
+});
 
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
@@ -321,7 +428,7 @@ function bindCards() {
     input.onpointerdown = beginTakeover;
     if (input.type === "range") {
       input.oninput = () => {
-        const output = input.previousElementSibling;
+        const output = input.closest(".live-param")?.querySelector("output");
         if (output?.tagName === "OUTPUT") output.value = input.value;
         const now = performance.now();
         if (takingOver) return;
@@ -331,6 +438,21 @@ function bindCards() {
       input.onchange = send;
       input.onpointerup = send;
     } else input.onchange = send;
+  });
+  document.querySelectorAll("[data-auto-fade-progress]").forEach(progress => {
+    progress.onanimationend = () => {
+      const control = progress.closest(".live-param");
+      const input = control?.querySelector("[data-live-param]");
+      const output = control?.querySelector("output");
+      if (!control || !input) return;
+      control.classList.remove("automated");
+      control.querySelector(".live-param-glyph")?.remove();
+      control.querySelector(".live-param-marker")?.remove();
+      progress.remove();
+      input.removeAttribute("data-automated");
+      input.setAttribute("aria-label", input.dataset.paramName || "parameter");
+      if (output) output.value = input.value;
+    };
   });
   document.querySelectorAll("[data-replay-live]").forEach(button => button.onclick = () => {
     const payload = {scope: button.dataset.liveScope};
