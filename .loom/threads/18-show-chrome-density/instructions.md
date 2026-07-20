@@ -18,17 +18,18 @@ Standing context: this is a **desktop-first** app, except the facilitator
 tab (tablet first, then laptop/phone). Current mobile sizing is generally
 fine — don't regress it, but don't design for it first.
 
-Work in order:
+Work in order (amended by Bob 2026-07-20: `01` and `03` are **paused** until
+the lanes/scenes picture is clearer — collapsible rows might not survive a
+multi-lane grid; the other style adoption points stand):
 
-1. `01-ux-review-step-rows-and-chrome` — expert UX review + Bob ratification
-   gate. Nothing else implements past it except `02-inspector-sidebar`,
-   whose core behavior is already ratified by the braindump.
-2. `02-inspector-sidebar` — collapsible inspector sidebar with its own
-   space.
-3. `03-collapsible-steps` — fold-up step rows per the ratified row anatomy.
-4. `04-named-section-dividers` — divider names + section styling.
-5. `05-compact-chrome` — corners, button density, bounded lists, at the
-   ratified scope (Show tab vs app-wide).
+1. `02-inspector-sidebar` — collapsible inspector sidebar with its own
+   space (core behavior ratified by the braindump; details decided
+   in-stitch with Bob).
+2. `04-named-section-dividers` — divider names + section styling.
+3. `05-compact-chrome` — corners, button density, bounded lists (scope
+   Show-tab vs app-wide is decided in-stitch with Bob).
+4. `01-ux-review-step-rows-and-chrome.waiting` + `03-collapsible-steps.waiting`
+   — resume alongside `scene-sequencing/show-lanes-and-scenes-design`.
 
 Show schema changes are allowed here only as small additive fields (e.g.
 divider `alias`, persisted collapse state if ratified); playback semantics

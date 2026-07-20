@@ -1,5 +1,14 @@
 # 01-ux-review-step-rows-and-chrome
 
+**WAITING (Bob, 2026-07-20):** paused together with `03-collapsible-steps`
+until the lanes/scenes picture is clearer — collapsible rows might work in a
+single column but perhaps less well in a multi-lane grid. Revisit alongside
+`scene-sequencing/show-lanes-and-scenes-design.waiting`. The review's
+non-collapse questions (divider presentation, sidebar interaction, chrome
+scope) were re-scoped into `02`/`04`/`05`, which proceed without this gate;
+when resumed, this stitch covers only the collapse/row-anatomy questions
+(items 1–2 below).
+
 Get an expert UI/UX eye over the step-row anatomy and the chrome scope
 before implementing `03`/`04`/`05`, then have Bob ratify the results.
 Reference material: lore item `2026-07-20-show-chrome-density-braindump`,

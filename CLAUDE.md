@@ -177,9 +177,12 @@ Everything else is `.waiting` for a reason stated in its stitch:
   owes the `bopos~.pd` receiver edit in `.notes/pd-edits-for-bob.md`) are
   all tied. Bob's same-day chrome/density braindump (lore
   `2026-07-20-show-chrome-density-braindump`) authorizes the
-  `18-show-chrome-density` thread: UX review gate (`01`, Bob ratifies) →
-  inspector sidebar → collapsible steps → named section dividers → compact
-  chrome. That thread is the next software work, then the host-loom
+  `18-show-chrome-density` thread. Bob paused the UX review gate (`01`)
+  and collapsible steps (`03`) pending the lanes/scenes design (collapse
+  may not survive a multi-lane grid); the live order is inspector sidebar
+  (`02`) → named section dividers (`04`) → compact chrome (`05`), with
+  detail decisions made in-stitch with Bob. That thread is the next
+  software work, then the host-loom
   patch-workflow documentation/starter-kit close-out (stage 12). See
   `.notes/handoff-2026-07-20-autopilot.md`.
 

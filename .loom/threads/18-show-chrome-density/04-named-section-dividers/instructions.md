@@ -12,10 +12,10 @@ side (see `.loom/tied/01-layout-review/wireframes.html` and lore
   undo, duplicate (fresh UID, alias copied), and second-client broadcast
   behave like step aliases.
 - Divider row renders the name with the lines-either-side styling in both
-  themes; unnamed dividers render a plain rule (current look). Editing
-  surface per the `01` ratified decision (inline on the row matching
-  step-name behavior, and/or the divider inspector, which is currently
-  empty).
+  themes; unnamed dividers render a plain rule (current look). `01` is
+  paused, so decide the editing surface in-stitch (default proposal: inline
+  on the row matching step-name behavior, plus a name field in the currently
+  empty divider inspector; confirm with Bob if deviating).
 - Long names truncate/ellipsize without widening the page; dividers stay
   drag-reorderable and selectable exactly as today.
 

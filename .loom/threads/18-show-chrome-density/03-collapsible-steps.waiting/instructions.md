@@ -1,5 +1,9 @@
 # 03-collapsible-steps
 
+**WAITING (Bob, 2026-07-20):** paused with `01-ux-review-step-rows-and-chrome`
+until lanes/scenes are better understood — collapse may not survive a
+multi-lane layout. Do not implement until `01` runs and Bob ratifies.
+
 Make step rows fold up to hide their message pills, per the row anatomy
 ratified in `01-ux-review-step-rows-and-chrome` (`decisions.md` there is
 binding — indicator placement, click/keyboard targets, persistence scope,

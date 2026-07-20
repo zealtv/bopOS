@@ -3,9 +3,10 @@
 Give the Show inspector its own space as a collapsible sidebar so its
 height can never move the OSC terminals again. The core behavior is
 ratified by the braindump (lore `2026-07-20-show-chrome-density-braindump`);
-the interaction details (affordance placement, expanded width, hidden-state
-focus behavior, collapsed-state rendering) come from
-`01-ux-review-step-rows-and-chrome` — take its `decisions.md` as binding.
+the review gate `01` is paused (lanes dependency), so settle the interaction
+details (affordance placement, expanded width, hidden-state focus behavior,
+collapsed-state rendering) in this stitch: propose defaults and put the
+genuinely contestable ones to Bob before building past them.
 
 ## Outcome
 

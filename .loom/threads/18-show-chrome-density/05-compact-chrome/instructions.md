@@ -1,10 +1,10 @@
 # 05-compact-chrome
 
 Apply the ratified chrome density pass: sharper corners, buttons that wrap
-tightly around their text, bounded scroll regions, and general compaction —
-at the scope Bob ratified in `01-ux-review-step-rows-and-chrome`
-(Show-tab-only first vs app-wide; the facilitator tab is excluded either
-way until separately reviewed).
+tightly around their text, bounded scroll regions, and general compaction. `01` is paused, so settle
+scope (Show-tab-only first vs app-wide) and the concrete values with Bob in
+this stitch before applying; the facilitator tab is excluded either way
+until separately reviewed.
 
 ## Outcome
 
