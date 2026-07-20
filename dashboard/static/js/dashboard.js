@@ -127,7 +127,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); renderPresets(); render(); });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); renderPresets(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;

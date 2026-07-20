@@ -283,6 +283,8 @@ ws.on("state", data => {
   presetNames = Object.keys(data.presets || {}).sort();
   if (!cueLeadModified) $("#cue-lead").value = Number(data.cue_lead_ms ?? 500);
   render();
+  const loading = $("#initial-loading");
+  if (loading) loading.hidden = true;
 });
 ws.on("device_update", data => {
   if (data?.devices) installation = data;
