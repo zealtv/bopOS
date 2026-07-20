@@ -168,10 +168,14 @@ Everything else is `.waiting` for a reason stated in its stitch:
   framework-currentness/update design, parked on the UI-tabs-runway basis).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
   Dashboard live controls, diagnostic density, Show polish, and parameter
-  automation are complete. Next software work: the host-loom patch-workflow
-  documentation/starter-kit close-out (stage 12), or the new
-  `dashboard-bop-accents` follow-ups / `dashboard-theme-toggle` thread
-  (light/dark switch for daytime use).
+  automation are complete. Next software work (Bob's 2026-07-20 feedback
+  pass, in order): `17-automation-polish` (ap-1→ap-4: fade builder bugs,
+  automated-slider visibility rework, loop-forever review) →
+  `dashboard-theme-toggle` (theme-0 holistic bop palette repass — the
+  bop-accents follow-up is folded in — then theme-1 surfaces + toggle) →
+  `dashboard-loading-spinner` → `live-param-catchup` /
+  `notify-patch-lifecycle` → the host-loom patch-workflow
+  documentation/starter-kit close-out (stage 12).
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches

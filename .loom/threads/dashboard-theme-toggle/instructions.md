@@ -15,7 +15,17 @@ Groundwork already in place:
   dark/light pairs; land it first (or together) so the light theme inherits
   the bop accent language rather than re-deriving it.
 
-Scope:
+**2026-07-20 (Bob):** the bop-accents repass is folded INTO this thread —
+the site still reads green; he wants the full `bop.casio~` palette
+holistically (groups, sliders, highlights), tackled together with the
+toggle. Decomposed: `theme-0-bop-palette-repass` (holistic colour pass,
+resolves the tied proposal's §6 questions — Q1 answered yes) then
+`theme-1-surfaces-and-toggle` (surface tokens, light theme, the toggle
+itself — the original scope below). The reference screenshot
+`Screenshot 2026-07-20 at 09.43.48.png` sits in this thread dir; the
+other two screenshots here belong to `17-automation-polish` ap-1/ap-2.
+
+Scope (now theme-1):
 
 - Tokenise the remaining hardcoded surface colours (`#101316`, `#191e23`,
   `#10161b` inputs, `#14191d` header/rows, etc.) so a light theme is a token
