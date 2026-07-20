@@ -14,6 +14,13 @@ focused retrigger proof passed 4/4 and the adjacent facilitator animation suite
 passed all 13 checks. The sole remaining gate is one in-person replay of `go`
 to confirm the audible and visual LFOs now remain aligned across a retrigger.
 
+Bob's replay showed the visual LFO still restarting with the `go` cue. Child
+`aa-2c-preserve-lfo-anchor` therefore moved the idempotence rule into the
+facilitator itself: an identical non-free LFO resend now retains the already
+running visual anchor. Its real Dashboard + simfleet + Chromium regression uses
+the same half-cycle retrigger relationship as `go` and passed 3/3. A further
+in-person replay remains required.
+
 ## Environment and first run
 
 - Date: 2026-07-20

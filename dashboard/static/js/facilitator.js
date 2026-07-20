@@ -102,6 +102,7 @@ function refreshAutomationAnchors(state) {
       try { parsed = window.ParamSpec.parse(entry.args || [], declaration.type); }
       catch (_error) { continue; }
       const key = `${seatId}:${identity}`;
+      const commandSignature = JSON.stringify(entry.args || []);
       const signature = JSON.stringify([entry.args, entry.sent_at]);
       const expected = window.ParamSpec.phaseAnchor(entry, parsed, now);
       const previous = automationAnchors.get(key);
@@ -109,8 +110,14 @@ function refreshAutomationAnchors(state) {
       const period = expected.periodMs;
       const rawError = period > 0 ? Math.abs(((expected.elapsedMs - predicted + period / 2) % period + period) % period - period / 2) : Math.abs(expected.elapsedMs - predicted);
       const meaningful = rawError > Math.max(40, period * .02);
-      if (!previous || previous.signature !== signature || meaningful) {
-        automationAnchors.set(key, {...expected, atMs: now, signature});
+      // Reapplying an identical synchronized LFO is idempotent node-side: it
+      // remains on the leader's absolute-time phase. Preserve the live browser
+      // anchor too, rather than restarting its CSS animation for a looping Show
+      // step's new sent_at. Changed commands and free LFOs are new instances.
+      const sameSynchronizedLfo = previous && parsed.mode === "lfo" && !parsed.free &&
+        previous.commandSignature === commandSignature;
+      if (!previous || (!sameSynchronizedLfo && (previous.signature !== signature || meaningful))) {
+        automationAnchors.set(key, {...expected, atMs: now, signature, commandSignature});
       }
       present.add(key);
     }
