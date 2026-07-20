@@ -123,7 +123,8 @@ class Dashboard:
         self.state = InstallationState(args.state_file, args.devices_file)
         self.clients = set()
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
-                             args.send_port, args.osc_target)
+                             args.send_port, args.osc_target,
+                             self.replay_live_params_for_seat)
         self.tasks = set()
         self.sim_process = None
         self.supervisor_lock = asyncio.Lock()
@@ -345,18 +346,13 @@ class Dashboard:
                 seats = [seat] if seat is not None else None
             else:
                 seats = None
-            declarations = self.live_control_declarations()
-            if seats is None or not declarations:
+            if seats is None or not self.live_control_declarations():
                 await self.ws_error(ws, "That live replay target is unavailable.")
                 return
             # Replay is deliberately numeric even for All: this is an ordered
             # refresh of each Seat snapshot, not a fleet-wide value overwrite.
             for seat in seats:
-                for declaration in declarations:
-                    identity = declaration["identity"]
-                    if identity in seat.get("params", {}):
-                        self.osc.set_param(int(seat["id"]), identity,
-                                           seat["params"][identity])
+                self.replay_live_params_for_seat(seat)
         elif kind == "set_device_mute":
             mute_uid = str(data.get("uid", ""))
             raw_value = data.get("value")
@@ -1296,6 +1292,14 @@ class Dashboard:
                 projected["identity"] = patch_manifest.qualify_param(item)
                 declarations.append(projected)
         return declarations
+
+    def replay_live_params_for_seat(self, seat):
+        """Replay one Seat snapshot through the staged promoted schema."""
+        for declaration in self.live_control_declarations():
+            identity = declaration["identity"]
+            if identity in seat.get("params", {}):
+                self.osc.set_param(int(seat["id"]), identity,
+                                   seat["params"][identity])
 
     def live_cue_declarations(self):
         """Validated cue actions for the staged fleet patch."""

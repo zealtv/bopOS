@@ -67,7 +67,8 @@ class OSCProtocol(asyncio.DatagramProtocol):
 
 
 class OSCBridge:
-    def __init__(self, state, broadcast, listen_port, send_port, target):
+    def __init__(self, state, broadcast, listen_port, send_port, target,
+                 live_param_replay=None):
         self.state = state
         self.broadcast = broadcast
         self.listen_port = listen_port
@@ -88,6 +89,9 @@ class OSCBridge:
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
         self._assign_replayed = {}  # uid -> monotonic time of last full replay
+        self._live_param_replayed = {}  # uid -> last converged appearance replay
+        self._live_param_pending = set()  # uid -> appeared, awaiting matching id
+        self.live_param_replay = live_param_replay or (lambda _seat: None)
         self._unassign_replayed = {}  # stale unbound uid -> last repair send
         self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
         self._audition_param_replays = set()
@@ -815,6 +819,8 @@ class OSCBridge:
             reassign = configured and allow_replay and (not old["online"] or
                                        (mismatch and now - last_replay >=
                                         ASSIGN_REPLAY_MIN_SECONDS))
+            if configured and not old["online"]:
+                self._live_param_pending.add(uid)
             if configured and not mismatch:
                 self._assign_replayed.pop(uid, None)
             device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
@@ -845,6 +851,12 @@ class OSCBridge:
                             "status": "assignment_confirmed",
                             "desired": list(desired_groups)}
                     self.send_groups(uid)
+                if uid in self._live_param_pending:
+                    last_params = self._live_param_replayed.get(uid, float("-inf"))
+                    if now - last_params >= ASSIGN_REPLAY_MIN_SECONDS:
+                        self.live_param_replay(seat)
+                        self._live_param_replayed[uid] = now
+                        self._live_param_pending.discard(uid)
             if not device.get("virtual"):
                 # Heartbeat is a convergence edge. Old nodes safely ignore the
                 # additive UID verb and remain publicly unconfirmed.
