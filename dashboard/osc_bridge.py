@@ -260,7 +260,14 @@ class OSCBridge:
                      "free": bool(getattr(spec, "free", False)),
                      "sent_at": time.time()}
             for seat in seats:
-                self.automation.setdefault(str(seat["id"]), {})[name] = dict(entry)
+                seat_entry = dict(entry)
+                if spec.kind == "fade":
+                    # The durable param value becomes the fade destination
+                    # below, so capture the origin here — the dashboard's
+                    # last-written value is its only honest guess.
+                    prior = seat.get("params", {}).get(name)
+                    seat_entry["from"] = spec.start if spec.start is not None else prior
+                self.automation.setdefault(str(seat["id"]), {})[name] = seat_entry
                 changed = True
             if spec.kind == "fade":
                 self._store_fade_destination(seats, name, spec.segments[-1][0])

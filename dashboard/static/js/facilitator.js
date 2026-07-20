@@ -12,6 +12,8 @@ let renderedCueSignature = null;
 const openCommandDevices = new Set();
 const takeoverAnnouncements = new Map();
 const automationAnchors = new Map();
+let fadeAnimationFrame = null;
+let lastReducedFadeUpdate = 0;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
@@ -197,16 +199,19 @@ function paramControl(scope, id, members, declaration, disabled) {
         const span = model.maximum - model.minimum;
         styles.push(`--auto-min-pos:${model.minimum * 100}%`, `--auto-max-pos:${model.maximum * 100}%`);
         for (const fraction of [.03806, .14645, .30866, .5, .69134, .85355, .96194]) {
-          styles.push(`--auto-p${String(fraction).slice(1)}:${(model.minimum + span * fraction) * 100}%`);
+          // slice(2): "0.03806" -> "03806" must match var(--auto-p03806);
+          // a leading dot would make the custom-property name invalid CSS.
+          styles.push(`--auto-p${String(fraction).slice(2)}:${(model.minimum + span * fraction) * 100}%`);
         }
       }
       if (model.loopEasing) styles.push(`--auto-loop-easing:${model.loopEasing}`);
       const marker = model.marker ? `<span class="live-param-marker auto-shape-${esc(shape)}${model.parsed.free ? " free" : ""}" style="${esc(styles.join(";"))}" aria-hidden="true"></span>` : "";
-      const progress = model.parsed.mode === "fade"
-        ? `<span class="live-param-fade-progress" data-auto-fade-progress style="width:${Math.min(100, model.elapsedMs / model.periodMs * 100)}%;--auto-fade-remaining:${Math.max(1, model.periodMs - model.elapsedMs)}ms" aria-hidden="true"></span>` : "";
-      motion = progress + marker;
+      motion = marker;
     }
-    input = `<output>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""}></span>`;
+    const fadeAttrs = model?.parsed.mode === "fade"
+      ? `data-fade-anchor="${esc(Date.now() - model.elapsedMs)}" data-fade-duration="${esc(model.periodMs)}" data-fade-from="${esc(model.parsed.from ?? state.automation?.from ?? value)}" data-fade-curve="${esc(model.parsed.curve ?? 0)}" data-fade-segments="${esc(JSON.stringify(model.parsed.segments.map(segment => ({value: segment.value, ms: segment.duration.ms}))))}"`
+      : "";
+    input = `<output>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
   }
   const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
   const online = scope !== "seat" || (!!deviceForSeat(sourceSeat)?.online && Number(deviceForSeat(sourceSeat)?.engine_alive) !== 0);
@@ -389,6 +394,73 @@ function updateLocalParams(scope, id, identity, value) {
   }
 }
 
+function fadeValueAt(input, elapsedMs) {
+  const segments = JSON.parse(input.dataset.fadeSegments || "[]");
+  const curve = Number(input.dataset.fadeCurve);
+  let value = Number(input.dataset.fadeFrom);
+  let offset = 0;
+  for (const segment of segments) {
+    const duration = Number(segment.ms);
+    const target = Number(segment.value);
+    if (elapsedMs >= offset + duration) {
+      value = target;
+      offset += duration;
+      continue;
+    }
+    const fraction = duration > 0 ? Math.max(0, (elapsedMs - offset) / duration) : 1;
+    const bent = fraction >= 1 ? 1 : window.ParamSpec.shapeFraction("saw", fraction, curve);
+    return value + (target - value) * bent;
+  }
+  return value;
+}
+
+function finishFade(input, value) {
+  input.value = value;
+  const control = input.closest(".live-param");
+  const output = control?.querySelector("output");
+  if (output) output.value = input.value;
+  control?.classList.remove("automated");
+  control?.querySelector(".live-param-glyph")?.remove();
+  control?.querySelector(".live-param-marker")?.remove();
+  input.removeAttribute("data-automated");
+  input.setAttribute("aria-label", input.dataset.paramName || "parameter");
+  for (const name of ["data-fade-anchor", "data-fade-duration", "data-fade-from", "data-fade-curve", "data-fade-segments"]) input.removeAttribute(name);
+}
+
+function animateFades() {
+  fadeAnimationFrame = null;
+  const inputs = [...document.querySelectorAll('[data-fade-anchor][data-automated="true"]')];
+  if (!inputs.length) return;
+  const now = Date.now();
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const reducedUpdateDue = now - lastReducedFadeUpdate >= 1000;
+  let updated = false;
+  for (const input of inputs) {
+    const control = input.closest(".live-param");
+    if (control?.classList.contains("taking-over") || input.matches(":active")) continue;
+    const elapsed = Math.max(0, now - Number(input.dataset.fadeAnchor));
+    const duration = Number(input.dataset.fadeDuration);
+    const complete = elapsed >= duration;
+    if (reducedMotion && !reducedUpdateDue && !complete) continue;
+    const value = fadeValueAt(input, Math.min(elapsed, duration));
+    if (complete) finishFade(input, value);
+    else {
+      input.value = value;
+      const output = control?.querySelector("output");
+      if (output) output.value = input.value;
+    }
+    updated = true;
+  }
+  if (reducedMotion && updated) lastReducedFadeUpdate = now;
+  if (document.querySelector('[data-fade-anchor][data-automated="true"]')) fadeAnimationFrame = requestAnimationFrame(animateFades);
+}
+
+function startFadeAnimator() {
+  if (fadeAnimationFrame == null && document.querySelector('[data-fade-anchor][data-automated="true"]')) {
+    fadeAnimationFrame = requestAnimationFrame(animateFades);
+  }
+}
+
 function bindCards() {
   document.querySelectorAll("[data-live-param]").forEach(input => {
     if (input.type === "checkbox" && input.dataset.mixed === "true") input.indeterminate = true;
@@ -440,21 +512,7 @@ function bindCards() {
       input.onpointerup = send;
     } else input.onchange = send;
   });
-  document.querySelectorAll("[data-auto-fade-progress]").forEach(progress => {
-    progress.onanimationend = () => {
-      const control = progress.closest(".live-param");
-      const input = control?.querySelector("[data-live-param]");
-      const output = control?.querySelector("output");
-      if (!control || !input) return;
-      control.classList.remove("automated");
-      control.querySelector(".live-param-glyph")?.remove();
-      control.querySelector(".live-param-marker")?.remove();
-      progress.remove();
-      input.removeAttribute("data-automated");
-      input.setAttribute("aria-label", input.dataset.paramName || "parameter");
-      if (output) output.value = input.value;
-    };
-  });
+  startFadeAnimator();
   document.querySelectorAll("[data-replay-live]").forEach(button => button.onclick = () => {
     const payload = {scope: button.dataset.liveScope};
     if (button.dataset.liveId != null) payload.id = Number(button.dataset.liveId);
