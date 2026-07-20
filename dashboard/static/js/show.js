@@ -472,8 +472,7 @@
         </fieldset>
         ${validation}
         <div class="show-play-count-row">
-          <label>play n times <input id="show-play-count" type="number" min="1" step="1" value="${loop ? "" : escapeHtml(step.play_count)}" ${loop ? "disabled" : ""}></label>
-          <label class="show-check"><input id="show-play-forever" type="checkbox" ${loop ? "checked" : ""}> loop forever</label>
+          <label>play n times <input id="show-play-count" type="number" min="1" step="1" value="${loop ? "" : escapeHtml(step.play_count)}" ${loop ? 'placeholder="∞ (legacy)"' : ""}></label>
         </div>
         <section class="show-inspector-section">
           <div class="show-inspector-subhead"><h4>Then actions</h4><button type="button" data-add-then-action>Add row</button></div>
@@ -1216,10 +1215,6 @@
       if (!step) return;
       if (event.target.id === "show-step-alias") updateStep(step.uid, {alias: event.target.value.trim() || null});
       if (event.target.matches("[data-duration-part]")) updateStep(step.uid, {duration_s: readDuration()});
-      if (event.target.id === "show-play-forever") {
-        const next = event.target.checked ? null : Math.max(1, Math.trunc(Number(root.querySelector("#show-play-count")?.value) || 1));
-        updateStep(step.uid, {play_count: next});
-      }
       if (event.target.id === "show-play-count") updateStep(step.uid, {play_count: Math.max(1, Math.trunc(Number(event.target.value) || 1))});
       if (event.target.matches("[data-then-type]")) {
         const actions = currentThenActions(step);
