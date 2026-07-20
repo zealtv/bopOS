@@ -1,6 +1,6 @@
 # Audible Simulation gate — waiting evidence
 
-## Current status after repairs
+## Final accepted status after repairs
 
 Bob reran the real macOS/CoreAudio workflow after
 `aa-2a-scalar-engine-frames` and reported that audio now works. During that
@@ -20,6 +20,11 @@ facilitator itself: an identical non-free LFO resend now retains the already
 running visual anchor. Its real Dashboard + simfleet + Chromium regression uses
 the same half-cycle retrigger relationship as `go` and passed 3/3. A further
 in-person replay remains required.
+
+Bob then confirmed the apparent missing-automation report was a Show-editing
+mistake and that LFOs are working. This accepts the final real
+macOS/CoreAudio human gate: audio is clean, the looping cue retriggers, and the
+audible and visual LFO behavior is now satisfactory.
 
 ## Environment and first run
 
@@ -115,5 +120,5 @@ Interpretation:
 The tied child `aa-1-audition-generator-parity` proves the relay/engine UDP
 boundary (12/12 focused checks), shared parameter generator semantics (32
 checks, zero failures), managed parameter catch-up (6/6), selector isolation,
-take-over, and generator-thread cleanup. Clean audio is now human-confirmed;
-this parent remains blocked only on the post-fix retrigger alignment check.
+take-over, and generator-thread cleanup. Bob has now human-confirmed both clean
+audio and working LFO visualization across the real looping-cue workflow.
