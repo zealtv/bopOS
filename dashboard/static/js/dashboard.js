@@ -825,7 +825,6 @@ function renderHeader() {
   $("#online-count").textContent = `${online} / ${ds.length} online`;
   $("#host-version").textContent = installation.host_version || "—";
   const mode=installation.supervisor?.mode||"off";
-  $("#mode-status").textContent=mode==="simulate"?"simulation":mode==="edit"?"patch edit":"live fleet";
   document.querySelectorAll("[data-execution-target]").forEach(button=>{
     const active=button.dataset.executionTarget===mode;
     button.setAttribute("aria-pressed",active?"true":"false");
