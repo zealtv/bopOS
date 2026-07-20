@@ -168,14 +168,14 @@ Everything else is `.waiting` for a reason stated in its stitch:
   framework-currentness/update design, parked on the UI-tabs-runway basis).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
   Dashboard live controls, diagnostic density, Show polish, and parameter
-  automation are complete. Next software work (Bob's 2026-07-20 feedback
-  pass, in order): `17-automation-polish` (ap-1→ap-4: fade builder bugs,
-  automated-slider visibility rework, loop-forever review) →
-  `dashboard-theme-toggle` (theme-0 holistic bop palette repass — the
-  bop-accents follow-up is folded in — then theme-1 surfaces + toggle) →
+  automation are complete, and Bob's 2026-07-20 feedback pass landed
+  `17-automation-polish` (fully tied) plus `theme-0-bop-palette-repass`.
+  Next software work, in order: `theme-1-surfaces-and-toggle` (light
+  theme + toggle; instructions in the stitch) →
   `dashboard-loading-spinner` → `live-param-catchup` /
   `notify-patch-lifecycle` → the host-loom patch-workflow
-  documentation/starter-kit close-out (stage 12).
+  documentation/starter-kit close-out (stage 12). See
+  `.notes/handoff-2026-07-20-feedback-pass.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
@@ -229,7 +229,15 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   mid-wait — use a one-shot `page.evaluate` `scrollIntoView` and a fresh
   `bounding_box()` instead; (7) fixture manifests: the validator only
   allows *numeric* `min`/`max`/`default`, so a string param declaration
-  must omit `default` or the whole manifest silently fails to load.
+  must omit `default` or the whole manifest silently fails to load;
+  (8) any element inside a non-active tab panel resolves but never goes
+  *visible* — wait with `state="attached"`, like `#ws-status`; (9)
+  compare bounding rects only from ONE scroll state — per-element
+  `scrollIntoView` between measurements makes y-coordinates
+  incomparable; gather all rects in a single `page.evaluate`; (10)
+  changing the Show inspector's generator `<select>` write-through
+  persists new args onto the focused message — use one fixture message
+  per generator kind instead of switching kinds in-test.
 
 ## Records
 
