@@ -14,7 +14,7 @@
   let targetDisclosure = {uid: null, open: false};
   let scrollFocusedRow = false;
   let clipboard = null;
-  let stepNameEdit = null;
+  let nameEdit = {kind: null, uid: null};
   let showRowsHeight = 480;
   let showRowsScrollTop = 0;
   let rowsResizeDrag = null;
@@ -82,6 +82,30 @@
     }
     const parts = address.split("/").filter(Boolean);
     return parts.length ? parts[parts.length - 1] : (address || "message");
+  }
+
+  function dividerLabel(divider) {
+    const alias = divider?.alias;
+    return alias && alias.trim() ? alias.trim() : "Untitled section";
+  }
+
+  // Ruled by Bob (2026-07-21): step, divider, and message inspectors share the
+  // one click-to-edit name pattern (02-edit-bar-and-inline-step-name step
+  // names generalized). The title carries `data-show-name-title` (kind + uid);
+  // the input `data-show-name-input`. `kind === "step"` also stamps the legacy
+  // `data-show-step-name`/`-input` hooks so the tied step verifiers keep
+  // matching. `show-step-name`/`show-step-name-input` classes carry the shared
+  // styling (and the inspector-panel `padding-right:34px` collapse-toggle
+  // clearance) for all three.
+  function nameTitleBlock(kind, uid, {display, placeholder, value, ariaNoun}) {
+    const editing = nameEdit.kind === kind && nameEdit.uid === uid;
+    const legacyId = kind === "step" ? escapeHtml(uid) : null;
+    if (editing) {
+      const legacy = legacyId ? ` data-show-step-name-input="${legacyId}"` : "";
+      return `<input type="text" class="show-step-name-input" data-show-name-input data-show-name-kind="${kind}" data-show-name-uid="${escapeHtml(uid)}"${legacy} autocomplete="off" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(ariaNoun)}" value="${escapeHtml(value || "")}">`;
+    }
+    const legacy = legacyId ? ` data-show-step-name="${legacyId}"` : "";
+    return `<h3 class="show-step-name" tabindex="0" data-show-name-title data-show-name-kind="${kind}" data-show-name-uid="${escapeHtml(uid)}"${legacy} title="Click or press Enter/F2 to rename" aria-label="${escapeHtml(ariaNoun)}: ${escapeHtml(display)}. Click, or press Enter or F2, to rename.">${escapeHtml(display)}</h3>`;
   }
 
   function terseDuration(seconds) {
@@ -313,8 +337,18 @@
 
   function dividerRow(item, index) {
     const selected = focused("divider", item.uid) ? " focused" : "";
-    return `<div class="show-divider-row${selected}" data-show-divider-row="${escapeHtml(item.uid)}" data-show-index="${index}" role="button" tabindex="0" aria-label="Section divider">
-      <button type="button" class="show-drag-handle show-divider-drag" data-drag-item="${escapeHtml(item.uid)}" aria-label="Drag section divider">⋮⋮</button>
+    const named = item.alias && item.alias.trim();
+    const dragLabel = named ? `Drag section: ${item.alias.trim()}` : "Drag section divider";
+    const rowLabel = named ? `Section divider: ${item.alias.trim()}` : "Section divider";
+    const handle = `<button type="button" class="show-drag-handle show-divider-drag" data-drag-item="${escapeHtml(item.uid)}" aria-label="${escapeHtml(dragLabel)}">⋮⋮</button>`;
+    // Named divider (stitch 04): the name centred with horizontal rule lines
+    // flanking it (wireframes.html). Unnamed: exactly today's plain gradient
+    // rule -- same markup as before, no name/line spans.
+    const body = named
+      ? `<span class="show-divider-line" aria-hidden="true"></span><span class="show-divider-name" title="${escapeHtml(item.alias.trim())}">${escapeHtml(item.alias.trim())}</span><span class="show-divider-line" aria-hidden="true"></span>`
+      : "";
+    return `<div class="show-divider-row${named ? " show-divider-named" : ""}${selected}" data-show-divider-row="${escapeHtml(item.uid)}" data-show-index="${index}" role="button" tabindex="0" aria-label="${escapeHtml(rowLabel)}">
+      ${handle}${body}
     </div>`;
   }
 
@@ -488,7 +522,13 @@
   }
 
   function renderDividerInspector(divider) {
-    return `<h3>Divider inspector</h3>
+    const nameBlock = nameTitleBlock("divider", divider.uid, {
+      display: dividerLabel(divider),
+      placeholder: "Untitled section",
+      value: divider.alias,
+      ariaNoun: "Section name",
+    });
+    return `${nameBlock}
       <div class="show-inspector-form" data-show-divider-editor="${escapeHtml(divider.uid)}">
         <p class="show-inspector-context">Section divider</p>
       </div>`;
@@ -504,10 +544,12 @@
     const validation = modelValidation || friendlyShowError()
       ? `<p class="show-field-error">${escapeHtml(modelValidation || friendlyShowError())}</p>` : "";
     const actionRows = actions.map((action, index) => renderThenAction(action, index)).join("");
-    const editingName = stepNameEdit === step.uid;
-    const nameBlock = editingName
-      ? `<input type="text" class="show-step-name-input" data-show-step-name-input="${escapeHtml(step.uid)}" autocomplete="off" placeholder="Untitled step" aria-label="Step name" value="${escapeHtml(step.alias || "")}">`
-      : `<h3 class="show-step-name" tabindex="0" data-show-step-name="${escapeHtml(step.uid)}" title="Click or press Enter/F2 to rename" aria-label="Step name: ${escapeHtml(stepLabel(step))}. Click, or press Enter or F2, to rename.">${escapeHtml(stepLabel(step))}</h3>`;
+    const nameBlock = nameTitleBlock("step", step.uid, {
+      display: stepLabel(step),
+      placeholder: "Untitled step",
+      value: step.alias,
+      ariaNoun: "Step name",
+    });
     return `${nameBlock}
       <div class="show-inspector-form" data-show-step-editor="${escapeHtml(step.uid)}">
         <fieldset class="show-duration-fields"><legend>duration</legend>
@@ -546,10 +588,16 @@
   function renderMessageInspector(step, message) {
     const mode = inferMessageMode(message);
     const targetDisabled = mode === "cue" || mode === "point";
-    return `<h3>Message inspector</h3>
+    const aliasSet = message.alias && message.alias.trim();
+    const nameBlock = nameTitleBlock("message", message.uid, {
+      display: aliasSet ? message.alias.trim() : messageLabel(message),
+      placeholder: messageLabel(message),
+      value: message.alias,
+      ariaNoun: "Message name",
+    });
+    return `${nameBlock}
       <div class="show-inspector-form" data-show-message-editor="${escapeHtml(message.uid)}">
         <p class="show-inspector-context">${escapeHtml(stepLabel(step))}</p>
-        <label>alias <input id="show-message-alias" type="text" autocomplete="off" value="${escapeHtml(message.alias || "")}" placeholder="${escapeHtml(messageLabel(message))}"></label>
         ${renderTargetPicker(message, targetDisabled)}
         <label>payload mode
           <select id="show-message-mode">
@@ -773,10 +821,11 @@
     const cueLeadDraft = oldCueLead && document.activeElement === oldCueLead
       ? oldCueLead.value : null;
     // Same rationale as cueLeadDraft: an unrelated broadcast mid-rename must
-    // not wipe an uncommitted inline step-name edit (no per-keystroke saves).
-    const oldStepNameInput = root.querySelector("[data-show-step-name-input]");
-    const stepNameDraft = oldStepNameInput && document.activeElement === oldStepNameInput
-      ? oldStepNameInput.value : null;
+    // not wipe an uncommitted inline name edit (step/divider/message; no
+    // per-keystroke saves).
+    const oldNameInput = root.querySelector("[data-show-name-input]");
+    const nameDraft = oldNameInput && document.activeElement === oldNameInput
+      ? oldNameInput.value : null;
     const oldRowsBox = root.querySelector(".show-rows-box");
     if (oldRowsBox) {
       // Hidden tabs report a zero clientHeight during startup broadcasts;
@@ -801,10 +850,10 @@
         cueLead.focus({preventScroll: true});
       }
     }
-    if (stepNameEdit) {
-      const input = root.querySelector(`[data-show-step-name-input="${stepNameEdit}"]`);
+    if (nameEdit.kind) {
+      const input = root.querySelector(`[data-show-name-input][data-show-name-kind="${nameEdit.kind}"][data-show-name-uid="${nameEdit.uid}"]`);
       if (input) {
-        if (stepNameDraft != null) input.value = stepNameDraft;
+        if (nameDraft != null) input.value = nameDraft;
         input.focus({preventScroll: true});
         input.select();
       }
@@ -866,6 +915,11 @@
   function updateMessage(uid, patch) {
     showError = "";
     ws.send("update_message", {uid, ...patch});
+  }
+
+  function updateDivider(uid, patch) {
+    showError = "";
+    ws.send("update_divider", {uid, ...patch});
   }
 
   function readDuration() {
@@ -944,15 +998,19 @@
     ws.send("duplicate_item", {uid: item.uid});
   }
 
-  function commitStepName(input) {
-    if (stepNameEdit == null) return;
-    const uid = stepNameEdit;
-    stepNameEdit = null;
-    const step = stepByUid(uid);
-    if (!step) { render(); return; }
+  function commitName(input) {
+    if (nameEdit.kind == null) return;
+    const {kind, uid} = nameEdit;
+    nameEdit = {kind: null, uid: null};
+    const item = kind === "message" ? messageByUid(uid).message : itemByUid(uid);
+    if (!item || (kind === "step" && item.kind !== "step")
+        || (kind === "divider" && item.kind !== "divider")) { render(); return; }
     const value = input.value.trim();
-    if (value !== (step.alias || "").trim()) updateStep(uid, {alias: value || null});
-    else render();
+    if (value === (item.alias || "").trim()) { render(); return; }
+    const patch = {alias: value || null};
+    if (kind === "step") updateStep(uid, patch);
+    else if (kind === "divider") updateDivider(uid, patch);
+    else updateMessage(uid, patch);
   }
 
   function clearDragMarkers() {
@@ -1340,7 +1398,6 @@
     if (messageEditor) {
       const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
       if (!message) return;
-      if (event.target.id === "show-message-alias") updateMessage(message.uid, {alias: event.target.value.trim() || null});
       if (event.target.id === "show-message-mode") applyModeDefault(message, event.target.value);
       if (event.target.id === "show-param-picker") {
         const oldDeclaration = currentParamDeclaration(message);
@@ -1395,10 +1452,10 @@
       else if (action === "delete") deleteSelected();
       return;
     }
-    const nameTitle = event.target.closest("[data-show-step-name]");
+    const nameTitle = event.target.closest("[data-show-name-title]");
     if (nameTitle) {
       event.stopPropagation();
-      stepNameEdit = nameTitle.dataset.showStepName;
+      nameEdit = {kind: nameTitle.dataset.showNameKind, uid: nameTitle.dataset.showNameUid};
       render();
       return;
     }
@@ -1473,10 +1530,10 @@
     const meta = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
     if (event.target.closest("input, select, textarea")) return;
-    const nameTitle = event.target.closest("[data-show-step-name]");
+    const nameTitle = event.target.closest("[data-show-name-title]");
     if (nameTitle && ["Enter", "F2"].includes(event.key)) {
       event.preventDefault();
-      stepNameEdit = nameTitle.dataset.showStepName;
+      nameEdit = {kind: nameTitle.dataset.showNameKind, uid: nameTitle.dataset.showNameUid};
       render();
       return;
     }
@@ -1521,27 +1578,28 @@
     }
   });
 
-  // Inline step-name editing (02-edit-bar-and-inline-step-name): Enter
-  // commits, Escape restores the prior value, blur commits. Removing the
-  // input on render (via the Enter/Escape branches below) fires a
-  // synchronous blur on the detached node; commitStepName's `stepNameEdit
-  // == null` guard makes that a no-op instead of a duplicate send.
+  // Inline name editing (02-edit-bar-and-inline-step-name, generalized to
+  // step/divider/message in stitch 04): Enter commits, Escape restores the
+  // prior value, blur commits. Removing the input on render (via the
+  // Enter/Escape branches below) fires a synchronous blur on the detached
+  // node; commitName's `nameEdit.kind == null` guard makes that a no-op
+  // instead of a duplicate send.
   root.addEventListener("keydown", event => {
-    const nameInput = event.target.closest("[data-show-step-name-input]");
+    const nameInput = event.target.closest("[data-show-name-input]");
     if (!nameInput) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      commitStepName(nameInput);
+      commitName(nameInput);
     } else if (event.key === "Escape") {
       event.preventDefault();
-      stepNameEdit = null;
+      nameEdit = {kind: null, uid: null};
       render();
     }
   });
 
   root.addEventListener("blur", event => {
-    if (!event.target.matches?.("[data-show-step-name-input]")) return;
-    commitStepName(event.target);
+    if (!event.target.matches?.("[data-show-name-input]")) return;
+    commitName(event.target);
   }, true);
 
   root.addEventListener("submit", event => {

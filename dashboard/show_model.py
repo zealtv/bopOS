@@ -185,7 +185,14 @@ def clean_divider(value):
     if not isinstance(value, dict) or value.get("kind") != "divider":
         return None
     uid = clean_uid(value.get("uid"))
-    return {"kind": "divider", "uid": uid} if uid is not None else None
+    if uid is None:
+        return None
+    # `alias` is additive (stitch 04, named section dividers): older documents
+    # without the field load with alias None.
+    alias = value.get("alias")
+    if alias is not None and not isinstance(alias, str):
+        return None
+    return {"kind": "divider", "uid": uid, "alias": alias}
 
 
 def clean_item(value):
@@ -331,7 +338,7 @@ def add_divider(show, after_uid=None):
     index = _index_after(show["items"], after_uid)
     if index is None:
         return show, None, "after_uid not found."
-    divider = {"kind": "divider", "uid": mint_uid(_item_uids(show))}
+    divider = {"kind": "divider", "uid": mint_uid(_item_uids(show)), "alias": None}
     items = list(show["items"])
     items.insert(index, divider)
     return {**show, "items": items}, divider, None
@@ -381,6 +388,30 @@ def update_step(show, uid, patch):
         candidate["then_actions"] = then_actions or [{"type": "stop"}]
     if candidate["duration_s"] == 0 and candidate["play_count"] is None:
         return show, None, "duration_s == 0 requires a finite play_count."
+    items[index] = candidate
+    return {**show, "items": items}, candidate, None
+
+
+def update_divider(show, uid, patch):
+    """Partial patch over a divider's `alias` (stitch 04).
+
+    Mirrors `update_step`'s alias branch exactly -- same partial-patch shape,
+    same `(new_show, result, error)` contract -- so it rides the existing
+    apply_show_mutation plumbing (undo, persistence, broadcast) unchanged.
+    """
+    if not isinstance(patch, dict):
+        return show, None, "patch must be an object."
+    items = list(show["items"])
+    index = next((i for i, item in enumerate(items)
+                  if item["uid"] == uid and item["kind"] == "divider"), None)
+    if index is None:
+        return show, None, "Divider not found."
+    candidate = dict(items[index])
+    if "alias" in patch:
+        alias = patch["alias"]
+        if alias is not None and not isinstance(alias, str):
+            return show, None, "alias must be text or null."
+        candidate["alias"] = alias
     items[index] = candidate
     return {**show, "items": items}, candidate, None
 

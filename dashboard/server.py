@@ -1107,6 +1107,9 @@ class Dashboard:
                      ("alias", "duration_s", "play_count", "then_actions")
                      if key in data}
             await self.apply_show_mutation(ws, show_model.update_step, data.get("uid"), patch)
+        elif kind == "update_divider":
+            patch = {key: data[key] for key in ("alias",) if key in data}
+            await self.apply_show_mutation(ws, show_model.update_divider, data.get("uid"), patch)
         elif kind == "move_item":
             await self.apply_show_mutation(
                 ws, show_model.move_item, data.get("uid"), data.get("after_uid"))
