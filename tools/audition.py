@@ -25,6 +25,7 @@ import manifest as patch_manifest  # noqa: E402
 import identity  # noqa: E402
 import audition_geometry  # noqa: E402
 import audition_matrix  # noqa: E402
+import paramgen  # noqa: E402
 import pointfield  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
@@ -69,6 +70,7 @@ class VirtualNode:
     device_muted: bool = False
     fleet_muted: bool = False
     process: subprocess.Popen | None = None
+    param_generator: paramgen.GeneratorEngine | None = None
 
     def engine_alive(self, no_engine):
         if no_engine:
@@ -86,6 +88,11 @@ class AuditionRig:
                         args.engine_port_base + i)
             for i in range(args.devices)
         ]
+        _patch_dir, loaded = self._load_patch()
+        self.param_declarations = {
+            patch_manifest.qualify_param(declaration): declaration
+            for declaration in loaded.get("params", [])
+        }
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.sock.bind((args.bind, args.cmd_port))
@@ -95,8 +102,17 @@ class AuditionRig:
         self.listener = None
         self.editor_element = 0
         self.pending_cues = []
+        for node in self.nodes:
+            node.param_generator = paramgen.GeneratorEngine(
+                lambda identity, values, target=node: self.send_engine(
+                    target, f"/p/{identity}", values),
+                None,
+            )
 
     def _load_patch(self):
+        cached = getattr(self, "_loaded_patch", None)
+        if cached is not None:
+            return cached
         path = os.path.realpath(self.args.manifest)
         if os.path.basename(path) != patch_manifest.MANIFEST_NAME:
             raise ValueError("--manifest must name a bopos.patch.json file")
@@ -104,7 +120,8 @@ class AuditionRig:
         loaded, error = patch_manifest.load(patch_dir)
         if loaded is None:
             raise ValueError(error)
-        return patch_dir, loaded
+        self._loaded_patch = (patch_dir, loaded)
+        return self._loaded_patch
 
     def patch_listing(self):
         """Return the host-backed inventory exposed by every virtual node."""
@@ -525,6 +542,21 @@ class AuditionRig:
         shaped = relay.shape_provided_term(parts, message.params)
         if shaped is not None:
             address, args = shaped
+            if address.startswith("/p/"):
+                identity = address[3:]
+                declaration = self.param_declarations.get(identity)
+                if declaration is not None and declaration.get("type") in ("f", "i"):
+                    try:
+                        spec = paramgen.parse_message(args, declaration["type"])
+                    except paramgen.ParamGrammarError as error:
+                        print(f"WARNING: {address} parameter grammar: {error}",
+                              flush=True)
+                        return
+                    for node in self.nodes:
+                        if matches(selector, node.device_id,
+                                   getattr(node, "groups", ())):
+                            node.param_generator.apply(identity, spec, declaration)
+                    return
             builder = osc_message_builder.OscMessageBuilder(address=address)
             for value in args:
                 builder.add_arg(value)
@@ -579,6 +611,9 @@ class AuditionRig:
             return
 
     def stop(self):
+        for node in self.nodes:
+            if node.param_generator is not None:
+                node.param_generator.close()
         descendants = {}
         for node in self.nodes:
             if node.process is not None:
