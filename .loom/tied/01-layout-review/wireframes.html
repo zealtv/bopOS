@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Show layout polish — wireframes (2026-07-20)</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 13px/1.45 -apple-system, system-ui, sans-serif; margin: 24px; background:#f4f4f2; color:#222; }
+  h1 { font-size: 18px; } h2 { font-size: 15px; margin-top: 32px; }
+  .frame { border: 2px solid #888; border-radius: 6px; background: #fff; padding: 10px; margin: 12px 0 4px; }
+  .desktop { width: 860px; }
+  .narrow { width: 380px; }
+  .caption { color: #666; font-size: 12px; margin-bottom: 20px; }
+  .bar { display:flex; align-items:center; gap:6px; border:1px solid #bbb; border-radius:4px; padding:4px 6px; background:#fafafa; margin-bottom:6px; }
+  .bar .sp { flex:1; text-align:center; color:#c0c0c0; font-size:11px; }
+  .btn { border:1px solid #999; border-radius:3px; padding:2px 8px; background:#fff; font-size:12px; white-space:nowrap; }
+  .btn.dis { color:#bbb; border-color:#ddd; }
+  .rows { border:1px solid #bbb; border-radius:4px; height:150px; overflow:hidden; position:relative; background:#fdfdfd; }
+  .row { padding:3px 8px; border-bottom:1px solid #eee; font-size:12px; }
+  .row.sel { background:#dbe7f5; outline:1px solid #7aa3d0; }
+  .row.div { background:#efefef; font-weight:600; letter-spacing:.04em; font-size:11px; color:#555; }
+  .row .msg { color:#777; padding-left:18px; font-family:ui-monospace,monospace; font-size:11px; }
+  .pills { padding:2px 8px 4px 18px; display:flex; gap:4px; flex-wrap:wrap; }
+  .pillm { border-radius:10px; padding:1px 8px; font-size:10px; font-family:ui-monospace,monospace; border:1px solid rgba(0,0,0,.15); }
+  .pc0{background:#f6d6d0;} .pc1{background:#d3e6d3;} .pc2{background:#d3ddf0;} .pc3{background:#f0e6c8;}
+  .pillm.sel { outline:2px solid #7aa3d0; }
+  .scrollhint { position:absolute; right:4px; top:8px; bottom:8px; width:6px; background:#e2e2e2; border-radius:3px; }
+  .cols { display:flex; gap:10px; margin-top:10px; }
+  .cols > * { flex:1; }
+  .term { border:1px solid #bbb; border-radius:4px; display:flex; flex-direction:column; height:160px; background:#fdfdfd; }
+  .term.collapsed { height:auto; }
+  .thead { display:flex; gap:8px; align-items:center; padding:4px 8px; border-bottom:1px solid #ddd; font-size:11px; background:#f3f3f3; }
+  .thead b { font-size:12px; }
+  .tctrl { display:flex; gap:6px; padding:3px 8px; border-bottom:1px solid #eee; font-size:10px; color:#666; }
+  .tlog { flex:1; overflow:hidden; position:relative; font-family:ui-monospace,monospace; font-size:10px; color:#555; padding:4px 8px; }
+  .tlog div { white-space:nowrap; }
+  .note { font-size:11px; color:#a05a00; margin:2px 0 0; }
+  .inspector { border:1px solid #bbb; border-radius:4px; padding:8px; width:300px; background:#fff; }
+  .ititle { font-weight:700; font-size:14px; padding:2px 4px; border-radius:3px; }
+  .ititle.editing { outline:2px solid #7aa3d0; background:#fff; font-weight:400; }
+  .caret { border-left:1px solid #333; margin-left:1px; }
+  .ifield { color:#666; font-size:12px; margin-top:6px; }
+  .legend { margin-top:2px; font-size:11px; color:#666; }
+</style>
+</head>
+<body>
+<h1>Show layout polish — ratified wireframes (2026-07-20)</h1>
+<p class="caption">Grayscale structure only; real UI keeps current bop palette / themes.</p>
+
+<h2>A — Desktop ≥ 900px: edit bar above the step list, terminals in two equal columns</h2>
+<div class="frame desktop">
+  <div class="bar">
+    <span class="btn">＋ Step</span><span class="btn">＋ Divider</span>
+    <span class="sp">(reserved: future lane controls)</span>
+    <span class="btn">⧉ Duplicate</span><span class="btn">🗑 Delete</span>
+  </div>
+  <div class="rows">
+    <div class="row div">— OPENING —</div>
+    <div class="row sel">▸ 0 · Doors open <span style="float:right;color:#888">cue 0</span></div>
+    <div class="pills"><span class="pillm pc0">⋮ house-fade</span><span class="pillm pc2">⋮ /p/master/level 0.8</span></div>
+    <div class="row">▸ 1 · First swell</div>
+    <div class="pills"><span class="pillm pc1">⋮ swell-env</span><span class="pillm pc3">⋮ cue 1</span></div>
+    <div class="row div">— MOVEMENT 1 —</div>
+    <div class="row">▸ 2 · Pulse in</div>
+    <div class="scrollhint"></div>
+  </div>
+  <div class="legend">Selected structural row = insertion anchor. Bottom add bar + inspector Arrange: <b>removed</b>.</div>
+  <div class="cols">
+    <div class="term">
+      <div class="thead"><b>Outgoing OSC</b> <span>142 msgs</span></div>
+      <div class="tctrl">[filter…] ⏸ pause · clear · ⤓ auto-scroll · ▾ collapse</div>
+      <div class="tlog"><div>/show/cue 3 …</div><div>/p/master/level 0.8 …</div><div>/p/seat/4/env/attack 0.01 20.0 sine … (long frames scroll inside log)</div></div>
+    </div>
+    <div class="term">
+      <div class="thead"><b>Incoming OSC</b> <span>96 msgs</span></div>
+      <div class="tctrl">[filter…] ⏸ pause · clear · ⤓ auto-scroll · ▾ collapse</div>
+      <div class="tlog"><div>/hb bop003 …</div><div>/ack groups …</div></div>
+    </div>
+  </div>
+  <div class="legend">Equal fixed ≈320px expanded height (~12 lines); summary + controls fixed, log scrolls internally. Traffic never resizes panel/page.</div>
+</div>
+<p class="caption">Edit bar states: nothing selected → additions append, Duplicate/Delete disabled. Step/divider selected → insert after it, Duplicate/Delete enabled (divider duplicate allowed; step duplicate mints fresh UIDs for step + messages; no delete confirmation — undo covers). <b>Message focused → Duplicate/Delete disabled</b> (bar is structural-only).</p>
+
+<h2>B — Narrow ≤ 768px: icon-only bar, terminals stacked outgoing→incoming</h2>
+<div class="frame narrow">
+  <div class="bar">
+    <span class="btn">＋▸</span><span class="btn">＋—</span>
+    <span class="sp"></span>
+    <span class="btn dis">⧉</span><span class="btn dis">🗑</span>
+  </div>
+  <div class="rows" style="height:110px">
+    <div class="row div">— OPENING —</div>
+    <div class="row">▸ 0 · Doors open</div>
+    <div class="pills"><span class="pillm pc0">⋮ house-fade</span><span class="pillm pc2 sel">⋮ /p/master/level 0.8</span></div>
+    <div class="scrollhint"></div>
+  </div>
+  <div class="legend">Message pill focused → bar ⧉/🗑 disabled; pill keyboard ⌘C/⌘X/⌘V/Delete unchanged. Icon-only + tooltips/aria-labels, touch-sized targets.</div>
+  <div class="term" style="height:120px;margin-top:10px">
+    <div class="thead"><b>Outgoing OSC</b> <span>142</span></div>
+    <div class="tctrl">[filter…] ⏸ · clear · ⤓ · ▾</div>
+    <div class="tlog"><div>/show/cue 3 …</div></div>
+  </div>
+  <div class="term collapsed" style="margin-top:8px">
+    <div class="thead"><b>Incoming OSC</b> <span>96</span> <span style="margin-left:auto">▸ expand</span></div>
+  </div>
+  <div class="legend">Stack below 900px, full width, source order outgoing→incoming. Collapse stays independent.</div>
+</div>
+
+<h2>C — Inspector: click-to-edit step name</h2>
+<div class="cols" style="max-width:640px">
+  <div class="inspector">
+    <div class="ititle">First swell</div>
+    <div class="ifield">step · cue 1 · 2 messages</div>
+    <div class="legend">Bold authored name as title (label “name”, stored as <code>alias</code>). Single click/tap → edit. Keyboard: focus + Enter/F2.</div>
+  </div>
+  <div class="inspector">
+    <div class="ititle editing">First swell<span class="caret">&nbsp;</span></div>
+    <div class="ifield">step · cue 1 · 2 messages</div>
+    <div class="legend">Selected single-line input. Enter/blur commit · Esc restores · blank → “Untitled step”. No per-keystroke saves.</div>
+  </div>
+  <div class="inspector">
+    <div class="ititle" style="font-size:13px">Message inspector <span style="font-weight:400;color:#888">(unchanged)</span></div>
+    <div class="ifield">alias [ house-fade ] · targets · payload mode · builder · wire form</div>
+    <div class="legend">Retained as-is: message alias input (drives pill colour), target chips, payload builder, wire preview, ⌘C/⌘X/⌘V/Delete on pills, “Add message” in step inspector. Only the Arrange grid leaves the step/divider inspectors.</div>
+  </div>
+</div>
+</body>
+</html>
