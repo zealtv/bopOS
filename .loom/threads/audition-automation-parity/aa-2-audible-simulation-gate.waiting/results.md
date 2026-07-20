@@ -1,5 +1,19 @@
 # Audible Simulation gate — waiting evidence
 
+## Current status after repairs
+
+Bob reran the real macOS/CoreAudio workflow after
+`aa-2a-scalar-engine-frames` and reported that audio now works. During that
+successful run, the looping/retriggering `go` step exposed a second issue: the
+audible LFO retained its shared phase while its Dashboard animation restarted
+out of phase at the retrigger.
+
+Tied child `aa-2b-lfo-retrigger-phase` repaired that mismatch by carrying a
+leader-monotonic phase sample in runtime Dashboard automation state. Its
+focused retrigger proof passed 4/4 and the adjacent facilitator animation suite
+passed all 13 checks. The sole remaining gate is one in-person replay of `go`
+to confirm the audible and visual LFOs now remain aligned across a retrigger.
+
 ## Environment and first run
 
 - Date: 2026-07-20
@@ -58,7 +72,7 @@ production bopos, simfleet, and audition all evaluate float generators at the
 existing control tick and send only one-atom numeric engine frames. No `.pd`
 file was edited or needs changing for this repair.
 
-## Post-Pd-edit manual comparison for Bob
+## Earlier post-engine-fix diagnostic procedure
 
 Use the normal Dashboard and `demo-pd`, with one simulated Seat and master at a
 comfortable level. Do not start with the saved full-scale step.
@@ -94,5 +108,5 @@ Interpretation:
 The tied child `aa-1-audition-generator-parity` proves the relay/engine UDP
 boundary (12/12 focused checks), shared parameter generator semantics (32
 checks, zero failures), managed parameter catch-up (6/6), selector isolation,
-take-over, and generator-thread cleanup. This parent remains specifically
-blocked on an acceptable human-audible result and visual confirmation.
+take-over, and generator-thread cleanup. Clean audio is now human-confirmed;
+this parent remains blocked only on the post-fix retrigger alignment check.

@@ -121,7 +121,10 @@
         }
         offset = (hash >>> 0) / 4294967296 * periodMs;
       } else {
-        offset = parsed.phase * periodMs;
+        const phaseAtSend = Number(entry?.phase_at_send_ms);
+        offset = Number.isFinite(phaseAtSend)
+          ? ((phaseAtSend % periodMs) + periodMs) % periodMs
+          : parsed.phase * periodMs;
       }
     }
     return {elapsedMs: sinceSent + offset, periodMs};

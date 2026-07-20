@@ -259,6 +259,15 @@ class OSCBridge:
                      "shape": getattr(spec, "shape", None),
                      "free": bool(getattr(spec, "free", False)),
                      "sent_at": time.time()}
+            if spec.kind == "lfo" and not spec.free:
+                # Non-free node generators use leader monotonic time. Give the
+                # browser the same phase sample so resending an idempotent LFO
+                # (for example a looping show step) cannot restart only its
+                # visual marker at phase zero.
+                monotonic_ms = time.monotonic_ns() / 1_000_000
+                entry["phase_at_send_ms"] = (
+                    monotonic_ms + spec.phase * spec.period
+                ) % spec.period
             for seat in seats:
                 seat_entry = dict(entry)
                 if spec.kind == "fade":
