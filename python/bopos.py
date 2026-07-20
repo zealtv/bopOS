@@ -1484,6 +1484,9 @@ def switch_patch_callback(path='', tags='', args='', source=''):
         return {"status": "err", "phase": "not-found"}
     current = open(active_patch_file).read().strip() if os.path.exists(active_patch_file) else None
     print(f"Switching patch: {current} -> {patch_name}")
+    msg = OSCMessage("/notify")
+    msg.append("updatepatch", 's')
+    send_to_engine(msg)
 
     def select(name):
         temporary = active_patch_file + ".tmp"
@@ -1603,6 +1606,9 @@ _PULL_ACTIVE_PATCH_PHASES = {
 
 
 def pull_active_patch_callback(path='', tags='', args='', source=''):
+    msg = OSCMessage("/notify")
+    msg.append("updatepatch", 's')
+    send_to_engine(msg)
     script_path = os.path.join(BOPOS_DIR, 'bash/pull_active_patch.sh')
     print(f"Running: {script_path}")
     try:

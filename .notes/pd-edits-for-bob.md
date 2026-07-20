@@ -152,6 +152,9 @@ leave a compatibility copy named `bopos.osc.pd`.
   `bopos-notify`.
 - Unknown common-surface messages may be printed for diagnosis, but must not
   be re-broadcast or forwarded as admin commands.
+- Patch lifecycle callbacks now send `/notify updatepatch` before pulling or
+  switching the active patch. The reference patch's `bopos-notify` route should
+  recognize the bare `updatepatch` symbol for Bob's audible replacement cue.
 
 ### A2. Context and old globals
 
