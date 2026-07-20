@@ -1113,6 +1113,8 @@ class Dashboard:
         elif kind == "remove_item":
             await self.show_engine.step_stop(data.get("uid"))
             await self.apply_show_mutation(ws, show_model.remove_item, data.get("uid"))
+        elif kind == "duplicate_item":
+            await self.apply_show_mutation(ws, show_model.duplicate_item, data.get("uid"))
         elif kind == "add_message":
             await self.apply_show_mutation(
                 ws, show_model.add_message, data.get("step_uid"), data.get("message"))

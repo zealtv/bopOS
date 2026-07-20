@@ -14,6 +14,7 @@
   let targetDisclosure = {uid: null, open: false};
   let scrollFocusedRow = false;
   let clipboard = null;
+  let stepNameEdit = null;
   let showRowsHeight = 480;
   let showRowsScrollTop = 0;
   let rowsResizeDrag = null;
@@ -398,19 +399,60 @@
     </div>`;
   }
 
+  function selectedStructuralItem() {
+    if (focus.kind === "step") return stepByUid(focus.uid);
+    if (focus.kind === "divider") {
+      return (show.items || []).find(item => item.kind === "divider" && item.uid === focus.uid) || null;
+    }
+    return null;
+  }
+
+  function structuralAnchorUid() {
+    const selected = selectedStructuralItem();
+    if (selected) return selected.uid;
+    if (focus.kind === "message") {
+      const found = messageByUid(focus.uid);
+      return found.step ? found.step.uid : null;
+    }
+    return null;
+  }
+
+  function insertionAfterUid() {
+    const anchor = structuralAnchorUid();
+    if (anchor) return anchor;
+    const items = show.items || [];
+    return items.length ? items[items.length - 1].uid : null;
+  }
+
+  function editBarButton(action, glyph, label, fullLabel, disabled) {
+    return `<button type="button" class="show-edit-bar-button" data-edit-bar-action="${action}" title="${escapeHtml(fullLabel)}" aria-label="${escapeHtml(fullLabel)}" ${disabled ? "disabled" : ""}><span class="show-edit-bar-glyph" aria-hidden="true">${glyph}</span><span class="show-edit-bar-label">${escapeHtml(label)}</span></button>`;
+  }
+
+  function renderEditBar() {
+    const structuralDisabled = !selectedStructuralItem();
+    return `<div class="show-edit-bar" role="toolbar" aria-label="Show step list actions">
+      <div class="show-edit-bar-group">
+        ${editBarButton("add-step", "+", "Step", "Add step")}
+        ${editBarButton("add-divider", "—", "Divider", "Add divider")}
+      </div>
+      <div class="show-edit-bar-center" aria-hidden="true"></div>
+      <div class="show-edit-bar-group">
+        ${editBarButton("duplicate", "⧉", "Duplicate", "Duplicate selected", structuralDisabled)}
+        ${editBarButton("delete", "✕", "Delete", "Delete selected", structuralDisabled)}
+      </div>
+    </div>`;
+  }
+
   function renderLoadedShow() {
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
     root.innerHTML = `${renderTransport()}<div class="show-workspace">
       <div class="show-list-shell">
+        ${renderEditBar()}
         <div class="show-rows-box" style="height:${showRowsHeight}px">
           <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
         </div>
         <div class="show-rows-resize" role="separator" aria-label="Resize Show step list" aria-orientation="horizontal" tabindex="0"></div>
-        <div class="show-add-bar">
-          <button type="button" data-item-add-end="step">+ Step</button>
-          <button type="button" data-item-add-end="divider">+ Divider</button>
-        </div>
       </div>
       <aside class="show-inspector-shell" aria-label="Show inspector">${renderInspector()}</aside>
     </div>`;
@@ -432,23 +474,10 @@
     return `<h3>Inspector</h3><p class="dim">Select a step or message.</p>`;
   }
 
-  function renderArrange(item) {
-    const uid = escapeHtml(item.uid);
-    return `<section class="show-inspector-section">
-      <div class="show-inspector-subhead"><h4>Arrange</h4></div>
-      <div class="show-arrange-grid">
-        <button type="button" data-item-add="step" data-item-uid="${uid}">Step below</button>
-        <button type="button" data-item-add="divider" data-item-uid="${uid}">Divider below</button>
-        <button type="button" class="danger" data-item-delete="${uid}">Delete ${item.kind}</button>
-      </div>
-    </section>`;
-  }
-
   function renderDividerInspector(divider) {
     return `<h3>Divider inspector</h3>
       <div class="show-inspector-form" data-show-divider-editor="${escapeHtml(divider.uid)}">
         <p class="show-inspector-context">Section divider</p>
-        ${renderArrange(divider)}
       </div>`;
   }
 
@@ -462,9 +491,12 @@
     const validation = modelValidation || friendlyShowError()
       ? `<p class="show-field-error">${escapeHtml(modelValidation || friendlyShowError())}</p>` : "";
     const actionRows = actions.map((action, index) => renderThenAction(action, index)).join("");
-    return `<h3>Step inspector</h3>
+    const editingName = stepNameEdit === step.uid;
+    const nameBlock = editingName
+      ? `<input type="text" class="show-step-name-input" data-show-step-name-input="${escapeHtml(step.uid)}" autocomplete="off" placeholder="Untitled step" aria-label="Step name" value="${escapeHtml(step.alias || "")}">`
+      : `<h3 class="show-step-name" tabindex="0" data-show-step-name="${escapeHtml(step.uid)}" title="Click or press Enter/F2 to rename" aria-label="Step name: ${escapeHtml(stepLabel(step))}. Click, or press Enter or F2, to rename.">${escapeHtml(stepLabel(step))}</h3>`;
+    return `${nameBlock}
       <div class="show-inspector-form" data-show-step-editor="${escapeHtml(step.uid)}">
-        <label>alias <input id="show-step-alias" type="text" autocomplete="off" value="${escapeHtml(step.alias || "")}" placeholder="Untitled step"></label>
         <fieldset class="show-duration-fields"><legend>duration</legend>
           <label>h <input data-duration-part="h" type="number" min="0" step="1" value="${parts.h}"></label>
           <label>m <input data-duration-part="m" type="number" min="0" max="59" step="1" value="${parts.m}"></label>
@@ -479,7 +511,6 @@
           <div class="show-then-list">${actionRows}</div>
         </section>
         <button type="button" id="show-add-message">Add message</button>
-        ${renderArrange(step)}
         <output class="show-inspector-error" aria-live="polite">${escapeHtml(friendlyShowError())}</output>
       </div>`;
   }
@@ -728,6 +759,11 @@
     const oldCueLead = root.querySelector("#show-cue-lead");
     const cueLeadDraft = oldCueLead && document.activeElement === oldCueLead
       ? oldCueLead.value : null;
+    // Same rationale as cueLeadDraft: an unrelated broadcast mid-rename must
+    // not wipe an uncommitted inline step-name edit (no per-keystroke saves).
+    const oldStepNameInput = root.querySelector("[data-show-step-name-input]");
+    const stepNameDraft = oldStepNameInput && document.activeElement === oldStepNameInput
+      ? oldStepNameInput.value : null;
     const oldRowsBox = root.querySelector(".show-rows-box");
     if (oldRowsBox) {
       // Hidden tabs report a zero clientHeight during startup broadcasts;
@@ -750,6 +786,14 @@
       if (cueLead) {
         cueLead.value = cueLeadDraft;
         cueLead.focus({preventScroll: true});
+      }
+    }
+    if (stepNameEdit) {
+      const input = root.querySelector(`[data-show-step-name-input="${stepNameEdit}"]`);
+      if (input) {
+        if (stepNameDraft != null) input.value = stepNameDraft;
+        input.focus({preventScroll: true});
+        input.select();
       }
     }
     if (scrollFocusedRow) {
@@ -850,12 +894,17 @@
   }
 
   function deleteItem(uid) {
+    // Ratified (01-layout-review decisions.md): no delete confirmation for
+    // non-empty steps -- undo_show covers mistakes, QLab-style.
     const item = itemByUid(uid);
     if (!item) return;
-    if (item.kind === "step" && (item.messages || []).length
-        && !confirm(`Delete step "${stepLabel(item)}" and its ${item.messages.length} message(s)?`)) return;
     showError = "";
     ws.send("remove_item", {uid});
+  }
+
+  function deleteSelected() {
+    const item = selectedStructuralItem();
+    if (item) deleteItem(item.uid);
   }
 
   function addItem(kind, afterUid) {
@@ -864,6 +913,25 @@
       pendingItemAdd = {kind, known: new Set((show.items || []).map(item => item.uid))};
     }
     ws.send(kind === "divider" ? "add_divider" : "add_step", {after_uid: afterUid || null});
+  }
+
+  function duplicateSelected() {
+    const item = selectedStructuralItem();
+    if (!item) return;
+    showError = "";
+    pendingItemAdd = {kind: item.kind, known: new Set((show.items || []).map(existing => existing.uid))};
+    ws.send("duplicate_item", {uid: item.uid});
+  }
+
+  function commitStepName(input) {
+    if (stepNameEdit == null) return;
+    const uid = stepNameEdit;
+    stepNameEdit = null;
+    const step = stepByUid(uid);
+    if (!step) { render(); return; }
+    const value = input.value.trim();
+    if (value !== (step.alias || "").trim()) updateStep(uid, {alias: value || null});
+    else render();
   }
 
   function clearDragMarkers() {
@@ -1213,7 +1281,6 @@
     if (stepEditor) {
       const step = stepByUid(stepEditor.dataset.showStepEditor);
       if (!step) return;
-      if (event.target.id === "show-step-alias") updateStep(step.uid, {alias: event.target.value.trim() || null});
       if (event.target.matches("[data-duration-part]")) updateStep(step.uid, {duration_s: readDuration()});
       if (event.target.id === "show-play-count") updateStep(step.uid, {play_count: Math.max(1, Math.trunc(Number(event.target.value) || 1))});
       if (event.target.matches("[data-then-type]")) {
@@ -1280,20 +1347,21 @@
   });
 
   root.addEventListener("click", event => {
-    const itemAdd = event.target.closest("[data-item-add]");
-    if (itemAdd) {
-      addItem(itemAdd.dataset.itemAdd, itemAdd.dataset.itemUid);
+    const editBarAction = event.target.closest("[data-edit-bar-action]");
+    if (editBarAction) {
+      if (editBarAction.disabled) return;
+      const action = editBarAction.dataset.editBarAction;
+      if (action === "add-step") addItem("step", insertionAfterUid());
+      else if (action === "add-divider") addItem("divider", insertionAfterUid());
+      else if (action === "duplicate") duplicateSelected();
+      else if (action === "delete") deleteSelected();
       return;
     }
-    const itemAddEnd = event.target.closest("[data-item-add-end]");
-    if (itemAddEnd) {
-      const items = show.items || [];
-      addItem(itemAddEnd.dataset.itemAddEnd, items.length ? items[items.length - 1].uid : null);
-      return;
-    }
-    const itemDelete = event.target.closest("[data-item-delete]");
-    if (itemDelete) {
-      deleteItem(itemDelete.dataset.itemDelete);
+    const nameTitle = event.target.closest("[data-show-step-name]");
+    if (nameTitle) {
+      event.stopPropagation();
+      stepNameEdit = nameTitle.dataset.showStepName;
+      render();
       return;
     }
     const stepEditor = event.target.closest("[data-show-step-editor]");
@@ -1367,6 +1435,13 @@
     const meta = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
     if (event.target.closest("input, select, textarea")) return;
+    const nameTitle = event.target.closest("[data-show-step-name]");
+    if (nameTitle && ["Enter", "F2"].includes(event.key)) {
+      event.preventDefault();
+      stepNameEdit = nameTitle.dataset.showStepName;
+      render();
+      return;
+    }
     const pill = event.target.closest("[data-show-message-focus]");
     const row = event.target.closest("[data-show-step-row]");
     const divider = event.target.closest("[data-show-divider-row]");
@@ -1407,6 +1482,29 @@
       }
     }
   });
+
+  // Inline step-name editing (02-edit-bar-and-inline-step-name): Enter
+  // commits, Escape restores the prior value, blur commits. Removing the
+  // input on render (via the Enter/Escape branches below) fires a
+  // synchronous blur on the detached node; commitStepName's `stepNameEdit
+  // == null` guard makes that a no-op instead of a duplicate send.
+  root.addEventListener("keydown", event => {
+    const nameInput = event.target.closest("[data-show-step-name-input]");
+    if (!nameInput) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitStepName(nameInput);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      stepNameEdit = null;
+      render();
+    }
+  });
+
+  root.addEventListener("blur", event => {
+    if (!event.target.matches?.("[data-show-step-name-input]")) return;
+    commitStepName(event.target);
+  }, true);
 
   root.addEventListener("submit", event => {
     if (event.target.id !== "show-create-form") return;

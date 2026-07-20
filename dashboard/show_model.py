@@ -16,6 +16,7 @@ This module is deliberately separable: it never imports `server` or
 playback engine (stitch 3) without pulling in the WS/OSC surface.
 """
 
+import copy
 import json
 import math
 import os
@@ -409,6 +410,32 @@ def remove_item(show, uid):
     # playback engine must stop it before this mutation lands (design note
     # sec 3, remove_item row) -- there is no playback state to stop yet.
     return {**show, "items": items}, removed, None
+
+
+def duplicate_item(show, uid):
+    """Clone a step or divider in place, minting fresh uids throughout.
+
+    02-edit-bar-and-inline-step-name / decisions.md: the edit bar's Duplicate
+    action is a real model operation, not a client-side copy -- it mints a
+    fresh uid for the item and (for a step) every nested message, and inserts
+    the clone immediately after the original. `then_actions` (including
+    `goto` targets) are copied verbatim: they reference existing step uids
+    that remain valid post-duplication, so nothing is rewritten.
+    """
+    items = list(show["items"])
+    position = next((i for i, item in enumerate(items) if item["uid"] == uid), None)
+    if position is None:
+        return show, None, "Item not found."
+    duplicate = copy.deepcopy(items[position])
+    duplicate["uid"] = mint_uid(_item_uids(show))
+    if duplicate["kind"] == "step":
+        message_uids = _message_uids(show)
+        for message in duplicate["messages"]:
+            fresh_uid = mint_uid(message_uids)
+            message_uids.add(fresh_uid)
+            message["uid"] = fresh_uid
+    items.insert(position + 1, duplicate)
+    return {**show, "items": items}, duplicate, None
 
 
 def add_message(show, step_uid, message):
