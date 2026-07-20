@@ -586,7 +586,8 @@
           const steps = Math.max(2, Math.min(16, Math.ceil(segment.duration.ms / 100)));
           for (let index = 1; index <= steps; index += 1) {
             const fraction = index / steps;
-            const bent = window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
+            // saw wraps at phase 1 (periodic); a one-shot ramp must end at 1.
+            const bent = fraction >= 1 ? 1 : window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
             points.push([(time + segment.duration.ms * fraction) / duration,
               start + (segment.value - start) * bent]);
           }

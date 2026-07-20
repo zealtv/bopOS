@@ -144,7 +144,8 @@ function automationModel(entry, declaration, seat, catchupValue) {
       const steps = Math.max(1, Math.min(12, Math.ceil(duration / 80)));
       for (let index = 1; index <= steps; index += 1) {
         const fraction = index / steps;
-        const bent = window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
+        // saw wraps at phase 1 (periodic); a one-shot ramp must end at 1.
+        const bent = fraction >= 1 ? 1 : window.ParamSpec.shapeFraction("saw", fraction, parsed.curve);
         const value = start + (segment.value - start) * bent;
         const time = (offset + duration * fraction) / total * 100;
         samples.push(`${window.ParamSpec.position(value, declaration).toFixed(5)} ${time.toFixed(3)}%`);
