@@ -172,13 +172,13 @@ with tempfile.TemporaryDirectory(prefix="bopos-audition-automation-") as temp:
         fade = frames_until(
             engines[0], lambda frame: frame[0] == "/p/level"
             and len(frame[1]) == 1 and abs(frame[1][0] - 1.0) < 1e-6)
-        check("fade emits only numeric scalar/ramp primitives and reaches target",
+        check("fade emits only progressive numeric scalars and reaches target",
               bool(fade) and all(frame[0] == "/p/level"
-                                 and len(frame[1]) in (1, 2)
+                                 and len(frame[1]) == 1
                                  and all(isinstance(value, (int, float))
                                          for value in frame[1])
                                  for frame in fade)
-              and any(len(frame[1]) == 2 for frame in fade)
+              and len(fade) >= 3
               and abs(fade[-1][1][0] - 1.0) < 1e-6, repr(fade))
 
         send("/all/p/level", "lfo", "saw", 0.0, 1.0, "200ms", "p:0")
@@ -187,7 +187,7 @@ with tempfile.TemporaryDirectory(prefix="bopos-audition-automation-") as temp:
                    for node_frames in lfos]
         check("LFO expands to multiple numeric frames, never grammar tokens",
               all(len(node_frames) >= 2 and all(
-                  len(frame[1]) == 2
+                  len(frame[1]) == 1
                   and all(isinstance(value, (int, float)) for value in frame[1])
                   for frame in node_frames) for node_frames in numeric), repr(numeric))
         first_values = [node_frames[0][1][0] for node_frames in numeric]
@@ -202,7 +202,7 @@ with tempfile.TemporaryDirectory(prefix="bopos-audition-automation-") as temp:
         node_two = frames_until(engines[1], lambda frame: frame[0] == "/p/level", 0.12)
         check("each node owns independent generator slot state",
               any(scalar_near(frame, "/p/level", 0.4) for frame in node_one)
-              and any(len(frame[1]) == 2 for frame in node_two),
+              and len(node_two) >= 1 and all(len(frame[1]) == 1 for frame in node_two),
               repr((node_one, node_two)))
 
         send("/2/p/level", "stop")

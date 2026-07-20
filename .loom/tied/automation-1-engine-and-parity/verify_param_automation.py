@@ -107,24 +107,25 @@ events = []
 engine = GeneratorEngine(lambda identity, args: events.append((identity, args)), Synced())
 try:
     engine.apply("linear", parse_message([0, 2, 70], "f"), {"type": "f"})
-    check("float fade emits engine go-to pair",
-          len(events) >= 2 and events[0] == ("linear", [0.0])
-          and events[1][0] == "linear" and len(events[1][1]) == 2,
-          repr(events))
     wait_until(lambda: any(identity == "linear" and args == [2.0]
                            for identity, args in events))
+    linear = [args for identity, args in events if identity == "linear"]
+    check("float fade is decomposed to progressive scalar engine frames",
+          len(linear) >= 3 and linear[0] == [0.0]
+          and all(len(args) == 1 for args in linear)
+          and all(left[0] <= right[0] for left, right in zip(linear, linear[1:])),
+          repr(linear))
     check("completed float fade becomes constant emission",
           any(identity == "linear" and args == [2.0] for identity, args in events),
           repr(events))
 
     before = len(events)
     engine.apply("curve", parse_message([0, 1, 120, "c:2"], "f"), {"type": "f"})
-    wait_until(lambda: len([1 for identity, args in events[before:]
-                            if identity == "curve" and len(args) == 2]) >= 3)
-    curved_pairs = [args for identity, args in events[before:]
-                    if identity == "curve" and len(args) == 2]
-    check("curved fade subdivides into short go-to pairs", len(curved_pairs) >= 3,
-          repr(curved_pairs))
+    wait_until(lambda: any(identity == "curve" and args == [1.0]
+                           for identity, args in events[before:]))
+    curved = [args for identity, args in events[before:] if identity == "curve"]
+    check("curved fade is decomposed to scalar control ticks",
+          len(curved) >= 4 and all(len(args) == 1 for args in curved), repr(curved))
 
     before = len(events)
     engine.apply("up", parse_message([0, 5, 140], "i"), {"type": "i"})

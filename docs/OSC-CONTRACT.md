@@ -265,11 +265,11 @@ sends a plain value and thereby replaces the automation.
   not replay-safe mid-flight, so the catch-up source sends the **computed
   current value** (a constant), and a completed fade's destination is the
   stored full-state value.
-- **Decomposition lives in bopos.py, never in engines**: engines receive
-  only the existing selector-free go-to-x-in-y-ms primitive at segment
-  boundaries (and ~30–50 Hz smoothing segments for LFOs). 64-bit time and
-  absolute clocks never enter engines (§12); existing patches need zero
-  changes. This is the `/pt` node-side-decomposition precedent, not the
+- **Decomposition lives in bopos.py, never in engines**: bopOS evaluates every
+  generator at a ~30–50 Hz control tick and engines receive only ordinary
+  selector-free scalar `/p/*` values. Duration atoms, grammar tokens, 64-bit
+  time, and absolute clocks never enter engines (§12); existing scalar patch
+  consumers remain unchanged. This is the `/pt` node-side-decomposition precedent, not the
   reverted dashboard-computed `/p/gain` composition (§14).
 
 **Deferred, noted not decided:** string and mixed-array addresses become a
@@ -808,5 +808,5 @@ reasoning.
 | 1.5 am. | 2026-07-16 | Seat groups: canonical `g<id>` selectors route from node-local persisted Seat membership, synchronized by an attributable additive full-state envelope. | `.loom/tied/seat-groups-0-design/` |
 | 1.6 | 2026-07-16 | Asset-inventory amendment (design 2026-07-15): nodes expose durable observed asset-slot facts, including canonical fingerprints once the nonblocking cache resolves. Also carries the additive unattended-update outcome receipts (§7). | `.lore/items/2026-07-15-asset-management-direction/`; stitch `11a-device-asset-inventory` |
 | 1.7 | 2026-07-17 | Patch-admin-surface amendment (Bob, 2026-07-17): bounded engine-sent `/admin <action>` request (§4.2) softens the "administrative commands never cross" rule for `update-patch`, `update-bopos`, `shutdown`, `reboot`; run context additively carries `version` and `patch-fingerprint` to the engine (§4.2). | `.loom/tied/1-contract-amendment/` |
-| 1.8 | 2026-07-19 | Parameter-automation grammar (§3.2): generator-slot model on numeric `/p/*` params — constants, string-unit timed fades, `loop`, `stop`, clock-anchored idempotent LFOs, `c:`/`p:`/`f` option shorthand, floor-and-emit-per-crossing ints, fades catching up as computed constants. Decomposition in bopos.py; engines and existing patches unchanged. String/mixed-array kind explicitly deferred (name and plane open). | `.lore/items/2026-07-19-param-automation-design-ratified/`; stitch `automation-0-design-ratification` |
+| 1.8 | 2026-07-19 | Parameter-automation grammar (§3.2): generator-slot model on numeric `/p/*` params — constants, string-unit timed fades, `loop`, `stop`, clock-anchored idempotent LFOs, `c:`/`p:`/`f` option shorthand, floor-and-emit-per-crossing ints, fades catching up as computed constants. Decomposition in bopos.py; Bob's 2026-07-20 audible ruling clarifies that engines receive scalar control ticks only, so existing patches remain unchanged. String/mixed-array kind explicitly deferred (name and plane open). | `.lore/items/2026-07-19-param-automation-design-ratified/`; stitches `automation-0-design-ratification`, `aa-2a-scalar-engine-frames` |
 | 1.8 am. | 2026-07-19 | Patch-manifest presentation tidy (§8): promotion key renamed `facilitator` → `dashboard` with compatible normalization and conflicting dual-key rejection; retired `group` is ignored on load and stripped on save. | stitch `p7-patch-tab-tidy` |

@@ -242,13 +242,12 @@ class GeneratorEngine:
     def _fade_events(self, segments, curve):
         events = []
         for start, target, duration, offset in segments:
-            count = 1 if curve == 0 else max(1, int(math.ceil(duration / TICK_NS)))
+            count = max(1, int(math.ceil(duration / TICK_NS)))
             for index in range(count):
                 frac = (index + 1) / count
                 value = start + (target - start) * _shape(frac, curve)
-                due = offset + int(duration * index / count)
-                step_ms = (duration / count) / 1e6
-                events.append((due, value, step_ms))
+                due = offset + int(duration * (index + 1) / count)
+                events.append((due, value))
         return events
 
     def _begin_fade(self, slot, now):
@@ -260,10 +259,6 @@ class GeneratorEngine:
         else:
             if slot["explicit"]:
                 result.append([slot["segments"][0][0]])
-            if slot["events"]:
-                _due, value, duration = slot["events"][0]
-                result.append([value, duration])
-                slot["emission_index"] = 1
             slot["next_due"] = self._next_float_due(slot)
         return result
 
@@ -282,7 +277,7 @@ class GeneratorEngine:
             slot["next_due"] = now + TICK_NS
             return [[int(value)]]
         slot["next_due"] = now + TICK_NS
-        return [[self._lfo_value(slot, now + TICK_NS), TICK_NS / 1e6]]
+        return [[self._lfo_value(slot, now)]]
 
     def _leader_now(self, slot, now):
         if slot["free"]:
@@ -374,8 +369,8 @@ class GeneratorEngine:
         else:
             while (slot["emission_index"] < len(slot["events"])
                    and now >= slot["start_ns"] + slot["events"][slot["emission_index"]][0]):
-                _due, value, duration = slot["events"][slot["emission_index"]]
-                result.append([value, duration])
+                _due, value = slot["events"][slot["emission_index"]]
+                result.append([value])
                 slot["emission_index"] += 1
             slot["next_due"] = self._next_float_due(slot)
         if now >= slot["start_ns"] + slot["total_ns"]:
@@ -392,8 +387,6 @@ class GeneratorEngine:
                         result.append([start])
                     result.extend(self._begin_fade(slot, slot["start_ns"]))
             else:
-                if slot["type"] == "f":
-                    result.append([final])
                 param_type = slot["type"]
                 slot.clear()
                 slot.update({"kind": "constant", "type": param_type,
@@ -406,7 +399,7 @@ class GeneratorEngine:
             result = self._crossings(slot["last_int"], current)
             slot["last_int"] = current
         else:
-            result = [[self._lfo_value(slot, now + TICK_NS), TICK_NS / 1e6]]
+            result = [[self._lfo_value(slot, now)]]
         slot["next_due"] = now + TICK_NS
         return result
 
