@@ -175,9 +175,13 @@ Everything else is `.waiting` for a reason stated in its stitch:
   OSC terminals, per the tied `01-layout-review` ratified decisions) and
   `engine-group-context` (groups on the engine-context surface; Bob still
   owes the `bopos~.pd` receiver edit in `.notes/pd-edits-for-bob.md`) are
-  all tied. Every remaining loom item is Bob- or hardware-gated; next
-  software work is the host-loom patch-workflow documentation/starter-kit
-  close-out (stage 12). See `.notes/handoff-2026-07-20-autopilot.md`.
+  all tied. Bob's same-day chrome/density braindump (lore
+  `2026-07-20-show-chrome-density-braindump`) authorizes the
+  `18-show-chrome-density` thread: UX review gate (`01`, Bob ratifies) →
+  inspector sidebar → collapsible steps → named section dividers → compact
+  chrome. That thread is the next software work, then the host-loom
+  patch-workflow documentation/starter-kit close-out (stage 12). See
+  `.notes/handoff-2026-07-20-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
