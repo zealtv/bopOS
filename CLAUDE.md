@@ -175,16 +175,17 @@ Everything else is `.waiting` for a reason stated in its stitch:
   OSC terminals, per the tied `01-layout-review` ratified decisions) and
   `engine-group-context` (groups on the engine-context surface; Bob still
   owes the `bopos~.pd` receiver edit in `.notes/pd-edits-for-bob.md`) are
-  all tied. Bob's same-day chrome/density braindump (lore
-  `2026-07-20-show-chrome-density-braindump`) authorizes the
-  `18-show-chrome-density` thread. Bob paused the UX review gate (`01`)
-  and collapsible steps (`03`) pending the lanes/scenes design (collapse
-  may not survive a multi-lane grid); the live order is inspector sidebar
-  (`02`) → named section dividers (`04`) → compact chrome (`05`), with
-  detail decisions made in-stitch with Bob. That thread is the next
-  software work, then the host-loom
-  patch-workflow documentation/starter-kit close-out (stage 12). See
-  `.notes/handoff-2026-07-20-autopilot.md`.
+  all tied. The `18-show-chrome-density` workable stitches are also
+  **tied** (2026-07-21 autopilot): the collapsible inspector sidebar
+  (`02`), named section dividers + the unified click-to-edit title
+  pattern (`04`), and the Show-tab-only compact chrome pass (`05`,
+  `--chrome-*` variables). Still waiting on that thread: `01`/`03`
+  (paused pending the lanes/scenes design — collapse may not survive a
+  multi-lane grid) and `06-chrome-app-wide-assessment` (Bob lives with
+  the Show chrome, then rules app-wide vs staged adoption). Next
+  software work is the host-loom patch-workflow
+  documentation/starter-kit close-out (stage 12). See
+  `.notes/handoff-2026-07-21-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
