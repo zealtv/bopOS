@@ -31,8 +31,8 @@ Run a simulated fleet to play against (terminal 2):
 
 Then open:
 
-- **<http://localhost:8080/>** — Dashboard, Seats, Devices, Patches, Assets,
-  and Show tabs. The landed controls cover device inspection, spatial
+- **<http://localhost:8080/>** — Show, Dashboard, Seats, Devices, Patches,
+  and Assets tabs. The landed controls cover device inspection, spatial
   authoring, patch editing, host-to-node distribution, discovery/assignment,
   synced named cues, venues, presets, single-device asset delivery, and
   show authoring/playback (see "The Show tab" below).

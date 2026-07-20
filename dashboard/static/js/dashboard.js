@@ -54,11 +54,11 @@ const GROUP_SLOTS = [
   {colour:"#00B98B", pattern:"dot"},
   {colour:"#CC79A7", pattern:"dash-dot"},
 ];
-const TAB_NAMES = ["dashboard", "seats", "devices", "patches", "assets", "show"];
-let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "dashboard";
+const TAB_NAMES = ["show", "dashboard", "seats", "devices", "patches", "assets"];
+let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "show";
 
 function activateTab(name, updateHash=true) {
-  if (!TAB_NAMES.includes(name)) name="dashboard";
+  if (!TAB_NAMES.includes(name)) name="show";
   activeTab=name;
   document.querySelectorAll("[data-tab]").forEach(button=>{
     const active=button.dataset.tab===name;
