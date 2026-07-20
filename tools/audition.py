@@ -195,7 +195,9 @@ class AuditionRig:
                 f"bopos-context patch {os.path.basename(patch_dir)}; "
                 f"bopos-context assets {os.path.join(REPO_DIR, 'assets')}; "
                 f"bopos-context version {context['version']}; "
-                f"bopos-context patch-fingerprint {context['patch_fingerprint']}"
+                f"bopos-context patch-fingerprint {context['patch_fingerprint']}; "
+                f"bopos-context groups "
+                f"{' '.join(str(g) for g in group_protocol.wire_groups(node.groups))}"
             )
             gui = [] if getattr(self.args, "edit", False) else ["-nogui"]
             return [self.args.pd_bin, *gui, *backend, "-path",
@@ -221,6 +223,8 @@ class AuditionRig:
                 "BOPOS_RUN_ID": context["run_id"],
                 "BOPOS_VERSION": context["version"],
                 "BOPOS_PATCH_FINGERPRINT": context["patch_fingerprint"],
+                "BOPOS_GROUPS": " ".join(
+                    str(g) for g in group_protocol.wire_groups(node.groups)),
             })
             node.process = subprocess.Popen(command, env=env, start_new_session=True)
             print(f"audition: id={node.device_id} port={node.engine_port} "
@@ -294,6 +298,7 @@ class AuditionRig:
             node.device_id = -1
             node.positions = ()
             self.send_id(node)
+            self.send_groups(node)
             self.send_matrix(node)
             self.send_heartbeat(node)
         else:
@@ -348,6 +353,12 @@ class AuditionRig:
             builder.add_arg(value)
         self.sock.sendto(builder.build().dgram,
                          (self.local_target, node.engine_port))
+
+    def send_groups(self, node):
+        # Mirrors bopos.py's send_groups_to_engine: full, sentinel-shaped
+        # membership list on every successful membership change (engine
+        # group-context amendment, 2026-07-20).
+        self.send_engine(node, "/groups", group_protocol.wire_groups(node.groups))
 
     def send_point_values(self, node, changed, removed=()):
         if not node.positions:
@@ -472,12 +483,15 @@ class AuditionRig:
             if (node.device_id == device_id and node.name == name
                     and node.positions == positions):
                 continue
-            if node.device_id != device_id:
+            changing_seat = node.device_id != device_id
+            if changing_seat:
                 node.groups = ()
             node.device_id = device_id
             node.name = name
             node.positions = positions
             self.send_id(node)
+            if changing_seat:
+                self.send_groups(node)
             self.send_matrix(node)
             self.send_point_values(node, node.points)
             self.send_heartbeat(node)
@@ -533,6 +547,7 @@ class AuditionRig:
                 if node.uid != message.params[0]:
                     continue
                 node.groups = memberships
+                self.send_groups(node)
                 self.sock.sendto(osc_datagram("/os/groups", node.uid, *memberships),
                                  (reply_host, self.args.report_port))
             return

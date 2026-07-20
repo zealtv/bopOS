@@ -27,6 +27,15 @@ The context is:
 Both version and patch_fingerprint are strings end-to-end (PD's OSC floats
 are 32-bit; contract sec 4.2, 12).
 
+- groups: the node's current Seat-group membership as OSC ints, in canonical
+  sorted order -- or the single sentinel -1 when the node has none (engine
+  group-context amendment, 2026-07-20; contract sec 4.2). Read straight off
+  the same on-disk persistence store bopos.py owns (state/store/groups), so
+  launch reflects durable state even though this module runs as its own
+  short-lived process. bopos.py re-pushes the same shape to the live engine
+  after every successful membership change; this module only covers the
+  launch delivery.
+
 Patch name and assets root complete the delivered context; the launcher
 already resolves those from `active_patch.txt` and the framework assets
 slot, and hands them over in the same launch step.
@@ -40,6 +49,8 @@ import sys
 import time
 
 import identity
+import groups as group_protocol
+from store import Store
 
 SEED_SPAN = 1_000_000  # exclusive upper bound; keeps seeds exact as float32
 _SAFE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -90,6 +101,20 @@ def resolve_patch_fingerprint(patch_path):
     return info["fingerprint"] or "unknown"
 
 
+def resolve_groups(repo_dir=None):
+    """Persisted Seat-group membership as wire ints, sentinel -1 when empty.
+
+    Reads the same on-disk store bopos.py owns (state/store/groups) rather
+    than going through the live process -- this module always runs as its
+    own short-lived subprocess at launch. A missing or corrupt store
+    degrades to no-membership, matching stored_group_ids' fail-closed read.
+    """
+    repo_dir = repo_dir or REPO_DIR
+    store = Store(os.path.join(repo_dir, "state", "store"))
+    memberships = group_protocol.stored_group_ids(store.get("groups"))
+    return list(group_protocol.wire_groups(memberships))
+
+
 def generate(patch=None, now=None, repo_dir=None, patches_dir=None):
     """Return the full launch-delivered run context for one engine launch."""
     seed = random.randrange(SEED_SPAN)
@@ -105,6 +130,7 @@ def generate(patch=None, now=None, repo_dir=None, patches_dir=None):
         "run_id": f"{prefix}{stamp}-{seed:06d}",
         "version": resolve_version(repo_dir),
         "patch_fingerprint": resolve_patch_fingerprint(patch_path),
+        "groups": resolve_groups(repo_dir),
     }
 
 
@@ -121,6 +147,7 @@ def main():
     print(f"BOPOS_RUN_ID='{context['run_id']}'")
     print(f"BOPOS_VERSION='{context['version']}'")
     print(f"BOPOS_PATCH_FINGERPRINT='{context['patch_fingerprint']}'")
+    print(f"BOPOS_GROUPS='{' '.join(str(g) for g in context['groups'])}'")
     return 0
 
 

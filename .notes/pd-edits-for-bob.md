@@ -1,5 +1,51 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-20 — Seat-group membership on the bopos-context bus (engine group-context amendment)
+
+The Python side is live and verified: `bopos.py` now pushes the node's
+current Seat-group membership to the engine at launch (via `-send`, same as
+seed/run-id/version/patch-fingerprint) and again after every successful,
+durably-persisted membership change while the engine is running (group
+sync, and the durable clear on assignment-to-a-different-Seat and on
+unassignment). Live updates arrive as a plain OSC message on the engine
+port (6661): `/groups <int...>` — one selector-stripped message, exactly
+like `/id <n>` already does. Shape is sorted OSC ints in canonical order,
+or the single sentinel integer `-1` alone when the node has no membership
+(never an empty arg list).
+
+The wire target is the same `bopos-context` bus other context values land
+on, with shape `bopos-context groups <int...>`. That part needs a `.pd`
+edit — agents don't touch `.pd` files.
+
+**Where:** `pd/bopos~.pd` (root canvas), the `[route id os audition]`
+object at roughly (51, 225), which is what turns the incoming `/id <n>`
+message into `id $1` on `[s bopos-context]`.
+
+**What to change**, mirroring the existing `id` branch:
+
+1. Extend the route list: `[route id os audition]` → `[route id os
+   audition groups]`. This adds outlet 3 for a `groups` match and pushes
+   the reject/passthrough outlet from index 3 to index 4.
+2. Rewire the existing reject connection (currently outlet 3 → `[route p
+   pt cue notify]`) to come from the new outlet 4 instead — the `id`/`os`/
+   `audition` matching behavior must stay exactly as it is today.
+3. New outlet 3 (the `groups` match) carries the list of ints after
+   `oscparse` + `[list trim]` has already stripped the leading `groups`
+   address token — i.e. just `<int...>`, or `-1` alone. Because the arg
+   count varies, reformat with `[list prepend groups]` (the same technique
+   already used for `assets` in the `build-assets-path` subpatch) rather
+   than a fixed-arity `msg` box like the `id $1` one. Feed that into the
+   existing `[s bopos-context]`.
+
+Net result: a patch that already has `[r bopos-context]` → `[route seed
+run-id patch assets id version patch-fingerprint]` can extend its route
+list with `groups` to receive `<int...>` (or `-1`) both at launch and live
+on every membership change, with no other wiring changes.
+
+No consuming reference patch (`demo-pd`, `bonks-pd`) currently reads
+`groups` off the bus; wiring a route arm there is optional/demonstrative,
+not required for the framework side to work.
+
 ## 2026-07-17 — engine admin requests + version context (contract v1.7)
 
 The v1.7 amendment adds a bounded engine-sent admin surface. The Python side

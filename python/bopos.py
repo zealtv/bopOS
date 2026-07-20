@@ -590,6 +590,25 @@ def set_device_hostname(hostname, reply_socket, requester, state=None):
     return True
 
 
+def send_groups_to_engine(state=None):
+    """Push the node's current Seat-group membership to the live engine.
+
+    Engine group-context amendment (2026-07-20): a full, sentinel-shaped
+    list on every successful membership change, mirroring the launch
+    delivery in runcontext.py/start-engine.sh. Callers only invoke this
+    after durably committing the new membership, so a rejected or
+    failed-to-persist change never reaches here.
+    """
+    state = state or node_state
+    msg = OSCMessage("/groups")
+    for group_id in group_protocol.wire_groups(state.groups):
+        msg.append(group_id, 'i')
+    try:
+        send_to_engine(msg)
+    except Exception as error:
+        print("WARNING: groups send to engine failed:", error)
+
+
 def typed_append(msg, value):
     if isinstance(value, bool):
         msg.append(int(value), 'i')
@@ -633,6 +652,7 @@ def apply_assign(args, state=None):
         if not state.store.put("groups", []):
             return False
         state.groups = ()
+        send_groups_to_engine(state)
     if not state.store.put("assignment", [new_id, name] + positions):
         return False
     state.id = new_id
@@ -661,6 +681,7 @@ def apply_unassign(state=None):
     if not state.store.put("groups", []):
         return False
     state.groups = ()
+    send_groups_to_engine(state)
     if not state.store.put("assignment", [-1, name]):
         return False
     state.id = -1
@@ -685,6 +706,7 @@ def apply_groups(args, reply_socket, requester, state=None):
     if memberships is None or not state.store.put("groups", memberships):
         return False
     state.groups = memberships
+    send_groups_to_engine(state)
     msg = OSCMessage("/os/groups")
     msg.append(str(state.uid), 's')
     for group_id in memberships:

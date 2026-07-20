@@ -41,6 +41,17 @@ def group_selector(selector):
     return value if value <= INT32_MAX else None
 
 
+def wire_groups(memberships):
+    """OSC ints for engine-context delivery: sorted ids, or sentinel ``(-1,)``.
+
+    The engine context never carries an empty argument list for "no
+    membership" -- the single integer -1 is the one wire spelling (engine
+    group-context amendment, 2026-07-20).
+    """
+    memberships = tuple(memberships)
+    return memberships if memberships else (-1,)
+
+
 def selector_matches(selector, seat_id, memberships=()):
     """Match ``all``, canonical signed-int32 Seat IDs, or group selectors."""
     if selector == "all":

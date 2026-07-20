@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.8** — base ratified 2026-07-07; latest revision 2026-07-19. The
+**Version 1.8** — base ratified 2026-07-07; latest revision 2026-07-20. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -370,6 +370,12 @@ selector-stripped:
 /pt <point> <element> <value>  shaped point scalars (§4.1)
 /cue <id>                      scheduled relative fire (§3.1)
 /notify <event>                framework notifications (identify, update, …)
+/groups <int...>               Seat-group membership: sorted ids, or the
+                               sentinel -1 alone for no membership (engine
+                               group-context amendment, 2026-07-20 — pushed
+                               after every durable membership change; see
+                               the run-context paragraph in §4 for the
+                               launch delivery)
 ```
 
 Engine-sent, localhost 7770, requests plus a bounded admin exception (Bob,
@@ -420,6 +426,26 @@ v1.4 sense), or the literal string `unknown` when it cannot be resolved at
 launch. Both are strings end-to-end — never floats (PD's OSC floats are
 32-bit; see the house rule in `CLAUDE.md`). Patch name is already delivered
 via `bopos-context patch <name>` above; this is additive.
+
+**Seat-group membership (engine group-context amendment, 2026-07-20):** run
+context additionally carries the node's current Seat-group membership,
+delivered at launch alongside seed/run-id/patch/assets/version/
+patch-fingerprint, and re-delivered in full after every successful,
+durably-persisted membership change — including the durable clear that
+assignment to a different Seat and unassignment both perform (§5). PD
+receives `bopos-context groups <int...>` at launch via `-send`, then the
+same shape live via `/groups <int...>` on the engine port (§4.2) whenever
+membership changes while the engine is running; non-PD engines receive
+`BOPOS_GROUPS` (space-separated ints) in the launch environment and the
+same `/groups` wire message for live updates, keeping the boundary
+equivalent across engines. Group IDs are OSC integers in canonical sorted
+order; the single sentinel integer `-1` is the sole wire spelling for no
+membership — never an empty argument list. Only successfully applied
+durable state reaches the engine: a rejected or failed-to-persist
+membership change leaves the engine's last-known groups untouched, and a
+Seat's membership never leaks across an assignment/unassignment transition
+because the clear is durably committed before the new identity becomes
+routable.
 
 **Civil time (amended 2026-07-12):** absolute wall-clock timestamps must not
 be sent as OSC floats or used by engines for synchronized cue timing; bopOS
@@ -810,3 +836,4 @@ reasoning.
 | 1.7 | 2026-07-17 | Patch-admin-surface amendment (Bob, 2026-07-17): bounded engine-sent `/admin <action>` request (§4.2) softens the "administrative commands never cross" rule for `update-patch`, `update-bopos`, `shutdown`, `reboot`; run context additively carries `version` and `patch-fingerprint` to the engine (§4.2). | `.loom/tied/1-contract-amendment/` |
 | 1.8 | 2026-07-19 | Parameter-automation grammar (§3.2): generator-slot model on numeric `/p/*` params — constants, string-unit timed fades, `loop`, `stop`, clock-anchored idempotent LFOs, `c:`/`p:`/`f` option shorthand, floor-and-emit-per-crossing ints, fades catching up as computed constants. Decomposition in bopos.py; Bob's 2026-07-20 audible ruling clarifies that engines receive scalar control ticks only, so existing patches remain unchanged. String/mixed-array kind explicitly deferred (name and plane open). | `.lore/items/2026-07-19-param-automation-design-ratified/`; stitches `automation-0-design-ratification`, `aa-2a-scalar-engine-frames` |
 | 1.8 am. | 2026-07-19 | Patch-manifest presentation tidy (§8): promotion key renamed `facilitator` → `dashboard` with compatible normalization and conflicting dual-key rejection; retired `group` is ignored on load and stripped on save. | stitch `p7-patch-tab-tidy` |
+| 1.8 am. | 2026-07-20 | Engine group-context amendment (§4, §4.2): the node's current Seat-group membership joins run context, delivered at launch and re-delivered after every successful, durably-persisted membership change (including assignment/unassignment clears). Wire shape is sorted OSC ints or the single sentinel `-1`; PD's `bopos-context groups <int...>` bus and the new `/groups <int...>` engine-received term keep non-PD engines boundary-equivalent via `BOPOS_GROUPS` and the same live `/groups` message. Purely additive — no existing term changes shape. | stitch `engine-group-context` |
