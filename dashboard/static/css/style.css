@@ -118,3 +118,10 @@ header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24
 .asset-inventory-note.unknown,.group-map-message,.group-limit{border-color:var(--status-warn-border);background:var(--status-warn-bg);color:var(--status-warn-text)}
 .asset-inventory-note.current{border-color:var(--status-ok-border);background:var(--status-ok-bg);color:var(--status-ok-text)}
 .asset-extra{border-color:var(--status-neutral-border)}
+
+/* OSC logs remain terminal-dark in both themes, so their text is explicit. */
+:root{--console-text:#e8edf1}
+@media (prefers-color-scheme:light){:root{--console-text:#f1edf5}}
+:root[data-theme=dark]{--console-text:#e8edf1}
+:root[data-theme=light]{--console-text:#f1edf5}
+.show-console-log{color:var(--console-text)}
