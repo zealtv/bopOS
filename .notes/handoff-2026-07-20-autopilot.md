@@ -34,14 +34,50 @@ committed on `main`.
   29-check suite plus unmodified re-runs of the tied console, compact-row,
   and edit-bar suites.
 
-## Loom state
+## Addendum — 18-show-chrome-density laid out after the sweep
 
-No loose ends, no claims. Everything remaining is `.waiting` (Bob- or
-hardware-gated): asset-fleet-distribution, sync-4, dashboard-terminology
-review, framework-version-management, pi-zero-performance, scene-sequencing,
-spatial-3-rig-sweep. Next software work is the host-loom patch-workflow
-documentation/starter-kit close-out
-(`~/repos/.loom/threads/patch-workflow-friction/`).
+Bob's follow-up braindump (kept as lore
+`2026-07-20-show-chrome-density-braindump`, verbatim in its `content/`)
+authorized a new thread, laid out and then amended by two further rulings:
+
+- `c114b58` — thread created: UX review gate, inspector sidebar,
+  collapsible steps, named section dividers, compact chrome.
+- `c4ad10e` — **Bob paused `01` (UX review) and `03` (collapsible steps)**
+  until lanes/scenes are clearer: collapse might work in a single column
+  but perhaps not a multi-lane grid. Both are `.waiting` with the reason in
+  their instructions; revisit alongside
+  `scene-sequencing/show-lanes-and-scenes-design.waiting`. The surviving
+  stitches were decoupled from the review gate and carry their own
+  in-stitch decision points (put contestable details to Bob before building
+  past them).
+- `96734ac` — **Bob ruled the naming pattern (2026-07-21):** the step
+  inspector's click-to-edit title is the pattern; `04` applies it to the
+  divider inspector AND the message inspector's alias (derived label as
+  placeholder). No inline editing on the divider row. Persisted `alias`
+  fields and pill-colour hashing unchanged.
+
+## Loom state / next session
+
+Live loose ends, in order: `18-show-chrome-density/02-inspector-sidebar`
+(collapsible inspector sidebar with its own space — fixes the
+inspector-height-pushes-terminals annoyance; core behavior already
+authorized) → `04-named-section-dividers` (divider alias + flanking-line
+styling + the click-to-edit pattern rollout) → `05-compact-chrome` (scope
+Show-tab vs app-wide is Bob's call, ask in-stitch). Standing context:
+desktop-first; facilitator tab excluded from chrome changes; current
+mobile sizing fine, don't regress it.
+
+Everything else is `.waiting` (Bob- or hardware-gated):
+asset-fleet-distribution, sync-4, dashboard-terminology-review,
+framework-version-management, pi-zero-performance, scene-sequencing,
+spatial-3-rig-sweep, plus the two paused chrome stitches above. After the
+chrome thread: the host-loom patch-workflow documentation/starter-kit
+close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
+
+Session pattern that worked (repeat it): orchestrator claims/ties/commits
+and independently re-runs each stitch's verifier before tying; cheap
+(Sonnet) agents implement against the stitch instructions; design
+ratification via direct questions to Bob when he's live.
 
 ## Known minor pre-existing issues (not from this session)
 
