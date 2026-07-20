@@ -170,12 +170,14 @@ Everything else is `.waiting` for a reason stated in its stitch:
   Dashboard live controls, diagnostic density, Show polish, and parameter
   automation are complete, and Bob's 2026-07-20 feedback pass landed
   `17-automation-polish` (fully tied) plus `theme-0-bop-palette-repass`.
-  Next software work, in order: `theme-1-surfaces-and-toggle` (light
-  theme + toggle; instructions in the stitch) →
-  `dashboard-loading-spinner` → `live-param-catchup` /
-  `notify-patch-lifecycle` → the host-loom patch-workflow
-  documentation/starter-kit close-out (stage 12). See
-  `.notes/handoff-2026-07-20-feedback-pass.md`.
+  The theme/spinner/catchup run and the 2026-07-20 autopilot session's
+  `show-layout-polish` thread (edit bar + inline step name + responsive
+  OSC terminals, per the tied `01-layout-review` ratified decisions) and
+  `engine-group-context` (groups on the engine-context surface; Bob still
+  owes the `bopos~.pd` receiver edit in `.notes/pd-edits-for-bob.md`) are
+  all tied. Every remaining loom item is Bob- or hardware-gated; next
+  software work is the host-loom patch-workflow documentation/starter-kit
+  close-out (stage 12). See `.notes/handoff-2026-07-20-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
