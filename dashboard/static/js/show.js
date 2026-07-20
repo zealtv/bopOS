@@ -22,6 +22,9 @@
   let suppressDragClick = false;
   let renderPending = false;
   let relevantStateSignature = null;
+  let inspectorOpen = true;
+  let focusInspectorToggle = false;
+  let lastSelectClick = {kind: null, uid: null, at: 0};
 
   const THEN_ACTIONS = [
     ["stop", "Stop"],
@@ -443,10 +446,20 @@
     </div>`;
   }
 
+  function renderInspectorSidebar() {
+    if (!inspectorOpen) {
+      return `<button type="button" class="show-inspector-rail" data-inspector-toggle aria-expanded="false" aria-controls="show-inspector" title="Show inspector" aria-label="Show inspector"><span class="show-inspector-rail-label">Inspector</span></button>`;
+    }
+    return `<div class="show-inspector-panel">
+        <button type="button" class="show-inspector-toggle" data-inspector-toggle aria-expanded="true" aria-controls="show-inspector" title="Hide inspector" aria-label="Hide inspector"><span aria-hidden="true">›</span></button>
+        ${renderInspector()}
+      </div>`;
+  }
+
   function renderLoadedShow() {
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
-    root.innerHTML = `${renderTransport()}<div class="show-workspace">
+    root.innerHTML = `${renderTransport()}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
       <div class="show-list-shell">
         ${renderEditBar()}
         <div class="show-rows-box" style="height:${showRowsHeight}px">
@@ -454,7 +467,7 @@
         </div>
         <div class="show-rows-resize" role="separator" aria-label="Resize Show step list" aria-orientation="horizontal" tabindex="0"></div>
       </div>
-      <aside class="show-inspector-shell" aria-label="Show inspector">${renderInspector()}</aside>
+      <aside class="show-inspector-shell" id="show-inspector" aria-label="Show inspector">${renderInspectorSidebar()}</aside>
     </div>`;
   }
 
@@ -804,6 +817,14 @@
       row?.scrollIntoView({block: "nearest"});
       if (rowsBox) showRowsScrollTop = rowsBox.scrollTop;
       scrollFocusedRow = false;
+    }
+    // Toggling collapse rebuilds the sidebar, dropping focus off the toggle
+    // button; keep the keyboard path alive by landing focus on the new
+    // toggle/rail control.
+    if (focusInspectorToggle) {
+      root.querySelector("[data-inspector-toggle]")?.focus({preventScroll: true});
+      focusInspectorToggle = false;
+      return;
     }
     // Re-rendering replaces the DOM and drops element focus, which breaks
     // keyboard copy/paste on the focused pill/row; restore it unless the
@@ -1221,6 +1242,13 @@
   }
 
   root.addEventListener("click", event => {
+    const inspectorToggle = event.target.closest("[data-inspector-toggle]");
+    if (inspectorToggle) {
+      inspectorOpen = !inspectorOpen;
+      focusInspectorToggle = true;
+      render();
+      return;
+    }
     const action = event.target.closest("[data-show-action]");
     if (action) {
       event.stopPropagation();
@@ -1255,19 +1283,29 @@
       if (name && confirm(`Delete show "${name}"? The file is removed.`)) ws.send("delete_show", {name});
       return;
     }
+    // Ruled by Bob (02-inspector-sidebar decisions): a single click selects
+    // silently (a collapsed sidebar stays collapsed), a double-click expands
+    // onto that item. We detect the double-click ourselves rather than via the
+    // native `dblclick` event: setFocus() rebuilds root.innerHTML on the first
+    // click, so the two clicks land on different DOM nodes and the browser
+    // never synthesizes `dblclick`.
     const pill = event.target.closest("[data-show-message-focus]");
-    if (pill) {
-      event.stopPropagation();
-      setFocus("message", pill.dataset.showMessageFocus);
-      return;
+    const divider = pill ? null : event.target.closest("[data-show-divider-row]");
+    const row = pill || divider ? null : event.target.closest("[data-show-step-row]");
+    const selectable = pill ? ["message", pill.dataset.showMessageFocus]
+      : divider ? ["divider", divider.dataset.showDividerRow]
+      : row ? ["step", row.dataset.showStepRow] : null;
+    if (selectable) {
+      if (pill) event.stopPropagation();
+      const now = event.timeStamp || performance.now();
+      const isDouble = lastSelectClick.kind === selectable[0]
+        && lastSelectClick.uid === selectable[1]
+        && now - lastSelectClick.at < 400;
+      lastSelectClick = isDouble ? {kind: null, uid: null, at: 0}
+        : {kind: selectable[0], uid: selectable[1], at: now};
+      if (isDouble) inspectorOpen = true;
+      setFocus(selectable[0], selectable[1]);
     }
-    const divider = event.target.closest("[data-show-divider-row]");
-    if (divider) {
-      setFocus("divider", divider.dataset.showDividerRow);
-      return;
-    }
-    const row = event.target.closest("[data-show-step-row]");
-    if (row) setFocus("step", row.dataset.showStepRow);
   });
 
   root.addEventListener("change", event => {
