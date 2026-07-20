@@ -104,3 +104,17 @@ header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24
   .theme-control>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
   #execution-target.execution-options{grid-row:2}
 }
+
+/* Paired operational status surfaces for tags, badges, and notices. */
+:root{--status-ok-bg:#173323;--status-ok-border:#337552;--status-ok-text:#45d483;--status-warn-bg:#382a13;--status-warn-border:#9c722b;--status-warn-text:#ffd17a;--status-danger-bg:#3c171b;--status-danger-border:#9b3c46;--status-danger-text:#ff9da6;--status-neutral-bg:transparent;--status-neutral-border:#596670;--status-neutral-text:#b9c5ce}
+@media (prefers-color-scheme:light){:root{--status-ok-bg:#dcefe4;--status-ok-border:#2b8054;--status-ok-text:#0f6f3f;--status-warn-bg:#f8ead0;--status-warn-border:#9a671b;--status-warn-text:#6b470e;--status-danger-bg:#f7dfdc;--status-danger-border:#a64b40;--status-danger-text:#7d3028;--status-neutral-bg:#f0edf4;--status-neutral-border:#82798c;--status-neutral-text:#4f4756}}
+:root[data-theme=dark]{--status-ok-bg:#173323;--status-ok-border:#337552;--status-ok-text:#45d483;--status-warn-bg:#382a13;--status-warn-border:#9c722b;--status-warn-text:#ffd17a;--status-danger-bg:#3c171b;--status-danger-border:#9b3c46;--status-danger-text:#ff9da6;--status-neutral-bg:transparent;--status-neutral-border:#596670;--status-neutral-text:#b9c5ce}
+:root[data-theme=light]{--status-ok-bg:#dcefe4;--status-ok-border:#2b8054;--status-ok-text:#0f6f3f;--status-warn-bg:#f8ead0;--status-warn-border:#9a671b;--status-warn-text:#6b470e;--status-danger-bg:#f7dfdc;--status-danger-border:#a64b40;--status-danger-text:#7d3028;--status-neutral-bg:#f0edf4;--status-neutral-border:#82798c;--status-neutral-text:#4f4756}
+.patch-badge-current,.asset-state-current,.show-state-playing{border-color:var(--status-ok-border);background:var(--status-ok-bg);color:var(--status-ok-text)}
+.patch-badge-switching,.asset-state-stale,.asset-state-queued,.asset-state-fetching,.show-state-paused{border-color:var(--status-warn-border);background:var(--status-warn-bg);color:var(--status-warn-text)}
+.patch-badge-failed,.patch-badge-timeout,.patch-badge-missing,.patch-badge-mismatch,.patch-badge-stale,.patch-badge-stale_unverified,.asset-state-failed,.asset-state-timed-out,.device-mute-indicator.device,.device-mute-indicator.reported,.show-field-error,.show-inspector-error{border-color:var(--status-danger-border);background:var(--status-danger-bg);color:var(--status-danger-text)}
+.patch-badge:not(.patch-badge-current):not(.patch-badge-switching):not(.patch-badge-failed):not(.patch-badge-timeout):not(.patch-badge-missing):not(.patch-badge-mismatch):not(.patch-badge-stale):not(.patch-badge-stale_unverified),.asset-state-absent,.asset-state-extra,.asset-state-unknown,.asset-target-reasons span{border-color:var(--status-neutral-border);background:var(--status-neutral-bg);color:var(--status-neutral-text)}
+.asset-facts code{color:var(--muted-strong)}
+.asset-inventory-note.unknown,.group-map-message,.group-limit{border-color:var(--status-warn-border);background:var(--status-warn-bg);color:var(--status-warn-text)}
+.asset-inventory-note.current{border-color:var(--status-ok-border);background:var(--status-ok-bg);color:var(--status-ok-text)}
+.asset-extra{border-color:var(--status-neutral-border)}
