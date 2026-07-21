@@ -1,0 +1,22 @@
+[PASS] public live schema keeps promoted flat and nested identities
+[PASS] unpromoted declaration is fail-closed from live controls
+[PASS] All updates every Seat including offline and unbound
+[PASS] All emits one qualified datagram
+[PASS] Group updates online and offline/unbound members only
+[PASS] Group durable mirrors precede exactly one group datagram
+[PASS] Seat write uses stable numeric Seat selector while offline
+[PASS] type/range/promotion/target validation rejects all invalid writes
+[PASS] failed durable Group update rolls back before wire send
+[PASS] All Send all is stable Seat-id then declaration order
+[PASS] Send all is idempotent and does not touch state/master/mute
+[PASS] Seat Send all replays only its promoted snapshot
+[PASS] invalid live manifest fails the entire promoted surface closed
+[PASS] device mute persists desired UID intent before exact wire command
+[PASS] attributable mute receipt converges desired and effective state
+[PASS] old node without receipt remains honestly unconfirmed
+[FAIL] fleet safety overlay blocks individual mute mutation
+[FAIL] fleet release reasserts persistent per-UID state -- [('os', 'all', 'mute', [0]), ('device-mute', 'node-a', 0)]
+[FAIL] host-global device mute survives restart
+[PASS] Forget deletes alias and persistent mute intent together
+
+3 failure(s)

@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/rerun/01-registry-and-generator__verify_device_alias_registry.py", line 62, in <module>
+    check("Freda Sparks anchors two complete 64-word lists",
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/rerun/01-registry-and-generator__verify_device_alias_registry.py", line 38, in check
+    raise AssertionError(f"{label}: {detail}")
+AssertionError: Freda Sparks anchors two complete 64-word lists: 

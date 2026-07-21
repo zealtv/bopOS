@@ -1,0 +1,30 @@
+[PASS] active git patch refuses without engine disruption
+[PASS] real report handled
+[FAIL] real report includes hostname and v1.3 -- {'uid': 'node-uid', 'hostname': 'spectre', 'engine': 'test', 'has_i2c': True, 'has_wifi': True, 'audio_channels': 2, 'screen': False, 'patch': 'gitpatch', 'uptime': 59603, 'git_rev': 'abc1234', 'update_model': 'persistent', 'contract_version': '1.7', 'groups': [], 'device_muted': False, 'muted': False}
+[PASS] removed real verbs absent
+[PASS] drop verb handled on real wire
+Dropped asset slot 'wire-drop'
+[PASS] real provisioning drop replies rev
+07:32:47 sim5 id=5 fetch file:/source patch:newpatch
+[PASS] sim patch fetch progress and terminal
+[PASS] sim patches lists fetched member
+07:32:47 sim5 id=5 fetch file:/active patch:default
+[FAIL] sim active engine stops while fetching
+07:32:47 sim5 id=5 fetch file:/active patch:default
+[PASS] sim coalesced requester sees fetching
+[PASS] sim restarts before coalesced terminals
+07:32:47 sim5 id=5 fetch file:/serial-one patch:default
+07:32:47 sim5 id=5 fetch file:/serial-two patch:default
+[PASS] sim serializes distinct fetch jobs per device
+07:32:47 sim5 id=5 fetch file:/source patch:gitpatch
+[PASS] sim refuses git patch
+[PASS] sim removed verbs produce no reply
+07:32:47 sim5 id=5 os/updatebopos
+07:32:47 sim5 id=5 state=updating
+[PASS] sim updatebopos spelling accepted
+[FAIL] sim report includes hostname and v1.3 -- {'uid': '02:00:00:00:00:05', 'hostname': 'sim5', 'engine': 'pd', 'has_i2c': False, 'has_wifi': True, 'audio_channels': 2, 'screen': False, 'patch': 'demo-pd', 'uptime': 0, 'git_rev': 'abc1235', 'update_model': 'persistent', 'contract_version': '1.7', 'groups': [], 'device_muted': False, 'muted': False}
+07:32:47 sim5 id=5 os/droppatch newpatch
+[PASS] sim droppatch removes inactive and replies
+
+4 FAILURE(S): ['framework legacy samplepacks link permits safe refetch', 'real report includes hostname and v1.3', 'sim active engine stops while fetching', 'sim report includes hostname and v1.3']
+exiting.  closing server...

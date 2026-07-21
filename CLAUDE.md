@@ -292,7 +292,12 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
 under `.loom/tied/`. Copy the guard into your own stitch directory and run
 the copy — the repo-by-marker root lookup survives the move, and it also
 spares the tied screenshots from being regenerated (no
-`git checkout -- .loom/tied/` needed afterwards). Delete the copy and its
+`git checkout -- .loom/tied/` needed afterwards). Two traps: **run it with
+the repo root as cwd** (some guards use cwd-relative paths, and running
+from the copy's directory silently changes the answer), and if it opens a
+sibling file from its own tied directory — a fixture, a word list — copy
+the **whole directory**, or the `FileNotFoundError` looks like a failure
+that is really the copy rule's fault. Delete the copy and its
 screenshots when done. A tied guard that pins something Bob has since ruled
 away is **superseded, not authoritative**: invert or repair the assertion in
 place with an inline comment naming the superseding stitch, and record the

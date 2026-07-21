@@ -1,0 +1,30 @@
+[PASS] A: assignment persists element pairs
+[PASS] A: frame decomposes per element, 0-based, on 6661
+[PASS] A: sparse upsert recomputes only that point
+[PASS] A: clear releases the point to zero once
+[PASS] A: empty frame releases the remaining point
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/seam-3-points-node-side__verify_points_node_side.py", line 232, in stack_checks
+    uid1 = next(u for u, d in devices.items() if int(d["id"]) == 1)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/seam-3-points-node-side__verify_points_node_side.py", line 350, in <module>
+    raise SystemExit(asyncio.run(main()))
+                     ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/seam-3-points-node-side__verify_points_node_side.py", line 340, in main
+    await stack_checks()
+RuntimeError: coroutine raised StopIteration
+exiting.  closing server...

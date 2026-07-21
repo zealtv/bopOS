@@ -300,16 +300,25 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             bridge.uid_command = lambda uid, verb, args=(): commands.append((uid, verb))
             bridge.request = lambda uid, member: requests.append((uid, member))
 
+            # SUPERSEDED by 23-waveform-marker-guard-regression: every non-virtual
+            # heartbeat is now a mute-convergence edge too (`d23bba0`, "Complete
+            # Dashboard live controls" -- persistent exact-UID device mute), so the
+            # raw command list also carries ("uid", "mute"). These assertions are
+            # about the UNASSIGN handshake -- that it is sent once and not replayed
+            # -- so they filter to that verb rather than pinning the whole list and
+            # breaking on every additive convergence verb that follows.
+            unassigns = lambda: [item for item in commands if item[1] == "unassign"]
+
             bridge.handle("/hb", ["node-stale", 6, "1.5", 1, -40], "10.0.0.6")
             device = state.devices["node-stale"]
             self.assertEqual(-1, device["id"])
             self.assertTrue(device["revoking_assignment"])
-            self.assertEqual([("node-stale", "unassign")], commands)
+            self.assertEqual([("node-stale", "unassign")], unassigns())
 
             bridge.handle("/hb", ["node-stale", -1, "1.5", 1, -40], "10.0.0.6")
             self.assertFalse(device["revoking_assignment"])
             self.assertEqual(-1, device["id"])
-            self.assertEqual([("node-stale", "unassign")], commands)
+            self.assertEqual([("node-stale", "unassign")], unassigns())
 
     async def test_offline_moved_binding_revokes_then_assigns_on_reconnect(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -324,8 +333,17 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             bridge.assign = lambda uid, seat_id, name, positions: assignments.append((uid, seat_id))
             bridge.request = lambda uid, member: None
 
+            # SUPERSEDED by 23-waveform-marker-guard-regression: every non-virtual
+            # heartbeat is now a mute-convergence edge too (`d23bba0`, "Complete
+            # Dashboard live controls" -- persistent exact-UID device mute), so the
+            # raw command list also carries ("uid", "mute"). These assertions are
+            # about the UNASSIGN handshake -- that it is sent once and not replayed
+            # -- so they filter to that verb rather than pinning the whole list and
+            # breaking on every additive convergence verb that follows.
+            unassigns = lambda: [item for item in commands if item[1] == "unassign"]
+
             bridge.handle("/hb", ["node-moved", 3, "1.5", 1], "10.0.0.8")
-            self.assertEqual([("node-moved", "unassign")], commands)
+            self.assertEqual([("node-moved", "unassign")], unassigns())
             self.assertEqual([], assignments)
             self.assertTrue(device["revoking_assignment"])
 
@@ -363,8 +381,15 @@ class UIBoundaryTests(unittest.TestCase):
         for forbidden in ('id="seat-name"', 'id="seat-id"', 'id="seat-device"',
                           'data-param=', "Position</h2>", "Params</h2>"):
             self.assertNotIn(forbidden, body)
-        self.assertIn("Seat naming, IDs, positions and assignment live in the Seats workspace.",
-                      body)
+        # SUPERSEDED by 23-waveform-marker-guard-regression: this used to scrape the
+        # sentence "Seat naming, IDs, positions and assignment live in the Seats
+        # workspace." `149c794` ("Polish Dashboard hierarchy and diagnostics") cut it
+        # in the terse-copy pass, which was deliberate. The point of the check is
+        # that the Devices detail still POINTS AT the Seats workspace rather than
+        # duplicating it, so it now asserts the durable affordances that do that --
+        # a structural anchor ages better than a sentence.
+        self.assertIn('id="device-open-seat"', body)
+        self.assertIn("Seat transaction", body)
 
 
 if __name__ == "__main__":

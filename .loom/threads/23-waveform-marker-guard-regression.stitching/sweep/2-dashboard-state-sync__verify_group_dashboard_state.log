@@ -1,0 +1,30 @@
+FAIL: test_reconnect_replay_offline_retention_and_group_param_fanout (__main__.BridgeTests.test_reconnect_replay_offline_retention_and_group_param_fanout)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/unittest/async_case.py", line 90, in _callTestMethod
+    if self._callMaybeAsync(method) is not None:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/async_case.py", line 112, in _callMaybeAsync
+    return self._asyncioRunner.run(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/2-dashboard-state-sync__verify_group_dashboard_state.py", line 222, in test_reconnect_replay_offline_retention_and_group_param_fanout
+    self.assertEqual([("/all/os/groups", ["node-a", 2])],
+AssertionError: Lists differ: [('/all/os/groups', ['node-a', 2])] != [('/all/os/groups', ['node-a', 2]), ('/all/os/to', ['node-a', 'mute', 0])]
+
+Second list contains 1 additional elements.
+First extra element 1:
+('/all/os/to', ['node-a', 'mute', 0])
+
+- [('/all/os/groups', ['node-a', 2])]
++ [('/all/os/groups', ['node-a', 2]), ('/all/os/to', ['node-a', 'mute', 0])]
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.033s
+
+FAILED (failures=2)

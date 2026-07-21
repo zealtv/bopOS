@@ -1,0 +1,30 @@
+[PASS] engine-boundary revision recorded
+[PASS] PD direct 6660 superseded
+[PASS] engine surface section exists
+[PASS] engine surface lists '/id <n>'
+[PASS] engine surface lists '/os/master <0..1>'
+[PASS] engine surface lists '/pt <point> <element> <value>'
+[PASS] engine surface lists '/cue <id>'
+[PASS] engine surface lists '/notify <event>'
+[PASS] engine surface lists '/config'
+[PASS] engine surface lists '/report <name>'
+[PASS] run context in contract
+[PASS] civil-time amendment present
+[PASS] one-shot probe documented
+[PASS] leased probe not ratified
+[PASS] clean break: no /helper alias
+[PASS] role only as removal record
+[PASS] sec 11 has no meter republish
+[PASS] sec 11 uses probe model
+[PASS] no live helper.py references
+[PASS] python/bopos.py exists
+[PASS] python/helper.py gone
+[PASS] systemd unit execs bopos.py
+[PASS] start.sh launches bopos.py and bopos.pid
+[PASS] stop.sh stops bopos.pid
+[PASS] compiles: python/bopos.py
+[PASS] compiles: tools/simfleet.py
+[PASS] compiles: tools/sync_measure.py
+[PASS] compiles: tools/audition.py
+
+1 failure(s)

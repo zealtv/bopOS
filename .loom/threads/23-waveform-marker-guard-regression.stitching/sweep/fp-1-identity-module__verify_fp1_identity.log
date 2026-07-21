@@ -1,0 +1,19 @@
+[PASS] dashboard directory_info matches identity.fingerprint
+[PASS] demo-pd fingerprint matches the pre-extraction algorithm
+[PASS] git/dot/.part tree fingerprints identically to its plain twin
+[PASS] synthetic fingerprint matches the pre-extraction algorithm
+[PASS] repeat fingerprint is stable (cache hit)
+[PASS] editing one file changes the fingerprint
+[PASS] cache returns the fresh post-edit value
+[PASS] installed_patches entry carries a valid fingerprint
+[PASS] node fingerprint equals the host walker's (git dir ignored)
+[PASS] node listing keeps the declared v1.3 shape
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/fp-1-identity-module__verify_fp1_identity.py", line 175, in <module>
+    bridge = osc_bridge.OSCBridge(state, lambda kind, data: events.append((kind, data)),
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/bob/repos/bopOS/dashboard/osc_bridge.py", line 105, in __init__
+    self.state.data["automation"] = self.automation
+    ^^^^^^^^^^^^^^^
+AttributeError: 'types.SimpleNamespace' object has no attribute 'data'
+exiting.  closing server...

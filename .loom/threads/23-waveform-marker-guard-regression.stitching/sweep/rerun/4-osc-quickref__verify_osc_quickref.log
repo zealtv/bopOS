@@ -1,0 +1,24 @@
+[PASS] doc exists
+[PASS] found UID_ADMIN_VERBS in bopos.py
+[PASS] doc's exact-uid zero-arity verbs match UID_ADMIN_VERBS exactly
+[PASS] doc's lifecycle/provisioning verbs match LIFECYCLE_VERBS|PROVISION_VERBS exactly
+[PASS] found the /admin table row in the doc
+[PASS] doc's /admin action set matches ENGINE_ADMIN_VERBS exactly
+[PASS] bopos.py registers /admin on the 7770 server
+[FAIL] addpatch's callback (add_patch_callback) never returns a status/phase dict
+[FAIL] pullpatch's callback (pull_active_patch_callback) never returns a status/phase dict
+[FAIL] droppatch's callback (drop_patch_callback) never returns a status/phase dict
+[FAIL] dropassets's callback (drop_assets_callback) never returns a status/phase dict
+[FAIL] patch's callback (switch_patch_callback) never returns a status/phase dict
+[PASS] updatebopos's callback (update_bopos_callback) can attach status/phase
+[PASS] checkout's callback (checkout_callback) can attach status/phase
+[PASS] README links OSC-REFERENCE.md
+[PASS] PORTS.md links OSC-REFERENCE.md
+[PASS] OSC-CONTRACT.md links OSC-REFERENCE.md
+[PASS] simfleet starts
+[PASS] doc's mute worked example round-trips through simfleet
+[PASS] doc's report example round-trips through simfleet
+[PASS] live /os/report carries the current contract_version
+[PASS] fleet-wide /all/os/mute is accepted without error
+
+13/18 passed

@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/boundary-2-pd-parallel-relay__verify_pd_parallel_relay.py", line 93, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/boundary-2-pd-parallel-relay__verify_pd_parallel_relay.py", line 43, in main
+    with open(pd_abstraction) as source:
+         ^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/bob/repos/bopOS/pd/bopos.osc.pd'
+exiting.  closing server...

@@ -1,0 +1,16 @@
+REBOOTING
+[PASS] reboot callback reports accepted authorization
+SHUTDOWN!
+[PASS] shutdown callback reports accepted authorization
+[PASS] callbacks use only exact non-interactive commands
+[PASS] callbacks notify the engine before power action
+REBOOTING
+ERROR: reboot authorization failed; install systemd/bopos-power.sudoers
+[PASS] authorization failure is returned honestly
+[FAIL] sudoers policy grants only the two power commands -- ['pi ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/bopos-set-hostname *']
+[PASS] installer validates policy before and after installation
+[PASS] later unprivileged updates reuse installed authorization
+[FAIL] fresh-node update installs power authorization
+
+7/9 passed
+exiting.  closing server...

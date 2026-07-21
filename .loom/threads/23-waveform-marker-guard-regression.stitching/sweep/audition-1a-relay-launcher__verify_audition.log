@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/audition-1a-relay-launcher__verify_audition.py", line 305, in <module>
+    main()
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/audition-1a-relay-launcher__verify_audition.py", line 296, in main
+    pd_command_test()
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/audition-1a-relay-launcher__verify_audition.py", line 233, in pd_command_test
+    assert "BOPOS_ENGINE_PORT 16661" in sends[0] and "ID 1" in sends[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

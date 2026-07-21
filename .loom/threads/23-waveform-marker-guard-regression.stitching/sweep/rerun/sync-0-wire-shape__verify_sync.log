@@ -1,0 +1,6 @@
+[FAIL] heartbeats seen from both devices -- macs={}
+[FAIL] a pong per device -- got 0
+[FAIL] pongs well-formed (seq+leaderTime echoed, uid=mac, ns int) -- offsets={}
+[FAIL] cue fired on both devices -- fires={}
+
+FAILED: heartbeats seen from both devices, a pong per device, pongs well-formed (seq+leaderTime echoed, uid=mac, ns int), cue fired on both devices

@@ -1,0 +1,30 @@
+[PASS] -send string contains 'BOPOS_ENGINE_PORT'
+[PASS] -send string contains 'bopos-context seed '
+[PASS] -send string contains 'bopos-context run-id '
+[PASS] -send string contains 'bopos-context patch demo-pd'
+[PASS] -send string contains 'bopos-context assets '
+[PASS] -send string does not contain legacy token ' ID '
+[PASS] -send string does not contain legacy token 'RANDOM'
+[PASS] -send string does not contain legacy token 'STARTTIME'
+[PASS] -send string does not contain legacy token 'STARTDATE'
+[PASS] -send string does not contain legacy token 'ACTIVEPATCH'
+[PASS] -send string does not contain legacy token '; ASSETS'
+[PASS] bash -n start-engine.sh succeeds
+[FAIL] bash -n start-laptop.sh succeeds
+[PASS] start-engine.sh contains 'runcontext.py'
+[PASS] start-engine.sh contains 'bopos-context seed'
+[PASS] start-engine.sh contains 'BOPOS_RUN_ID'
+[PASS] start-engine.sh contains 'BOPOS_ENGINE_PORT="${BOPOS_ENGINE_PORT:-6661}"'
+[PASS] start-engine.sh does not contain 'RANDOM $RND'
+[PASS] start-engine.sh does not contain 'STARTDATE'
+[PASS] start-engine.sh does not contain 'BOPOS_RANDOM'
+Traceback (most recent call last):
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/boundary-5-launch-context-and-topology__verify_launch_context.py", line 398, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/boundary-5-launch-context-and-topology__verify_launch_context.py", line 389, in main
+    test_bash_launchers()
+  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/boundary-5-launch-context-and-topology__verify_launch_context.py", line 342, in test_bash_launchers
+    with open(os.path.join(REPO, "bash", "start-laptop.sh")) as source:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/bob/repos/bopOS/bash/start-laptop.sh'

@@ -1,0 +1,11 @@
+[PASS] simulation exposes every valid host patch as installed
+[PASS] simulation starts one fleet-wide host patch
+[PASS] simulated switch reaps and replaces the managed fleet
+[PASS] replacement fleet reports the selected patch active
+[PASS] simulation backend never invents a pending file transfer
+[PASS] loopback browser URL derives a device-reachable LAN source
+[PASS] explicit public URL remains authoritative
+[FAIL] simulated UI removes byte distribution and explains host backing
+[FAIL] real dropdown copy distinguishes installed from host patches
+
+7/9 passed

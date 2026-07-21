@@ -1,0 +1,28 @@
+[PASS] legacy per-seat patch is dropped
+[PASS] same-name restage refreshes without rotating previous
+[PASS] name change records the immediately previous identity
+[PASS] simulation patch reads through fleet desired state
+[PASS] fleet patch persists in installation and venue snapshots
+[PASS] durable state contains no retired seat patch
+[PASS] loading an unset venue clears simulation patch read-through
+[PASS] badge precedence covers unset through current
+[PASS] badge derivation never stores a verdict
+[PASS] legacy simulated switch rejects an unconfirmed WS command
+[PASS] real simfleet nodes discover with patch listings
+[PASS] fleet set is confirmation-gated
+[PASS] row retry does not cancel active fleet convergence
+[PASS] set fleet patch converges bytes then switches responsive nodes
+[PASS] offline node stays unknown and does not block convergence
+[PASS] derived badge is surfaced on WS device payloads
+[PASS] derived badge is absent from runtime state
+[PASS] host edit makes matching active content stale
+[PASS] operator retry refreshes stale content
+[PASS] overlap fixture starts an old-generation retry
+[PASS] second fleet choice becomes current
+[PASS] superseded retry cannot switch a node back later
+[PASS] revert begins a fresh desired-content fetch
+[PASS] revert restages previous through the same fleet flow
+[PASS] superseding same-content set safely observes the existing fetch
+[FAIL] legacy simulated switch sends its confirmation receipt
+
+1 failure(s)

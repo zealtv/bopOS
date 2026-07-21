@@ -1,0 +1,12 @@
+[PASS] absent cues key remains valid
+[PASS] valid cue declarations load unchanged
+[PASS] non-list cues rejected
+[PASS] non-object cue rejected
+[PASS] missing cue id rejected
+[PASS] non-string label rejected
+[PASS] non-string description rejected
+[PASS] duplicate cue ids rejected
+[PASS] demo-pd honestly declares its snap cue
+[FAIL] all tracked patch manifests remain valid -- {'bonks-pd': 'no bopos.patch.json in /home/bob/repos/bopOS/patches/bonks-pd', 'demo-pd': None, 'demo-sc': None}
+
+9/10 passed

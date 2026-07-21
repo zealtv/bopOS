@@ -1,0 +1,11 @@
+[PASS] toggle starts one managed audition node per seat
+[PASS] virtual rows map ordinary uids onto every seat
+[PASS] simulation changes fleet send target to loopback
+[PASS] listener puck is simulation-gated
+[FAIL] sidebar exposes managed Simulate mode
+[PASS] seat occupancy distinguishes live, sim and empty
+[PASS] toggle off reaps child and virtual rows
+[PASS] performance target restores on exit
+[PASS] restart never reloads virtual rows
+
+8/9 passed

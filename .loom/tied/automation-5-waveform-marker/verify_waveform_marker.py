@@ -2,6 +2,7 @@
 """Real Dashboard + simfleet verification for waveform markers and previews."""
 
 import json
+import math
 import random
 import socket
 import subprocess
@@ -264,15 +265,35 @@ def main():
                 check("sh keeps its glyph", page.locator(random_row + " .live-param-glyph").count() == 1)
                 check("sh has no fabricated marker", page.locator(random_row + " .live-param-marker").count() == 0)
 
-                page.wait_for_selector(fade + " [data-auto-fade-progress]")
-                fade_duration = page.locator(fade + " [data-auto-fade-progress]").evaluate(
-                    "el => getComputedStyle(el).animationDuration")
-                check("in-flight fade uses finite CSS progress", fade_duration.endswith("s")
-                      and fade_duration not in ("0s", "infinite"), fade_duration)
+                # SUPERSEDED by 23-waveform-marker-guard-regression: the CSS fade
+                # PROGRESS BAR this used to assert was deliberately retired by
+                # `fbea2b0` (17-automation-polish, "Automated sliders finally move
+                # like they mean it", 2026-07-20, design authority in that stitch's
+                # design.md amending the automation-4 judgment at Bob's request).
+                # A deterministic fade now moves the REAL slider thumb from a
+                # rAF animator driven by data-fade-* attributes on the input, so
+                # there is no [data-auto-fade-progress] element and no CSS
+                # animation to read a duration off. Same subject, new mechanism:
+                # an in-flight fade is annotated with a finite duration, and the
+                # annotation is cleared when the fade completes.
+                fade_input = fade + " input[data-fade-anchor]"
+                page.wait_for_selector(fade_input, timeout=15000)
+                fade_data = page.locator(fade_input).evaluate(
+                    "el => ({duration: Number(el.dataset.fadeDuration),"
+                    " anchor: Number(el.dataset.fadeAnchor),"
+                    " segments: el.dataset.fadeSegments})")
+                check("in-flight fade carries a finite duration",
+                      fade_data["duration"] > 0 and math.isfinite(fade_data["duration"]),
+                      repr(fade_data))
+                check("in-flight fade is phase anchored to a real start time",
+                      fade_data["anchor"] > 0, repr(fade_data))
+                check("in-flight fade carries its segment ramp",
+                      fade_data["segments"] and fade_data["segments"] != "[]",
+                      repr(fade_data))
                 page.wait_for_function(
-                    "selector => !document.querySelector(selector + ' [data-auto-fade-progress]')"
+                    "selector => !document.querySelector(selector + ' input[data-fade-anchor]')"
                     " && !document.querySelector(selector)?.classList.contains('automated')",
-                    arg=fade, timeout=4000)
+                    arg=fade, timeout=8000)
                 check("completed fade clears to a plain control", True)
 
                 before_idle = len([item for item in proxy.messages if "/p/" in item[0]])
