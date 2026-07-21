@@ -1,9 +1,18 @@
 # 27-tied-guard-rot
 
-**Blocked on Bob.** Three rulings are needed before any of this is workable — see
-`.loom/tied/23-waveform-marker-guard-regression/proposal-guard-sweep.md`, which
-states them and the evidence. Do not start without them; the first decision is
-whether this thread happens at all and whether it outranks the stage-12 fix pass.
+**Waiting on threads `20` and `21`.** Bob ruled 2026-07-22:
+
+- **Ordering:** this runs *after* `20-console-dock` and `21-theme-cyan-tint`.
+  The rot is not blocking anything and has been accumulating for weeks.
+- **The sweep question itself** (script yes/no, blocking vs advisory) Bob will
+  take in a **fresh session** with a dedicated briefing rather than deciding it
+  from the proposal — see `.notes/handoff-guard-rot-briefing.md`, which is
+  written for exactly that session. Do not build `tools/guard-sweep.sh` before
+  that session rules.
+- **The suspected live defect was pulled out and settled** — thread
+  `28-fleet-mute-semantics`, tied 2026-07-22. **Not a defect**: fleet mute
+  safety is intact; the guard pinned a ruling Bob himself superseded in
+  `18-decoupled-device-mute`. Do not re-investigate it.
 
 ## The finding
 
@@ -38,15 +47,31 @@ Sampled signatures from the last group — expect more of the same:
 - `AttributeError: 'AuditionRig' object has no attribute 'param_declarations'`
   (`1-contract-model-relay`)
 
+## Also red, and NOT in the 39
+
+`12-dashboard-live-controls/verify_live_controls_browser.py` times out waiting
+for `[data-live-param][data-live-scope="seat"][data-live-id="1"][data-param-path="gate"]`
+(found by thread `28`). It is a **Playwright** suite, so it was never in the
+71-guard sweep. Not a rename — those attributes are still emitted by
+`facilitator.js:172` — so it needs real diagnosis.
+
+It is also the first datum on the **97 unswept Playwright suites**, and it went
+red on the first look. Assume the true figure is above 39, and sweep the
+Playwright set early rather than assuming the browser suites are healthier.
+
 ## Start here if it is authorised
 
-**`12-dashboard-live-controls/verify_live_controls_backend.py`** — three
-behavioural failures about fleet-overlay mute semantics ("fleet safety overlay
-blocks individual mute mutation", "fleet release reasserts persistent per-UID
-state", "host-global device mute survives restart"). Unlike the rest of the
-sample this does **not** look like drift, and it sits in the same mute subsystem
-whose additive convergence verb turned two of thread `23`'s guards red. If any
-of the 39 is a live defect, this is the candidate. Treat it as its own stitch.
+The suspected-defect candidate is **gone** — thread `28` settled it as another
+supersession (and repaired the guard). Nothing in the remaining ~33 has been
+singled out as more likely than the rest.
+
+Two starting points, either defensible:
+
+- **The `verify_live_controls_browser.py` failure above**, since it is a real
+  unknown rather than suspected drift, and it tells us how bad the Playwright
+  set is.
+- **The API-drift cluster** (`FakeOSC`, `AuditionRig`), which is probably the
+  cheapest per guard and will shrink the list fastest.
 
 ## Shape of the work, once ruled on
 

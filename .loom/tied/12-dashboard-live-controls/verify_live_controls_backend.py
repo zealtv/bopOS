@@ -272,16 +272,35 @@ async def verify():
         await dashboard.handle_ws({"type": "set_device_mute", "data": {
             "uid": "node-a", "value": 0,
         }}, ws)
-        check("fleet safety overlay blocks individual mute mutation",
-              dashboard.state.device_muted_for("node-a") is True
-              and not wire.frames and bool(ws.messages))
+        # SUPERSEDED by 28-fleet-mute-semantics: this used to assert that fleet
+        # safety BLOCKED an individual mute mutation. Bob's 2026-07-16 hands-on
+        # revision (tied `18-decoupled-device-mute`) reversed that ruling --
+        # "keep the selected Device Mute/Unmute action available while fleet mute
+        # is on, so an operator can establish the state that will remain after
+        # fleet release". The two layers are independent controls whose logical
+        # OR is the effective node mute, so the safety property to assert is that
+        # EFFECTIVE mute stays on, not that the persistent intent is frozen.
+        after_stage = await dashboard.public_device(node_a)
+        check("device mute stays mutable beneath fleet safety (Bob, 2026-07-16)",
+              dashboard.state.device_muted_for("node-a") is False
+              and wire.frames == [("device-mute", "node-a", 0)]
+              and not ws.messages, repr((wire.frames, ws.messages)))
+        check("fleet safety still forces effective mute while staged",
+              after_stage["effective_muted"] is True, repr(after_stage))
+
         dashboard.state.data["muted"] = True
         wire.frames.clear()
         await dashboard.handle_ws({"type": "mute_all", "data": {"value": 0}})
         check("fleet release reasserts persistent per-UID state",
               wire.frames[:2] == [("os", "all", "mute", [0]),
-                                  ("device-mute", "node-a", 1)], repr(wire.frames))
+                                  ("device-mute", "node-a", 0)], repr(wire.frames))
 
+        # Re-establish a persistent mute before the restart check: the staging
+        # above deliberately left node-a unmuted, and asserting that False
+        # survives a reload would prove nothing about persistence.
+        await dashboard.handle_ws({"type": "set_device_mute", "data": {
+            "uid": "node-a", "value": 1,
+        }})
         dashboard.state.save()
         reloaded = InstallationState(str(Path(root, "installation.json")))
         check("host-global device mute survives restart",
