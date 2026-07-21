@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/audition-1-stage0-launcher__verify_stage0.py", line 96, in <module>
-    main()
-  File "/home/bob/repos/bopOS/.loom/threads/23-waveform-marker-guard-regression.stitching/sweep/audition-1-stage0-launcher__verify_stage0.py", line 62, in main
-    assert {args[0] for address, args in heartbeats if address == "/hb"} == {
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError

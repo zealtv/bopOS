@@ -1,4 +1,0 @@
-usage: boundary-3-framework-slimdown__verify_helper_death.py
-       [-h] [--host HOST] [--ssh-target SSH_TARGET] --identity IDENTITY
-       [--selector SELECTOR] [--trials TRIALS] [--timeout TIMEOUT]
-boundary-3-framework-slimdown__verify_helper_death.py: error: the following arguments are required: --identity

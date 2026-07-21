@@ -19,9 +19,10 @@ than its subject**, so a deliberate, correct change elsewhere turned it red.
 Full write-up in `.loom/tied/23-waveform-marker-guard-regression/decisions.md`.
 
 The raw sweep results, and a `tail` of each failure, are preserved in
-`.loom/tied/23-waveform-marker-guard-regression/sweep/` — `results.txt` is the
-first (scratch-cwd) run, `rerun/results.txt` the corrected repo-root run. Use
-`rerun/` — the first run's numbers include cwd artifacts.
+`.loom/tied/23-waveform-marker-guard-regression/` as
+`sweep-reporoot-results.txt` (use this one), `sweep-scratch-cwd-results.txt`
+(first run, includes cwd artifacts — do not quote it), and
+`sweep-failure-logs.tar.gz`.
 
 ## Known classification so far
 

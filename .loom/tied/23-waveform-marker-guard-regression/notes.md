@@ -19,15 +19,16 @@ Run them the usual way — copy out of `.loom/tied/`, run the copy, delete it.
 
 ## The sweep, and its evidence
 
-`sweep/` holds the raw results of running all 71 browser-free tied guards
+Three flat files hold the raw results of running all 71 browser-free tied guards
 against clean `main`:
 
-- `sweep/results.txt` — first run, executed from a scratch cwd. **Do not quote
-  these numbers**: some guards resolve paths relative to the working directory,
-  so this run over-reports.
-- `sweep/rerun/results.txt` — the reds re-run from the repo root, the way a
+- `sweep-scratch-cwd-results.txt` — first run, executed from a scratch cwd.
+  **Do not quote these numbers**: some guards resolve paths relative to the
+  working directory, so this run over-reports.
+- `sweep-reporoot-results.txt` — the reds re-run from the repo root, the way a
   person would. **39 of 71 fail.** This is the trustworthy number.
-- `sweep/rerun/*.log` — last 30 lines of each failure.
+- `sweep-failure-logs.tar.gz` — last 30 lines of each failure (`rerun/` inside
+  is the repo-root run).
 
 Kept deliberately: it is the evidence behind `proposal-guard-sweep.md`, and
 re-gathering it costs ~15 minutes of wall time.

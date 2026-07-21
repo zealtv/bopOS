@@ -160,18 +160,37 @@ and tie one concrete stitch at a time:
    deliberately deferred map tab); `21-theme-cyan-tint` (light-theme
    green → cyan at the token layer); and `22-listener-range-ux` (the
    Seats listener range is only settable by dragging a handle that clips
-   off the map — UX design gate, Bob ratifies, then implementation).
+   off the map — UX design gate, Bob ratifies, then implementation),
+   whose live review produced the now-complete `26-listener-range-fixes`
+   (item 13).
    Bob then reviewed it live and `24-show-divider-and-glyph-repass`
    (tied same day) reversed two of its calls: the unnamed divider is now
    a short 28px rule centred in the alias slot, not a full-width span,
    and the drawn SVG glyphs are gone in favour of `✛` / `╱`, chosen to
    match the edit bar's existing `⧉` / `✕`.
-13. **Loose — `23-waveform-marker-guard-regression`.** Found while
-   verifying stage 12: the tied `automation-5-waveform-marker` guard
-   fails on `main` on its own (a Dashboard seat-card automation-marker
-   selector times out). Real defect or stale guard is unsettled; the
-   stitch says how to find out. Take it when convenient — it does not
-   block the fix pass.
+13. **Complete — `23-waveform-marker-guard-regression`** (tied
+   2026-07-22). All four collected red guards were **stale guards, not
+   runtime defects**, each traceable to a deliberate later change:
+   `fbea2b0` retired the fade progress bar by design, `d23bba0` made
+   every non-virtual heartbeat a mute-convergence edge (so the guard's
+   exact `uid_command` list gained a `mute`), and `149c794` cut a
+   scraped sentence in the terse-copy pass. All three repaired in
+   place. Three of the four broke because **the guard pinned more than
+   its subject** — worth carrying into how guards get written.
+   The stitch also measured the rest: **39 of the 71 browser-free tied
+   guards fail on clean `main`**. That finding is a written proposal for
+   Bob (`proposal-guard-sweep.md` in the tied stitch) and a `.waiting`
+   thread, `27-tied-guard-rot`, holding the evidence.
+   **Also complete — thread `26-listener-range-fixes`** (tied
+   2026-07-22): Bob's four listener defects. Defects 1 and 2 were one
+   bug — `clipPathUnits` is `userSpaceOnUse`, so the room clip resolved
+   in the *referencing* element's space and a `translate(listener)`
+   wrapper slid the clip window by the listener position. The clip moved
+   to an untranslated wrapper; the radial gradient needed no change. The
+   dashed out-of-room arc is retired per Bob's ruling, and the Listener
+   toolbar is gone — all control graphical, with the puck's `aria-label`
+   now the only textual statement of the values plus a small
+   gesture-only on-canvas label.
 14. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
    thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
    improvements; only `friction-0a-readme-refresh` tied). The surviving
@@ -211,13 +230,14 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (paused pending the lanes/scenes design — collapse may not survive a
   multi-lane grid) and `06-chrome-app-wide-assessment` (Bob lives with
   the Show chrome, then rules app-wide vs staged adoption). Next
-  software work is Bob's 2026-07-21 fix pass — threads `19`→`22`
-  (stage 12) — then the host-loom patch-workflow documentation/
-  starter-kit close-out (stage 13). Two Bob gates sit inside it:
-  `20-console-dock/01-dock-design` (dock scope — Show-tab-only vs
-  app-wide, which also bears on `18/06`) and
-  `22-listener-range-ux/01-listener-range-design`. See
-  `.notes/handoff-2026-07-21-autopilot.md`.
+  software work is the rest of Bob's 2026-07-21 fix pass — `20` and `21`
+  remain (`19`, `22`, `23`, `24` and `26` are tied) — then the host-loom
+  patch-workflow documentation/starter-kit close-out (stage 14). Bob
+  gates outstanding: `20-console-dock/01-dock-design` (dock scope —
+  Show-tab-only vs app-wide, which also bears on `18/06`),
+  `25-message-pill-encoding/01-pill-encoding-design`, and the three
+  rulings in `27-tied-guard-rot` (see its proposal). See
+  `.notes/handoff-2026-07-22-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
 additively, flag it); a dev Pi is ssh-reachable for hardware stitches
