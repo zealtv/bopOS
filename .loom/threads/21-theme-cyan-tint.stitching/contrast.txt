@@ -1,0 +1,35 @@
+== foreground token retunes (light theme) ==
+live value readout on --panel (#fff)
+   before #116864 on #ffffff: 6.59:1   after #0C647F on #ffffff: 6.68:1
+live value readout on --input (#fbfafe)
+   before #116864 on #fbfafe: 6.34:1   after #0C647F on #fbfafe: 6.43:1
+live value readout on --subpanel (#f5f2f8)
+   before #116864 on #f5f2f8: 5.94:1   after #0C647F on #f5f2f8: 6.02:1
+--accent-cyan as ink on --panel (#fff)
+   before #147772 on #ffffff: 5.37:1   after #0E728C on #ffffff: 5.52:1
+--accent-cyan fill vs --panel (#fff) [non-text]
+   before #147772 on #ffffff: 5.37:1   after #0E728C on #ffffff: 5.52:1
+
+== surface token retune (light theme) ==
+--text on --surface-alt
+   before bg #e9eef2: 13.29:1   after bg #e4eff2: 13.25:1
+--dim on --surface-alt
+   before bg #e9eef2: 5.58:1   after bg #e4eff2: 5.57:1
+--muted-strong on --surface-alt
+   before bg #e9eef2: 7.59:1   after bg #e4eff2: 7.57:1
+--surface-alt vs --bg (#f4f1f8) [surface separation]
+   before bg #e9eef2: 1.04:1   after bg #e4eff2: 1.05:1
+
+== hue separation: accent cyan vs semantic green ==
+   --accent-cyan before             #147772  hue  177.0 deg
+   --accent-cyan after              #0E728C  hue  192.4 deg
+   --accent-cyan-soft before        #116864  hue  177.2 deg
+   --accent-cyan-soft after         #0C647F  hue  194.1 deg
+   --green (light, unchanged)       #0f6f3f  hue  150.0 deg
+   --status-ok-border (unchanged)   #2b8054  hue  148.9 deg
+   --surface-alt before             #e9eef2  hue  206.7 deg
+   --surface-alt after              #e4eff2  hue  192.9 deg
+   --accent (purple, unchanged)     #5A4FB8  hue  246.3 deg
+
+   green-vs-cyan hue gap before: 27.0 deg
+   green-vs-cyan hue gap after:  42.4 deg
