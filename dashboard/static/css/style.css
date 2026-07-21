@@ -155,8 +155,9 @@ header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24
 .listener-range-field{pointer-events:none}
 .listener-field{fill:url(#listener-field-gradient);stroke:none}
 .listener-ring{fill:none;stroke:var(--listener-ring);stroke-width:1.5;vector-effect:non-scaling-stroke;opacity:var(--listener-ring-a)}
-.listener-ring-outside{fill:none;stroke:var(--listener-ring);stroke-width:1.5;stroke-dasharray:4 2;vector-effect:non-scaling-stroke;opacity:.5}
-.listener-ring.at-max,.listener-ring-outside.at-max{stroke-width:2;stroke-dasharray:none;opacity:.9}
+/* 26-listener-range-fixes/01: .listener-ring-outside (the dashed out-of-room arc) is
+   retired — Bob 2026-07-21, the range indication clips to the room. */
+.listener-ring.at-max{stroke-width:2;stroke-dasharray:none;opacity:.9}
 .listener-tick{stroke:var(--listener-ring);stroke-width:.035;stroke-dasharray:.11 .13;opacity:.5;pointer-events:none}
 .listener-collar{fill:none;stroke:var(--listener-ring);stroke-width:1;vector-effect:non-scaling-stroke;opacity:var(--listener-collar-a);pointer-events:none}
 .listener-collar-hit{fill:none;stroke:transparent;stroke-width:16;vector-effect:non-scaling-stroke;cursor:ns-resize}

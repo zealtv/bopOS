@@ -178,17 +178,26 @@ def main():
                     " const tip = q('.listener-tip'), line = q('.listener-heading');"
                     " return {field: Number(q('.listener-field').getAttribute('r')),"
                     "  ring: Number(q('.listener-ring').getAttribute('r')),"
-                    "  dashed: Number(q('.listener-ring-outside').getAttribute('r')),"
+                    # SUPERSEDED by 26-listener-range-fixes/01: Bob ruled 2026-07-21
+                    # that the range indication clips to the room, so the dashed
+                    # out-of-room arc is retired. Assert its ABSENCE instead.
+                    "  dashed: !!q('.listener-ring-outside'),"
                     "  collar: Number(q('.listener-collar').getAttribute('r')),"
                     "  handle: Math.hypot(Number(tip.getAttribute('cx')),"
                     "                     Number(tip.getAttribute('cy'))),"
-                    "  clipped: q('.listener-field').parentNode.getAttribute('clip-path'),"
+                    # 26-listener-range-fixes/01 moved the clip UP one level, onto an
+                    # untranslated wrapper: clipPathUnits is userSpaceOnUse, so a
+                    # translate() on the referencing element slid the room window by
+                    # the listener position. Look for the clip on any ancestor.
+                    "  clipped: q('.listener-field').closest('[clip-path]')"
+                    "             ?.getAttribute('clip-path') || null,"
                     "  tick: !!q('.listener-tick')}; }")
                 check("range renders as a room-clipped field at r = range",
                       close(geometry["field"], 1.0)
                       and geometry["clipped"] == "url(#spatial-room-clip)", repr(geometry))
-                check("range outline is drawn solid (clipped) and dashed (unclipped)",
-                      close(geometry["ring"], 1.0) and close(geometry["dashed"], 1.0),
+                check("range outline is drawn solid and clipped, with no out-of-room arc"
+                      " (26-listener-range-fixes/01 supersedes the dashed arc)",
+                      close(geometry["ring"], 1.0) and geometry["dashed"] is False,
                       repr(geometry))
                 check("heading handle is a fixed 0.9 m, independent of range",
                       close(geometry["handle"], 0.9), repr(geometry))

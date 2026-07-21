@@ -254,7 +254,8 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   bopos/bin/pip install -r dashboard/requirements.txt pyOSC3`. Browser-free
   verifies (sync/spatial planes — LAN/engine only) need just those deps; the
   Playwright dashboard suites add: `~/.venvs/bopos/bin/pip install playwright &&
-  ~/.venvs/bopos/bin/playwright install chromium --only-shell`.
+  ~/.venvs/bopos/bin/playwright install chromium --only-shell`. Guards that
+  sample screenshot pixels also need `~/.venvs/bopos/bin/pip install Pillow`.
   Three Playwright gotchas these scripts learned the hard way: (1) `inner_text`
   applies CSS `text-transform`, so lowercase before matching a `capitalize`d
   row; (2) clicking a button auto-scrolls the page — `window.scrollTo(0,0)` and
@@ -279,7 +280,13 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   incomparable; gather all rects in a single `page.evaluate`; (10)
   changing the Show inspector's generator `<select>` write-through
   persists new args onto the focused message — use one fixture message
-  per generator kind instead of switching kinds in-test.
+  per generator kind instead of switching kinds in-test; (11) an SVG
+  element's `getBoundingClientRect()` reports its *geometry* box and
+  ignores clipping, so no DOM assertion can tell you whether a clipped
+  shape painted outside its clip — sample screenshot pixels (Pillow) for
+  that, and take the reference pixel from *inside* the same surface you
+  are probing (an outside-the-room reference makes every in-room probe
+  "differ", so the check passes vacuously).
 
 **Re-running a tied guard:** the harness declines to execute scripts living
 under `.loom/tied/`. Copy the guard into your own stitch directory and run

@@ -149,23 +149,29 @@
       el("stop", {offset: "0", class: "listener-stop-in"}, grad);
       el("stop", {offset: "0.55", class: "listener-stop-mid"}, grad);
       el("stop", {offset: "1", class: "listener-stop-out"}, grad);
-      // Range reads as a field, not as a line: gradient disc + outline clipped to
-      // the room, with the out-of-room arc dashed so the true circle stays legible.
+      // Range reads as a field, not as a line: gradient disc + outline, clipped to
+      // the room (Bob 2026-07-21 — the dashed out-of-room arc is retired, nothing
+      // draws outside the room). The clip must hang off an *untranslated* wrapper:
+      // clipPathUnits is userSpaceOnUse, so it resolves in the referencing
+      // element's coordinate system and a translate() here shifts the room window
+      // by the listener position. The translate lives on the inner group instead.
       const at = `translate(${listener.x} ${listener.y})`;
-      const wrap = el("g", {class: "listener-range-field", transform: at});
+      const wrap = el("g", {class: "listener-range-field",
+                            "clip-path": "url(#spatial-room-clip)"});
       svg.insertBefore(wrap, fields);
-      const clipped = el("g", {"clip-path": "url(#spatial-room-clip)"}, wrap);
-      el("circle", {r: range, class: "listener-field"}, clipped);
-      el("circle", {r: range, class: "listener-ring-outside"}, wrap);
-      el("circle", {r: range, class: "listener-ring"}, clipped);
+      const placed = el("g", {class: "listener-range-at", transform: at}, wrap);
+      el("circle", {r: range, class: "listener-field"}, placed);
+      el("circle", {r: range, class: "listener-ring"}, placed);
       const heading = Number(listener.heading) * Math.PI / 180;
       const hx = Math.sin(heading) * LISTENER_HANDLE, hy = -Math.cos(heading) * LISTENER_HANDLE;
       const g = el("g", {class: "listener-puck", "data-listener": "true", transform: at,
                           tabindex: "0", role: "group",
                           "aria-label": `Listener; heading ${Math.round(Number(listener.heading))} degrees, range ${range} metres`}, svg);
       // Residual magnitude tick (Bob's ruling 5): the knobbly line survives faintly.
+      // It lives in the clipped range group, not the puck — it is a range
+      // indication and clips with the ring for consistency.
       el("line", {x1: 0, y1: 0, x2: Math.sin(heading) * range, y2: -Math.cos(heading) * range,
-                  class: "listener-tick"}, g);
+                  class: "listener-tick"}, placed);
       el("line", {x1: 0, y1: 0, x2: hx, y2: hy, class: "listener-heading"}, g);
       el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip"}, g);
       el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip-hit"}, g);
@@ -197,12 +203,22 @@
   const clampRange = (value, diagonal) =>
     round(Math.min(Math.max(Number(value) || LISTENER_RANGE_MIN, LISTENER_RANGE_MIN), diagonal));
 
+  // One placement path for the listener: the puck and the clipped range group
+  // carry the same translate, so render, drag and paintRange can never disagree
+  // (the range field used to lag a drag until the next re-render).
+  function placeListener(svg, listener) {
+    const at = `translate(${listener.x} ${listener.y})`;
+    svg.querySelector(".listener-puck")?.setAttribute("transform", at);
+    svg.querySelector(".listener-range-at")?.setAttribute("transform", at);
+  }
+
   // Live repaint of the range field/outline/tick plus the toolbar readout, shared
   // by the scrub, the wheel, the keys and the numeric field.
   function paintRange(svg, listener, diagonal) {
     const range = clampRange(listener.range, diagonal);
     const atMax = range >= round(diagonal) - 0.005;
-    ["listener-field", "listener-ring", "listener-ring-outside"].forEach(cls => {
+    placeListener(svg, listener);
+    ["listener-field", "listener-ring"].forEach(cls => {
       const node = svg.querySelector(`.${cls}`);
       if (!node) return;
       node.setAttribute("r", range);
@@ -412,9 +428,9 @@
         if (!listenerDrag.moved && Math.hypot(x - listenerDrag.start[0], y - listenerDrag.start[1]) < MOVE_MIN) return;
         listenerDrag.moved = true;
         listenerDrag.at = [x, y];
-        listenerDrag.group.setAttribute("transform", `translate(${x} ${y})`);
         const listener = last[0].listener;
         listener.x = round(x); listener.y = round(y);
+        placeListener(svg, listener);
         const now = performance.now();
         if (now - lastListenerSend >= 40) {
           lastListenerSend = now;
