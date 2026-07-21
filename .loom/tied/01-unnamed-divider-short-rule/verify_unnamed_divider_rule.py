@@ -222,6 +222,8 @@ UNNAMED_GEOMETRY = """(u) => {
         ruleLeft: insetLeft === null ? null : rb.left + insetLeft,
         ruleRight: insetRight === null ? null : rb.right - insetRight,
         afterWidth: num(a.width),
+        // `left:50%` + `translate(-50%,-50%)`: resolve the offset against the
+        // row when the computed value comes back as a percentage.
         ruleCentre: (() => {
             const raw = a.left;
             const off = raw.endsWith('%') ? rb.width * parseFloat(raw) / 100 : num(raw);
@@ -348,21 +350,21 @@ def main():
                       repr(un["afterPointerEvents"] if un else None))
                 check("unnamed divider still has a grab handle",
                       un and un["handle"] and un["handle"]["width"] > 0, repr(un))
-                # Superseded by 24-show-divider-and-glyph-repass/01 (Bob,
-                # 2026-07-21: the unnamed divider gets "only a short rule,
-                # centered where their alias would go"). This stitch's
-                # full-width span assertion is inverted here rather than left
-                # permanently red; the flat-not-gradient ruling still stands.
-                check("unnamed divider rule is short and centred, not a full-width span",
-                      un and un["afterWidth"] is not None
-                      and un["afterWidth"] < un["row"]["width"] * .2
-                      and un["ruleCentre"] is not None
-                      and abs(un["ruleCentre"] - (un["row"]["left"] + un["row"]["width"] / 2)) <= 1,
-                      repr(un))
+                # Bob, 2026-07-21 (thread 24): the unnamed rule is short and
+                # centred where the alias would go, not a full-width span.
+                check("unnamed divider rule is exactly 28px wide",
+                      un and un["afterWidth"] == 28, repr(un and un["afterWidth"]))
+                check("unnamed divider rule is far narrower than the row",
+                      un and un["afterWidth"] < un["row"]["width"] * .2, repr(un))
+                centre = un and un["ruleCentre"]
+                row_centre = un and (un["row"]["left"] + un["row"]["width"] / 2)
+                check("unnamed divider rule is centred in the row",
+                      centre is not None and abs(centre - row_centre) <= 1,
+                      f"ruleCentre={centre} rowCentre={row_centre}")
                 check("unnamed divider rule does not overlap the grab handle",
-                      un and un["handle"] and un["ruleCentre"] is not None
-                      and un["ruleCentre"] - un["afterWidth"] / 2 >= un["handle"]["right"],
-                      f"ruleCentre={un and un['ruleCentre']} handleRight="
+                      un and un["handle"] and centre is not None
+                      and centre - un["afterWidth"] / 2 >= un["handle"]["right"],
+                      f"ruleLeft={centre and centre - un['afterWidth'] / 2} handleRight="
                       f"{un and un['handle'] and un['handle']['right']}")
                 check("unnamed divider keeps its row aria-label",
                       un and un["ariaLabel"] == "Section divider", repr(un["ariaLabel"] if un else None))
