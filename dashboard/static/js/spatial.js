@@ -6,9 +6,16 @@
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
   const LISTENER_RANGE_MIN = 0.5; // audition-falloff/2-range-widget floor
   const LISTENER_RANGE_DEFAULT = 3.0; // matches state.py LISTENER_RANGE_DEFAULT
+  // 22-listener-range-ux: heading and range are disjoint gestures. The tip is a
+  // pure aim handle at a fixed distance; range is scrubbed on a fixed collar that
+  // never leaves the dot, so range stays settable with the listener at any edge.
+  const LISTENER_HANDLE = 0.9;   // metres, ratified (not screen pixels)
+  const LISTENER_COLLAR = 0.45;  // metres, fixed — never grows with range
+  const LISTENER_SCRUB_GAIN = 2.5;      // ratified: relative pointer-distance delta
+  const LISTENER_SCRUB_FINE = 0.25;     // shift multiplier
   const ELEMENT_COLOURS = ["#45d483", "#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2"];
   const POINT_COLOURS = ["#5ea7ff", "#f2b84b", "#db79ff", "#ff7380", "#55d9d2", "#45d483"];
-  let seatDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null;
+  let seatDrag = null, pointDrag = null, listenerDrag = null, headingDrag = null, rangeDrag = null;
   let last = null;
   let selectedPoint = null;
   let lastClick = {seatId: null, time: 0};
@@ -41,10 +48,13 @@
 
   function render(installation, selected, select, ws, groupView={}) {
     last = [installation, selected, select, ws, groupView];
-    if (seatDrag || pointDrag || listenerDrag || headingDrag) return;
+    if (seatDrag || pointDrag || listenerDrag || headingDrag || rangeDrag) return;
     const svg = document.getElementById("spatial");
     if (!svg) return;
     svg.classList.toggle("group-focused", groupView.focused != null);
+    // A heartbeat re-render must not steal keyboard control of the listener
+    // mid-nudge, or arrow keys work exactly once.
+    const keepListenerFocus = !!document.activeElement?.closest?.("g[data-listener]");
     const room = installation.room || {width: 10, depth: 8};
     const W = Number(room.width) || 10, D = Number(room.depth) || 8;
     svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${W + 2 * PAD} ${D + TRAY_GAP + TRAY_H + 2 * PAD}`);
@@ -133,15 +143,38 @@
 
     const listener = installation.listener;
     if (listener && installation.simulation?.active) {
+      const diagonal = Math.hypot(W, D);
+      const range = clampRange(Number(listener.range) || Math.min(LISTENER_RANGE_DEFAULT, diagonal), diagonal);
+      const grad = el("radialGradient", {id: "listener-field-gradient"}, defs);
+      el("stop", {offset: "0", class: "listener-stop-in"}, grad);
+      el("stop", {offset: "0.55", class: "listener-stop-mid"}, grad);
+      el("stop", {offset: "1", class: "listener-stop-out"}, grad);
+      // Range reads as a field, not as a line: gradient disc + outline clipped to
+      // the room, with the out-of-room arc dashed so the true circle stays legible.
+      const at = `translate(${listener.x} ${listener.y})`;
+      const wrap = el("g", {class: "listener-range-field", transform: at});
+      svg.insertBefore(wrap, fields);
+      const clipped = el("g", {"clip-path": "url(#spatial-room-clip)"}, wrap);
+      el("circle", {r: range, class: "listener-field"}, clipped);
+      el("circle", {r: range, class: "listener-ring-outside"}, wrap);
+      el("circle", {r: range, class: "listener-ring"}, clipped);
       const heading = Number(listener.heading) * Math.PI / 180;
-      const range = Number(listener.range) || Math.min(LISTENER_RANGE_DEFAULT, Math.hypot(W, D));
-      const hx = Math.sin(heading) * range, hy = -Math.cos(heading) * range;
-      const g = el("g", {class: "listener-puck", "data-listener": "true",
-                          transform: `translate(${listener.x} ${listener.y})`}, svg);
+      const hx = Math.sin(heading) * LISTENER_HANDLE, hy = -Math.cos(heading) * LISTENER_HANDLE;
+      const g = el("g", {class: "listener-puck", "data-listener": "true", transform: at,
+                          tabindex: "0", role: "group",
+                          "aria-label": `Listener; heading ${Math.round(Number(listener.heading))} degrees, range ${range} metres`}, svg);
+      // Residual magnitude tick (Bob's ruling 5): the knobbly line survives faintly.
+      el("line", {x1: 0, y1: 0, x2: Math.sin(heading) * range, y2: -Math.cos(heading) * range,
+                  class: "listener-tick"}, g);
       el("line", {x1: 0, y1: 0, x2: hx, y2: hy, class: "listener-heading"}, g);
       el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip"}, g);
+      el("circle", {cx: hx, cy: hy, r: 0.12, class: "listener-tip-hit"}, g);
+      el("circle", {r: LISTENER_COLLAR, class: "listener-collar"}, g);
+      el("circle", {r: LISTENER_COLLAR, class: "listener-collar-hit"}, g);
       el("circle", {r: 0.3, class: "listener-body"}, g);
       el("text", {x: 0, y: 0.07, class: "listener-label"}, g).textContent = "L";
+      paintRange(svg, listener, diagonal);
+      if (keepListenerFocus) g.focus({preventScroll: true});
     }
 
     const handles = el("g", {class: "point-handles", "clip-path": "url(#spatial-room-clip)"}, svg);
@@ -154,17 +187,135 @@
       el("text", {x: 0, y: 0.08, class: "point-label"}, g).textContent = `P${point.id}`;
     }
     renderPointList(installation);
+    bindListenerBar(installation, ws, W, D);
     bindMap(svg, W, D);
     bindPointEditor(installation, ws, W, D);
   }
 
+  // Clamp kept at the room diagonal (Bob's ruling 2) — matches state.py:733, so
+  // this stitch touches no server code.
+  const clampRange = (value, diagonal) =>
+    round(Math.min(Math.max(Number(value) || LISTENER_RANGE_MIN, LISTENER_RANGE_MIN), diagonal));
+
+  // Live repaint of the range field/outline/tick plus the toolbar readout, shared
+  // by the scrub, the wheel, the keys and the numeric field.
+  function paintRange(svg, listener, diagonal) {
+    const range = clampRange(listener.range, diagonal);
+    const atMax = range >= round(diagonal) - 0.005;
+    ["listener-field", "listener-ring", "listener-ring-outside"].forEach(cls => {
+      const node = svg.querySelector(`.${cls}`);
+      if (!node) return;
+      node.setAttribute("r", range);
+      node.classList.toggle("at-max", atMax && cls !== "listener-field");
+    });
+    const heading = Number(listener.heading) * Math.PI / 180;
+    const tick = svg.querySelector(".listener-tick");
+    if (tick) {
+      tick.setAttribute("x2", Math.sin(heading) * range);
+      tick.setAttribute("y2", -Math.cos(heading) * range);
+    }
+    const readout = document.getElementById("listener-readout");
+    if (readout) readout.textContent = `${range.toFixed(2)} m${atMax ? " (max)" : ""}`;
+    const field = document.getElementById("listener-range");
+    if (field && field !== document.activeElement) field.value = range;
+    const headingField = document.getElementById("listener-heading");
+    if (headingField && headingField !== document.activeElement) headingField.value = round(listener.heading);
+  }
+
+  function paintHeading(group, listener) {
+    const heading = Number(listener.heading) * Math.PI / 180;
+    const hx = Math.sin(heading) * LISTENER_HANDLE, hy = -Math.cos(heading) * LISTENER_HANDLE;
+    group.querySelector(".listener-heading").setAttribute("x2", hx);
+    group.querySelector(".listener-heading").setAttribute("y2", hy);
+    group.querySelectorAll(".listener-tip, .listener-tip-hit").forEach(node => {
+      node.setAttribute("cx", hx); node.setAttribute("cy", hy);
+    });
+  }
+
+  function sendListener(ws, listener, final) {
+    const now = performance.now();
+    if (!final && now - lastListenerSend < 40) return;
+    lastListenerSend = now;
+    ws.send("set_listener", clone(listener));
+  }
+
+  // Range nudge shared by wheel, arrow keys and double-click reset.
+  function nudgeRange(svg, delta, W, D) {
+    const [installation, , , ws] = last;
+    const listener = installation.listener;
+    if (!listener || !installation.simulation?.active) return;
+    const diagonal = Math.hypot(W, D);
+    listener.range = clampRange(Number(listener.range) + delta, diagonal);
+    paintRange(svg, listener, diagonal);
+    sendListener(ws, listener, true);
+  }
+
+  function bindListenerBar(installation, ws, W, D) {
+    const bar = document.getElementById("listener-bar");
+    if (!bar) return;
+    const listener = installation.listener;
+    const live = !!(listener && installation.simulation?.active);
+    bar.hidden = !live;
+    if (!live) return;
+    const diagonal = Math.hypot(W, D);
+    const rangeField = document.getElementById("listener-range");
+    const headingField = document.getElementById("listener-heading");
+    rangeField.min = LISTENER_RANGE_MIN;
+    rangeField.max = round(diagonal);
+    if (rangeField !== document.activeElement) rangeField.value = clampRange(listener.range, diagonal);
+    if (headingField !== document.activeElement) headingField.value = round(listener.heading);
+    document.getElementById("listener-readout").textContent =
+      `${clampRange(listener.range, diagonal).toFixed(2)} m` +
+      (clampRange(listener.range, diagonal) >= round(diagonal) - 0.005 ? " (max)" : "");
+    rangeField.onchange = () => {
+      listener.range = clampRange(rangeField.value, diagonal);
+      ws.send("set_listener", clone(listener));
+      render(...last);
+    };
+    headingField.onchange = () => {
+      listener.heading = round(((Number(headingField.value) % 360) + 360) % 360);
+      ws.send("set_listener", clone(listener));
+      render(...last);
+    };
+  }
+
   function bindMap(svg, W, D) {
     svg.onkeydown = event => {
+      const puck = event.target.closest?.("g[data-listener]");
+      if (puck && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+        event.preventDefault();
+        const listener = last[0].listener;
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          const step = (event.shiftKey ? 1 : 0.1) * (event.key === "ArrowUp" ? 1 : -1);
+          nudgeRange(svg, step, W, D);
+        } else {
+          const step = (event.shiftKey ? 15 : 1) * (event.key === "ArrowRight" ? 1 : -1);
+          listener.heading = round(((Number(listener.heading) + step) % 360 + 360) % 360);
+          paintHeading(puck, listener);
+          paintRange(svg, listener, Math.hypot(W, D));
+          sendListener(last[3], listener, true);
+        }
+        return;
+      }
       if (!["Enter", " "].includes(event.key)) return;
       const node = event.target.closest("g[data-seat-id]");
       if (!node) return;
       event.preventDefault();
       last[2](Number(node.dataset.seatId));
+    };
+    svg.onwheel = event => {
+      if (!event.target.closest?.("g[data-listener]")) return;
+      event.preventDefault();
+      const step = (event.shiftKey ? 0.05 : 0.25) * (event.deltaY < 0 ? 1 : -1);
+      nudgeRange(svg, step, W, D);
+    };
+    svg.ondblclick = event => {
+      if (!event.target.closest?.(".listener-collar-hit, .listener-collar")) return;
+      const listener = last[0].listener;
+      const diagonal = Math.hypot(W, D);
+      listener.range = clampRange(LISTENER_RANGE_DEFAULT, diagonal);
+      paintRange(svg, listener, diagonal);
+      sendListener(last[3], listener, true);
     };
     svg.onclick = event => {
       if (!event.target.matches("rect.room")) return;
@@ -176,7 +327,25 @@
       last[2](id);  // keep the new map-first Seat selected as state arrives
     };
     svg.onpointerdown = event => {
-      const headingHandle = event.target.closest(".listener-tip");
+      const collar = event.target.closest(".listener-collar-hit, .listener-collar");
+      if (collar) {
+        const group = collar.closest("g[data-listener]");
+        const listener = last[0].listener;
+        const [x, y] = toSvg(svg, event);
+        // Grab axis: the radial direction the collar was pressed on. Travel is
+        // read as SIGNED distance along it, so pulling in past the dot keeps
+        // shrinking instead of bottoming out at the collar radius.
+        const dx = x - listener.x, dy = y - listener.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const axis = [dx / length, dy / length];
+        rangeDrag = {group, axis, from: dx * axis[0] + dy * axis[1],
+                     range: clampRange(listener.range, Math.hypot(W, D))};
+        group.classList.add("scrubbing");
+        svg.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+      const headingHandle = event.target.closest(".listener-tip, .listener-tip-hit");
       if (headingHandle) {
         headingDrag = {group: headingHandle.closest("g[data-listener]")};
         svg.setPointerCapture(event.pointerId);
@@ -210,26 +379,31 @@
       event.preventDefault();
     };
     svg.onpointermove = event => {
+      if (rangeDrag) {
+        // Relative scrub at 2.5x: only the CHANGE in pointer distance is read, so
+        // the pointer never has to sit `range` metres from a listener at the edge.
+        const listener = last[0].listener;
+        const [x, y] = toSvg(svg, event);
+        const distance = (x - listener.x) * rangeDrag.axis[0] + (y - listener.y) * rangeDrag.axis[1];
+        const gain = LISTENER_SCRUB_GAIN * (event.shiftKey ? LISTENER_SCRUB_FINE : 1);
+        const diagonal = Math.hypot(W, D);
+        rangeDrag.range = clampRange(rangeDrag.range + (distance - rangeDrag.from) * gain, diagonal);
+        rangeDrag.from = distance;
+        listener.range = rangeDrag.range;
+        paintRange(svg, listener, diagonal);
+        sendListener(last[3], listener, false);
+        return;
+      }
       if (headingDrag) {
+        // Heading only — range is no longer written here (that was the defect).
         const listener = last[0].listener;
         const [x, y] = toSvg(svg, event);
         const dx = x - listener.x, dy = y - listener.y;
-        const distance = Math.hypot(dx, dy);
-        if (distance < MOVE_MIN) return;
+        if (Math.hypot(dx, dy) < MOVE_MIN) return;
         listener.heading = round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
-        const diagonal = Math.hypot(W, D);
-        listener.range = round(Math.min(Math.max(distance, LISTENER_RANGE_MIN), diagonal));
-        const angle = listener.heading * Math.PI / 180;
-        const hx = Math.sin(angle) * listener.range, hy = -Math.cos(angle) * listener.range;
-        headingDrag.group.querySelector(".listener-heading").setAttribute("x2", hx);
-        headingDrag.group.querySelector(".listener-heading").setAttribute("y2", hy);
-        headingDrag.group.querySelector(".listener-tip").setAttribute("cx", hx);
-        headingDrag.group.querySelector(".listener-tip").setAttribute("cy", hy);
-        const now = performance.now();
-        if (now - lastListenerSend >= 40) {
-          lastListenerSend = now;
-          last[3].send("set_listener", clone(listener));
-        }
+        paintHeading(headingDrag.group, listener);
+        paintRange(svg, listener, Math.hypot(W, D));
+        sendListener(last[3], listener, false);
         return;
       }
       if (listenerDrag) {
@@ -270,6 +444,13 @@
       seatDrag.g.setAttribute("transform", `translate(${x} ${y})`);
     };
     svg.onpointerup = () => {
+      if (rangeDrag) {
+        rangeDrag.group.classList.remove("scrubbing");
+        rangeDrag = null;
+        sendListener(last[3], last[0].listener, true);
+        render(...last);
+        return;
+      }
       if (headingDrag) {
         last[3].send("set_listener", clone(last[0].listener));
         headingDrag = null;
@@ -564,5 +745,5 @@
     };
   }
 
-  window.Spatial = {render, renderEditor, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null || editorPointDrag !== null; }};
+  window.Spatial = {render, renderEditor, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null || rangeDrag !== null || editorPointDrag !== null; }};
 })();

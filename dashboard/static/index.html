@@ -36,6 +36,12 @@
           <span id="bounce-fields"><label>x speed <input id="point-vx" type="number" step="0.1"> m/s</label><label>y speed <input id="point-vy" type="number" step="0.1"> m/s</label></span>
           <button id="point-delete" class="danger">Delete</button>
         </div>
+        <div id="listener-bar" hidden>
+          <strong>Listener</strong>
+          <label>range <input id="listener-range" type="number" min="0.5" step="0.1"> m</label>
+          <label>heading <input id="listener-heading" type="number" min="0" max="359" step="1"> &deg;</label>
+          <output id="listener-readout" aria-live="off"></output>
+        </div>
       </div>
       <div id="group-map-bar" hidden>
         <div id="group-map-legend" aria-label="Visible Seat groups"></div>

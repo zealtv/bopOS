@@ -2,7 +2,7 @@
 """Playwright verification for the audition-falloff range widget.
 
 Covers audition-falloff/2-range-widget: dragging the listener heading
-widget's tip sets both heading and range (audible distance), clamped to
+widget sets heading and range (audible distance), clamped to
 [0.5m, room diagonal], and the range flows through state/broadcast/
 persistence exactly like heading already did.
 """
@@ -217,37 +217,40 @@ def main():
                 scale_x = room_box["width"] / room["width"]
                 scale_y = room_box["height"] / room["depth"]
 
-                # Drag the tip outward, past the room diagonal (5.0m), along
-                # a diagonal southeast heading so the pixel offset needed in
-                # either axis alone stays modest.
-                tip = page.locator("#spatial .listener-tip")
+                # SUPERSEDED by 22-listener-range-ux/02-listener-range-implementation
+                # (2026-07-21, ratified by Bob): the tip no longer writes range at
+                # all -- it is a pure heading handle at a fixed 0.9 m, and range is
+                # scrubbed on the fixed collar that never leaves the listener dot.
+                # The clamp behaviour this stitch pinned is unchanged, so the
+                # assertions are repaired to drive the collar instead of the tip.
                 listener_body = page.locator("#spatial .listener-body").bounding_box()
                 center_x = listener_body["x"] + listener_body["width"] / 2
                 center_y = listener_body["y"] + listener_body["height"] / 2
-                far_offset_m = diagonal * 0.78  # per-axis; combined magnitude > diagonal
-                target_x = center_x + far_offset_m * scale_x
-                target_y = center_y + far_offset_m * scale_y
-                drag(page, tip, target_x, target_y)
-                page.wait_for_timeout(150)
+                collar_px = 0.45 * scale_x
 
+                def scrub(pixels):
+                    """Press the collar (south of the body) and pull along the
+                    grab axis by `pixels`; 2.5x gain, clamped."""
+                    start_x, start_y = center_x, center_y + collar_px
+                    page.mouse.move(start_x, start_y)
+                    page.mouse.down()
+                    for step in range(1, 17):
+                        page.mouse.move(start_x, start_y + pixels * step / 16)
+                    page.mouse.up()
+                    page.wait_for_timeout(150)
+
+                scrub(diagonal * 1.2 * scale_y)
                 outward = page.evaluate(
                     "JSON.parse(JSON.stringify(installation.listener))")
-                check("dragging the tip outward clamps range to the room diagonal",
+                check("scrubbing the collar outward clamps range to the room diagonal",
                       close(outward["range"], diagonal), repr(outward))
-                check("dragging the tip outward also updates heading",
-                      outward["heading"] != initial_listener["heading"], repr(outward))
+                check("scrubbing the collar leaves heading alone (was: also set heading)",
+                      outward["heading"] == initial_listener["heading"], repr(outward))
 
-                # Drag the tip back in, well below the 0.5m floor.
-                tip = page.locator("#spatial .listener-tip")
-                near_offset_m = 0.2
-                target_x = center_x + near_offset_m * scale_x
-                target_y = center_y + near_offset_m * scale_y
-                drag(page, tip, target_x, target_y)
-                page.wait_for_timeout(150)
-
+                scrub(-diagonal * 1.2 * scale_y)
                 inward = page.evaluate(
                     "JSON.parse(JSON.stringify(installation.listener))")
-                check("dragging the tip inward clamps range to the 0.5m floor",
+                check("scrubbing the collar inward clamps range to the 0.5m floor",
                       inward["range"] == 0.5, repr(inward))
 
                 # The /audition/listener frame shape is unchanged (still 4
