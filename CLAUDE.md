@@ -161,6 +161,11 @@ and tie one concrete stitch at a time:
    green → cyan at the token layer); and `22-listener-range-ux` (the
    Seats listener range is only settable by dragging a handle that clips
    off the map — UX design gate, Bob ratifies, then implementation).
+   Bob then reviewed it live and `24-show-divider-and-glyph-repass`
+   (tied same day) reversed two of its calls: the unnamed divider is now
+   a short 28px rule centred in the alias slot, not a full-width span,
+   and the drawn SVG glyphs are gone in favour of `✛` / `╱`, chosen to
+   match the edit bar's existing `⧉` / `✕`.
 13. **Loose — `23-waveform-marker-guard-regression`.** Found while
    verifying stage 12: the tied `automation-5-waveform-marker` guard
    fails on `main` on its own (a Dashboard seat-card automation-marker

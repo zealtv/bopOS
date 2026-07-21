@@ -61,6 +61,26 @@ proposals derived from his words and are one-line retunable.
   ramp/segment duration, so it covers all generator kinds. 67 PASS / 0
   failures; wire round-trip verified unchanged.
 
+## Bob's live review — thread 24 (same session, after the above)
+
+Bob looked at the tab and reversed two calls. `24-show-divider-and-glyph-repass`
+is fully tied:
+
+- `904c84b` — **24/01**: the unnamed divider's rule is now short (28px, the
+  same length as the named row's flanking rules) and centred where the alias
+  would go, not a full-width span. The two divider states now read as one row
+  type with the name present or absent.
+- `0b4eaea` — **24/02**: the drawn SVG glyphs are gone. Step is `✛` (U+271B,
+  ✕'s Dingbats sibling), divider is `╱` (U+2571, effectively one half of ✕) —
+  chosen to sit with the edit bar's existing `⧉` / `✕` in weight and optical
+  size, and checked rendered in both themes at both widths. The narrow-width
+  add/remove confusion `19/02` was fixing does not return, because `╱` is not
+  the visual opposite of `✛`.
+
+Both repaired the superseding assertions in the `19/02` and `19/03` guards in
+place, per the ruling below. All eight tied Show guards re-run at
+`0 failure(s)` after both changes.
+
 ## Loom state / next session
 
 `19-show-chrome-fixes` is fully tied; its goal stitch is tied too.
