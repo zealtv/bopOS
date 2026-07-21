@@ -164,4 +164,7 @@ header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24
 .listener-tip-hit{fill:transparent;stroke:transparent;stroke-width:16;vector-effect:non-scaling-stroke;cursor:crosshair}
 .listener-puck:hover .listener-collar,.listener-puck.scrubbing .listener-collar{stroke:var(--accent-cyan);stroke-width:2;opacity:1}
 .listener-puck:focus{outline:none}.listener-puck:focus-visible .listener-collar{stroke:var(--accent-cyan);stroke-width:2;opacity:1}
-#listener-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface-bar)}#listener-bar[hidden]{display:none}#listener-bar label{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:13px}#listener-bar output{color:var(--accent-cyan-soft);font-size:13px;font-variant-numeric:tabular-nums}
+/* 26-listener-range-fixes/02: #listener-bar is retired (Bob 2026-07-21 — all listener
+   control is graphical). Its readout is replaced by a gesture-only on-canvas label. */
+.listener-value{fill:var(--accent-cyan-soft);font-size:.3px;font-weight:700;text-anchor:middle;font-variant-numeric:tabular-nums;pointer-events:none;opacity:0;transition:opacity .12s}
+.listener-puck.gesturing .listener-value{opacity:1}

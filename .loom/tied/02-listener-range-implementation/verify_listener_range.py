@@ -5,8 +5,18 @@ Proves the ratified design: range is scrubbed on a fixed collar that never
 leaves the listener dot (so it is settable with the listener hard against the
 top edge of the map -- the case that was impossible before), heading is a
 separate gesture on a fixed-length handle, and neither perturbs the other.
-Also covers the numeric field, the keyboard path, touch emulation, and a
-set_listener round-trip through persistence.
+Also covers the wheel, the keyboard path, touch emulation, and a set_listener
+round-trip through persistence.
+
+Repaired in place twice by thread 26-listener-range-fixes, per CLAUDE.md
+"Re-running a tied guard" -- Bob's 2026-07-21 rulings superseded parts of what
+this guard pinned, and a superseded guard gets repaired, not left red:
+
+- `/01` clipped the range indication to the room, retiring the dashed
+  out-of-room arc and moving the clip one level up the tree;
+- `/02` retired the whole Listener toolbar, so the checks that drove the numeric
+  range/heading fields now drive the wheel, and the readout assertion reads the
+  puck's aria-label. Each repaired site carries an inline SUPERSEDED note.
 """
 
 import json
@@ -82,6 +92,27 @@ def stop(process):
 
 def listener(page):
     return page.evaluate("JSON.parse(JSON.stringify(installation.listener))")
+
+
+def set_range(page, value):
+    """Arrange a starting range without asserting anything about the control.
+
+    26-listener-range-fixes/02 retired the numeric field this used to type into.
+    Fixture setup goes straight through set_listener now; the graphical paths are
+    exercised by the checks themselves.
+    """
+    page.evaluate("v => { installation.listener.range = v;"
+                  " ws.send('set_listener', JSON.parse(JSON.stringify(installation.listener)));"
+                  " Spatial.frame(); }", arg=value)
+    page.wait_for_timeout(250)
+
+
+def set_heading(page, value):
+    """Arrange a starting heading; see set_range."""
+    page.evaluate("v => { installation.listener.heading = v;"
+                  " ws.send('set_listener', JSON.parse(JSON.stringify(installation.listener)));"
+                  " Spatial.frame(); }", arg=value)
+    page.wait_for_timeout(250)
 
 
 def puck_centre(page):
@@ -238,9 +269,13 @@ def main():
                     "() => document.querySelector('#spatial .listener-ring')"
                     ".classList.contains('at-max')")
                 check("outline goes solid at the ceiling", at_max)
-                check("readout reports the max",
-                      "(max)" in page.locator("#listener-readout").inner_text(),
-                      page.locator("#listener-readout").inner_text())
+                # SUPERSEDED by 26-listener-range-fixes/02: #listener-readout is
+                # retired with the toolbar. The puck's aria-label is now the durable
+                # textual statement of the value, so assert the max there instead.
+                check("the value is still reported textually at the max",
+                      "range {} metres".format(f"{diagonal:.2f}".rstrip("0").rstrip(".")) in
+                      page.locator("#spatial .listener-puck").get_attribute("aria-label"),
+                      page.locator("#spatial .listener-puck").get_attribute("aria-label"))
                 page.screenshot(path=os.path.join(HERE, "shot-top-edge-max-range.png"))
 
                 # Scrub back inward: press the collar and pull toward the dot and
@@ -292,30 +327,36 @@ def main():
                       repr(handle))
                 page.screenshot(path=os.path.join(HERE, "shot-heading-vs-range.png"))
 
-                # --- Numeric field -------------------------------------------
-                page.locator("#listener-range").fill("3.75")
-                page.locator("#listener-range").dispatch_event("change")
-                page.wait_for_timeout(200)
-                typed = listener(page)
-                check("typed range commits", close(typed["range"], 3.75), repr(typed))
-                check("typed range leaves heading alone",
-                      close(typed["heading"], aimed["heading"]), repr(typed))
-                page.locator("#listener-range").fill("999")
-                page.locator("#listener-range").dispatch_event("change")
-                page.wait_for_timeout(200)
-                check("typed range clamps at the diagonal ceiling",
+                # --- Wheel over the puck -------------------------------------
+                # SUPERSEDED by 26-listener-range-fixes/02: the numeric range and
+                # heading fields are retired with the whole Listener toolbar (Bob,
+                # 2026-07-21 -- "all control can be graphical"). These checks kept
+                # their subject (range commits, range clamps at the ceiling, heading
+                # and range stay independent) but now drive the WHEEL, which is one
+                # of the graphical range paths that replaced the fields.
+                set_range(page, 3.0)
+                page.evaluate("window.scrollTo(0, 0)")
+                centre = puck_centre(page)
+                page.mouse.move(*centre)
+                page.mouse.wheel(0, -300)  # up = larger, 0.25 m per notch
+                page.wait_for_timeout(250)
+                wheeled = listener(page)
+                check("wheel over the puck commits a larger range",
+                      wheeled["range"] > 3.0, repr(wheeled))
+                check("wheel range leaves heading alone",
+                      close(wheeled["heading"], aimed["heading"]), repr(wheeled))
+                for _ in range(40):  # 0.25 m per event, not per deltaY unit
+                    page.mouse.wheel(0, -120)
+                page.wait_for_timeout(400)
+                check("wheel range clamps at the diagonal ceiling",
                       close(listener(page)["range"], diagonal), repr(listener(page)))
-                page.locator("#listener-heading").fill("210")
-                page.locator("#listener-heading").dispatch_event("change")
-                page.wait_for_timeout(200)
-                typed_heading = listener(page)
-                check("typed heading commits without touching range",
-                      close(typed_heading["heading"], 210)
-                      and close(typed_heading["range"], diagonal), repr(typed_heading))
 
                 # --- Keyboard ------------------------------------------------
-                page.locator("#listener-range").fill("2.0")
-                page.locator("#listener-range").dispatch_event("change")
+                # Heading 210 used to arrive via the retired numeric field; it is
+                # fixture setup for the checks below, so it goes through
+                # set_listener now (26-listener-range-fixes/02).
+                set_heading(page, 210)
+                set_range(page, 2.0)
                 page.wait_for_timeout(400)  # let the broadcast re-render settle first
                 # Focus and read in ONE evaluate: a heartbeat re-render between the
                 # two calls otherwise lands before focus settles.

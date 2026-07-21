@@ -22,6 +22,12 @@
   let pointFrame = {};
   let lastPointSend = 0;
   let lastListenerSend = 0;
+  let valueLabelTimer = null;
+  // Survives the re-render a gesture provokes: the keyboard/wheel paths send
+  // set_listener, the server broadcasts, and render() rebuilds the puck — which
+  // would otherwise wipe the label a few frames after it appeared.
+  let valueLabelGesture = null;
+  let valueLabelUntil = 0;
   let editorLast = null;
   let editorPointDrag = null;
   let selectedEditorPoint = null;
@@ -179,7 +185,10 @@
       el("circle", {r: LISTENER_COLLAR, class: "listener-collar-hit"}, g);
       el("circle", {r: 0.3, class: "listener-body"}, g);
       el("text", {x: 0, y: 0.07, class: "listener-label"}, g).textContent = "L";
-      paintRange(svg, listener, diagonal);
+      // Gesture-only value readout, replacing the retired toolbar output. Sits
+      // just below the collar so it clears the heading handle at any aim.
+      el("text", {x: 0, y: LISTENER_COLLAR + 0.34, class: "listener-value"}, g);
+      paintRange(svg, listener, diagonal, valueLabelGesture, true);
       if (keepListenerFocus) g.focus({preventScroll: true});
     }
 
@@ -193,7 +202,6 @@
       el("text", {x: 0, y: 0.08, class: "point-label"}, g).textContent = `P${point.id}`;
     }
     renderPointList(installation);
-    bindListenerBar(installation, ws, W, D);
     bindMap(svg, W, D);
     bindPointEditor(installation, ws, W, D);
   }
@@ -212,9 +220,43 @@
     svg.querySelector(".listener-range-at")?.setAttribute("transform", at);
   }
 
-  // Live repaint of the range field/outline/tick plus the toolbar readout, shared
-  // by the scrub, the wheel, the keys and the numeric field.
-  function paintRange(svg, listener, diagonal) {
+  // With the toolbar retired (26-listener-range-fixes/02) the puck's aria-label is
+  // the ONLY textual statement of heading and range, so it has to track every
+  // gesture rather than only the render. The on-canvas label shows the value being
+  // changed, and only while the gesture is live.
+  function describeListener(svg, listener, diagonal, gesture, replay = false) {
+    const puck = svg.querySelector(".listener-puck");
+    if (!puck) return;
+    const range = clampRange(listener.range, diagonal);
+    const heading = Math.round(Number(listener.heading));
+    puck.setAttribute("aria-label",
+      `Listener; heading ${heading} degrees, range ${range} metres,`
+      + ` position ${round(listener.x)}, ${round(listener.y)} metres`);
+    const label = puck.querySelector(".listener-value");
+    if (!label) return;
+    const atMax = range >= round(diagonal) - 0.005;
+    if (gesture === "range") label.textContent = `${range.toFixed(2)} m${atMax ? " (max)" : ""}`;
+    else if (gesture === "heading") label.textContent = `${heading}°`;
+    else if (gesture === "move") label.textContent = `${round(listener.x)}, ${round(listener.y)} m`;
+    // The wheel and the arrow keys have no end event, so the label fades on a
+    // deadline. A *replay* (a re-render redrawing a still-live label) must not
+    // push that deadline out, or the heartbeat keeps the label up forever.
+    if (gesture && !replay) valueLabelGesture = gesture;
+    const live = !!gesture && (!replay || Date.now() < valueLabelUntil);
+    puck.classList.toggle("gesturing", live);
+    if (gesture && !replay) {
+      valueLabelUntil = Date.now() + 900;
+      clearTimeout(valueLabelTimer);
+      valueLabelTimer = setTimeout(() => {
+        valueLabelGesture = null;
+        svg.querySelector(".listener-puck")?.classList.remove("gesturing");
+      }, 900);
+    }
+  }
+
+  // Live repaint of the range field/outline/tick, shared by the scrub, the wheel
+  // and the keys.
+  function paintRange(svg, listener, diagonal, gesture = null, replay = false) {
     const range = clampRange(listener.range, diagonal);
     const atMax = range >= round(diagonal) - 0.005;
     placeListener(svg, listener);
@@ -230,12 +272,7 @@
       tick.setAttribute("x2", Math.sin(heading) * range);
       tick.setAttribute("y2", -Math.cos(heading) * range);
     }
-    const readout = document.getElementById("listener-readout");
-    if (readout) readout.textContent = `${range.toFixed(2)} m${atMax ? " (max)" : ""}`;
-    const field = document.getElementById("listener-range");
-    if (field && field !== document.activeElement) field.value = range;
-    const headingField = document.getElementById("listener-heading");
-    if (headingField && headingField !== document.activeElement) headingField.value = round(listener.heading);
+    describeListener(svg, listener, diagonal, gesture, replay);
   }
 
   function paintHeading(group, listener) {
@@ -262,37 +299,8 @@
     if (!listener || !installation.simulation?.active) return;
     const diagonal = Math.hypot(W, D);
     listener.range = clampRange(Number(listener.range) + delta, diagonal);
-    paintRange(svg, listener, diagonal);
+    paintRange(svg, listener, diagonal, "range");
     sendListener(ws, listener, true);
-  }
-
-  function bindListenerBar(installation, ws, W, D) {
-    const bar = document.getElementById("listener-bar");
-    if (!bar) return;
-    const listener = installation.listener;
-    const live = !!(listener && installation.simulation?.active);
-    bar.hidden = !live;
-    if (!live) return;
-    const diagonal = Math.hypot(W, D);
-    const rangeField = document.getElementById("listener-range");
-    const headingField = document.getElementById("listener-heading");
-    rangeField.min = LISTENER_RANGE_MIN;
-    rangeField.max = round(diagonal);
-    if (rangeField !== document.activeElement) rangeField.value = clampRange(listener.range, diagonal);
-    if (headingField !== document.activeElement) headingField.value = round(listener.heading);
-    document.getElementById("listener-readout").textContent =
-      `${clampRange(listener.range, diagonal).toFixed(2)} m` +
-      (clampRange(listener.range, diagonal) >= round(diagonal) - 0.005 ? " (max)" : "");
-    rangeField.onchange = () => {
-      listener.range = clampRange(rangeField.value, diagonal);
-      ws.send("set_listener", clone(listener));
-      render(...last);
-    };
-    headingField.onchange = () => {
-      listener.heading = round(((Number(headingField.value) % 360) + 360) % 360);
-      ws.send("set_listener", clone(listener));
-      render(...last);
-    };
   }
 
   function bindMap(svg, W, D) {
@@ -308,7 +316,7 @@
           const step = (event.shiftKey ? 15 : 1) * (event.key === "ArrowRight" ? 1 : -1);
           listener.heading = round(((Number(listener.heading) + step) % 360 + 360) % 360);
           paintHeading(puck, listener);
-          paintRange(svg, listener, Math.hypot(W, D));
+          paintRange(svg, listener, Math.hypot(W, D), "heading");
           sendListener(last[3], listener, true);
         }
         return;
@@ -330,7 +338,7 @@
       const listener = last[0].listener;
       const diagonal = Math.hypot(W, D);
       listener.range = clampRange(LISTENER_RANGE_DEFAULT, diagonal);
-      paintRange(svg, listener, diagonal);
+      paintRange(svg, listener, diagonal, "range");
       sendListener(last[3], listener, true);
     };
     svg.onclick = event => {
@@ -406,7 +414,7 @@
         rangeDrag.range = clampRange(rangeDrag.range + (distance - rangeDrag.from) * gain, diagonal);
         rangeDrag.from = distance;
         listener.range = rangeDrag.range;
-        paintRange(svg, listener, diagonal);
+        paintRange(svg, listener, diagonal, "range");
         sendListener(last[3], listener, false);
         return;
       }
@@ -418,7 +426,7 @@
         if (Math.hypot(dx, dy) < MOVE_MIN) return;
         listener.heading = round((Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360);
         paintHeading(headingDrag.group, listener);
-        paintRange(svg, listener, Math.hypot(W, D));
+        paintRange(svg, listener, Math.hypot(W, D), "heading");
         sendListener(last[3], listener, false);
         return;
       }
@@ -431,6 +439,7 @@
         const listener = last[0].listener;
         listener.x = round(x); listener.y = round(y);
         placeListener(svg, listener);
+        describeListener(svg, listener, Math.hypot(W, D), "move");
         const now = performance.now();
         if (now - lastListenerSend >= 40) {
           lastListenerSend = now;
