@@ -279,10 +279,21 @@ def main():
                     facilitator.locator(range_selector), "accentColor", "--accent-cyan")
                 check("light theme flips range to light --accent-cyan",
                       light_range["actual"] == light_range["expected"]
-                      == "rgb(30, 138, 132)"
+                      # Retuned by 21-theme-cyan-tint (light --accent-cyan
+                      # #147772 -> #0E728C). Note the literal pinned here was
+                      # already stale: rgb(30,138,132) never matched #147772
+                      # (rgb(20,119,114)), so this check was red on main.
+                      == "rgb(14, 114, 140)"
                       and light_range["actual"] != range_accent["actual"],
                       repr({"dark": range_accent, "light": light_range}))
 
+                # theme-1 made pages follow the system preference and headless
+                # Chromium reports light, so the dark pill trios below no longer
+                # matched. Stamp the theme this check was written against.
+                # Guard-mechanics repair only, no colour ruling
+                # (21-theme-cyan-tint).
+                dashboard.evaluate(
+                    "document.documentElement.dataset.theme = 'dark'")
                 dashboard.evaluate(
                     "document.querySelector('#tab-button-show').click()")
                 dashboard.wait_for_selector('.show-pill-0')

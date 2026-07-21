@@ -8,7 +8,7 @@ plus the facilitator page. Run once before the token retune and once after:
     ~/.venvs/bopos/bin/python shots.py before
     ~/.venvs/bopos/bin/python shots.py after
 
-Writes shots-<label>/<tab>.png inside the stitch directory.
+Writes <label>-<tab>.png inside the stitch directory.
 """
 
 import json
@@ -153,8 +153,7 @@ TABS = ["dashboard", "devices", "seats", "patches", "assets", "show"]
 
 def main():
     label = sys.argv[1] if len(sys.argv) > 1 else "before"
-    outdir = HERE / f"shots-{label}"
-    outdir.mkdir(exist_ok=True)
+    outdir = HERE
     with tempfile.TemporaryDirectory(prefix="bopos-cyan-shots-") as root:
         patches, assets, state_dir, manifest_path, state_path = make_fixture(root)
         http_port = free_port(socket.SOCK_STREAM)
@@ -199,8 +198,8 @@ def main():
                     page.click(f"#tab-button-{tab}")
                     page.wait_for_timeout(700)
                     page.evaluate("() => window.scrollTo(0, 0)")
-                    page.screenshot(path=str(outdir / f"{tab}.png"), full_page=True)
-                    print("wrote", outdir / f"{tab}.png")
+                    page.screenshot(path=str(outdir / f"{label}-{tab}.png"), full_page=True)
+                    print("wrote", outdir / f"{label}-{tab}.png")
 
                 fac = context.new_page()
                 fac.goto(base_url + "/facilitator")
@@ -209,8 +208,8 @@ def main():
                 fac.evaluate(
                     "() => document.documentElement.setAttribute('data-theme','light')")
                 fac.wait_for_timeout(600)
-                fac.screenshot(path=str(outdir / "facilitator.png"), full_page=True)
-                print("wrote", outdir / "facilitator.png")
+                fac.screenshot(path=str(outdir / f"{label}-facilitator.png"), full_page=True)
+                print("wrote", outdir / f"{label}-facilitator.png")
                 browser.close()
         finally:
             stop(fleet)

@@ -289,7 +289,8 @@ def main():
                 check("system preference defaults to emulated light", initial_theme == {
                     "theme": "light", "preference": "system", "selected": "system",
                     "stored": None, "meta": "#f4f1f8", "body": "rgb(244, 241, 248)",
-                    "accent": "#147772",
+                    # 21-theme-cyan-tint retuned light --accent-cyan.
+                    "accent": "#0E728C",
                 }, repr(initial_theme))
                 check_contrast(dashboard, "light")
 
@@ -391,10 +392,20 @@ def main():
                     facilitator.locator(range_selector), "accentColor", "--accent-cyan")
                 check("light theme flips range to light --accent-cyan",
                       light_range["actual"] == light_range["expected"]
-                      == "rgb(20, 119, 114)"
+                      # Retuned by 21-theme-cyan-tint: light --accent-cyan
+                      # #147772 -> #0E728C (green-leaning teal -> true cyan).
+                      == "rgb(14, 114, 140)"
                       and light_range["actual"] != range_accent["actual"],
                       repr({"dark": range_accent, "light": light_range}))
 
+                # The pill trios below were written against the dark theme, but
+                # by this point the dashboard page is following the system
+                # preference (headless Chromium reports light). Select dark
+                # explicitly -- guard mechanics, no colour ruling
+                # (21-theme-cyan-tint).
+                dashboard.select_option("#theme-select", "dark")
+                dashboard.wait_for_function(
+                    "() => document.documentElement.getAttribute('data-theme') === 'dark'")
                 dashboard.evaluate(
                     "document.querySelector('#tab-button-show').click()")
                 dashboard.wait_for_selector('.show-pill-0')
