@@ -236,7 +236,12 @@ Everything else is `.waiting` for a reason stated in its stitch:
   gates outstanding: `20-console-dock/01-dock-design` (dock scope —
   Show-tab-only vs app-wide, which also bears on `18/06`),
   `25-message-pill-encoding/01-pill-encoding-design`, and the three
-  rulings in `27-tied-guard-rot` (see its proposal). See
+  rulings in `27-tied-guard-rot`, of which Bob settled the ordering
+  (after `20`/`21`) and the pulled-out defect on 2026-07-22 — the sweep
+  question itself he will take in a fresh session, briefed by
+  `.notes/handoff-guard-rot-briefing.md`. `28-fleet-mute-semantics` is
+  tied: the suspected fleet-mute defect was **not** a defect, just
+  another guard pinning a ruling Bob had superseded. See
   `.notes/handoff-2026-07-22-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record
