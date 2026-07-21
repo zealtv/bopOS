@@ -461,11 +461,14 @@
     return items.length ? items[items.length - 1].uid : null;
   }
 
-  // Both "add" glyphs carry an explicit plus followed by a shape naming what is
-  // added, so the additive sense survives label-less rendering at narrow widths.
-  const ADD_GLYPH_OPEN = `<svg viewBox="0 0 20 14" width="20" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M1 7 H7"/><path d="M4 4 V10"/>`;
-  const ADD_STEP_GLYPH = `${ADD_GLYPH_OPEN}<rect x="10" y="3" width="9" height="8" rx="2" stroke-width="1.6"/></svg>`;
-  const ADD_DIVIDER_GLYPH = `${ADD_GLYPH_OPEN}<path d="M10 7 H19"/></svg>`;
+  // Single-character glyphs, drawn from the same thin geometric family as the
+  // edit bar's existing ⧉ (duplicate) and ✕ (delete) — Bob rejected the drawn
+  // SVG pair as messy. U+271B open-centre cross reads as a plus at ✕'s weight;
+  // U+2571 light diagonal reads as the slash without a font-metric surprise.
+  // The narrow-width add/remove confusion that motivated the SVGs does not
+  // return: ╱ is not the visual opposite of ✛.
+  const ADD_STEP_GLYPH = "✛";
+  const ADD_DIVIDER_GLYPH = "╱";
 
   function editBarButton(action, glyph, label, fullLabel, disabled) {
     return `<button type="button" class="show-edit-bar-button" data-edit-bar-action="${action}" title="${escapeHtml(fullLabel)}" aria-label="${escapeHtml(fullLabel)}" ${disabled ? "disabled" : ""}><span class="show-edit-bar-glyph" aria-hidden="true">${glyph}</span><span class="show-edit-bar-label">${escapeHtml(label)}</span></button>`;
