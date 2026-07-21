@@ -1,6 +1,7 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
 - [2026-07-21-show-console-dock-and-fixes-braindump](items/2026-07-21-show-console-dock-and-fixes-braindump/) — Show console dock, chrome fixes, theme tint & listener range braindump — Bob's 2026-07-21 fix list after living with the tied `18-show-chrome-density`
+- [2026-07-21-listener-range-ux-proposal](items/2026-07-21-listener-range-ux-proposal/) — Listener range interaction design proposal — Four sketched alternatives for setting the Seats-map listener range without a handle that clips off the map, with a recommendation, both-theme visual treatment, and the questions Bob must rule on.
 - [2026-07-20-show-chrome-density-braindump](items/2026-07-20-show-chrome-density-braindump/) — Show chrome & density braindump — Bob's 2026-07-20 reaction to the tied `01-layout-review` wireframe — the
 - [2026-07-19-show-tab-polish-braindump](items/2026-07-19-show-tab-polish-braindump/) — Show tab polish braindump — Bob's 2026-07-19 feedback pass on the shipped 14-show-tab slice plus three
 - [2026-07-19-param-automation-generator-design](items/2026-07-19-param-automation-generator-design/) — Parameter automation braindump and generator-slot design proposal — Bob's 2026-07-19 braindump on timed fades, units, curves, LFOs, and animated
