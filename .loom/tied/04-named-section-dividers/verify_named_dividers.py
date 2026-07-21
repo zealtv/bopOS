@@ -266,9 +266,14 @@ def main():
                         }""", uid)
 
                 unnamed = named_row_shape("d0000001")
-                check("unnamed divider row keeps the plain gradient rule (no name/lines)",
+                # Superseded by 19-show-chrome-fixes/03-divider-rule-styling
+                # (Bob, 2026-07-21: "get rid of that gradient... it can just be
+                # a blank line"). The unnamed divider now draws a flat 1px rule
+                # via ::after, so the gradient assertion is inverted here rather
+                # than left permanently red.
+                check("unnamed divider row keeps a plain rule, no gradient (no name/lines)",
                       unnamed["lines"] == 0 and unnamed["name"] is None
-                      and not unnamed["named"] and unnamed["hasGradient"], repr(unnamed))
+                      and not unnamed["named"] and not unnamed["hasGradient"], repr(unnamed))
                 named = named_row_shape("d0000002")
                 check("named divider row shows the name with a rule line either side",
                       named["lines"] == 2 and named["name"] == "MOVEMENT ONE"
