@@ -144,7 +144,20 @@ and tie one concrete stitch at a time:
    non-param manifest kind stay deferred (name and plane undecided);
    muted-device markers keep moving (Bob may veto — see the tied
    ratification note).
-12. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
+12. **Next — Bob's 2026-07-21 fix pass.** Lore item
+   `2026-07-21-show-console-dock-and-fixes-braindump` authorizes four
+   threads, in this order: `19-show-chrome-fixes` (four small Show-tab
+   defects — inspector/delete overlap at narrow widths, confusing `+`/`—`
+   step-vs-divider icons, short divider rules + gradient-free unnamed
+   dividers, the LFO period field obscured by its spinner);
+   `20-console-dock` (the two OSC terminals become one VS Code-style
+   bottom dock — design gate first, then the unified frame, with an OSC
+   send terminal, a system tab, wide-view drag-to-split, and a
+   deliberately deferred map tab); `21-theme-cyan-tint` (light-theme
+   green → cyan at the token layer); and `22-listener-range-ux` (the
+   Seats listener range is only settable by dragging a handle that clips
+   off the map — UX design gate, Bob ratifies, then implementation).
+13. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
    thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
    improvements; only `friction-0a-readme-refresh` tied). The surviving
    pointer is a host-loom loose end
@@ -183,8 +196,12 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (paused pending the lanes/scenes design — collapse may not survive a
   multi-lane grid) and `06-chrome-app-wide-assessment` (Bob lives with
   the Show chrome, then rules app-wide vs staged adoption). Next
-  software work is the host-loom patch-workflow
-  documentation/starter-kit close-out (stage 12). See
+  software work is Bob's 2026-07-21 fix pass — threads `19`→`22`
+  (stage 12) — then the host-loom patch-workflow documentation/
+  starter-kit close-out (stage 13). Two Bob gates sit inside it:
+  `20-console-dock/01-dock-design` (dock scope — Show-tab-only vs
+  app-wide, which also bears on `18/06`) and
+  `22-listener-range-ux/01-listener-range-design`. See
   `.notes/handoff-2026-07-21-autopilot.md`.
 
 Standing rulings still in force: `/sync/*` wire shaping delegated (record

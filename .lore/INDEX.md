@@ -1,5 +1,10 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-07-21-show-console-dock-and-fixes-braindump](items/2026-07-21-show-console-dock-and-fixes-braindump/) — Show console dock, chrome fixes, theme tint & listener range braindump — Bob's 2026-07-21 fix list after living with the tied `18-show-chrome-density`
+- [2026-07-20-show-chrome-density-braindump](items/2026-07-20-show-chrome-density-braindump/) — Show chrome & density braindump — Bob's 2026-07-20 reaction to the tied `01-layout-review` wireframe — the
+- [2026-07-19-show-tab-polish-braindump](items/2026-07-19-show-tab-polish-braindump/) — Show tab polish braindump — Bob's 2026-07-19 feedback pass on the shipped 14-show-tab slice plus three
+- [2026-07-19-param-automation-generator-design](items/2026-07-19-param-automation-generator-design/) — Parameter automation braindump and generator-slot design proposal — Bob's 2026-07-19 braindump on timed fades, units, curves, LFOs, and animated
+- [2026-07-19-param-automation-design-ratified](items/2026-07-19-param-automation-design-ratified/) — Parameter automation design ratified — Bob's 2026-07-19 ratification of the generator-slot parameter-automation
 - [2026-07-16-seat-group-spatial-membership-ux-proposal](items/2026-07-16-seat-group-spatial-membership-ux-proposal/) — Seat-group spatial membership UX proposal — The ratified interaction and hierarchy for revealing overlapping Seat-group membership on the Seats spatial map.
 - [2026-07-16-device-mute-contract-ratified](items/2026-07-16-device-mute-contract-ratified/) — Exact physical-device mute contract — The ratified UID-targeted physical-device mute contract, persistence model, fleet-safety interaction, and dashboard UI boundary.
 - [2026-07-16-device-alias-design-ratified](items/2026-07-16-device-alias-design-ratified/) — Device alias design — The ratified design for durable, globally legible two-word aliases for physical bopOS devices.
