@@ -144,20 +144,30 @@ and tie one concrete stitch at a time:
    non-param manifest kind stay deferred (name and plane undecided);
    muted-device markers keep moving (Bob may veto — see the tied
    ratification note).
-12. **Next — Bob's 2026-07-21 fix pass.** Lore item
+12. **In progress — Bob's 2026-07-21 fix pass.** Lore item
    `2026-07-21-show-console-dock-and-fixes-braindump` authorizes four
-   threads, in this order: `19-show-chrome-fixes` (four small Show-tab
-   defects — inspector/delete overlap at narrow widths, confusing `+`/`—`
-   step-vs-divider icons, short divider rules + gradient-free unnamed
-   dividers, the LFO period field obscured by its spinner);
-   `20-console-dock` (the two OSC terminals become one VS Code-style
+   threads, in this order: `19-show-chrome-fixes` — **complete, tied
+   2026-07-21** (all four Show-tab defects: the collapse toggle now
+   anchors to its panel at narrow widths instead of landing on the edit
+   bar's delete button; add-step/add-divider became one "+ shape" SVG
+   family instead of a `+`/`—` opposed pair; named divider rules are a
+   fixed 28px and the unnamed row is a flat line, no gradient; the
+   generator duration field's unit box shrank to 56px *and* a dead
+   `@container` ordering bug that kept the LFO fields two-up was
+   healed). Then `20-console-dock` (the two OSC terminals become one VS Code-style
    bottom dock — design gate first, then the unified frame, with an OSC
    send terminal, a system tab, wide-view drag-to-split, and a
    deliberately deferred map tab); `21-theme-cyan-tint` (light-theme
    green → cyan at the token layer); and `22-listener-range-ux` (the
    Seats listener range is only settable by dragging a handle that clips
    off the map — UX design gate, Bob ratifies, then implementation).
-13. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
+13. **Loose — `23-waveform-marker-guard-regression`.** Found while
+   verifying stage 12: the tied `automation-5-waveform-marker` guard
+   fails on `main` on its own (a Dashboard seat-card automation-marker
+   selector times out). Real defect or stale guard is unsettled; the
+   stitch says how to find out. Take it when convenient — it does not
+   block the fix pass.
+14. **Then — Docs close-out.** The in-repo `patch-workflow-friction`
    thread was **dropped** 2026-07-17 (subsumed by ongoing documentation
    improvements; only `friction-0a-readme-refresh` tied). The surviving
    pointer is a host-loom loose end
@@ -265,6 +275,17 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   changing the Show inspector's generator `<select>` write-through
   persists new args onto the focused message — use one fixture message
   per generator kind instead of switching kinds in-test.
+
+**Re-running a tied guard:** the harness declines to execute scripts living
+under `.loom/tied/`. Copy the guard into your own stitch directory and run
+the copy — the repo-by-marker root lookup survives the move, and it also
+spares the tied screenshots from being regenerated (no
+`git checkout -- .loom/tied/` needed afterwards). Delete the copy and its
+screenshots when done. A tied guard that pins something Bob has since ruled
+away is **superseded, not authoritative**: invert or repair the assertion in
+place with an inline comment naming the superseding stitch, and record the
+ruling in that stitch's `decisions.md` — don't leave a guard permanently red
+(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example).
 
 ## Records
 
