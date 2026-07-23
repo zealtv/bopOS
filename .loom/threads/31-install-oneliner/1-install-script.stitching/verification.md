@@ -18,7 +18,7 @@ guard. It also fixes the fresh-Pi regression checks for headless JACK device
 reservation, systemd's realtime/memory-lock limits, and the terminal automatic
 reboot.
 
-## Fresh-device gate — in progress on `new-bop`
+## Fresh-device gate — pass on `new-bop`
 
 The 2026-07-23 raw-GitHub run completed on a freshly flashed Raspberry Pi OS
 Lite device. Package installation, locale generation, recursive clone,
@@ -32,29 +32,32 @@ The first cold boot exposed a headless-JACK failure before PD could start:
 the DigiAMP was present and unclaimed, but JACK tried D-Bus device reservation
 without a display. Diagnostics also confirmed that the system service had
 `LimitMEMLOCK=8M` / `LimitRTPRIO=0`, unlike the `audio` user's PAM limits. The
-launcher and unit now address both conditions. Hardware retest is pending.
+launcher and unit now address both conditions.
 
-Do not tie this stitch until the corrected revision is reachable from the raw
-GitHub URL and the fresh Raspberry Pi has passed the remaining checks:
+The corrected `fa7bd53` revision then passed two unattended boots. On each,
+`bopos.service` was active with `Result=success`, `NRestarts=0`, unlimited
+memlock, and realtime priority 95. bopOS, the I/O bridge, JACK, Pure Data, and
+`pd-watchdog` were running; JACK exposed DigiAMP playback and Pure Data ports;
+the expected 6660/6661/6662/8880 UDP listeners were present.
 
-1. Flash Raspberry Pi OS Lite 64-bit with user `pi`, Wi-Fi, and SSH.
-2. Run the README `curl .../install-device.sh | bash` command.
-3. Confirm `~/bopOS/bopos.config` contains `SOUNDCARD=DigiAMP` and
-   `MIXER_CONTROL=Digital`.
-4. Confirm `locale` reports `LANG=en_AU.UTF-8` without warnings and
-   `/etc/default/locale` contains no `LC_ALL`.
-5. Reboot, then capture:
-   - `systemctl status bopos.service --no-pager`
-   - `journalctl -u bopos.service -b --no-pager`
-   - `cat /proc/asound/cards`
-   - `pgrep -alf 'bopos.py|io/main.py|jackd|pd'`
-6. Confirm the device appears in the Dashboard and its engine is alive.
-7. Exercise device mute/resume and confirm JACK/PD remain running.
-8. Rerun `install-device.sh`; confirm it fast-forwards cleanly, preserves a
-   harmless marker/comment added to `bopos.config`, and leaves one boot stack.
-9. Run `shellcheck install-device.sh bash/provision.sh bash/start.sh
-   bash/start-engine.sh` and, if available,
-   `systemd-analyze verify /etc/systemd/system/bopos.service`.
+The public one-liner was rerun at `fa7bd53`. Apt, device packages, Python
+dependencies, Git, and submodules were already converged; the existing venv was
+reused. It preserved the config exactly (SHA-256 remained
+`6dede45e538540fac125aebd83d2378e098a09291bfb6941a89a596f08e1905c`) and
+triggered its own reboot. The stack returned active with zero service restarts.
 
-Hardware, boot timing, audio, systemd, and end-to-end idempotence remain
-unverified until that gate.
+The final exact-UID mute lifecycle also passed. Resume changed both DigiAMP
+`Digital` channels to `[on]`; mute restored them to `[off]`. JACK and Pure Data
+retained their PIDs throughout and the service remained active. The Dashboard
+host's installation state contained this UID as `Finn Jet`, bound to seat 0,
+and was updated while the node was online.
+
+`systemd-analyze verify` passed on the Pi. `shellcheck` was unavailable on both
+the development Mac and the fresh Pi; bash parsing plus the living installer
+test are the recorded static checks.
+
+The boot journal also exposed a separate legacy assignment bug:
+`set_hostname()` tries three interactive sudo commands to rename `new-bop` to
+the invalid hostname `Seat 0`. Those commands fail harmlessly and the service
+continues. This belongs to the identity/alias path and is recorded in the
+fresh-install lore report rather than folded into the installer.
