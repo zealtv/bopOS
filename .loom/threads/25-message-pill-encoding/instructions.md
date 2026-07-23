@@ -17,26 +17,35 @@ it distinguishes one pill from its neighbours and carries no semantics at all.
 
 Bob wants that slot spent on meaning instead.
 
-## The two dimensions
+## One flat collection (Bob, 2026-07-23 — resolves the design question)
 
-- **Payload mode** — `param`, `cue`, `point`, `raw`. Note Bob named three
-  ("parameter, cue point, raw"); the code has four, and `point` is a distinct
-  mode from `cue` (`show.js:599` disables targeting for both). Settle whether
-  `point` gets its own encoding or Bob was collapsing the two.
-- **Generator** — `value`, `fade`, `loop`, `lfo`, `stop` (the
-  `#show-param-generator` select, `show.js:648`). This dimension **only exists
-  for numeric `param` messages** — `rawFallback` and the non-param modes have no
-  generator. So the two dimensions are not orthogonal: the second is conditional
-  on the first. That asymmetry is a gift to the design, not an obstacle.
+Bob collapsed the two-dimension framing: **the colours are a single flat set of
+categories combining payload mode *and* generator**, not two dimensions to
+compose. His enumeration:
 
-## The design question
+> cue, point, raw, param-value, param-fade, param-lfo, param-stop
 
-How do you encode two dimensions on a 22px-tall pill that also carries text, a
-drag affordance, a focus ring, and drop-target shadows? Fill vs stroke style is
-Bob's opening suggestion; a glyph, a leading swatch, a stroke weight, or a shape
-change are all live. Constraints that will bite: the pill already spends
-`border-color` on focus and `box-shadow` on drag/drop (`.show-drop-before` /
-`.show-drop-after`), so a stroke-heavy encoding may collide with existing state.
+So each of those is one colour in one palette — `point` gets its own colour
+(distinct from `cue`), the non-param modes (`cue`, `point`, `raw`) are flat
+categories, and the param modes are split by generator into `param-<generator>`.
+This removes the "how to encode two dimensions on a 22px pill" problem entirely:
+it's a **7-way categorical colour scheme**, one swatch per category.
+
+**Confirm in the design:** Bob's list has seven and omits `loop` (the
+`#show-param-generator` select, `show.js:648`, offers `value, fade, loop, lfo,
+stop`). Settle whether `loop` folds into another category, is deliberately
+excluded, or was an oversight and there should be a `param-loop` (eight total).
+
+## The design question (now: the palette)
+
+The remaining work is a **categorical palette** for those 7 (or 8) categories
+that reads in light and dark, distinguishes neighbours, and doesn't collide with
+the pill's existing state paint — `border-color` on focus and `box-shadow` on
+drag/drop (`.show-drop-before` / `.show-drop-after`). A leading swatch, a fill,
+or a glyph are all live; a stroke-heavy encoding may fight the focus/drop states.
+Consult a UI/dataviz expert on the categorical palette (Bob asked for a design
+expert, and this is now squarely a categorical-colour problem — the `dataviz`
+skill's palette guidance applies).
 
 ## Shape of the work
 

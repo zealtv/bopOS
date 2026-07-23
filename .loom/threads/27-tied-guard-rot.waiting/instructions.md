@@ -1,9 +1,13 @@
 # 27-tied-guard-rot
 
-**Waiting on threads `20` and `21`.** Bob ruled 2026-07-22:
+**Waiting on thread `20`** (`21-theme-cyan-tint` was **dropped** 2026-07-23, so
+it no longer gates this). Bob ruled 2026-07-22, revisited 2026-07-23:
 
-- **Ordering:** this runs *after* `20-console-dock` and `21-theme-cyan-tint`.
-  The rot is not blocking anything and has been accumulating for weeks.
+- **Ordering:** this runs *after* `20-console-dock`. The rot is not blocking
+  anything and has been accumulating for weeks. **But** Bob flagged the failing
+  tests for prominence in the 2026-07-23 holistic re-order — see CLAUDE.md's
+  "Next sweep" block for its actual placement, which may lift it above the
+  deferred Show polish.
 - **The sweep question itself** (script yes/no, blocking vs advisory) Bob will
   take in a **fresh session** with a dedicated briefing rather than deciding it
   from the proposal — see `.notes/handoff-guard-rot-briefing.md`, which is

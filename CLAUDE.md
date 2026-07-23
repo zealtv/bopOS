@@ -45,6 +45,95 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
+## Next sweep — holistic ordered program of work (2026-07-23)
+
+This is the whole-loom order, not just the 2026-07-23 intake. Bob set the
+priority: **the node-installation bug first, then the node-enablement cluster,
+then the failing-test / guard-rot cleanup, then deferred Show polish** —
+everything else stays gated for the reason in its stitch. Work one stitch at a
+time (claim → work → verify → tie); design-gate stitches end in a Bob-ratified
+proposal and go `.waiting`.
+
+The loose-end thread numbers of the *active* tier were renumbered so
+`./.loom/loom.sh next` serves tier 1 **literally**. Gated/paused threads stay
+`.waiting` (excluded from `next`) and are ranked here in prose.
+
+**Guard-rot vs the node bug — assessed 2026-07-23 (Bob asked which feeds which).**
+Of the 39/71 red browser-free tied guards, the ones on the patch/fleet path
+(`dist-2-node-side`, `fp-2-fleet-state`, `patch-switch-lifecycle`,
+`fp-1-identity-module`) fail on the **known rot signatures** — a pinned
+`contract_version '1.3'` (now 1.7), the retired legacy-samplepacks link, pinned
+exact refresh-message lists / UI copy, and fake-`state` API drift. The
+*behavioral* patch-sync assertions still **pass** in the sim (fetch progress,
+"converges bytes then switches responsive nodes", per-device fetch
+serialization). So **no guard-rot failure is feeding the node bug** — the node
+bug is fresh-Pi-specific (cold cache / first real fetch / timeout), which
+simfleet doesn't model. Hence node bug first, guard-rot after. (Diagnosis in
+`29/1` should still cross-check those three patch-path guards, cheaply, in case
+a real regression hides among the drift.)
+
+### Tier 1 — active linear sweep (`loom.sh next` serves in this order)
+
+1. **`29-fleet-patch-sync-hang`** — BUG. A freshly-flashed Pi goes unresponsive
+   in the Dashboard when sent the fleet patch (SSH still works). Diagnose
+   (`1-reproduce-diagnose`) then fix. The node-installation error; jumps the queue.
+2. **`30-gdown-retirement`** — remove the stale `gdown` dep + bash-script
+   staleness pass. Quick; unblocks 31.
+3. **`31-install-oneliner`** — condense Pi setup into a `curl`-able `install.sh`
+   + README one-liner. After 30. (USB auto-mount install step wires into 35.)
+4. **`32-multi-asset-packs`** — multiple asset packs; engine context carries a
+   **list of absolute asset-folder paths**. Design gate (`1-context-list-design`,
+   touches the engine-boundary context surface + a Bob PD edit).
+5. **`33-device-audio-config`** — set sound card + JACK sample-rate/buffer from
+   the Device tab. Design gate.
+6. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
+   in the Dashboard menu bar. Design gate; coordinate the fleet-patch
+   *definition* with 29 and `asset-fleet-distribution`.
+
+### Tier 2 — failing-test cleanup, then deferred Show polish
+
+7. **`27-tied-guard-rot`** (`.waiting`) — the 39/71 (likely more, incl. the
+   unswept Playwright set) failing tied guards. Elevated **above** the deferred
+   polish per Bob's 2026-07-23 emphasis on failing tests, but it stays gated on
+   Bob's **fresh briefed session** (`.notes/handoff-guard-rot-briefing.md`) — do
+   not build `tools/guard-sweep.sh` before that session rules. Runs after the
+   node work, not before.
+8. **`20-console-dock`** (`.waiting`) — deferred Show polish (Bob's 2026-07-21
+   fix-pass item). Resume after the guard-rot cleanup.
+9. **`25-message-pill-encoding`** (`.waiting`) — deferred. Bob ruled 2026-07-23
+   the pill colours are a **single flat 7-category set** (cue, point, raw,
+   param-value, param-fade, param-lfo, param-stop — confirm whether `loop`
+   folds/omits/adds an 8th), not two dimensions.
+
+### Tier 3 — paused pending other design (not workable solo)
+
+- **`18-show-chrome-density`** — `01`/`03` paused on the lanes/scenes design
+  (collapse may not survive a multi-lane grid); `06-chrome-app-wide-assessment`
+  waits on Bob living with the Show chrome, then ruling app-wide vs staged.
+
+### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
+
+- **`35-node-logging`** — the append-only-log seed (destination in Device tab +
+  USB auto-mount); grow the design when Bob wants it.
+- **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after
+  `32-multi-asset-packs` settles the pack shape.
+- **`scene-sequencing`** (whole thread paused 2026-07-08; language is co-design),
+  **`framework-version-management/version-0`** (parked on the UI-tabs-runway
+  basis), **`pi-zero-performance/zero-2-engine-verdict`** (SC strategy co-design),
+  **`dashboard-terminology-review`**.
+
+### Tier 5 — hardware / rig-gated (need Bob or a live rig)
+
+- **`clock-sync/sync-4-hw-measurement`**, **`spatial-audio/spatial-3-rig-sweep`**,
+  **`pi-zero-performance/zero-1-tuning-matrix`** (claimable in any session that
+  confirms `bop000` reachable).
+
+Then, after the sweep: the host-loom patch-workflow documentation/starter-kit
+close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
+
+**`21-theme-cyan-tint` is dropped** (Bob, 2026-07-23). It was named in the
+2026-07-21 fix-pass text below but never became a stitch; it's off the program.
+
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
