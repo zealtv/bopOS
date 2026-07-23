@@ -1,4 +1,4 @@
-# Handoff — device audio config complete; continue 33b → 34 → 27 → 20/25
+# Handoff — device audio config complete; continue 34 → 27 → 20/25
 
 This is the current launch note for a fresh session. It supersedes
 `.notes/handoff-2026-07-23-autopilot-node-bug.md` for launch state and work
@@ -10,14 +10,16 @@ reached, but its historical order is stale.
 Work one loom stitch at a time in this order:
 
 1. **Complete — 33: device audio configuration**
-2. **33b — saved device networks**
-3. **34 — fleet-patch global state**
-4. **27 — tied-guard rot**
-5. **20 / 25 — console dock and message-pill encoding**
+2. **34 — fleet-patch global state**
+3. **27 — tied-guard rot**
+4. **20 / 25 — console dock and message-pill encoding**
 
 Threads 20 and 25 are the final pair in this sequence; no precedence between
-them was established here. Do not bring 27 forward ahead of 32–34, including
-33b.
+them was established here. Do not bring 27 forward ahead of 34.
+
+`33b-device-network-config` has moved under the `feature-backlog` umbrella at
+Bob's request. Its design leaf is waiting and it is no longer part of this
+active sequence.
 
 ## Thread 32 — complete and tied
 
@@ -139,10 +141,9 @@ identity/alias work; do not hide it inside a later installer edit.
   transactionally and rolls back on JACK failure.
   Living tests pass 38/38 and the focused browser route journey passes 16/16.
   Real Pi/JACK, audible rollback/silence, and iPad/touch remain hardware gates.
-- **33b** starts with `1-network-config-design`: manage an ordered set of saved
-  SSIDs and write-only passphrases from the Device tab. The design must settle
-  profile priority, secret handling, and safe switching/reconnect/recovery.
-  Design requires Bob ratification.
+- **33b is deferred:** the whole thread now lives at
+  `feature-backlog/33b-device-network-config`; its waiting design still needs
+  Bob ratification when the feature is revisited.
 - **34** starts with `1-menubar-fleet-patch-design`: define fleet-patch global
   state and its menu-bar convergence indicator. Design requires Bob
   ratification.

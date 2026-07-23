@@ -1,5 +1,9 @@
 # 33b-device-network-config
 
+**Deferred by Bob, 2026-07-23.** This thread lives under `feature-backlog` for
+later reconsideration. Its design gate remains unresolved; no scope, security,
+or recovery decision below is ratified by the move.
+
 **FEATURE.** Manage a Raspberry Pi device's saved installation Wi-Fi networks
 from the Dashboard's **Device tab**, alongside the audio configuration
 introduced by thread 33.

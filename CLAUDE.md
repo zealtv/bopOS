@@ -94,10 +94,7 @@ a real regression hides among the drift.)
    is an exact-physical, unprivileged, transactional engine restart with config
    rollback and output-safety reapplication. Software/browser gates pass; real
    Pi/JACK and audible behavior remain a hardware adoption check.
-6. **`33b-device-network-config`** — manage an ordered collection of saved Wi-Fi
-   SSIDs and passphrases from the Device tab. Design gate; settle secret handling
-   plus safe switching/reconnect/recovery before implementation.
-7. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
+6. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
    in the Dashboard menu bar. Design gate; coordinate the fleet-patch
    *definition* with 29 and `asset-fleet-distribution`.
 
@@ -134,6 +131,10 @@ a real regression hides among the drift.)
 
 ### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
 
+- **`feature-backlog/33b-device-network-config`** — saved Wi-Fi profiles and
+  write-only credentials from the Device tab. Bob deferred it 2026-07-23;
+  secret handling, privileged storage, safe switching, reconnect, and recovery
+  remain an unratified design gate.
 - **`35-node-logging`** — the append-only-log seed (destination in Device tab +
   USB auto-mount); grow the design when Bob wants it.
 - **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after

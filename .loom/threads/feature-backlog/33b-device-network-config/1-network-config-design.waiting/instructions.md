@@ -1,5 +1,8 @@
 # 1-network-config-design
 
+**Waiting:** Bob moved the network-credential feature to `feature-backlog` on
+2026-07-23. Resume only when he explicitly brings it back into active work.
+
 Design saved-network configuration from the Device tab. Produce a written
 proposal for **Bob to ratify**; do not implement past this gate.
 
