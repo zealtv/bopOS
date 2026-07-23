@@ -602,16 +602,6 @@ def identify(uid=None, state=None):
     return True
 
 
-def set_hostname(hostname):
-    current_hostname = socket.gethostname()
-    if current_hostname == hostname:
-        return
-    print(f"Hostname change: {current_hostname} -> {hostname}")
-    os.system(f'sudo hostnamectl set-hostname {hostname}')
-    os.system(f"sudo sed -i 's/^127.0.1.1.*/127.0.1.1   {hostname}/' /etc/hosts")
-    os.system('sudo systemctl restart avahi-daemon')
-
-
 def set_device_hostname(hostname, reply_socket, requester, state=None):
     """Apply one validated exact-UID hostname and return a terminal receipt."""
     state = state or node_state
@@ -704,7 +694,6 @@ def apply_assign(args, state=None):
     if not state.store.put("assignment", [new_id, name] + positions):
         return False
     state.id = new_id
-    set_hostname(name)
     msg = OSCMessage("/id")
     msg.append(new_id, 'f')
     try:
@@ -1315,30 +1304,10 @@ def lan_listener_loop(state=None):
 
 
 def config_callback(path='', tags='', args='', source=''):
-    config_file = os.path.join(BOPOS_DIR, "bopos.devices")
-    print("loading: ", config_file)
-    try:
-        read_obj = open(config_file, 'r')
-    except OSError:
-        print('MAC address not found in bopos.devices.csv')
-    else:
-        with read_obj:
-            csv_reader = reader(read_obj, skipinitialspace=True)
-            macfound = False
-            for row in csv_reader:
-                if len(row) >= 3 and row[0].strip() == node_state.uid:
-                    print('MAC address found in bopos.devices')
-                    macfound = True
-                    set_hostname(row[1].strip())
-                    # NodeState already resolved persistence -> seed ->
-                    # unassigned at boot. The CSV remains a hostname seed,
-                    # never an authority that overwrites a dashboard assignment.
-                    print('resolved ID is ' + str(node_state.id))
-                    break
-            if not macfound:
-                print('MAC address not found in bopos.devices.csv')
     # Every engine asks /config after opening port 6661. Always return the
-    # authoritative resolved identity, including when no CSV exists.
+    # authoritative resolved identity. Seat names and the legacy bopos.devices
+    # export never mutate the OS hostname; that belongs only to the exact-UID
+    # /os/hostname action.
     msg = OSCMessage("/id")
     msg.append(node_state.id, 'i')
     send_to_engine(msg)

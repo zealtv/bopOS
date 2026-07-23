@@ -74,6 +74,39 @@ class NodeFetchDispatchTests(unittest.TestCase):
             mock.ANY,
         )
 
+    def test_assignment_does_not_mutate_the_device_hostname(self):
+        class Store:
+            def __init__(self):
+                self.values = {}
+
+            def put(self, key, value):
+                self.values[key] = value
+                return True
+
+        state = types.SimpleNamespace(
+            uid="node-a",
+            id=-1,
+            groups=(),
+            store=Store(),
+            elements=[],
+        )
+
+        with (
+            mock.patch.object(bopos, "send_groups_to_engine"),
+            mock.patch.object(bopos, "send_to_engine"),
+            mock.patch.object(bopos.os, "system") as shell,
+            mock.patch.object(bopos.subprocess, "run") as process,
+        ):
+            handled = bopos.apply_assign(
+                ["node-a", 0, "Seat 0", 1.0, 2.0],
+                state,
+            )
+
+        self.assertTrue(handled)
+        self.assertEqual(state.store.values["assignment"], [0, "Seat 0", 1.0, 2.0])
+        shell.assert_not_called()
+        process.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
