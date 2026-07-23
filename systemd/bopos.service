@@ -12,6 +12,8 @@ WorkingDirectory=/home/pi/bopOS
 Environment=HOME=/home/pi
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=-/etc/default/locale
+LimitMEMLOCK=infinity
+LimitRTPRIO=95
 ExecStart=/home/pi/bopOS/bash/start.sh
 ExecStop=/home/pi/bopOS/bash/stop.sh
 RemainAfterExit=yes

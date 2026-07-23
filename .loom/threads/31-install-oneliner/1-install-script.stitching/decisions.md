@@ -39,6 +39,14 @@ The old fixed 15-second delay is replaced by a bounded wait for the configured
 ALSA card in `start-engine.sh`. A failed start cleans up the partial stack so
 systemd can retry without duplicate framework processes.
 
+The fresh-Pi cold boot showed that JACK's desktop device-reservation path
+rejects an otherwise-unclaimed DigiAMP when no display/session bus exists.
+`start-engine.sh` therefore defaults `JACK_NO_AUDIO_RESERVATION=1`, while still
+allowing an explicit caller override. The systemd unit also grants the
+`memlock=unlimited` and `rtprio=95` limits already assigned to members of the
+`audio` group by Debian's JACK setup; system services do not inherit those PAM
+login limits.
+
 ## Locale
 
 Device installation defaults to `en_AU.UTF-8`, with `BOPOS_LOCALE` as an

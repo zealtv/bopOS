@@ -14,12 +14,27 @@
 The living test checks explicit installer entry points, the raw-GitHub command,
 composition through provisioning, locale generation without global `LC_ALL`,
 config preservation, systemd lifecycle hooks, and the cold-audio readiness
-guard.
+guard. It also fixes the fresh-Pi regression checks for headless JACK device
+reservation and systemd's realtime/memory-lock limits.
 
-## Fresh-device gate — pending Bob
+## Fresh-device gate — in progress on `new-bop`
 
-Do not tie this stitch until the raw GitHub script is reachable from the revision
-being tested and a fresh Raspberry Pi has passed:
+The 2026-07-23 raw-GitHub run completed on a freshly flashed Raspberry Pi OS
+Lite device. Package installation, locale generation, recursive clone,
+configuration seeding, sudoers validation, service enablement, and
+`systemd-analyze verify` passed. After reboot, a fresh login reported
+`LANG=en_AU.UTF-8` with no warning. The full-card root partition was already
+expanded before install (7.4 GiB card, 6.9 GiB partition); ext4 exposed 6.8 GiB
+after filesystem metadata.
+
+The first cold boot exposed a headless-JACK failure before PD could start:
+the DigiAMP was present and unclaimed, but JACK tried D-Bus device reservation
+without a display. Diagnostics also confirmed that the system service had
+`LimitMEMLOCK=8M` / `LimitRTPRIO=0`, unlike the `audio` user's PAM limits. The
+launcher and unit now address both conditions. Hardware retest is pending.
+
+Do not tie this stitch until the corrected revision is reachable from the raw
+GitHub URL and the fresh Raspberry Pi has passed the remaining checks:
 
 1. Flash Raspberry Pi OS Lite 64-bit with user `pi`, Wi-Fi, and SSH.
 2. Run the README `curl .../install-device.sh | bash` command.

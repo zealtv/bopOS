@@ -61,12 +61,18 @@ class DeviceInstallTests(unittest.TestCase):
         self.assertIn("ExecStart=/home/pi/bopOS/bash/start.sh", service)
         self.assertIn("ExecStop=/home/pi/bopOS/bash/stop.sh", service)
         self.assertIn("Restart=on-failure", service)
+        self.assertIn("LimitMEMLOCK=infinity", service)
+        self.assertIn("LimitRTPRIO=95", service)
 
     def test_audio_start_reads_device_config_and_waits_for_card(self):
         start = self.read("bash/start-engine.sh")
         self.assertIn('source "$BOPOS_DIR/bopos.config"', start)
         self.assertIn('grep -F "$SOUNDCARD" /proc/asound/cards', start)
         self.assertIn("BOPOS_AUDIO_WAIT_TIMEOUT", start)
+        self.assertIn(
+            'export JACK_NO_AUDIO_RESERVATION="${JACK_NO_AUDIO_RESERVATION:-1}"',
+            start,
+        )
 
 
 if __name__ == "__main__":

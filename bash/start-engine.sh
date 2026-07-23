@@ -90,6 +90,10 @@ if [ "$AUDIO_READY" -ne 1 ]; then
 fi
 
 echo "------------------- Starting Jack..."
+# bopOS owns the configured device for the lifetime of this headless process.
+# JACK's desktop-oriented D-Bus reservation cannot start without a display and
+# otherwise rejects an unclaimed ALSA device.
+export JACK_NO_AUDIO_RESERVATION="${JACK_NO_AUDIO_RESERVATION:-1}"
 jackd -P70 -p16 -t2000 -d alsa -dhw:"$SOUNDCARD" -p 512 -n 2 -r 44100 -s -P& #44.1khz
 JACK_PID=$!
 echo $JACK_PID > "$RUN_DIR/jackd.pid"
