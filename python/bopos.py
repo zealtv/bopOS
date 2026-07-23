@@ -1151,14 +1151,14 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             address, shaped_args = shaped
             if address.startswith("/p/"):
                 declaration = declared_param(address[3:])
-                identity = address[3:]
+                param_identity = address[3:]
                 if declaration is not None and declaration.get("type") in ("f", "i"):
                     try:
                         spec = paramgen.parse_message(shaped_args, declaration["type"])
                     except paramgen.ParamGrammarError as error:
                         print(f"WARNING: {address} parameter grammar: {error}")
                         return True
-                    return param_generator.apply(identity, spec, declaration)
+                    return param_generator.apply(param_identity, spec, declaration)
             return relay_provided_term(*shaped)
     # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
     # fleet-wide), offset is per-device. Handled before the /os gate below.
