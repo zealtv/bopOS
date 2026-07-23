@@ -10,7 +10,3 @@ adafruit-circuitpython-busdevice
 
 # PiicoDev library for LIS3DH
 piicodev
-
-# sample downloading
-gdown
-
