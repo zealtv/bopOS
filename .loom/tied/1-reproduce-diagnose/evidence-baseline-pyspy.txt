@@ -1,0 +1,26 @@
+Process 1048: /home/pi/venv/bin/python /home/pi/bopOS/python/bopos.py 2c:cf:67:b3:0a:58
+Python v3.13.5 (/usr/bin/python3.13)
+
+Thread 1048 (idle): "MainThread"
+    select (selectors.py:398)
+    handle_request (socketserver.py:297)
+    <module> (bopos.py:1825)
+Thread 1053 (idle): "cue-scheduler"
+    wait (threading.py:359)
+    wait (threading.py:659)
+    _loop (sync_node.py:133)
+    run (threading.py:994)
+    _bootstrap_inner (threading.py:1043)
+    _bootstrap (threading.py:1014)
+Thread 1075 (idle): "Thread-3 (heartbeat_loop)"
+    wait (threading.py:363)
+    wait (threading.py:659)
+    heartbeat_loop (bopos.py:421)
+    run (threading.py:994)
+    _bootstrap_inner (threading.py:1043)
+    _bootstrap (threading.py:1014)
+Thread 1076 (idle): "Thread-4 (lan_listener_loop)"
+    lan_listener_loop (bopos.py:1267)
+    run (threading.py:994)
+    _bootstrap_inner (threading.py:1043)
+    _bootstrap (threading.py:1014)

@@ -1,0 +1,12 @@
+amixer: Unable to find simple control 'Master',0
+
+amixer: Unable to find simple control 'Digital',0
+
+amixer: Unable to find simple control 'PCM',0
+
+amixer: Unable to find simple control 'Speaker',0
+
+amixer: Unable to find simple control 'Headphone',0
+
+amixer: Unable to find simple control 'Master',0
+
