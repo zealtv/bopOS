@@ -88,12 +88,12 @@ a real regression hides among the drift.)
    carries a **list of absolute asset-folder paths**. Bob ratified the v1.9
    list boundary and completed the direct `bopos-context` PD/template edits;
    zero/one/two-slot local-editor checks passed 2026-07-23.
-5. **Complete — `33-device-audio-config`.** Detected ALSA playback-card and
-   mixer selection plus bounded JACK rate/buffer/period controls now live in
-   the Device tab. Apply is an exact-physical, unprivileged, transactional
-   engine restart with config rollback and output-safety reapplication.
-   Software/browser gates pass; real Pi/JACK and audible behavior remain a
-   hardware adoption check.
+5. **Complete — `33-device-audio-config`.** Detected ALSA playback-card plus
+   bounded JACK rate/buffer/period controls now live in the Device tab. Mixer
+   selection remains node-side hardware policy, not an operator control. Apply
+   is an exact-physical, unprivileged, transactional engine restart with config
+   rollback and output-safety reapplication. Software/browser gates pass; real
+   Pi/JACK and audible behavior remain a hardware adoption check.
 6. **`33b-device-network-config`** — manage an ordered collection of saved Wi-Fi
    SSIDs and passphrases from the Device tab. Design gate; settle secret handling
    plus safe switching/reconnect/recovery before implementation.

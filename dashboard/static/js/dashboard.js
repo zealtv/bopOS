@@ -943,13 +943,6 @@ function audioSection(d) {
     ...(!available?[`<option value="${esc(configured.card)}" selected disabled>${esc(configured.card)} — unavailable</option>`]:[]),
     ...cards.map(card=>`<option value="${esc(card.id)}" ${card.id===configured.card?'selected':''}>${esc(card.label||card.id)} · ${esc(card.id)}</option>`)
   ].join('');
-  const selectedCard=cards.find(card=>card.id===configured.card);
-  const mixerAvailable=configured.mixer_control==null||(selectedCard?.mixer_controls||[]).includes(configured.mixer_control);
-  const mixerOptions=[
-    ...(!mixerAvailable?[`<option value="${esc(configured.mixer_control)}" selected disabled>${esc(configured.mixer_control)} — unavailable</option>`]:[]),
-    `<option value="" ${configured.mixer_control==null?'selected':''}>Auto</option>`,
-    ...((selectedCard?.mixer_controls)||[]).map(control=>`<option value="${esc(control)}" ${control===configured.mixer_control?'selected':''}>${esc(control)}</option>`)
-  ].join('');
   const rates=[22050,32000,44100,48000,88200,96000];
   const periods=[64,128,256,512,1024,2048];
   const latency=Math.round(Number(configured.period_size)*Number(configured.nperiods)/Number(configured.sample_rate)*10000)/10;
@@ -966,7 +959,6 @@ function audioSection(d) {
     <div class="section-head"><div><h2>Audio</h2><p class="dim">${active?`${esc(active.card)} · ${esc(active.sample_rate)} Hz · ${esc(active.period_size)} frames × ${esc(active.nperiods)}`:"No active JACK configuration reported"}${mismatch?' · saved settings differ':''}</p></div><span class="audio-state">${esc(audio.status||"unknown")}</span></div>
     <div class="audio-config-grid">
       <label>sound card<select id="audio-card" ${d.online&&cards.length?'':'disabled'}>${cardOptions||'<option disabled>No playback cards detected</option>'}</select></label>
-      <label>mixer control<select id="audio-mixer" ${d.online&&cards.length?'':'disabled'}>${mixerOptions}</select></label>
       <label>sample rate<select id="audio-rate" ${d.online?'':'disabled'}>${rates.map(value=>`<option value="${value}" ${value===Number(configured.sample_rate)?'selected':''}>${value} Hz</option>`).join('')}</select></label>
       <label>buffer size<select id="audio-period" ${d.online?'':'disabled'}>${periods.map(value=>`<option value="${value}" ${value===Number(configured.period_size)?'selected':''}>${value} frames</option>`).join('')}</select></label>
       <label>periods<select id="audio-nperiods" ${d.online?'':'disabled'}>${[2,3].map(value=>`<option value="${value}" ${value===Number(configured.nperiods)?'selected':''}>${value}</option>`).join('')}</select></label>
@@ -1039,29 +1031,30 @@ function bindDeviceDetailControls(d) {
 }
 
 function bindAudioControls(d) {
-  const audio=d.report?.audio, card=$("#audio-card"), mixer=$("#audio-mixer"), rate=$("#audio-rate"), period=$("#audio-period"), nperiods=$("#audio-nperiods"), apply=$("#audio-apply");
-  if(!audio?.configured||!card||!mixer||!rate||!period||!nperiods||!apply)return;
+  const audio=d.report?.audio, card=$("#audio-card"), rate=$("#audio-rate"), period=$("#audio-period"), nperiods=$("#audio-nperiods"), apply=$("#audio-apply");
+  if(!audio?.configured||!card||!rate||!period||!nperiods||!apply)return;
   const cards=Array.isArray(audio.cards)?audio.cards:[];
-  const config=()=>({
-    card:card.value,
-    mixer_control:mixer.value||null,
-    sample_rate:Number(rate.value),
-    period_size:Number(period.value),
-    nperiods:Number(nperiods.value)
-  });
+  const config=()=>{
+    const selected=cards.find(item=>item.id===card.value);
+    const retainMixer=card.value===audio.configured.card
+      && (audio.configured.mixer_control==null
+        || selected?.mixer_controls?.includes(audio.configured.mixer_control));
+    return {
+      card:card.value,
+      mixer_control:retainMixer?audio.configured.mixer_control:null,
+      sample_rate:Number(rate.value),
+      period_size:Number(period.value),
+      nperiods:Number(nperiods.value)
+    };
+  };
   const refresh=()=>{
     const value=config(), selected=cards.find(item=>item.id===value.card);
-    const valid=!!selected&&(value.mixer_control==null||selected.mixer_controls?.includes(value.mixer_control));
-    apply.disabled=!d.online||audio.status==="applying"||!valid||audioConfigEqual(value,audio.configured);
+    apply.disabled=!d.online||audio.status==="applying"||!selected||audioConfigEqual(value,audio.configured);
     const latency=Math.round(value.period_size*value.nperiods/value.sample_rate*10000)/10;
     const output=$("#audio-latency");if(output)output.textContent=`${latency} ms`;
   };
-  card.onchange=()=>{
-    const selected=cards.find(item=>item.id===card.value);
-    mixer.innerHTML=`<option value="">Auto</option>${(selected?.mixer_controls||[]).map(control=>`<option value="${esc(control)}">${esc(control)}</option>`).join('')}`;
-    refresh();
-  };
-  [mixer,rate,period,nperiods].forEach(control=>control.onchange=refresh);
+  card.onchange=refresh;
+  [rate,period,nperiods].forEach(control=>control.onchange=refresh);
   refresh();
   apply.onclick=()=>{
     const desired=config();

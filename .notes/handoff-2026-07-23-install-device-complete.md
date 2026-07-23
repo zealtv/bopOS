@@ -134,8 +134,9 @@ identity/alias work; do not hide it inside a later installer edit.
 ## What follows 33
 
 - **33 is complete:** node-level `bopos.config` is the single source of audio
-  truth; the Device tab offers detected cards only plus mixer/rate/buffer/
-  periods; applying restarts transactionally and rolls back on JACK failure.
+  truth; the Device tab offers detected cards plus rate/buffer/periods, while
+  mixer selection remains node-side hardware policy; applying restarts
+  transactionally and rolls back on JACK failure.
   Living tests pass 38/38 and the focused browser route journey passes 16/16.
   Real Pi/JACK, audible rollback/silence, and iPad/touch remain hardware gates.
 - **33b** starts with `1-network-config-design`: manage an ordered set of saved

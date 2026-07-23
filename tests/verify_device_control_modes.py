@@ -391,9 +391,9 @@ def main():
                 page.locator("#audio-period").select_option("256")
                 page.locator("#audio-nperiods").select_option("3")
                 check(
-                    "Audio form exposes detected card and complete JACK settings",
+                    "Audio form hides mixer control and exposes operator settings",
                     page.locator("#audio-card").input_value() == "DigiAMP"
-                    and page.locator("#audio-mixer").input_value() == "Digital"
+                    and page.locator("#audio-mixer").count() == 0
                     and not page.locator("#audio-apply").is_disabled())
                 page.locator("#audio-apply").click()
                 audio_frames = peer.wait_frame(
@@ -404,6 +404,7 @@ def main():
                 check(
                     "Simulation Audio apply reaches exact physical Device",
                     has_audio_config(audio_frames)
+                    and peer.audio_config["mixer_control"] == "Digital"
                     and peer.audio_config["sample_rate"] == 48000
                     and peer.audio_config["period_size"] == 256
                     and peer.audio_config["nperiods"] == 3,
