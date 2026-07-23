@@ -517,9 +517,21 @@ function setExecutionTarget(target) {
     return;
   }
   if (target==="edit") {
+    if (mode==="edit") {
+      activateTab("patches");
+      requestAnimationFrame(()=>$("#editor-patch")?.focus());
+      return;
+    }
+    const patch=contextualExecutionPatch();
     if (mode==="simulate") {
-      if (!confirm("Stop Simulation and choose a patch to edit?")) return;
+      if (!confirm(`Stop Simulation and edit "${patch||"the selected patch"}"?`)) return;
       ws.send("set_simulation",{active:false,confirmed:true});
+      if (patch) ws.send("set_edit",{active:true,patch,confirmed:true});
+    } else {
+      if (patch) {
+        if (!confirm(`Open "${patch}" in Patch edit? Live fleet devices will not be driven.`)) return;
+        ws.send("set_edit",{active:true,patch,confirmed:true});
+      }
     }
     activateTab("patches");
     requestAnimationFrame(()=>$("#editor-patch")?.focus());
@@ -724,9 +736,15 @@ function renderEditor() {
     ws.send("create_patch",{name});
     renderEditor();
   };
-  launch.disabled=!patches.length;
-  launch.textContent=editor.active?'Launch selected patch':'Launch editor';
+  launch.disabled=editor.active?false:!patches.length;
+  launch.textContent=editor.active?'Stop Editor':'Launch editor';
   launch.onclick=()=>{
+    if (editor.active) {
+      if (confirm("Stop Patch edit and return audio control to the Live fleet?")) {
+        ws.send("set_edit",{active:false,confirmed:true});
+      }
+      return;
+    }
     const patch=select.value;
     if (!patch) return;
     if (mode!=="edit") {
@@ -745,20 +763,9 @@ function renderEditor() {
     ? "Engine closed. It will stay closed until you explicitly relaunch it."
     : editor.engine==="pd"?"PD is open for live editing.":"Runtime controls are live; GUI editing is PD-only in v1.";
   const actions=$("#editor-session-actions");
-  actions.innerHTML=editor.active
-    ? `${closed?'<button id="editor-relaunch">Relaunch</button>':''}<button id="editor-restart">Restart</button><button id="editor-hear-sim">Hear it in the sim</button><button id="editor-stop">Stop</button>`:"";
+  actions.innerHTML=(editor.active&&closed)
+    ? `<button id="editor-relaunch">Relaunch</button>`:"";
   $("#editor-relaunch")?.addEventListener("click",()=>ws.send("relaunch_edit",{}));
-  $("#editor-restart")?.addEventListener("click",()=>ws.send("restart_edit",{}));
-  $("#editor-hear-sim")?.addEventListener("click",()=>{
-    if (confirm(`Stop Patch edit and hear "${editor.patch}" in Simulation?`)) {
-      ws.send("set_simulation",{active:true,patch:editor.patch,confirmed:true});
-    }
-  });
-  $("#editor-stop")?.addEventListener("click",()=>{
-    if (confirm("Stop Patch edit and return audio control to the Live fleet?")) {
-      ws.send("set_edit",{active:false,confirmed:true});
-    }
-  });
   const focused=document.activeElement;
   const source=manifestSource(editor,patches,editorPatchChoice);
   if (!$("#manifest-editor").contains(focused)) renderManifestEditor(source);
