@@ -61,7 +61,7 @@ def send_to_engine(message):
 
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
-              "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
+              "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -75,7 +75,8 @@ def read_node_config(path=None):
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                     value = value[1:-1]
                 if key in config:
-                    config[key] = value or (None if key == "MIXER_CONTROL" else config[key])
+                    config[key] = value or (None if key in ("MIXER_CONTROL", "SOUNDCARD")
+                                            else config[key])
     except OSError:
         pass
     return config
@@ -203,7 +204,6 @@ class NodeState:
         self.id = resolve_id(self.uid, store=self.store)
         self.version = resolve_version()
         self.mixer_control = None
-        self.muted_via_stop = False
         stored_mute = self.store.get("device_muted")
         self.device_muted = bool(stored_mute and stored_mute[0] in (1, True))
         self.fleet_muted = False
@@ -438,36 +438,83 @@ def run_command(argv, wait_for_start=False):
         return -1
 
 
-def mixer_candidates(state=None):
+# ALSA playback-switch control names we know how to toggle, DAC-specific first.
+# DigiAMP+/pcm512x DACs expose "Digital"; generic/onboard cards use the rest.
+KNOWN_MIXER_CONTROLS = ("Digital", "Master", "PCM", "Speaker", "Headphone", "Analogue")
+
+
+def _alsa_card_ids():
+    """ALSA card id strings in index order, e.g. ['vc4hdmi', 'DigiAMP']."""
+    ids = []
+    try:
+        with open("/proc/asound/cards") as source:
+            for line in source:
+                match = re.match(r"\s*\d+\s+\[(\S+)\s*\]", line)
+                if match:
+                    ids.append(match.group(1))
+    except OSError:
+        pass
+    return ids
+
+
+def _is_hdmi_card(card_id):
+    lowered = card_id.lower()
+    return "hdmi" in lowered or "vc4" in lowered
+
+
+def mute_targets(state=None):
+    """(card, control) pairs to try for amixer mute, best first.
+
+    A configured SOUNDCARD/MIXER_CONTROL wins; otherwise the DAC is auto-detected
+    by skipping HDMI cards (a fresh Pi's default card is the HDMI device, not the
+    DAC -- the root of the mute bug). `card` is an ALSA id passed to `amixer -c`;
+    None means the default card.
+    """
     state = state or node_state
-    values = [state.config.get("MIXER_CONTROL"), "Master", "Digital", "PCM", "Speaker", "Headphone"]
-    result = []
-    for value in values:
-        if value and value not in result:
-            result.append(value)
-    return result
+    configured_card = state.config.get("SOUNDCARD") or None
+    configured_control = state.config.get("MIXER_CONTROL") or None
+    targets = []
+
+    def add(card, control):
+        pair = (card, control)
+        if control and pair not in targets:
+            targets.append(pair)
+
+    # A previously-successful pair is retried first.
+    if isinstance(state.mixer_control, tuple):
+        add(*state.mixer_control)
+    # Explicit configuration (from bopos.config).
+    if configured_card or configured_control:
+        add(configured_card, configured_control)
+        for name in KNOWN_MIXER_CONTROLS:
+            add(configured_card, name)
+    # Auto-detect: every non-HDMI card, DAC-specific control names first.
+    for card_id in _alsa_card_ids():
+        if not _is_hdmi_card(card_id):
+            for name in KNOWN_MIXER_CONTROLS:
+                add(card_id, name)
+    # Last resort: the default card with generic names.
+    for name in KNOWN_MIXER_CONTROLS:
+        add(None, name)
+    return targets
 
 
 def enforce_mute(value, state=None):
+    """Mute/unmute via the sound card's mixer, targeting the DAC exactly.
+
+    If no working mixer control is found the mute simply fails -- we never stop
+    the engine as a fallback (Bob, 2026-07-23: node-bug fix). A mute must never
+    kill audio playback; a node can be shut down if hard silence is required.
+    """
     state = state or node_state
-    mute = int(value) == 1
-    candidates = mixer_candidates(state)
-    if state.mixer_control in candidates:
-        candidates.remove(state.mixer_control)
-        candidates.insert(0, state.mixer_control)
-    action = "mute" if mute else "unmute"
-    if not mute and state.muted_via_stop:
-        if run_command(["bash", os.path.join(BOPOS_DIR, "bash", "start-engine.sh")]) == 0:
-            state.muted_via_stop = False
-            return True
-        return False
-    for control in candidates:
-        if run_command(["amixer", "-q", "sset", control, action]) == 0:
-            state.mixer_control = control
-            return True
-    if mute:
-        if run_command(["bash", os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")]) == 0:
-            state.muted_via_stop = True
+    action = "mute" if int(value) == 1 else "unmute"
+    for card, control in mute_targets(state):
+        argv = ["amixer", "-q"]
+        if card:
+            argv += ["-c", card]
+        argv += ["sset", control, action]
+        if run_command(argv) == 0:
+            state.mixer_control = (card, control)
             return True
     return False
 

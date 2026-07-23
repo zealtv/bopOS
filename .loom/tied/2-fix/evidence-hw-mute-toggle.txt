@@ -1,0 +1,10 @@
+new-bop (192.168.0.102), DigiAMP+ = ALSA card 1, fixed bopos.py deployed.
+Mute toggled over OSC: /all/os/to 2c:cf:67:b3:0a:58 mute <0|1> -> set_device_mute
+
+UNMUTE (0):  Digital=[on]  jackd=UP pd=UP
+MUTE (1):    Digital=[off] jackd=UP pd=UP   <- DAC muted, engine ALIVE
+UNMUTE (0):  Digital=[on]  jackd=UP pd=UP
+
+/tmp/bopos.out mute-related grep: (empty) -- no amixer failures, no stop/start-engine.
+At startup, persisted device_muted=1 applied to DAC (Digital [off]) with engine UP
+-- the scenario that previously produced "Engine Stopped".

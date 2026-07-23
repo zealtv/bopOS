@@ -76,12 +76,13 @@ with tempfile.TemporaryDirectory() as root:
     helper.discover_primary_mac = old_discover
 
     absent = helper.read_node_config(os.path.join(root, "missing"))
-    check("node config absent defaults", absent == {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None, "UPDATE_MODEL": "persistent"}, repr(absent))
+    # SOUNDCARD added by 29-fleet-patch-sync-hang/2-fix; AUDIO_CHANNELS was prior drift.
+    check("node config absent defaults", absent == {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None, "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}, repr(absent))
     config_path = os.path.join(root, "bopos.config")
     with open(config_path, "w") as target:
         target.write("# comment\nHB_TARGET='127.0.0.1'\n\nHB_RSSI=\"0\"\nMIXER_CONTROL=Digital\n")
     parsed = helper.read_node_config(config_path)
-    check("node config comments and quotes", parsed == {"HB_TARGET": "127.0.0.1", "HB_RSSI": "0", "MIXER_CONTROL": "Digital", "UPDATE_MODEL": "persistent"}, repr(parsed))
+    check("node config comments and quotes", parsed == {"HB_TARGET": "127.0.0.1", "HB_RSSI": "0", "MIXER_CONTROL": "Digital", "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}, repr(parsed))
 
     devices = os.path.join(root, "bopos.devices")
     with open(devices, "w") as target:
@@ -127,7 +128,9 @@ old_popen = helper.subprocess.Popen
 
 def mixer_success(argv):
     commands.append(argv)
-    return 0 if argv[:4] == ["amixer", "-q", "sset", "Digital"] else 1
+    # 29-fleet-patch-sync-hang/2-fix: amixer argv may now carry `-c <card>`, so
+    # match on the control token rather than a fixed prefix.
+    return 0 if (argv[:2] == ["amixer", "-q"] and "Digital" in argv) else 1
 
 
 state = State()
@@ -135,17 +138,23 @@ state.config["MIXER_CONTROL"] = "Digital"
 helper.run_command = mixer_success
 helper.set_mute(1, state)
 helper.set_mute(1, state)
-check("mute mixer success remembered and reapplied", state.mixer_control == "Digital" and len(commands) == 2, repr(commands))
+# 29-fleet-patch-sync-hang/2-fix: mixer_control now records the winning
+# (card, control) pair, not a bare control name.
+check("mute mixer success remembered and reapplied", state.mixer_control == (None, "Digital") and len(commands) == 2, repr(commands))
 
 commands[:] = []
 helper.run_command = lambda argv: commands.append(argv) or 1
 state = State()
-helper.set_mute(1, state)
-check("mute degrades to engine stop", state.muted_via_stop and commands[-1][-1].endswith("stop-engine.sh"), repr(commands))
+# 29-fleet-patch-sync-hang/2-fix (Bob ruling 2026-07-23): a mute that finds no
+# working mixer control fails AS a mute -- it must never fall back to stopping
+# the engine (superseded the old "mute degrades to engine stop" guarantee).
+check("mute never stops the engine",
+      helper.set_mute(1, state) is False
+      and not any(argv[-1].endswith("stop-engine.sh") for argv in commands), repr(commands))
 helper.set_mute(0, state)
-helper.set_mute(0, state)
-start_calls = [argv for argv in commands if argv[-1].endswith("start-engine.sh")]
-check("unmute restarts stopped engine once", len(start_calls) == 1 and not state.muted_via_stop, repr(commands))
+# And unmute never (re)starts the engine either.
+check("unmute never starts the engine",
+      not any(argv[-1].endswith("start-engine.sh") for argv in commands), repr(commands))
 helper.run_command = old_run
 helper.subprocess.Popen = old_popen
 
