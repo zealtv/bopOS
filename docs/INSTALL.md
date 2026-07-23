@@ -149,6 +149,9 @@ verified DigiAMP+ pairing in `bopos.config`:
 ```sh
 SOUNDCARD=DigiAMP
 MIXER_CONTROL=Digital
+JACK_SAMPLE_RATE=44100
+JACK_PERIOD_SIZE=512
+JACK_NPERIODS=2
 ```
 
 Check what your board is called and edit those values if it differs:
@@ -157,6 +160,11 @@ Check what your board is called and edit those values if it differs:
 cat /proc/asound/cards
 nano ~/bopOS/bopos.config
 ```
+
+Once the node is online, the Dashboard's Device → Audio section can select
+among playback cards ALSA currently detects and apply these JACK settings with
+a transactional engine restart. Driver/overlay installation remains a manual
+provisioning and reboot task.
 
 A board bopOS hasn't been benched on must be checked for playback **and**
 engine-safe mute before you trust it in a show — follow the bench procedure

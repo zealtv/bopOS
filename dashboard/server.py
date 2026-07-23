@@ -264,7 +264,7 @@ class Dashboard:
         uid = data.get("uid")
         serialized_mutations = {
             "set_param", "set_live_param", "replay_live_params", "set_device_enabled",
-            "set_device_hostname",
+            "set_device_hostname", "set_audio_config",
             "action", "identify", "switch_patch", "set_fleet_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
@@ -392,6 +392,26 @@ class Dashboard:
             device["hostname_target"] = hostname
             device["hostname_status"] = "pending"
             self.osc.set_device_hostname(hostname_uid, hostname)
+            await self.broadcast("device_update", device)
+        elif kind == "set_audio_config":
+            audio_uid = str(data.get("uid", ""))
+            device = self.state.devices.get(audio_uid)
+            config = data.get("config")
+            if (device is None or device.get("virtual") or not device.get("online")
+                    or not isinstance(config, dict)):
+                await self.ws_error(
+                    ws, "That physical Device audio target is unavailable.")
+                return
+            current_audio = (device.get("report") or {}).get("audio")
+            if isinstance(current_audio, dict):
+                current_audio["status"] = "applying"
+                current_audio["error"] = None
+            device["audio_apply"] = {
+                "status": "pending",
+                "phase": "applying",
+                "at": time.time(),
+            }
+            self.osc.set_audio_config(audio_uid, config)
             await self.broadcast("device_update", device)
         elif kind == "set_editor_param":
             name, value = str(data.get("name", "")), data.get("value")

@@ -103,6 +103,7 @@ class OSCBridge:
         # uid -> bounded retry generation for inventories whose background
         # fingerprint warming has not completed yet.
         self._asset_requeries = {}
+        self._audio_apply_timeouts = {}
         # Last generator the dashboard sent, deliberately runtime-only.  The
         # durable state serializer has an explicit allowlist and omits this.
         self.automation = {}
@@ -139,6 +140,9 @@ class OSCBridge:
                 record.get("timeout") and record["timeout"].cancel()
         for timeout in self.pending_timeouts.values():
             timeout.cancel()
+        for timeout in self._audio_apply_timeouts.values():
+            timeout.cancel()
+        self._audio_apply_timeouts.clear()
         for waiter in self._unassign_waiters.values():
             if not waiter.done():
                 waiter.cancel()
@@ -451,6 +455,32 @@ class OSCBridge:
     def set_device_hostname(self, uid, hostname):
         """Send one exact-UID alias-derived hostname target."""
         self.uid_command(uid, "hostname", [str(hostname)])
+
+    def set_audio_config(self, uid, config):
+        """Apply complete audio settings to one exact physical Device."""
+        previous = self._audio_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._audio_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_audio_apply, uid)
+        self.uid_command(
+            uid, "audio-config",
+            [json.dumps(config, separators=(",", ":"), sort_keys=True)])
+
+    def _expire_audio_apply(self, uid):
+        self._audio_apply_timeouts.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        audio = (device.get("report") or {}).get("audio")
+        if isinstance(audio, dict):
+            audio["status"] = "error"
+            audio["error"] = "Audio apply timed out; refreshing observed state."
+        device["audio_apply"] = {
+            "status": "err", "phase": "timeout", "at": time.time(),
+        }
+        self.broadcast("device_update", device)
+        self.request(uid, "report")
 
     async def unassign(self, uid, timeout=UNASSIGN_TIMEOUT_SECONDS):
         """Request id=-1 and hold assignment replay until its heartbeat ack."""
@@ -968,6 +998,32 @@ class OSCBridge:
             if status == "ok":
                 device["hostname"] = hostname
             self.broadcast("device_update", device)
+            return
+        if address == "/os/audio-config" and len(args) >= 4:
+            uid, status, phase = str(args[0]), str(args[1]), str(args[2])
+            device = self.state.devices.get(uid)
+            if (device is None or device.get("virtual")
+                    or status not in ("ok", "err")
+                    or phase not in ("applied", "invalid", "rolled-back",
+                                     "rollback-failed")):
+                return
+            try:
+                audio = json.loads(args[3])
+            except (ValueError, TypeError):
+                return
+            if not isinstance(audio, dict):
+                return
+            timeout = self._audio_apply_timeouts.pop(uid, None)
+            if timeout:
+                timeout.cancel()
+            device.setdefault("report", {})["audio"] = audio
+            device["audio_apply"] = {
+                "status": status,
+                "phase": phase,
+                "at": time.time(),
+            }
+            self.broadcast("report", device)
+            self.request(uid, "report")
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)

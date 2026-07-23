@@ -31,6 +31,7 @@ import pointfield  # noqa: E402
 import relay  # noqa: E402
 import runcontext  # noqa: E402
 import groups as group_protocol  # noqa: E402
+import audio_config  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
@@ -73,6 +74,16 @@ class VirtualNode:
     master: float = 1.0
     process: subprocess.Popen | None = None
     param_generator: paramgen.GeneratorEngine | None = None
+    audio_config: dict = field(default_factory=lambda: {
+        "card": "Simulated", "mixer_control": "Master",
+        "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+    })
+    audio_active: dict = field(default_factory=lambda: {
+        "card": "Simulated", "mixer_control": "Master",
+        "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+    })
+    audio_status: str = "active"
+    audio_error: str | None = None
 
     def engine_alive(self, no_engine):
         if no_engine:
@@ -253,11 +264,22 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.10",
+            "contract_version": "1.11",
             "groups": list(getattr(node, "groups", ())),
             "device_enabled": bool(node.device_enabled),
             "mute_all": bool(node.mute_all),
             "output_enabled": bool(node.device_enabled and not node.mute_all),
+            "audio": {
+                "configured": dict(node.audio_config),
+                "active": dict(node.audio_active),
+                "cards": [{
+                    "id": "Simulated", "index": 0,
+                    "label": "Simulated stereo output",
+                    "mixer_controls": ["Master"],
+                }],
+                "status": node.audio_status,
+                "error": node.audio_error,
+            },
         }
         self.sock.sendto(osc_datagram("/os/report", json.dumps(report)),
                          (source[0], self.args.report_port))
@@ -291,6 +313,35 @@ class AuditionRig:
                 "/os/hostname", node.uid, hostname, "ok"),
                 (source[0], self.args.report_port))
             self.send_heartbeat(node)
+            return
+        if member == "audio-config" and len(args) == 1:
+            cards = [{
+                "id": "Simulated", "index": 0,
+                "label": "Simulated stereo output",
+                "mixer_controls": ["Master"],
+            }]
+            try:
+                candidate = audio_config.validate(json.loads(str(args[0])), cards)
+                node.audio_config = candidate
+                node.audio_active = dict(candidate)
+                node.audio_status = "active"
+                node.audio_error = None
+                status, phase = "ok", "applied"
+            except (ValueError, TypeError) as error:
+                node.audio_status = "error"
+                node.audio_error = str(error)
+                status, phase = "err", "invalid"
+            payload = {
+                "configured": dict(node.audio_config),
+                "active": dict(node.audio_active),
+                "cards": cards,
+                "status": node.audio_status,
+                "error": node.audio_error,
+            }
+            self.sock.sendto(osc_datagram(
+                "/os/audio-config", node.uid, status, phase,
+                json.dumps(payload, separators=(",", ":"))),
+                (source[0], self.args.report_port))
             return
         if member not in allowed or args:
             return

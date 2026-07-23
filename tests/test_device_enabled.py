@@ -129,13 +129,13 @@ class DeviceEnabledTests(unittest.TestCase):
                 ["/os/enabled", ",sii", "node-a", 1, 0])
             self.assertEqual(enforced, [True, True, False])
 
-    def test_report_uses_v110_positive_fields(self):
+    def test_report_uses_v111_positive_fields(self):
         with tempfile.TemporaryDirectory() as root:
             node = Node(root, "node-a")
             reply = ReplySocket()
             self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
             report = json.loads(reply.calls[0][0][2])
-            self.assertEqual(report["contract_version"], "1.10")
+            self.assertEqual(report["contract_version"], "1.11")
             self.assertEqual(
                 {key: report[key] for key in (
                     "device_enabled", "mute_all", "output_enabled")},
@@ -189,7 +189,7 @@ class DeviceEnabledTests(unittest.TestCase):
             self.assertEqual(node.store.get("device_enabled"), [0])
             self.assertEqual(node.store.get("device_muted"), [])
 
-    def test_contract_and_reference_publish_only_the_v110_exact_uid_grammar(self):
+    def test_contract_and_reference_publish_only_the_v111_exact_uid_grammar(self):
         contract = (REPO / "docs" / "OSC-CONTRACT.md").read_text(
             encoding="utf-8")
         reference = (REPO / "docs" / "OSC-REFERENCE.md").read_text(

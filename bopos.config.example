@@ -4,6 +4,9 @@
 # ALSA card and mixer control verified for the reference IQaudIO DigiAMP+.
 SOUNDCARD=DigiAMP
 MIXER_CONTROL=Digital
+JACK_SAMPLE_RATE=44100
+JACK_PERIOD_SIZE=512
+JACK_NPERIODS=2
 
 # Framework identity/reporting defaults.
 HB_TARGET=255.255.255.255

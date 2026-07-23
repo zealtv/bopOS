@@ -128,6 +128,10 @@ class PhysicalPeer:
         self.running = True
         self.device_id = 0
         self.device_enabled = True
+        self.audio_config = {
+            "card": "DigiAMP", "mixer_control": "Digital",
+            "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+        }
         self.frames = []
         self.lock = threading.Lock()
         self.thread = threading.Thread(target=self.run, daemon=True)
@@ -150,11 +154,22 @@ class PhysicalPeer:
             "patch": "alpha",
             "git_rev": "physical-test",
             "update_model": "persistent",
-            "contract_version": "1.10",
+            "contract_version": "1.11",
             "groups": [],
             "device_enabled": self.device_enabled,
             "mute_all": False,
             "output_enabled": self.device_enabled,
+            "audio": {
+                "configured": dict(self.audio_config),
+                "active": dict(self.audio_config),
+                "cards": [{
+                    "id": "DigiAMP", "index": 1,
+                    "label": "IQaudIO DigiAMP",
+                    "mixer_controls": ["Digital"],
+                }],
+                "status": "active",
+                "error": None,
+            },
         }))
 
     def handle(self, data):
@@ -178,6 +193,22 @@ class PhysicalPeer:
                 self.heartbeat()
             elif verb == "hostname" and len(message.params) == 3:
                 self.send("/os/hostname", UID, str(message.params[2]), "ok")
+            elif verb == "audio-config" and len(message.params) == 3:
+                self.audio_config = json.loads(str(message.params[2]))
+                payload = {
+                    "configured": dict(self.audio_config),
+                    "active": dict(self.audio_config),
+                    "cards": [{
+                        "id": "DigiAMP", "index": 1,
+                        "label": "IQaudIO DigiAMP",
+                        "mixer_controls": ["Digital"],
+                    }],
+                    "status": "active",
+                    "error": None,
+                }
+                self.send(
+                    "/os/audio-config", UID, "ok", "applied",
+                    json.dumps(payload))
         elif message.address.endswith("/os/params"):
             self.send("/os/params", self.manifest_text)
         elif message.address.endswith("/os/patches"):
@@ -267,6 +298,13 @@ def has_enabled(frames):
         for address, args in frames)
 
 
+def has_audio_config(frames):
+    return any(
+        address == "/all/os/to" and len(args) == 3
+        and args[0] == UID and args[1] == "audio-config"
+        for address, args in frames)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-device-modes-") as root:
         patches, assets, state, manifest_text = write_fixture(root)
@@ -347,6 +385,37 @@ def main():
                     "entering Simulation emits no physical enabled command",
                     not has_enabled(peer.snapshot()), repr(peer.snapshot()))
                 drain_socket(engine)
+
+                peer.clear()
+                page.locator("#audio-rate").select_option("48000")
+                page.locator("#audio-period").select_option("256")
+                page.locator("#audio-nperiods").select_option("3")
+                check(
+                    "Audio form exposes detected card and complete JACK settings",
+                    page.locator("#audio-card").input_value() == "DigiAMP"
+                    and page.locator("#audio-mixer").input_value() == "Digital"
+                    and not page.locator("#audio-apply").is_disabled())
+                page.locator("#audio-apply").click()
+                audio_frames = peer.wait_frame(
+                    lambda frame: has_audio_config([frame]))
+                page.wait_for_function(
+                    "uid => installation.devices[uid]?.audio_apply?.phase"
+                    " === 'applied'", arg=UID)
+                check(
+                    "Simulation Audio apply reaches exact physical Device",
+                    has_audio_config(audio_frames)
+                    and peer.audio_config["sample_rate"] == 48000
+                    and peer.audio_config["period_size"] == 256
+                    and peer.audio_config["nperiods"] == 3,
+                    repr(audio_frames))
+                check(
+                    "Audio receipt renders active applied feedback",
+                    "Applied" in page.locator("#audio-feedback").inner_text()
+                    and "48000 Hz" in page.locator(
+                        "#device-audio .section-head p").inner_text())
+                screenshot = os.environ.get("BOPOS_AUDIO_SCREENSHOT")
+                if screenshot:
+                    page.locator("#device-audio").screenshot(path=screenshot)
 
                 peer.clear()
                 page.locator("#device-enabled-toggle").click()

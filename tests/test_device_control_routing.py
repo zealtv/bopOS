@@ -112,6 +112,8 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
                 record.get("timeout") and record["timeout"].cancel()
         for record in self.bridge._group_pending.values():
             record.get("timeout") and record["timeout"].cancel()
+        for timeout in self.bridge._audio_apply_timeouts.values():
+            timeout.cancel()
 
     def assert_destinations(self, destination):
         self.assertTrue(self.sender.frames)
@@ -130,6 +132,10 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
                 self.sender.frames.clear()
                 self.bridge.set_device_enabled("physical-1", False)
                 self.bridge.set_device_hostname("physical-1", "finn-jet")
+                self.bridge.set_audio_config("physical-1", {
+                    "card": "DigiAMP", "mixer_control": "Digital",
+                    "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+                })
                 for verb in (
                         "identify", "report", "reboot", "shutdown",
                         "restart-engine", "updatebopos"):

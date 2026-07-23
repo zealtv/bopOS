@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
 RUN_DIR="$BOPOS_DIR/run"
 mkdir -p "$RUN_DIR"
+# Active audio is a boot-local observation, not a claim carried across boots.
+rm -f "$RUN_DIR/audio-config.json"
 
 if [ -f "$BOPOS_DIR/bopos.config" ]; then
     # Node-local shell assignments; this file is owned and edited by the pi user.

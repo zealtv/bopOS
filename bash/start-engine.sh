@@ -10,6 +10,10 @@ if [ -f "$BOPOS_DIR/bopos.config" ]; then
     source "$BOPOS_DIR/bopos.config"
 fi
 SOUNDCARD="${SOUNDCARD:-DigiAMP}"
+MIXER_CONTROL="${MIXER_CONTROL:-}"
+JACK_SAMPLE_RATE="${JACK_SAMPLE_RATE:-44100}"
+JACK_PERIOD_SIZE="${JACK_PERIOD_SIZE:-512}"
+JACK_NPERIODS="${JACK_NPERIODS:-2}"
 JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
 JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
 AUDIO_WAIT_TIMEOUT="${BOPOS_AUDIO_WAIT_TIMEOUT:-60}"
@@ -99,7 +103,8 @@ echo "------------------- Starting Jack..."
 # JACK's desktop-oriented D-Bus reservation cannot start without a display and
 # otherwise rejects an unclaimed ALSA device.
 export JACK_NO_AUDIO_RESERVATION="${JACK_NO_AUDIO_RESERVATION:-1}"
-jackd -P70 -p16 -t2000 -d alsa -dhw:"$SOUNDCARD" -p 512 -n 2 -r 44100 -s -P& #44.1khz
+jackd -P70 -p16 -t2000 -d alsa -dhw:"$SOUNDCARD" \
+    -p "$JACK_PERIOD_SIZE" -n "$JACK_NPERIODS" -r "$JACK_SAMPLE_RATE" -s -P&
 JACK_PID=$!
 echo $JACK_PID > "$RUN_DIR/jackd.pid"
 # jackd -P80 -t2000 -d alsa -dhw:$SOUNDCARD -p 1024 -n 2 -r 22050 -s -P& #22khz
@@ -128,6 +133,9 @@ if [ "$JACK_READY" -ne 1 ]; then
     exit 1
 fi
 echo "Jack is ready."
+python3 "$BOPOS_DIR/python/audio_config.py" record-active \
+    "$RUN_DIR/audio-config.json" "$SOUNDCARD" "$MIXER_CONTROL" \
+    "$JACK_SAMPLE_RATE" "$JACK_PERIOD_SIZE" "$JACK_NPERIODS"
 
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."

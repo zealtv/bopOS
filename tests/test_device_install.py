@@ -74,6 +74,10 @@ class DeviceInstallTests(unittest.TestCase):
             'export JACK_NO_AUDIO_RESERVATION="${JACK_NO_AUDIO_RESERVATION:-1}"',
             start,
         )
+        for setting in (
+                "JACK_SAMPLE_RATE", "JACK_PERIOD_SIZE", "JACK_NPERIODS"):
+            self.assertIn(setting, start)
+            self.assertIn(setting, self.read("bopos.config.example"))
 
 
 if __name__ == "__main__":

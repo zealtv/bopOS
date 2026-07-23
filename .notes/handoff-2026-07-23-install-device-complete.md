@@ -1,4 +1,4 @@
-# Handoff — multi-asset slots complete; continue 33 → 33b → 34 → 27 → 20/25
+# Handoff — device audio config complete; continue 33b → 34 → 27 → 20/25
 
 This is the current launch note for a fresh session. It supersedes
 `.notes/handoff-2026-07-23-autopilot-node-bug.md` for launch state and work
@@ -9,7 +9,7 @@ reached, but its historical order is stale.
 
 Work one loom stitch at a time in this order:
 
-1. **33 — device audio configuration**
+1. **Complete — 33: device audio configuration**
 2. **33b — saved device networks**
 3. **34 — fleet-patch global state**
 4. **27 — tied-guard rot**
@@ -40,8 +40,9 @@ Thread 32 is tied. Read:
 - `.loom/tied/2-multi-pack-implementation/results.md`
 - the top entry in `.notes/pd-edits-for-bob.md`
 
-The next stitch is `33-device-audio-config/1-audio-config-design`. It is a
-Bob-ratified design gate; the ordered sweep remains one stitch at a time.
+The 33 design and implementation stitches are tied. The next stitch is
+`33b-device-network-config/1-network-config-design`; it is a Bob-ratified
+design gate, and the ordered sweep remains one stitch at a time.
 
 ## Stitch 31 — complete and tied
 
@@ -130,11 +131,13 @@ identity/alias work; do not hide it inside a later installer edit.
 - `dashboard/shows/` is unrelated, untracked, user-owned work. Leave it
   untouched and unstaged.
 
-## What follows 32
+## What follows 33
 
-- **33** starts with `1-audio-config-design`: use the `bopos.config` keys seeded
-  by 31 as the single source of truth for sound-card identity and future JACK
-  rate/buffer/period settings. Design requires Bob ratification.
+- **33 is complete:** node-level `bopos.config` is the single source of audio
+  truth; the Device tab offers detected cards only plus mixer/rate/buffer/
+  periods; applying restarts transactionally and rolls back on JACK failure.
+  Living tests pass 38/38 and the focused browser route journey passes 16/16.
+  Real Pi/JACK, audible rollback/silence, and iPad/touch remain hardware gates.
 - **33b** starts with `1-network-config-design`: manage an ordered set of saved
   SSIDs and write-only passphrases from the Device tab. The design must settle
   profile priority, secret handling, and safe switching/reconnect/recovery.

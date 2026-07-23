@@ -33,10 +33,12 @@ tools/perf_matrix.sh              # default grid, 60s per cell
 tools/perf_matrix.sh -d 30 -c "44100:512:2 48000:512:2"
 ```
 
-Cells are `rate:period:nperiods`. The default grid brackets the production
-`bash/start-engine.sh` line (`44100:512:2`) and includes the commented 22.05k
-option from start.sh (`22050:1024:2`). Flags other than `-r/-p/-n` match
-start-engine.sh exactly (`-P70 -p16 -t2000 -s -P`, alsa, `DigiAMP` unless
+Cells are `rate:period:nperiods`. The default grid brackets the installed
+Device-tab defaults (`44100:512:2`) and the lower-rate
+`22050:1024:2` candidate. Production reads `JACK_SAMPLE_RATE`,
+`JACK_PERIOD_SIZE`, and `JACK_NPERIODS` from node-level `bopos.config`.
+Flags other than `-r/-p/-n` match start-engine.sh exactly
+(`-P70 -p16 -t2000 -s -P`, alsa, `DigiAMP` unless
 `-s`/`$SOUNDCARD` says otherwise).
 
 The script **takes over the audio device**: it stops any running engine and

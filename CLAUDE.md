@@ -6,7 +6,7 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.10: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.11: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
    fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
@@ -15,7 +15,8 @@ installations. This file is the orientation for any agent working here.
    version/patch-fingerprint in the run context), the 2026-07-19
    parameter-automation grammar (§3.2 generator slots on numeric `/p/*`),
    the 2026-07-23 multi-asset-slot run-context revision, and the 2026-07-23
-   physical-device enabled/execution-routing revision):
+   physical-device enabled/execution-routing revision, and the 2026-07-23
+   physical-device audio-configuration revision):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -64,7 +65,7 @@ The loose-end thread numbers of the *active* tier were renumbered so
 Of the 39/71 red browser-free tied guards, the ones on the patch/fleet path
 (`dist-2-node-side`, `fp-2-fleet-state`, `patch-switch-lifecycle`,
 `fp-1-identity-module`) fail on the **known rot signatures** — a pinned
-`contract_version '1.3'` (now 1.10), the retired legacy-samplepacks link, pinned
+`contract_version '1.3'` (now 1.11), the retired legacy-samplepacks link, pinned
 exact refresh-message lists / UI copy, and fake-`state` API drift. The
 *behavioral* patch-sync assertions still **pass** in the sim (fetch progress,
 "converges bytes then switches responsive nodes", per-device fetch
@@ -87,8 +88,12 @@ a real regression hides among the drift.)
    carries a **list of absolute asset-folder paths**. Bob ratified the v1.9
    list boundary and completed the direct `bopos-context` PD/template edits;
    zero/one/two-slot local-editor checks passed 2026-07-23.
-5. **`33-device-audio-config`** — set sound card + JACK sample-rate/buffer from
-   the Device tab. Design gate.
+5. **Complete — `33-device-audio-config`.** Detected ALSA playback-card and
+   mixer selection plus bounded JACK rate/buffer/period controls now live in
+   the Device tab. Apply is an exact-physical, unprivileged, transactional
+   engine restart with config rollback and output-safety reapplication.
+   Software/browser gates pass; real Pi/JACK and audible behavior remain a
+   hardware adoption check.
 6. **`33b-device-network-config`** — manage an ordered collection of saved Wi-Fi
    SSIDs and passphrases from the Device tab. Design gate; settle secret handling
    plus safe switching/reconnect/recovery before implementation.
@@ -153,12 +158,13 @@ close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.10** (2026-07-07 base + seam amendment + engine-boundary revision +
+**v1.11** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
 and unassignment revision + additive unattended-update outcome receipts +
 2026-07-17 patch-admin-surface amendment + 2026-07-19 parameter-automation
 grammar §3.2 + 2026-07-23 multi-asset-slot run-context revision +
-physical-device enabled/execution-routing revision);
+physical-device enabled/execution-routing revision + physical-device
+audio-configuration revision);
 `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and

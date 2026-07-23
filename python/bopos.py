@@ -4,6 +4,7 @@ import subprocess
 import re
 import json
 import signal
+import shlex
 
 
 import os, sys
@@ -27,6 +28,7 @@ import relay
 import groups as group_protocol
 import paramgen
 import asset_slots
+import audio_config
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -62,7 +64,9 @@ def send_to_engine(message):
 
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
-              "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2"}
+              "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2",
+              "JACK_SAMPLE_RATE": "44100", "JACK_PERIOD_SIZE": "512",
+              "JACK_NPERIODS": "2"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -73,8 +77,11 @@ def read_node_config(path=None):
                     continue
                 key, value = line.split("=", 1)
                 key, value = key.strip(), value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-                    value = value[1:-1]
+                try:
+                    parsed = shlex.split(value, comments=True, posix=True)
+                    value = parsed[0] if len(parsed) == 1 else value
+                except ValueError:
+                    pass
                 if key in config:
                     config[key] = value or (None if key in ("MIXER_CONTROL", "SOUNDCARD")
                                             else config[key])
@@ -220,6 +227,8 @@ class NodeState:
         self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
         self.reports = {}
         self.reports_lock = threading.Lock()
+        self.audio_status = "active"
+        self.audio_error = None
 
 
 node_state = NodeState()
@@ -998,6 +1007,121 @@ def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
                 rev_reply(reply_socket, requester, state, "err", "reboot")
 
 
+def audio_report(state=None):
+    state = state or node_state
+    return {
+        "configured": audio_config.from_node_config(state.config),
+        "active": audio_config.read_active(
+            os.path.join(BOPOS_DIR, "run", "audio-config.json")),
+        "cards": audio_config.discover_cards(),
+        "status": getattr(state, "audio_status", "active"),
+        "error": getattr(state, "audio_error", None),
+    }
+
+
+def audio_config_reply(reply_socket, requester, status, phase, state=None):
+    state = state or node_state
+    msg = OSCMessage("/os/audio-config")
+    msg.append(str(state.uid), 's')
+    msg.append(str(status), 's')
+    msg.append(str(phase), 's')
+    msg.append(json.dumps(audio_report(state), separators=(",", ":")), 's')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+
+
+def _restart_audio_engine():
+    stop_script = os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")
+    start_script = os.path.join(BOPOS_DIR, "bash", "start-engine.sh")
+    if run_command([stop_script]) != 0:
+        return False
+    return run_command([start_script], wait_for_start=True) == 0
+
+
+def _restore_config(path, existed, content, mode):
+    if existed:
+        audio_config.atomic_write(path, content, mode)
+    else:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+
+
+def apply_audio_config(payload, reply_socket, requester, state=None):
+    """Apply one complete audio configuration and recover the prior engine."""
+    state = state or node_state
+    # Audio restart must not interleave with patch switching, framework
+    # convergence, or another lifecycle action.
+    with admin_lock:
+        try:
+            candidate = json.loads(str(payload))
+            candidate = audio_config.validate(
+                candidate, audio_config.discover_cards())
+        except (ValueError, TypeError) as error:
+            state.audio_status = "error"
+            state.audio_error = str(error)
+            audio_config_reply(reply_socket, requester, "err", "invalid", state)
+            return False
+
+        config_path = os.path.join(BOPOS_DIR, "bopos.config")
+        try:
+            with open(config_path, "rb") as source:
+                previous_content = source.read()
+            previous_mode = os.stat(config_path).st_mode & 0o777
+            existed = True
+        except FileNotFoundError:
+            previous_content, previous_mode, existed = b"", 0o644, False
+        previous_config = dict(state.config)
+        state.audio_status = "applying"
+        state.audio_error = None
+
+        failure = None
+        try:
+            audio_config.update_config_file(config_path, candidate)
+            if not _restart_audio_engine():
+                failure = "JACK did not start with the requested settings."
+            else:
+                state.config = read_node_config(config_path)
+                audio_config.write_active(
+                    os.path.join(BOPOS_DIR, "run", "audio-config.json"),
+                    candidate)
+                # Enabling output is best-effort on cards without a switch;
+                # disabling output is a hard safety condition.
+                mute_ok = enforce_mute(not output_enabled(state), state)
+                if not output_enabled(state) and not mute_ok:
+                    failure = "The restarted card could not enforce output safety."
+        except (OSError, ValueError) as error:
+            failure = "Could not persist or start the requested settings: {}".format(error)
+
+        if failure is None:
+            state.audio_status = "active"
+            state.audio_error = None
+            audio_config_reply(reply_socket, requester, "ok", "applied", state)
+            return True
+
+        try:
+            _restore_config(config_path, existed, previous_content, previous_mode)
+            state.config = previous_config
+            recovered = _restart_audio_engine()
+            if recovered:
+                active = audio_config.from_node_config(previous_config)
+                audio_config.write_active(
+                    os.path.join(BOPOS_DIR, "run", "audio-config.json"), active)
+                enforce_mute(not output_enabled(state), state)
+                state.audio_status = "rolled-back"
+                state.audio_error = failure
+                audio_config_reply(
+                    reply_socket, requester, "err", "rolled-back", state)
+                return False
+        except OSError:
+            recovered = False
+        state.audio_status = "error"
+        state.audio_error = failure + " Recovery of the previous settings failed."
+        audio_config_reply(
+            reply_socket, requester, "err", "rollback-failed", state)
+        return False
+
+
 def report_reply(reply_socket, requester, state=None):
     state = state or node_state
     patch_path = active_patch_path()
@@ -1043,11 +1167,12 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.10",
+        "contract_version": "1.11",
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),
         "output_enabled": output_enabled(state),
+        "audio": audio_report(state),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -1092,6 +1217,11 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
             return False
         threading.Thread(target=set_device_hostname,
                          args=(hostname, reply_socket, requester, state),
+                         daemon=True).start()
+        return True
+    if member == "audio-config" and len(args) == 1:
+        threading.Thread(target=apply_audio_config,
+                         args=(args[0], reply_socket, requester, state),
                          daemon=True).start()
         return True
     if member not in UID_ADMIN_VERBS or args:

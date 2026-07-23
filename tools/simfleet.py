@@ -48,6 +48,7 @@ import manifest as patch_manifest  # noqa: E402
 import pointfield  # noqa: E402
 import groups as group_protocol  # noqa: E402
 import paramgen  # noqa: E402
+import audio_config  # noqa: E402
 
 
 def load_manifest(path):
@@ -183,6 +184,13 @@ class Device:
         self.device_enabled = True
         self.mute_all = False
         self.output_enabled = True
+        self.audio_config = {
+            "card": "Simulated", "mixer_control": "Master",
+            "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+        }
+        self.audio_active = dict(self.audio_config)
+        self.audio_status = "active"
+        self.audio_error = None
         self.ident_until = 0.0
         # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
         # clock, plus the offset the leader has pushed for cue conversion
@@ -431,6 +439,17 @@ class SimFleet:
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
 
     def send_report(self, device, source):
+        audio = {
+            "configured": dict(device.audio_config),
+            "active": dict(device.audio_active),
+            "cards": [{
+                "id": "Simulated", "index": 0,
+                "label": "Simulated stereo output",
+                "mixer_controls": ["Master"],
+            }],
+            "status": device.audio_status,
+            "error": device.audio_error,
+        }
         report = {
             "uid": device.mac,
             "hostname": device.hostname,
@@ -443,11 +462,12 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.10",
+            "contract_version": "1.11",
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),
             "output_enabled": bool(device.output_enabled),
+            "audio": audio,
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -499,6 +519,39 @@ class SimFleet:
             if status == "ok":
                 self.heartbeat(device, reschedule=False)
             self.log(device, f"hostname={hostname} {status}")
+            return
+        if member == "audio-config" and len(args) == 1:
+            cards = [{
+                "id": "Simulated", "index": 0,
+                "label": "Simulated stereo output",
+                "mixer_controls": ["Master"],
+            }]
+            try:
+                candidate = audio_config.validate(json.loads(str(args[0])), cards)
+                device.audio_config = candidate
+                device.audio_active = dict(candidate)
+                device.audio_status = "active"
+                device.audio_error = None
+                status, phase = "ok", "applied"
+            except (ValueError, TypeError) as error:
+                device.audio_status = "error"
+                device.audio_error = str(error)
+                status, phase = "err", "invalid"
+            payload = {
+                "configured": dict(device.audio_config),
+                "active": dict(device.audio_active),
+                "cards": cards,
+                "status": device.audio_status,
+                "error": device.audio_error,
+            }
+            builder = osc_message_builder.OscMessageBuilder(
+                address="/os/audio-config")
+            builder.add_arg(device.mac, arg_type="s")
+            builder.add_arg(status, arg_type="s")
+            builder.add_arg(phase, arg_type="s")
+            builder.add_arg(json.dumps(payload, separators=(",", ":")), arg_type="s")
+            self.sock.sendto(builder.build().dgram,
+                             (source[0], self.args.report_port))
             return
         if member not in allowed or args:
             return

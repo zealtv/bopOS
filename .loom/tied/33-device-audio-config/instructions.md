@@ -17,19 +17,25 @@ Bob ratifies), and it likely writes **privileged/persistent device config**
 first (`1-audio-config-design`), Bob ratifies, then build
 (`2-audio-config-implementation`).
 
+**Ratified 2026-07-23:** Bob accepted the five-setting, detected-cards-only,
+transactional Save + engine restart design. The routine path is unprivileged,
+uses node-level `bopos.config`, rolls back after a failed JACK start, and
+reapplies Device enabled / MUTE ALL output safety. See the tied
+`1-audio-config-design` decisions and v1.11 contract-amendment draft.
+
 ## What it touches
 
 - `bash/start-engine.sh` launches PD with `-jack` / the SC engine — the JACK
   sample rate / period / card selection have to be applied where JACK (or PD's
   JACK client) is configured, and survive a restart. Find the current source of
   those values (env, `.asoundrc`, a jackd invocation, hardware defaults).
-- The Device tab surface in the Dashboard + the OSC/admin path the Dashboard
-  uses to push device settings (the `/admin` engine-sent request surface,
-  contract §4.2).
-- Provisioning: some of this may belong to first-time `bash/provision.sh` rather
-  than runtime.
+- The Device tab surface in the Dashboard + the exact-UID physical
+  administration path. The ratified design explicitly excludes the
+  engine-sent localhost `/admin` surface.
+- Provisioning remains responsible for making hardware exist at the OS level.
+  Routine selection among detected cards is unprivileged.
 
-## Open questions for the design
+## Design questions — resolved in `1-audio-config-design`
 
 - Which properties are settable (card, rate, buffer/period, nperiods, anything
   else) and what are the valid/enumerated values per Pi?

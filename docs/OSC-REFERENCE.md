@@ -74,6 +74,7 @@ to be certain you're hitting exactly one physical device:
 |---|---|---|---|
 | `enabled` | `<0\|1:i>` | see Output controls above | `/os/enabled` (5550) |
 | `hostname` | `<name:s>` | applies one validated lowercase hostname (1–63 chars, alnum + internal hyphens) | `/os/hostname <uid:s> <name:s> <ok\|err:s>` (5550) |
+| `audio-config` | `<json:s>` | validates and transactionally applies one complete detected-card/JACK configuration, restarting the audio engine and rolling back on failure | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
 | `identify` | — | chirp/flash | — |
 | `report` | — | static-facts JSON | `/os/report <json:s>` (5550) |
 | `reboot` | — | reboot the node | bare `/os/rev <sha:s> <model:s> <uid:s>` (5550), sent before the box goes down |
@@ -86,7 +87,8 @@ Any other verb (`patch`, `checkout`, `addpatch`, `pullpatch`, `droppatch`,
 `dropassets`, patch parameters, probes, storage, distribution) is **not**
 reachable through this envelope by design (contract §3) — use the
 selector-addressed form below instead. Every listed verb above except
-`enabled`/`hostname` takes **zero** arguments; sending any triggers a silent
+`enabled`/`hostname`/`audio-config` takes **zero** arguments; sending any
+triggers a silent
 reject (no reply, no effect).
 
 ### Seat-group membership (v1.5)
@@ -201,6 +203,7 @@ sending the commands above, or unprompted (heartbeats):
 | `/os/probe <id:i> <what:s> <values…>` | — | reply to `probe` |
 | `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` | — | reply to the exact-uid `enabled` verb |
 | `/os/hostname <uid:s> <name:s> <ok\|err:s>` | — | reply to the exact-uid `hostname` verb |
+| `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | terminal reply to exact-uid `audio-config`; phase is `applied`, `invalid`, `rolled-back`, or `rollback-failed` |
 | `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
 | `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
 | `/os/load <key:s> <values…>` | — | reply to `load` |

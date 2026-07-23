@@ -929,6 +929,53 @@ function renderSeatDetail() {
   const unbind=$("#seat-unbind");if(unbind)unbind.onclick=()=>{if(confirm(`Unassign ${seat.bound} from Seat ${seat.id}?`))ws.send("unbind_seat",{id:seat.id});};
 }
 
+function audioConfigEqual(left,right) {
+  return ["card","mixer_control","sample_rate","period_size","nperiods"]
+    .every(key=>(left?.[key]??null)===(right?.[key]??null));
+}
+
+function audioSection(d) {
+  const audio=d.report?.audio;
+  if(!audio||!audio.configured) return `<section id="device-audio"><div class="section-head"><div><h2>Audio</h2><p class="dim">Refresh the report to load audio settings and detected cards.</p></div></div></section>`;
+  const configured=audio.configured, active=audio.active, cards=Array.isArray(audio.cards)?audio.cards:[];
+  const available=cards.some(card=>card.id===configured.card);
+  const cardOptions=[
+    ...(!available?[`<option value="${esc(configured.card)}" selected disabled>${esc(configured.card)} — unavailable</option>`]:[]),
+    ...cards.map(card=>`<option value="${esc(card.id)}" ${card.id===configured.card?'selected':''}>${esc(card.label||card.id)} · ${esc(card.id)}</option>`)
+  ].join('');
+  const selectedCard=cards.find(card=>card.id===configured.card);
+  const mixerAvailable=configured.mixer_control==null||(selectedCard?.mixer_controls||[]).includes(configured.mixer_control);
+  const mixerOptions=[
+    ...(!mixerAvailable?[`<option value="${esc(configured.mixer_control)}" selected disabled>${esc(configured.mixer_control)} — unavailable</option>`]:[]),
+    `<option value="" ${configured.mixer_control==null?'selected':''}>Auto</option>`,
+    ...((selectedCard?.mixer_controls)||[]).map(control=>`<option value="${esc(control)}" ${control===configured.mixer_control?'selected':''}>${esc(control)}</option>`)
+  ].join('');
+  const rates=[22050,32000,44100,48000,88200,96000];
+  const periods=[64,128,256,512,1024,2048];
+  const latency=Math.round(Number(configured.period_size)*Number(configured.nperiods)/Number(configured.sample_rate)*10000)/10;
+  const mismatch=active&&!audioConfigEqual(configured,active);
+  const receipt=d.audio_apply;
+  const feedback=receipt?.phase==="applied"?"Applied; audio engine restarted."
+    :receipt?.phase==="rolled-back"?"Could not start requested settings; restored the previous configuration."
+    :receipt?.phase==="rollback-failed"?"Audio recovery failed; inspect the node before use."
+    :receipt?.phase==="invalid"?"The node rejected those audio settings."
+    :receipt?.phase==="timeout"?"Audio apply timed out; refreshing observed state."
+    :audio.status==="applying"?"Applying settings and restarting audio…"
+    :audio.error||"";
+  return `<section id="device-audio" data-audio-status="${esc(audio.status||'unknown')}">
+    <div class="section-head"><div><h2>Audio</h2><p class="dim">${active?`${esc(active.card)} · ${esc(active.sample_rate)} Hz · ${esc(active.period_size)} frames × ${esc(active.nperiods)}`:"No active JACK configuration reported"}${mismatch?' · saved settings differ':''}</p></div><span class="audio-state">${esc(audio.status||"unknown")}</span></div>
+    <div class="audio-config-grid">
+      <label>sound card<select id="audio-card" ${d.online&&cards.length?'':'disabled'}>${cardOptions||'<option disabled>No playback cards detected</option>'}</select></label>
+      <label>mixer control<select id="audio-mixer" ${d.online&&cards.length?'':'disabled'}>${mixerOptions}</select></label>
+      <label>sample rate<select id="audio-rate" ${d.online?'':'disabled'}>${rates.map(value=>`<option value="${value}" ${value===Number(configured.sample_rate)?'selected':''}>${value} Hz</option>`).join('')}</select></label>
+      <label>buffer size<select id="audio-period" ${d.online?'':'disabled'}>${periods.map(value=>`<option value="${value}" ${value===Number(configured.period_size)?'selected':''}>${value} frames</option>`).join('')}</select></label>
+      <label>periods<select id="audio-nperiods" ${d.online?'':'disabled'}>${[2,3].map(value=>`<option value="${value}" ${value===Number(configured.nperiods)?'selected':''}>${value}</option>`).join('')}</select></label>
+    </div>
+    <p class="dim audio-buffering">Approximate device buffering: <span id="audio-latency">${latency} ms</span>. End-to-end latency may be higher.</p>
+    <div class="audio-apply-row"><button id="audio-apply" ${!d.online||!available||audio.status==="applying"?'disabled':''}>Save &amp; restart audio engine</button><output id="audio-feedback" class="${receipt?.status==="err"?'error':''}" aria-live="polite">${esc(feedback)}</output></div>
+  </section>`;
+}
+
 function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
@@ -952,6 +999,7 @@ function renderDeviceDetail() {
   $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
+    ${audioSection(d)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
     <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
@@ -984,9 +1032,44 @@ function bindDeviceDetailControls(d) {
   const aliasReset=$("#device-alias-reset");if(aliasReset)aliasReset.onclick=()=>{if(registryEntry.source!=="custom"||confirm(`Reset custom alias ${alias} to its generated name?`))ws.send("reset_device_alias",{uid:d.uid});};
   const hostnameSet=$("#device-hostname-set");if(hostnameSet)hostnameSet.onclick=()=>ws.send("set_device_hostname",{uid:d.uid});
   const enabledToggle=$("#device-enabled-toggle");if(enabledToggle)enabledToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_enabled",{uid:d.uid,value:current.device_enabled===false?1:0});};
+  bindAudioControls(d);
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
+}
+
+function bindAudioControls(d) {
+  const audio=d.report?.audio, card=$("#audio-card"), mixer=$("#audio-mixer"), rate=$("#audio-rate"), period=$("#audio-period"), nperiods=$("#audio-nperiods"), apply=$("#audio-apply");
+  if(!audio?.configured||!card||!mixer||!rate||!period||!nperiods||!apply)return;
+  const cards=Array.isArray(audio.cards)?audio.cards:[];
+  const config=()=>({
+    card:card.value,
+    mixer_control:mixer.value||null,
+    sample_rate:Number(rate.value),
+    period_size:Number(period.value),
+    nperiods:Number(nperiods.value)
+  });
+  const refresh=()=>{
+    const value=config(), selected=cards.find(item=>item.id===value.card);
+    const valid=!!selected&&(value.mixer_control==null||selected.mixer_controls?.includes(value.mixer_control));
+    apply.disabled=!d.online||audio.status==="applying"||!valid||audioConfigEqual(value,audio.configured);
+    const latency=Math.round(value.period_size*value.nperiods/value.sample_rate*10000)/10;
+    const output=$("#audio-latency");if(output)output.textContent=`${latency} ms`;
+  };
+  card.onchange=()=>{
+    const selected=cards.find(item=>item.id===card.value);
+    mixer.innerHTML=`<option value="">Auto</option>${(selected?.mixer_controls||[]).map(control=>`<option value="${esc(control)}">${esc(control)}</option>`).join('')}`;
+    refresh();
+  };
+  [mixer,rate,period,nperiods].forEach(control=>control.onchange=refresh);
+  refresh();
+  apply.onclick=()=>{
+    const desired=config();
+    if(!confirm(`Restart the audio engine on ${Identity.primary(d,installation)}? Audio will stop briefly while these settings are tested.`))return;
+    apply.disabled=true;
+    const feedback=$("#audio-feedback");if(feedback){feedback.className="";feedback.value="Applying settings and restarting audio…";}
+    ws.send("set_audio_config",{uid:d.uid,config:desired});
+  };
 }
 
 function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }

@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.10** — base ratified 2026-07-07; latest revision 2026-07-23. The
+**Version 1.11** — base ratified 2026-07-07; latest revision 2026-07-23. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -528,6 +528,8 @@ deferred and unratified.
 /all/os/mute <0|1>                                             (safety)
 /all/os/to <uid> enabled <0|1> → /os/enabled <uid> <device-enabled> <output-enabled>
 /all/os/to <uid> hostname <name> → /os/hostname <uid> <name> <ok|err>
+/all/os/to <uid> audio-config <json>
+    → /os/audio-config <uid> <ok|err> <phase> <json>
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -554,7 +556,8 @@ move to the uniform envelope.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
-  `device_enabled`, execution `mute_all`, and effective `output_enabled`. This
+  `device_enabled`, execution `mute_all`, effective `output_enabled`, and the
+  `audio` object below. This
   is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
 - **The framework output gate is safety-critical.** It is a transport-level
@@ -586,6 +589,28 @@ move to the uniform envelope.
   unavailable authorization or OS failure returns `err`. Repeating the current
   hostname is an idempotent success. No Seat, alias, element, or engine state is
   changed by this verb.
+- **Exact-device audio configuration (v1.11)** is physical administration and
+  always follows the installation-LAN route, independent of Live, Simulation,
+  or Patch Edit execution. The complete JSON object contains `card`,
+  `mixer_control`, `sample_rate`, `period_size`, and `nperiods`. `card` must be
+  one of the node's currently detected ALSA playback cards;
+  `mixer_control` is a detected simple control or JSON null for Auto; rate is
+  one of 22050, 32000, 44100, 48000, 88200, or 96000; period size is one of
+  64, 128, 256, 512, 1024, or 2048 frames; and periods is 2 or 3. Missing,
+  additional, partial, wrongly typed, unavailable, or out-of-range values
+  reject the whole request.
+  Applying writes only the node-level `bopos.config`, restarts JACK and the
+  patch engine while the framework listener remains alive, and rolls back to
+  the prior file and engine configuration if candidate startup fails. Terminal
+  receipt phases are `applied`, `invalid`, `rolled-back`, and
+  `rollback-failed`; the final JSON argument is the same complete `audio`
+  object carried by `/os/report`. After candidate or rollback startup the node
+  reapplies `device_enabled AND NOT mute_all` to the active card.
+  The `audio` report object contains `configured`, boot-local `active` (or
+  null), detected playback `cards` (`id`, index, label, and mixer controls),
+  `status`, and `error`. Detection is point-in-time availability, not a
+  capability promise or a periodic stream. This routine path never edits boot
+  overlays or invokes privileged provisioning.
 
 ## 7. Admin and convergence (`/os/*` verbs)
 
@@ -857,3 +882,4 @@ reasoning.
 | 1.8 am. | 2026-07-20 | Engine group-context amendment (§4, §4.2): the node's current Seat-group membership joins run context, delivered at launch and re-delivered after every successful, durably-persisted membership change (including assignment/unassignment clears). Wire shape is sorted OSC ints or the single sentinel `-1`; PD's `bopos-context groups <int...>` bus and the new `/groups <int...>` engine-received term keep non-PD engines boundary-equivalent via `BOPOS_GROUPS` and the same live `/groups` message. Purely additive — no existing term changes shape. | stitch `engine-group-context` |
 | 1.9 | 2026-07-23 | Multi-asset-slot run-context revision (§4.2, §9): the engine receives the deterministic list of absolute installed-slot folder paths instead of one assets root. PD gets `bopos-context assets <absolute-path...>`; other engines get the same list as JSON-array `BOPOS_ASSETS`. Intentional scalar-root-to-list migration. | stitch `1-context-list-design` |
 | 1.10 | 2026-07-23 | Physical/execution routing revision: exact-device `mute` becomes positive `enabled`, reports `device_enabled`, `mute_all`, and `output_enabled`, and execution transitions cannot replay physical-device state. MUTE ALL remains execution-scoped like master. | thread `37-physical-device-control-routing` |
+| 1.11 | 2026-07-23 | Exact physical-device audio configuration: detected ALSA cards only, complete validated JACK settings, transactional engine restart with rollback, and attributable audio state/receipts. | `.loom/tied/1-audio-config-design/` |
