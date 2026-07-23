@@ -22,8 +22,13 @@ that session's starting point. Read it, then
 `.loom/tied/23-waveform-marker-guard-regression/proposal-guard-sweep.md` for the
 long form.
 
-**Do not start this session until threads `20-console-dock` and
-`21-theme-cyan-tint` are done** — Bob's ordering ruling, 2026-07-22.
+> **Stale ordering (corrected 2026-07-23):** The sentence below recorded the
+> 2026-07-22 order and is superseded by `CLAUDE.md`'s holistic order:
+> **31 → 32 → 33 → 34 → 27 → 20 → 25**. Thread 27 still needs Bob's fresh
+> session, but no longer waits for thread 20; thread 21 was dropped.
+
+Historical instruction, no longer operative: do not start this session until
+threads `20-console-dock` and `21-theme-cyan-tint` are done.
 
 ## The one-paragraph version
 

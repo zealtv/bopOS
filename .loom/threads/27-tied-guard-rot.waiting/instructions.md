@@ -45,14 +45,19 @@ a new tied guard — this builds tier 1 organically and stops adding to the arch
 
 ---
 
-**Waiting on thread `20`** (`21-theme-cyan-tint` was **dropped** 2026-07-23, so
-it no longer gates this). Bob ruled 2026-07-22, revisited 2026-07-23:
+> **Ordering correction (2026-07-23):** The older “after thread 20” wording
+> below is stale. The authoritative holistic order in `CLAUDE.md` elevates this
+> thread ahead of deferred Show polish: **31 → 32 → 33 → 34 → 27 → 20 → 25**.
+> Thread 27 still waits for Bob's fresh-session discussion, but it does **not**
+> wait for thread 20.
 
-- **Ordering:** this runs *after* `20-console-dock`. The rot is not blocking
-  anything and has been accumulating for weeks. **But** Bob flagged the failing
-  tests for prominence in the 2026-07-23 holistic re-order — see CLAUDE.md's
-  "Next sweep" block for its actual placement, which may lift it above the
-  deferred Show polish.
+Historical context (`21-theme-cyan-tint` was **dropped** 2026-07-23, so it no
+longer gates this). Bob ruled 2026-07-22, revisited 2026-07-23:
+
+- **Superseded ordering:** this formerly ran *after* `20-console-dock`. Bob then
+  elevated the failing-test cleanup in the 2026-07-23 holistic re-order; see
+  `CLAUDE.md`'s "Next sweep" block for the current placement ahead of deferred
+  Show polish.
 - **The sweep question itself** (script yes/no, blocking vs advisory) Bob will
   take in a **fresh session** with a dedicated briefing rather than deciding it
   from the proposal — see `.notes/handoff-guard-rot-briefing.md`, which is
