@@ -56,10 +56,35 @@ client.connect( ('127.0.0.1', 6661) )
 engine_client_lock = threading.Lock()
 
 
+_engine_send_warned_at = 0  # monotonic_ns of the last dropped-send warning
+
+
 def send_to_engine(message):
-    """Serialize access to pyOSC3's shared bopos-to-engine client."""
+    """Serialize access to pyOSC3's shared bopos-to-engine client.
+
+    The engine's localhost port (6661) is closed during the window between
+    bopos.py binding the LAN listener and Pure Data opening its port, and again
+    whenever the engine restarts. A send in that window raises
+    ConnectionRefusedError (Errno 111). That must never escape into a caller:
+    ConnectionRefusedError is an OSError, and an unwrapped raise inside a LAN
+    handler propagated up to lan_listener_loop, whose `except OSError` mistook
+    it for a *listener* failure and tore the LAN socket down mid-startup -- so a
+    freshly-flashed node went unresponsive in the Dashboard while SSH stayed up.
+    Swallow connection-level errors here (returning False) so no call site can
+    leak them; deliver_engine_context redelivers durable state once the port is
+    open again (see heartbeat_loop). Returns True iff the datagram was sent.
+    """
+    global _engine_send_warned_at
     with engine_client_lock:
-        client.send(message)
+        try:
+            client.send(message)
+            return True
+        except OSError as error:
+            now = monotonic_ns()
+            if now - _engine_send_warned_at > 5_000_000_000:
+                print("WARNING: engine send dropped (engine not ready?):", error)
+                _engine_send_warned_at = now
+            return False
 
 
 def read_node_config(path=None):
@@ -429,7 +454,14 @@ def heartbeat_loop(state=None):
     state = state or node_state
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    last_engine_alive = None
     while True:
+        alive = engine_alive()
+        if alive == 1 and last_engine_alive == 0:
+            # 0 -> 1: the engine just opened its port. Redeliver durable context
+            # that may have been sent (and dropped) while it was still starting.
+            deliver_engine_context(state)
+        last_engine_alive = alive
         try:
             sock.sendto(build_heartbeat(state).getBinary(),
                         (state.config.get("HB_TARGET") or "255.255.255.255", 5550))
@@ -661,6 +693,51 @@ def send_groups_to_engine(state=None):
         send_to_engine(msg)
     except Exception as error:
         print("WARNING: groups send to engine failed:", error)
+
+
+# --- engine-ready replay boundary -------------------------------------------
+# Durable authoritative state the node owns and must (re)deliver once the engine
+# opens its port: the Seat id, Seat-group memberships, and the latest *static*
+# value of each live parameter. Transient traffic (cues, points) and running
+# automation generators (fade/loop/lfo -- forgotten by design across restarts,
+# per the parameter-automation ratification) are never buffered or replayed.
+param_replay_lock = threading.Lock()
+latest_static_params = {}  # canonical param identity -> (ParamSpec, declaration)
+
+
+def record_static_param(identity_str, spec, declaration):
+    """Remember the latest static ('set') value of a param for engine-ready replay."""
+    if getattr(spec, "kind", None) != "set":
+        # A non-static spec supersedes any stored static value: once a param is
+        # being driven by a generator (or explicitly stopped), a stale 'set'
+        # must not be replayed over it.
+        with param_replay_lock:
+            latest_static_params.pop(identity_str, None)
+        return
+    with param_replay_lock:
+        latest_static_params[identity_str] = (spec, declaration)
+
+
+def deliver_engine_context(state=None):
+    """Redeliver id, groups, and latest static params to a freshly-ready engine.
+
+    Idempotent full-state: harmless on the normal launch path (the engine also
+    pulls /id via /config and gets launch-time run context), essential when the
+    Dashboard mutated assignment/groups/params during the window the engine port
+    was closed and those sends were dropped.
+    """
+    state = state or node_state
+    msg = OSCMessage("/id")
+    msg.append(state.id, 'i')
+    send_to_engine(msg)
+    send_groups_to_engine(state)
+    with param_replay_lock:
+        pending = list(latest_static_params.items())
+    for identity_str, (spec, declaration) in pending:
+        try:
+            param_generator.apply(identity_str, spec, declaration)
+        except Exception as error:
+            print("WARNING: param replay failed for", identity_str, ":", error)
 
 
 def typed_append(msg, value):
@@ -1285,6 +1362,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                     except paramgen.ParamGrammarError as error:
                         print(f"WARNING: {address} parameter grammar: {error}")
                         return True
+                    record_static_param(param_identity, spec, declaration)
                     return param_generator.apply(param_identity, spec, declaration)
             return relay_provided_term(*shaped)
     # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
