@@ -72,7 +72,11 @@ class OSCBridge:
         self.state = state
         self.broadcast = broadcast
         self.listen_port = listen_port
-        self.destination = (target, send_port)
+        # Execution traffic follows Live / Simulation / Patch Edit. Physical
+        # administration never follows that switch: it always targets the
+        # configured installation LAN on the existing framework port.
+        self.physical_destination = (target, send_port)
+        self.destination = self.physical_destination
         self.transport = None
         self.sender = None
         self.pending = {"params": deque(), "report": deque(), "patches": deque(),
@@ -197,17 +201,32 @@ class OSCBridge:
         return [arg if isinstance(arg, (str, int, float, bool)) else str(arg)
                 for arg in args]
 
-    def send(self, address, args=()):
-        self.sender.sendto(self._datagram(address, args), self.destination)
+    def _send_to(self, address, args, destination, route):
+        self.sender.sendto(self._datagram(address, args), destination)
         # Console tap (design note sec 3): everything the dashboard sends,
         # any tab. Always-on; filtering is client-side. Guarded: sends can
         # legally happen before the asyncio loop exists.
         try:
             self.broadcast("osc_out", {"ts": time.time(), "address": address,
                                        "args": self._console_args(args),
-                                       "target": self.destination[0]})
+                                       "target": destination[0], "route": route})
         except RuntimeError:
             pass
+
+    def send(self, address, args=()):
+        """Send to the active execution target."""
+        self._send_to(address, args, self.destination, "execution")
+
+    def send_physical(self, address, args=()):
+        """Send to the physical installation regardless of execution mode."""
+        self._send_to(address, args, self.physical_destination, "physical")
+
+    def send_for_uid(self, uid, address, args=()):
+        device = self.state.devices.get(str(uid))
+        if device is not None and device.get("virtual"):
+            self.send(address, args)
+        else:
+            self.send_physical(address, args)
 
     def set_target(self, host):
         self.destination = (str(host), self.destination[1])
@@ -345,6 +364,11 @@ class OSCBridge:
         self.send(f"/{selector}/os/master",
                   [float(self.state.data.get("master", 1.0))])
 
+    def send_mute_all(self):
+        """Send the execution-owned MUTE ALL state to the active target."""
+        self.send("/all/os/mute", [
+            int(bool(self.state.data.get("muted", False)))])
+
     def fire_cue(self, cue_id, lead_ms=500):
         """Schedule one named fleet cue in leader monotonic time."""
         lead_ms = min(max(int(lead_ms), 100), 10000)
@@ -411,17 +435,18 @@ class OSCBridge:
             pass
 
     def action(self, selector, verb):
-        self.send(f"/{selector}/os/{verb}")
+        self.send_physical(f"/{selector}/os/{verb}")
 
     def uid_command(self, uid, verb, args=()):
-        self.send("/all/os/to", [str(uid), str(verb), *args])
+        self.send_for_uid(
+            uid, "/all/os/to", [str(uid), str(verb), *args])
 
     def uid_action(self, uid, verb):
         self.uid_command(uid, verb)
 
-    def set_device_mute(self, uid, value):
-        """Send one exact-UID persistent physical-box mute intent."""
-        self.uid_command(uid, "mute", [int(bool(value))])
+    def set_device_enabled(self, uid, value):
+        """Send one exact-UID persistent physical-box enabled state."""
+        self.uid_command(uid, "enabled", [int(bool(value))])
 
     def set_device_hostname(self, uid, hostname):
         """Send one exact-UID alias-derived hostname target."""
@@ -460,7 +485,7 @@ class OSCBridge:
             FETCH_TIMEOUT_SECONDS, self._expire_fetch, slot, record)
         records.append(record)
         device.setdefault("fetch", {})[slot] = "sent"
-        self.send(f"/{int(device['id'])}/os/fetch", [uri, slot])
+        self.send_physical(f"/{int(device['id'])}/os/fetch", [uri, slot])
         self.broadcast("device_update", device)
         return True
 
@@ -485,7 +510,8 @@ class OSCBridge:
         if member == "report":
             self.uid_command(uid, "report")
         elif int(device.get("id", -1)) >= 0:
-            self.send(f"/{int(device['id'])}/os/{member}")
+            self.send_for_uid(
+                uid, f"/{int(device['id'])}/os/{member}")
         else:
             self._finish_request(member, uid)
             try:
@@ -538,8 +564,14 @@ class OSCBridge:
         # If a request is already in flight, its reply or expiry resumes the
         # bounded sequence; do not spin another timer alongside it.
 
-    def os_command(self, selector, member, args=()):
-        self.send(f"/{selector}/os/{member}", args)
+    def os_command(self, selector, member, args=(), route="physical"):
+        address = f"/{selector}/os/{member}"
+        if route == "execution":
+            self.send(address, args)
+        elif route == "physical":
+            self.send_physical(address, args)
+        else:
+            raise ValueError(f"invalid OSC route {route!r}")
 
     def assign(self, uid, device_id, name, elements=()):
         # idempotent full-state; only the node whose uid matches applies it,
@@ -549,8 +581,8 @@ class OSCBridge:
         args = [str(uid), int(device_id), str(name)]
         for position in elements or ():
             args += [float(position[0]), float(position[1])]
-        self.send("/all/os/assign", args)
         device = self.state.devices.get(uid)
+        self.send_for_uid(uid, "/all/os/assign", args)
         seat = self.state.seat_for_uid(uid)
         if device is not None and seat is not None and int(seat["id"]) == int(device_id):
             # Assignment and membership are separate UDP transactions. Never
@@ -603,7 +635,7 @@ class OSCBridge:
         record = {"desired": desired, "attempts": 1, "retry_index": 0,
                   "timeout": None}
         self._group_pending[uid] = record
-        self.send("/all/os/groups", [str(uid), *desired])
+        self.send_for_uid(uid, "/all/os/groups", [str(uid), *desired])
         device["group_sync"] = {"status": "pending", "desired": list(desired),
                                 "attempts": 1}
         self.broadcast("device_update", device)
@@ -642,7 +674,8 @@ class OSCBridge:
                                     "attempts": record["attempts"]}
             self.broadcast("device_update", device)
             return
-        self.send("/all/os/groups", [str(uid), *record["desired"]])
+        self.send_for_uid(
+            uid, "/all/os/groups", [str(uid), *record["desired"]])
         record["attempts"] += 1
         record["retry_index"] += 1
         device["group_sync"] = {"status": "pending",
@@ -738,6 +771,8 @@ class OSCBridge:
             # Its private ready frame requests the complete dashboard-owned
             # assignments and listener without weakening heartbeat rate limits.
             mode = str(args[1]) if len(args) > 1 else "simulate"
+            self.send_master()
+            self.send_mute_all()
             if mode == "simulate":
                 for seat in self.state.seats.values():
                     uid = seat.get("bound")
@@ -815,11 +850,14 @@ class OSCBridge:
             configured_id = int(seat["id"]) if configured else (-1 if revoking else advertised_id)
             mismatch = configured and advertised_id != configured_id
             last_replay = self._assign_replayed.get(uid, float("-inf"))
-            allow_replay = not sim_active or device.get("virtual")
-            reassign = configured and allow_replay and (not old["online"] or
+            execution_owned = (
+                (bool(device.get("virtual"))
+                 and supervisor_mode in {"simulate", "edit"})
+                or (not device.get("virtual") and supervisor_mode == "off"))
+            reassign = configured and (not old["online"] or
                                        (mismatch and now - last_replay >=
                                         ASSIGN_REPLAY_MIN_SECONDS))
-            if configured and not old["online"]:
+            if configured and not old["online"] and execution_owned:
                 self._live_param_pending.add(uid)
             if configured and not mismatch:
                 self._assign_replayed.pop(uid, None)
@@ -851,16 +889,16 @@ class OSCBridge:
                             "status": "assignment_confirmed",
                             "desired": list(desired_groups)}
                     self.send_groups(uid)
-                if uid in self._live_param_pending:
+                if execution_owned and uid in self._live_param_pending:
                     last_params = self._live_param_replayed.get(uid, float("-inf"))
                     if now - last_params >= ASSIGN_REPLAY_MIN_SECONDS:
                         self.live_param_replay(seat)
                         self._live_param_replayed[uid] = now
                         self._live_param_pending.discard(uid)
-            if not device.get("virtual"):
-                # Heartbeat is a convergence edge. Old nodes safely ignore the
-                # additive UID verb and remain publicly unconfirmed.
-                self.set_device_mute(uid, self.state.device_muted_for(uid))
+            if (not device.get("virtual")
+                    and (first_seen or not old["online"])):
+                self.set_device_enabled(
+                    uid, self.state.device_enabled_for(uid))
             self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
             new = {key: device.get(key) for key in old}
             if old != new:
@@ -900,7 +938,7 @@ class OSCBridge:
                 return
             self._finish_groups(uid, observed, "receipt")
             return
-        if address == "/os/mute" and len(args) >= 3:
+        if address == "/os/enabled" and len(args) >= 3:
             uid = str(args[0])
             device = self.state.devices.get(uid)
             if device is None or device.get("virtual"):
@@ -913,9 +951,9 @@ class OSCBridge:
             if (isinstance(args[1], bool) or isinstance(args[2], bool)
                     or observed not in (0, 1) or effective not in (0, 1)):
                 return
-            device["mute_observed"] = bool(observed)
-            device["effective_muted"] = bool(effective)
-            device["mute_pending_at"] = None
+            device["enabled_observed"] = bool(observed)
+            device["output_enabled"] = bool(effective)
+            device["enabled_pending_at"] = None
             self.broadcast("device_update", device)
             return
         if address == "/os/hostname" and len(args) >= 3:
@@ -966,6 +1004,12 @@ class OSCBridge:
                 log.warning("invalid qualified params declaration from %s", ip)
                 return
             device["active_asset_slots"] = active_asset_slots
+            supervisor_mode = self.state.data.get(
+                "supervisor", {}).get("mode", "off")
+            execution_owned = (
+                (bool(device.get("virtual"))
+                 and supervisor_mode in {"simulate", "edit"})
+                or (not device.get("virtual") and supervisor_mode == "off"))
             for declaration, identity in qualified:
                 if identity not in device["params"] and "default" in declaration:
                     device["params"][identity] = declaration["default"]
@@ -975,13 +1019,13 @@ class OSCBridge:
             # record, so a (re)declaring device gets them back (this is how a
             # device offline during a preset load converges on reconnect);
             # master rides along per the contract sec 4.1 catch-up rule
-            if editor:
+            if editor and execution_owned:
                 for _declaration, identity in qualified:
                     if identity in device["params"]:
                         self.set_param(int(device.get("id", 0)), identity,
                                        device["params"][identity])
                 self.send_master(int(device.get("id", 0)))
-            elif seat is not None:
+            elif seat is not None and execution_owned:
                 for _declaration, identity in qualified:
                     if identity in device["params"]:
                         self.set_param(int(seat["id"]), identity,
@@ -1001,13 +1045,13 @@ class OSCBridge:
                 device["report"] = report
                 if isinstance(report.get("hostname"), str):
                     device["hostname"] = report["hostname"]
-                if isinstance(report.get("device_muted"), bool):
-                    device["mute_observed"] = report["device_muted"]
-                if isinstance(report.get("muted"), bool):
-                    device["effective_muted"] = report["muted"]
-                if (isinstance(report.get("device_muted"), bool)
-                        and isinstance(report.get("muted"), bool)):
-                    device["mute_pending_at"] = None
+                if isinstance(report.get("device_enabled"), bool):
+                    device["enabled_observed"] = report["device_enabled"]
+                if isinstance(report.get("output_enabled"), bool):
+                    device["output_enabled"] = report["output_enabled"]
+                if (isinstance(report.get("device_enabled"), bool)
+                        and isinstance(report.get("output_enabled"), bool)):
+                    device["enabled_pending_at"] = None
                 reconcile_patch_switch_observation(device)
                 observed_groups = self._wire_group_ids(report.get("groups"))
                 if observed_groups is None:
@@ -1016,9 +1060,13 @@ class OSCBridge:
                         self.send_groups(device["uid"])
                 else:
                     self._finish_groups(device["uid"], observed_groups, "report")
-                if not device.get("virtual"):
-                    self.set_device_mute(
-                        device["uid"], self.state.device_muted_for(device["uid"]))
+                if (not device.get("virtual")
+                        and report.get("device_enabled")
+                        != self.state.device_enabled_for(device["uid"])):
+                    device["enabled_pending_at"] = time.time()
+                    self.set_device_enabled(
+                        device["uid"],
+                        self.state.device_enabled_for(device["uid"]))
                 self.broadcast("report", device)
             return
         if address == "/os/patches" and args:

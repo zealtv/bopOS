@@ -786,22 +786,22 @@ function row(d, seat) {
   const heartbeatAt = heartbeats.get(d.uid);
   const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
   const telemetry=[d.version,d.rssi != null ? `${d.rssi} dBm` : null].filter(Boolean).join(" · ");
-  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small></span>${deviceMuteIndicator(d)}${patchBadge(d.patch_badge)}</button>`;
+  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small></span>${deviceEnabledIndicator(d)}${patchBadge(d.patch_badge)}</button>`;
 }
 
-function deviceMutePresentation(d) {
-  const desired=!!d.device_muted;
-  const status=String(d.mute_status||"").toLowerCase();
+function deviceEnabledPresentation(d) {
+  const desired=d.device_enabled!==false;
+  const status=String(d.enabled_status||"").toLowerCase();
   const unsettled=status&&status!=="current"&&status!=="confirmed";
-  const state=desired?"Device muted":"Device unmuted";
+  const state=desired?"Device enabled":"Device disabled";
   const suffix=unsettled?` · ${status}`:"";
-  return {desired,status,label:state+suffix,terse:(desired?"muted":"unmuted")+suffix};
+  return {desired,status,label:state+suffix,terse:(desired?"enabled":"disabled")+suffix};
 }
 
-function deviceMuteIndicator(d) {
-  const mute=deviceMutePresentation(d);
-  const slash=mute.desired?'<path d="M3 3l18 18"></path>':'';
-  return `<span class="device-mute-indicator ${mute.desired?'device':'off'} ${mute.status&&mute.status!=="current"&&mute.status!=="confirmed"?'unsettled':''}" data-device-mute-indicator data-mute-status="${esc(mute.status||'current')}" role="img" aria-label="${esc(mute.label)}" title="${esc(mute.label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"></path><path d="M15.5 9.5a4 4 0 010 5"></path>${slash}</svg></span>`;
+function deviceEnabledIndicator(d) {
+  const enabled=deviceEnabledPresentation(d);
+  const slash=enabled.desired?'':'<path d="M3 3l18 18"></path>';
+  return `<span class="device-enabled-indicator ${enabled.desired?'enabled':'disabled'} ${enabled.status&&enabled.status!=="current"&&enabled.status!=="confirmed"?'unsettled':''}" data-device-enabled-indicator data-enabled-status="${esc(enabled.status||'current')}" role="img" aria-label="${esc(enabled.label)}" title="${esc(enabled.label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"></path><path d="M15.5 9.5a4 4 0 010 5"></path>${slash}</svg></span>`;
 }
 function renderRoom() {
   const room = installation.room || {}; const listener = installation.listener || {};
@@ -933,7 +933,7 @@ function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
   const active=document.activeElement;
-  if ($("#detail").contains(active) && active.matches('input,select')) { updateDeviceMuteControls(d);updateDeviceHostnameControls(d);return; }
+  if ($("#detail").contains(active) && active.matches('input,select')) { updateDeviceEnabledControls(d);updateDeviceHostnameControls(d);return; }
   const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
   const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
   const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
@@ -943,13 +943,13 @@ function renderDeviceDetail() {
   const hostnamePending=d.hostname_status==="pending";
   const hostnameCurrent=String(d.hostname||"").toLowerCase()===hostnameTarget;
   const hostnameActionLabel=hostnamePending?"Setting…":hostnameCurrent?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";
-  const mute=deviceMutePresentation(d);
+  const enabled=deviceEnabledPresentation(d);
   const binding=d.revoking_assignment
     ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-mute-control"><output id="device-mute-status" aria-live="polite">${esc(mute.terse)}</output><button id="device-mute-toggle">${d.device_muted?'Unmute':'Mute'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
+  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
@@ -958,10 +958,10 @@ function renderDeviceDetail() {
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
 }
 
-function updateDeviceMuteControls(d) {
-  const mute=deviceMutePresentation(d), button=$("#device-mute-toggle"), status=$("#device-mute-status");
-  if(button)button.textContent=d.device_muted?"Unmute":"Mute";
-  if(status)status.value=mute.terse;
+function updateDeviceEnabledControls(d) {
+  const enabled=deviceEnabledPresentation(d), button=$("#device-enabled-toggle"), status=$("#device-enabled-status");
+  if(button)button.textContent=d.device_enabled===false?"Enable":"Disable";
+  if(status)status.value=enabled.terse;
 }
 
 function updateDeviceHostnameControls(d) {
@@ -983,7 +983,7 @@ function bindDeviceDetailControls(d) {
   const aliasSave=$("#device-alias-save");if(aliasSave)aliasSave.onclick=()=>{const input=$("#device-alias"),value=input.value;if(input.reportValidity()){input.blur();ws.send("set_device_alias",{uid:d.uid,alias:value});}};
   const aliasReset=$("#device-alias-reset");if(aliasReset)aliasReset.onclick=()=>{if(registryEntry.source!=="custom"||confirm(`Reset custom alias ${alias} to its generated name?`))ws.send("reset_device_alias",{uid:d.uid});};
   const hostnameSet=$("#device-hostname-set");if(hostnameSet)hostnameSet.onclick=()=>ws.send("set_device_hostname",{uid:d.uid});
-  const muteToggle=$("#device-mute-toggle");if(muteToggle)muteToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_mute",{uid:d.uid,value:current.device_muted?0:1});};
+  const enabledToggle=$("#device-enabled-toggle");if(enabledToggle)enabledToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_enabled",{uid:d.uid,value:current.device_enabled===false?1:0});};
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
@@ -1116,7 +1116,7 @@ function renderAssets() {
   else if(focusRefresh) $("#asset-refresh").focus();
 }
 function nextFreeId() { const used = new Set(Object.values(installation.seats||{}).map(s=>Number(s.id))); let id=0; while (used.has(id)) id++; return id; }
-function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
+function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version","device_enabled","mute_all","output_enabled"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
 function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
 function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
 $("#mute-all").onclick=()=>{muted=!muted;installation.muted=muted;ws.send("mute_all",{value:muted?1:0});render();};

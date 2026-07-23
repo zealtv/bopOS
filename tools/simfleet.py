@@ -180,9 +180,9 @@ class Device:
         self.engine_dead = engine_dead
         self.engine_restart_until = 0.0
         self.rssi = random.randint(-70, -45)
-        self.device_muted = False
-        self.fleet_muted = False
-        self.muted = False
+        self.device_enabled = True
+        self.mute_all = False
+        self.output_enabled = True
         self.ident_until = 0.0
         # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
         # clock, plus the offset the leader has pushed for cue conversion
@@ -235,8 +235,19 @@ class Device:
             self.elements = [[float(positions[i]), float(positions[i + 1])]
                              for i in range(0, len(positions) - 1, 2)]
             self.groups = group_protocol.stored_group_ids(assignment.get("groups", []))
-            self.device_muted = bool(assignment.get("device_muted", False))
-            self.muted = bool(self.device_muted or self.fleet_muted)
+            legacy_enabled = "device_enabled" not in assignment
+            if not legacy_enabled:
+                self.device_enabled = bool(assignment["device_enabled"])
+            else:
+                self.device_enabled = not bool(
+                    assignment.get("device_muted", False))
+            self.output_enabled = bool(
+                self.device_enabled and not self.mute_all)
+            if legacy_enabled:
+                flat_positions = [
+                    coordinate for element in self.elements
+                    for coordinate in element]
+                self.save_assignment(state_dir, flat_positions)
         except (OSError, ValueError, KeyError, TypeError):
             pass
 
@@ -254,7 +265,7 @@ class Device:
                 json.dump({"id": saved_id, "name": saved_name,
                            "positions": positions,
                            "groups": list(saved_groups),
-                           "device_muted": bool(self.device_muted)}, target)
+                           "device_enabled": bool(self.device_enabled)}, target)
             os.replace(tmp, self.state_file(state_dir))
             return True
         except OSError as error:
@@ -432,10 +443,11 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.9",
+            "contract_version": "1.10",
             "groups": list(device.groups),
-            "device_muted": bool(device.device_muted),
-            "muted": bool(device.muted),
+            "device_enabled": bool(device.device_enabled),
+            "mute_all": bool(device.mute_all),
+            "output_enabled": bool(device.output_enabled),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -444,27 +456,30 @@ class SimFleet:
     def uid_admin(self, device, member, args, source):
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
-        if member == "mute" and len(args) == 1:
+        if member == "enabled" and len(args) == 1:
             try:
                 value = int(args[0])
             except (TypeError, ValueError):
                 return
             if value not in (0, 1):
                 return
-            previous = device.device_muted
-            device.device_muted = bool(value)
+            previous = device.device_enabled
+            device.device_enabled = bool(value)
             positions = [coordinate for element in device.elements for coordinate in element]
             if not device.save_assignment(self.args.state_dir, positions):
-                device.device_muted = previous
+                device.device_enabled = previous
                 return
-            device.muted = bool(device.device_muted or device.fleet_muted)
-            builder = osc_message_builder.OscMessageBuilder(address="/os/mute")
+            device.output_enabled = bool(
+                device.device_enabled and not device.mute_all)
+            builder = osc_message_builder.OscMessageBuilder(address="/os/enabled")
             builder.add_arg(device.mac, arg_type="s")
             builder.add_arg(value, arg_type="i")
-            builder.add_arg(int(device.muted), arg_type="i")
+            builder.add_arg(int(device.output_enabled), arg_type="i")
             self.sock.sendto(builder.build().dgram,
                              (source[0], self.args.report_port))
-            self.log(device, f"device_muted={value} effective={int(device.muted)}")
+            self.log(
+                device,
+                f"device_enabled={value} output={int(device.output_enabled)}")
             return
         if member == "hostname" and len(args) == 1:
             hostname = str(args[0])
@@ -945,9 +960,12 @@ class SimFleet:
                 except (TypeError, ValueError):
                     continue
                 if value in (0, 1):
-                    device.fleet_muted = bool(value)
-                    device.muted = bool(device.device_muted or device.fleet_muted)
-                    self.log(device, f"fleet_muted={value} effective={int(device.muted)}")
+                    device.mute_all = bool(value)
+                    device.output_enabled = bool(
+                        device.device_enabled and not device.mute_all)
+                    self.log(
+                        device,
+                        f"mute_all={value} output={int(device.output_enabled)}")
             elif member == "master" and args:
                 # provided term (contract sec 4.1): a real node's OS layer
                 # routes this to the engine's named receive; the fake device
@@ -1013,14 +1031,14 @@ class SimFleet:
     def display(self):
         now = time.monotonic()
         print("\033[H\033[2J", end="")
-        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   MUTE IDENT HB AGE  LAST COMMAND")
+        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   OUT  IDENT HB AGE  LAST COMMAND")
         for device in self.devices:
             age = "-" if device.last_hb is None else f"{now - device.last_hb:.1f}s"
             print(
                 f"{device.device_id:4g} {device.hostname:14.14} {device.mac:17} "
                 f"{device.display_state():14.14} {str(device.version):7.7} "
                 f"{device.gain:6g} {device.gain2:6g} {device.backing:6g} "
-                f"{'yes' if device.muted else 'no':4} "
+                f"{'on' if device.output_enabled else 'off':4} "
                 f"{'IDENT' if device.ident_until > now else '-':5} {age:7} {device.last_command}"
             )
         sys.stdout.flush()

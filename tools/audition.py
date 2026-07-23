@@ -68,8 +68,8 @@ class VirtualNode:
     positions: tuple = ()
     points: dict = field(default_factory=dict)
     groups: tuple = ()
-    device_muted: bool = False
-    fleet_muted: bool = False
+    device_enabled: bool = True
+    mute_all: bool = False
     process: subprocess.Popen | None = None
     param_generator: paramgen.GeneratorEngine | None = None
 
@@ -252,10 +252,11 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.6",
+            "contract_version": "1.10",
             "groups": list(getattr(node, "groups", ())),
-            "device_muted": bool(node.device_muted),
-            "muted": bool(node.device_muted or node.fleet_muted),
+            "device_enabled": bool(node.device_enabled),
+            "mute_all": bool(node.mute_all),
+            "output_enabled": bool(node.device_enabled and not node.mute_all),
         }
         self.sock.sendto(osc_datagram("/os/report", json.dumps(report)),
                          (source[0], self.args.report_port))
@@ -267,17 +268,17 @@ class AuditionRig:
     def uid_admin(self, node, member, args, source):
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
-        if member == "mute" and len(args) == 1:
+        if member == "enabled" and len(args) == 1:
             try:
                 value = int(args[0])
             except (TypeError, ValueError):
                 return
             if value not in (0, 1):
                 return
-            node.device_muted = bool(value)
+            node.device_enabled = bool(value)
             self.sock.sendto(osc_datagram(
-                "/os/mute", node.uid, value,
-                int(node.device_muted or node.fleet_muted)),
+                "/os/enabled", node.uid, value,
+                int(node.device_enabled and not node.mute_all)),
                 (source[0], self.args.report_port))
             return
         if member == "hostname" and len(args) == 1:
@@ -625,7 +626,7 @@ class AuditionRig:
                 return
             for node in self.nodes:
                 if matches(selector, node.device_id, getattr(node, "groups", ())):
-                    node.fleet_muted = bool(value)
+                    node.mute_all = bool(value)
             return
 
     def stop(self):

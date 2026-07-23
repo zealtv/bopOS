@@ -6,7 +6,7 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.9: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.10: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
    fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
@@ -14,7 +14,8 @@ installations. This file is the orientation for any agent working here.
    2026-07-17 patch-admin-surface amendment (engine-sent `/admin` requests,
    version/patch-fingerprint in the run context), the 2026-07-19
    parameter-automation grammar (§3.2 generator slots on numeric `/p/*`),
-   and the 2026-07-23 multi-asset-slot run-context revision):
+   the 2026-07-23 multi-asset-slot run-context revision, and the 2026-07-23
+   physical-device enabled/execution-routing revision):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -63,7 +64,7 @@ The loose-end thread numbers of the *active* tier were renumbered so
 Of the 39/71 red browser-free tied guards, the ones on the patch/fleet path
 (`dist-2-node-side`, `fp-2-fleet-state`, `patch-switch-lifecycle`,
 `fp-1-identity-module`) fail on the **known rot signatures** — a pinned
-`contract_version '1.3'` (now 1.9), the retired legacy-samplepacks link, pinned
+`contract_version '1.3'` (now 1.10), the retired legacy-samplepacks link, pinned
 exact refresh-message lists / UI copy, and fake-`state` API drift. The
 *behavioral* patch-sync assertions still **pass** in the sim (fetch progress,
 "converges bytes then switches responsive nodes", per-device fetch
@@ -152,11 +153,12 @@ close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.9** (2026-07-07 base + seam amendment + engine-boundary revision +
+**v1.10** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
 and unassignment revision + additive unattended-update outcome receipts +
 2026-07-17 patch-admin-surface amendment + 2026-07-19 parameter-automation
-grammar §3.2 + 2026-07-23 multi-asset-slot run-context revision);
+grammar §3.2 + 2026-07-23 multi-asset-slot run-context revision +
+physical-device enabled/execution-routing revision);
 `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
@@ -201,7 +203,7 @@ and tie one concrete stitch at a time:
 7. **Complete — Dashboard live controls.** The staged host manifest now drives
    Seat-owned All/Group/Seat promoted controls with nested identity intact,
    mixed aggregates, durable offline/unbound values, and per-Seat/All replay.
-   Exact-UID persistent physical-device mute, fleet-overlay OR semantics,
+   Exact-UID persistent physical Device enabled, execution MUTE ALL semantics,
    selected-detail action, roster indication, simulator/audition parity, and
    focused touch verification are tied. Seat/Group mute and solo remain
    deferred.
@@ -210,7 +212,7 @@ and tie one concrete stitch at a time:
    divided Seat inspector, two-element UI guard, Seat-bound IP, empty-preset
    cleanup, UX-reviewed All & Groups / Seats live tabs, and manifest-declared
    synchronized Dashboard cue triggers, bounded Seat/Device rosters, live Seat
-   name filtering, independently staged device mute beneath fleet safety, and
+   name filtering, independently staged physical Device enabled state, and
    exact-device alias-derived hostname action are tied. Existing Pis need one
    manual provisioning run before the hostname action is available.
 9. **Complete — Show tab first slice.** Thread `14-show-tab` is fully tied

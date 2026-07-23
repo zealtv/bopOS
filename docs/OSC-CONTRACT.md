@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.9** — base ratified 2026-07-07; latest revision 2026-07-23. The
+**Version 1.10** — base ratified 2026-07-07; latest revision 2026-07-23. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -38,7 +38,8 @@ control-plane state, point geometry and authoring, and scene authoring are the
 
 **The seam law (ratified 2026-07-10):** bopOS **provides** named, full-state
 *terms* the patch subscribes to and enacts; bopOS **owns** the machinery that
-produces them; bopOS **enforces** exactly one output control — mute. **bopOS
+produces them; bopOS **enforces** exactly one output gate — Device enabled
+combined with execution MUTE ALL. **bopOS
 never composes a provided term into a patch parameter.** A patch that doesn't
 consume a term simply isn't controllable by it — unconsumed is a legal no-op,
 never an error.
@@ -113,7 +114,7 @@ selection:
 
 Every node receives it; only the exact opaque uid match dispatches. The uid is
 data, never an OSC address component. Dispatch is direct to an exact allowlist.
-The full-state one-argument operations are `mute <0|1>` and
+The full-state one-argument operations are `enabled <0|1>` and
 `hostname <lowercase-hostname>`; the zero-arity operations are `identify`,
 `report`, `reboot`, `shutdown`, `restart-engine`, `updatebopos`, `unassign`—with
 no recursive address construction. Provided
@@ -311,12 +312,12 @@ the topology is identical, only the port number moves.
   `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
   `/os/report`, `/os/groups`, `/os/params`, `/os/patches`, `/os/assets`,
-  `/os/rev`, `/os/fetched`, `/os/hostname`. (WiFi
+  `/os/rev`, `/os/fetched`, `/os/hostname`, `/os/enabled`. (WiFi
   broadcast has no MAC-layer ACK and rides the lowest basic rate — it is scarce
   and lossy; replies don't wake 100 CPUs.)
 - **Control-plane law: every fleet command is full-state and idempotent.** No
   increments. Re-sending anything is always safe — which is also what makes
-  spamming `/os/mute` a valid safety procedure.
+  repeatedly sending `/all/os/mute 1` a valid safety procedure.
 - The heartbeat is sent by **bopos.py directly to 5550** (engines never touch
   the LAN), so engine death ≠ device death.
 - Spatial is the broadcast `/pt` with **node-side decomposition, at every
@@ -334,7 +335,7 @@ both first-class) are the reference consumers.
 
 | term | wire | delivery to the engine | patch obligation (if consumed) |
 |---|---|---|---|
-| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | bopos.py relays selector-stripped `/os/master` to every engine on its engine port | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before mute |
+| **master** | `/all/os/master <0..1>` — broadcast on change, 6660; also sent in the per-device catch-up push | bopos.py relays selector-stripped `/os/master` to every engine on its engine port | multiply into the final output stage (the `bopos.out~` twin), upstream of nothing — it is the last gain before the framework output gate |
 | **point** | `/pt <n> <id x y r f>×n` — one frame, all points, atomic; ~20–30 Hz while moving; **silence = hold**; sparse per-point form `/pt <id> <x> <y> <r> <f>` and `/pt/clear <id>` for authoring edits; `f` is a falloff enum (0 linear, 1 smooth, 2 gauss) | bopos.py computes proximity 0→1 per point **per element position** and sends `/pt <pointId> <element> <v>` flat-args on the engine port | map wherever it likes (gain, cutoff, …), upstream of its own volume |
 
 - The **catch-up rule**: a device (re)appearing gets the current `/pt` frame
@@ -525,7 +526,7 @@ deferred and unratified.
 /<id>/os/identify           →  the box chirps/flashes          (locate on install day)
 /<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
-/all/os/to <uid> mute <0|1> → /os/mute <uid> <device-muted> <effective-muted>
+/all/os/to <uid> enabled <0|1> → /os/enabled <uid> <device-enabled> <output-enabled>
 /all/os/to <uid> hostname <name> → /os/hostname <uid> <name> <ok|err>
 ```
 
@@ -553,11 +554,11 @@ move to the uniform envelope.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
-  `device_muted`, and effective `muted`. This is the
-  capability story: **pull, not broadcast.** The groups fact is reconciliation
+  `device_enabled`, execution `mute_all`, and effective `output_enabled`. This
+  is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
-- **`/os/mute` is safety-critical.** It is the one framework-owned output control:
-  a transport-level kill enforced below patch logic (amixer on Pi; degrades to
+- **The framework output gate is safety-critical.** It is a transport-level
+  kill enforced below patch logic (amixer on Pi; degrades to
   engine-stop where no mixer exists). Broadcast, idempotent, spam-safe — repeated
   sends must always converge on silence. Honest boundary: mute is independent
   of the **engine** (amixer acts below patch logic), not of **bopos.py** —
@@ -569,12 +570,14 @@ move to the uniform envelope.
   not the design centre. The mixer path must be verified per audio board on
   real hardware (DigiAMP, Pimoroni Audio SHIM, class-compliant USB — the
   candidate-control list in `set_mute` grows as boards are benched).
-  The broadcast `/all/os/mute` value is a session fleet-safety overlay. The
-  exact-UID `/all/os/to <uid> mute <0|1>` value is persisted by that physical
-  node before `/os/mute <uid> <device-muted> <effective-muted>` acknowledges
-  it. Effective mute is the logical OR of those layers and is enforced before
-  or while the engine launches. Releasing fleet safety therefore restores,
-  rather than erases, each box's persistent intent.
+  The broadcast `/all/os/mute` value is execution MUTE ALL and follows the
+  active Live, Simulation, or Patch Edit target like master. The exact-UID
+  `/all/os/to <uid> enabled <0|1>` value belongs only to that physical device
+  and is persisted before `/os/enabled <uid> <device-enabled>
+  <output-enabled>` acknowledges it. `output_enabled` is
+  `device_enabled AND NOT mute_all`; the hardware mixer applies its inverse
+  before or while the engine launches. Execution-target transitions never
+  mutate or replay Device enabled.
 - **Exact-device hostname** is a full-state administrative operation, not Seat
   identity. `<name>` is 1–63 lowercase ASCII letters/digits with internal
   hyphens only, beginning and ending alphanumeric. The node changes its OS
@@ -853,3 +856,4 @@ reasoning.
 | 1.8 am. | 2026-07-19 | Patch-manifest presentation tidy (§8): promotion key renamed `facilitator` → `dashboard` with compatible normalization and conflicting dual-key rejection; retired `group` is ignored on load and stripped on save. | stitch `p7-patch-tab-tidy` |
 | 1.8 am. | 2026-07-20 | Engine group-context amendment (§4, §4.2): the node's current Seat-group membership joins run context, delivered at launch and re-delivered after every successful, durably-persisted membership change (including assignment/unassignment clears). Wire shape is sorted OSC ints or the single sentinel `-1`; PD's `bopos-context groups <int...>` bus and the new `/groups <int...>` engine-received term keep non-PD engines boundary-equivalent via `BOPOS_GROUPS` and the same live `/groups` message. Purely additive — no existing term changes shape. | stitch `engine-group-context` |
 | 1.9 | 2026-07-23 | Multi-asset-slot run-context revision (§4.2, §9): the engine receives the deterministic list of absolute installed-slot folder paths instead of one assets root. PD gets `bopos-context assets <absolute-path...>`; other engines get the same list as JSON-array `BOPOS_ASSETS`. Intentional scalar-root-to-list migration. | stitch `1-context-list-design` |
+| 1.10 | 2026-07-23 | Physical/execution routing revision: exact-device `mute` becomes positive `enabled`, reports `device_enabled`, `mute_all`, and `output_enabled`, and execution transitions cannot replay physical-device state. MUTE ALL remains execution-scoped like master. | thread `37-physical-device-control-routing` |

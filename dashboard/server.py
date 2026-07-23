@@ -262,8 +262,8 @@ class Dashboard:
                         manifest_locked=False):
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
-        fleet_mutations = {
-            "set_param", "set_live_param", "replay_live_params", "set_device_mute",
+        serialized_mutations = {
+            "set_param", "set_live_param", "replay_live_params", "set_device_enabled",
             "set_device_hostname",
             "action", "identify", "switch_patch", "set_fleet_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
@@ -274,15 +274,22 @@ class Dashboard:
             "forget_device", "forget_offline_unbound", "set_room", "set_points",
             "set_point", "clear_point", "save_venue", "load_venue",
         }
-        if self.supervisor_mode == "edit" and kind in fleet_mutations:
-            await self.ws_error(ws, "Fleet controls are unavailable while patch edit mode owns the audio relay.")
+        edit_blocked_mutations = {
+            "set_param", "set_live_param", "replay_live_params", "switch_patch",
+            "set_fleet_patch", "revert_fleet_patch", "save_preset", "load_preset",
+            "set_room", "set_points", "set_point", "clear_point",
+            "save_venue", "load_venue",
+        }
+        if self.supervisor_mode == "edit" and kind in edit_blocked_mutations:
+            await self.ws_error(
+                ws, "That execution control is unavailable during Patch Edit.")
             return
         if kind in {"save_patch_manifest", "create_patch"} and not manifest_locked:
             async with self.manifest_lock:
                 return await self.handle_ws(
                     message, ws, supervisor_locked=supervisor_locked,
                     manifest_locked=True)
-        if kind in fleet_mutations and not supervisor_locked:
+        if kind in serialized_mutations and not supervisor_locked:
             async with self.supervisor_lock:
                 return await self.handle_ws(message, ws, supervisor_locked=True)
         if kind == "set_param":
@@ -355,21 +362,23 @@ class Dashboard:
             # refresh of each Seat snapshot, not a fleet-wide value overwrite.
             for seat in seats:
                 self.replay_live_params_for_seat(seat)
-        elif kind == "set_device_mute":
-            mute_uid = str(data.get("uid", ""))
+        elif kind == "set_device_enabled":
+            enabled_uid = str(data.get("uid", ""))
             raw_value = data.get("value")
-            device = self.state.devices.get(mute_uid)
+            device = self.state.devices.get(enabled_uid)
             if (raw_value not in (0, 1) or isinstance(raw_value, bool)
                     or device is None or device.get("virtual")
-                    or mute_uid not in self.state.device_registry):
-                await self.ws_error(ws, "That physical device mute target is unavailable.")
+                    or enabled_uid not in self.state.device_registry):
+                await self.ws_error(
+                    ws, "That physical Device enabled target is unavailable.")
                 return
             desired = bool(raw_value)
-            if not self.state.set_device_muted(mute_uid, desired):
-                await self.ws_error(ws, "Could not save device mute; no command was sent.")
+            if not self.state.set_device_enabled(enabled_uid, desired):
+                await self.ws_error(
+                    ws, "Could not save Device enabled; no command was sent.")
                 return
-            device["mute_pending_at"] = time.time()
-            self.osc.set_device_mute(mute_uid, desired)
+            device["enabled_pending_at"] = time.time()
+            self.osc.set_device_enabled(enabled_uid, desired)
             await self.broadcast("device_update", device)
         elif kind == "set_device_hostname":
             hostname_uid = str(data.get("uid", ""))
@@ -506,7 +515,11 @@ class Dashboard:
             if uid in self.state.devices:
                 self.osc.request(uid, "patches")
         elif kind in ("send_distribution", "sync_distribution"):
-            if self.state.data["simulation"].get("active"):
+            physical_target = (
+                uid in self.state.devices
+                and not self.state.devices[uid].get("virtual"))
+            if (self.state.data["simulation"].get("active")
+                    and (kind != "send_distribution" or not physical_target)):
                 if ws is not None:
                     await ws.send_json({"type": "error", "data": {"message":
                         "Simulation uses host patches directly; choose a patch and Switch "
@@ -666,14 +679,7 @@ class Dashboard:
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
-            self.osc.os_command("all", "mute", [value])
-            # Reassert each exact physical-box layer after the session overlay.
-            # In particular, releasing MUTE ALL must not unmute a box whose
-            # durable UID intent remains true.
-            for device_uid, device in self.state.devices.items():
-                if not device.get("virtual") and device.get("online"):
-                    self.osc.set_device_mute(
-                        device_uid, self.state.device_muted_for(device_uid))
+            self.osc.send_mute_all()
             await self.broadcast("mute_all", {"value": value})
         elif kind == "set_simulation":
             async with self.supervisor_lock:
@@ -1352,21 +1358,22 @@ class Dashboard:
         public["alias"] = (None if device.get("virtual")
                            else self.state.alias_for(device.get("uid")))
         if device.get("virtual"):
-            public.update(device_muted=False, mute_observed=None,
-                          effective_muted=None, mute_status="unconfirmed")
+            public.update(device_enabled=True, enabled_observed=None,
+                          output_enabled=True, enabled_status="unconfirmed")
         else:
-            desired_mute = self.state.device_muted_for(device.get("uid"))
-            observed = device.get("mute_observed")
-            pending_at = device.get("mute_pending_at")
-            if isinstance(observed, bool) and observed == desired_mute:
-                mute_status = "current"
+            desired_enabled = self.state.device_enabled_for(device.get("uid"))
+            observed = device.get("enabled_observed")
+            pending_at = device.get("enabled_pending_at")
+            if isinstance(observed, bool) and observed == desired_enabled:
+                enabled_status = "current"
             elif pending_at is not None and time.time() - pending_at < 5.0:
-                mute_status = "pending"
+                enabled_status = "pending"
             else:
-                mute_status = "unconfirmed"
-            public.update(device_muted=desired_mute, mute_observed=observed,
-                          effective_muted=device.get("effective_muted"),
-                          mute_status=mute_status)
+                enabled_status = "unconfirmed"
+            public.update(
+                device_enabled=desired_enabled, enabled_observed=observed,
+                output_enabled=device.get("output_enabled"),
+                enabled_status=enabled_status)
         public["patch_badge"] = patch_badge(device, desired)
         return public
 
@@ -1872,17 +1879,10 @@ class Dashboard:
             del self.state.devices[uid]
 
     def restore_live_state(self):
-        """Retarget and replay dashboard-owned state after private audition."""
+        """Retarget and replay execution-owned state after private audition."""
         self.osc.set_target(self.performance_target)
-        for seat in self.state.seats.values():
-            if seat.get("bound") in self.state.devices:
-                self.assign_seat(seat)
         self.osc.send_master()
-        self.osc.os_command("all", "mute", [
-            int(bool(self.state.data.get("muted", False)))])
-        for uid, device in self.state.devices.items():
-            if not device.get("virtual") and device.get("online"):
-                self.osc.set_device_mute(uid, self.state.device_muted_for(uid))
+        self.osc.send_mute_all()
 
     async def supervisor_exited(self, process, mode, generation):
         await asyncio.to_thread(process.wait)

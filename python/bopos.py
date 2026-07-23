@@ -205,9 +205,16 @@ class NodeState:
         self.id = resolve_id(self.uid, store=self.store)
         self.version = resolve_version()
         self.mixer_control = None
-        stored_mute = self.store.get("device_muted")
-        self.device_muted = bool(stored_mute and stored_mute[0] in (1, True))
-        self.fleet_muted = False
+        stored_enabled = self.store.get("device_enabled")
+        if stored_enabled and stored_enabled[0] in (0, 1, False, True):
+            self.device_enabled = bool(stored_enabled[0])
+        else:
+            legacy_muted = self.store.get("device_muted")
+            self.device_enabled = not bool(
+                legacy_muted and legacy_muted[0] in (1, True))
+            if self.store.put("device_enabled", [int(self.device_enabled)]):
+                self.store.delete("device_muted")
+        self.mute_all = False
         self.elements = resolve_elements(self.store)
         self.groups = group_protocol.stored_group_ids(self.store.get("groups"))
         self.points = {}  # current /pt field: id -> (x, y, r, f); silence = hold
@@ -520,35 +527,35 @@ def enforce_mute(value, state=None):
     return False
 
 
-def effective_mute(state=None):
+def output_enabled(state=None):
     state = state or node_state
-    return bool(getattr(state, "device_muted", False)
-                or getattr(state, "fleet_muted", False))
+    return bool(getattr(state, "device_enabled", True)
+                and not getattr(state, "mute_all", False))
 
 
 def set_mute(value, state=None):
-    """Apply the fleet safety overlay without changing persistent UID intent."""
+    """Apply execution MUTE ALL without changing persistent Device enabled."""
     state = state or node_state
-    state.fleet_muted = int(value) == 1
-    return enforce_mute(effective_mute(state), state)
+    state.mute_all = int(value) == 1
+    return enforce_mute(not output_enabled(state), state)
 
 
-def set_device_mute(value, reply_socket, requester, state=None):
-    """Persist and acknowledge one exact physical-box mute layer."""
+def set_device_enabled(value, reply_socket, requester, state=None):
+    """Persist and acknowledge one exact physical Device enabled state."""
     state = state or node_state
     try:
         value = int(value)
     except (TypeError, ValueError):
         return False
-    if value not in (0, 1) or not state.store.put("device_muted", [value]):
+    if value not in (0, 1) or not state.store.put("device_enabled", [value]):
         return False
-    state.device_muted = bool(value)
-    if not enforce_mute(effective_mute(state), state):
+    state.device_enabled = bool(value)
+    if not enforce_mute(not output_enabled(state), state):
         return False
-    msg = OSCMessage("/os/mute")
+    msg = OSCMessage("/os/enabled")
     msg.append(str(state.uid), 's')
     msg.append(value, 'i')
-    msg.append(int(effective_mute(state)), 'i')
+    msg.append(int(output_enabled(state)), 'i')
     reply_socket.sendto(msg.getBinary(), (requester, 5550))
     return True
 
@@ -1036,10 +1043,11 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.9",
+        "contract_version": "1.10",
         "groups": list(getattr(state, "groups", ())),
-        "device_muted": bool(getattr(state, "device_muted", False)),
-        "muted": effective_mute(state),
+        "device_enabled": bool(getattr(state, "device_enabled", True)),
+        "mute_all": bool(getattr(state, "mute_all", False)),
+        "output_enabled": output_enabled(state),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -1076,8 +1084,8 @@ UID_ADMIN_VERBS = frozenset({
 
 def dispatch_uid_admin(member, args, state, reply_socket, requester):
     """Dispatch the exact UID allowlist and its narrow argument verbs."""
-    if member == "mute" and len(args) == 1:
-        return set_device_mute(args[0], reply_socket, requester, state)
+    if member == "enabled" and len(args) == 1:
+        return set_device_enabled(args[0], reply_socket, requester, state)
     if member == "hostname" and len(args) == 1:
         hostname = str(args[0])
         if HOSTNAME_RE.fullmatch(hostname) is None:
@@ -1827,9 +1835,9 @@ if __name__ == "__main__":
     cue_scheduler.start()
     initialise_asset_cache()
     initialise_patch_cache()
-    # Persistent box intent is enforced as the helper comes up, before or
+    # Persistent Device enabled is enforced as the helper comes up, before or
     # alongside the independently managed engine launch.
-    enforce_mute(effective_mute(node_state), node_state)
+    enforce_mute(not output_enabled(node_state), node_state)
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=lan_listener_loop, daemon=True).start()
     while True:

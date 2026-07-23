@@ -8,9 +8,9 @@ you. [`docs/OSC-CONTRACT.md`](OSC-CONTRACT.md) is the **normative** spec;
 where this page and the contract disagree, the contract wins. See also
 [`docs/PORTS.md`](PORTS.md) for the one-page port map.
 
-**Requested by Bob, 2026-07-17:** "If I need to, for example, mute a device
+**Requested by Bob, 2026-07-17:** "If I need to, for example, control a device
 and I don't have the dashboard in front of me, I need to be able to look at
-that list and understand the message that I need to construct to send a mute
+that list and understand the message that I need to construct to send a
 message and which port I need to send it to." This page is that list.
 
 ## How to read the tables
@@ -49,16 +49,16 @@ come back **unicast** to your sender port on **5550**, except where noted.
 | `/all/os/identify <uid:s>` | `uid` | compatibility alias for exact-uid identify; only the matching node flashes | — |
 | `/<selector>/os/probe <what:s>` | `what` | one-shot pull of a retained value (`id`, `uid`, `version`, `update_model`, or anything a patch has `/report`-ed) | `/os/probe <id:i> <what:s> <values…>` (5550); unknown `what` gets no reply |
 
-### Safety mute
+### Output controls
 
 | address | args | what it does | reply (port) |
 |---|---|---|---|
 | `/all/os/mute <0\|1>` | `0` or `1`, int | session fleet-safety overlay — a transport-level kill, spam-safe | — |
-| `/all/os/to <uid:s> mute <0\|1>` | `uid`, `0`/`1` int | persists **that physical box's** mute intent (survives the fleet overlay clearing) | `/os/mute <uid:s> <device-muted:i> <effective-muted:i>` (5550) |
+| `/all/os/to <uid:s> enabled <0\|1>` | `uid`, `0`/`1` int | persists whether **that physical box's** audio output is enabled | `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` (5550) |
 
-Effective mute is the OR of the two layers. If you only have `oscsend` and
-need silence *now*, `/all/os/mute 1` is the fastest single message and hits
-every node on the network.
+Effective output is `device_enabled AND NOT mute_all`. If you only have
+`oscsend` and need silence *now*, `/all/os/mute 1` is the fastest single
+message and hits every node on the network.
 
 ### Exact-UID administration envelope (v1.5)
 
@@ -72,7 +72,7 @@ to be certain you're hitting exactly one physical device:
 
 | verb | args | what it does | reply (port) |
 |---|---|---|---|
-| `mute` | `<0\|1:i>` | see Safety mute above | `/os/mute` (5550) |
+| `enabled` | `<0\|1:i>` | see Output controls above | `/os/enabled` (5550) |
 | `hostname` | `<name:s>` | applies one validated lowercase hostname (1–63 chars, alnum + internal hyphens) | `/os/hostname <uid:s> <name:s> <ok\|err:s>` (5550) |
 | `identify` | — | chirp/flash | — |
 | `report` | — | static-facts JSON | `/os/report <json:s>` (5550) |
@@ -86,7 +86,7 @@ Any other verb (`patch`, `checkout`, `addpatch`, `pullpatch`, `droppatch`,
 `dropassets`, patch parameters, probes, storage, distribution) is **not**
 reachable through this envelope by design (contract §3) — use the
 selector-addressed form below instead. Every listed verb above except
-`mute`/`hostname` takes **zero** arguments; sending any triggers a silent
+`enabled`/`hostname` takes **zero** arguments; sending any triggers a silent
 reject (no reply, no effect).
 
 ### Seat-group membership (v1.5)
@@ -199,7 +199,7 @@ sending the commands above, or unprompted (heartbeats):
 | `/os/pong <token> <uid:s>` | echoes the ping's type | reply to `/os/ping` |
 | `/os/report <json:s>` | — | reply to `report` |
 | `/os/probe <id:i> <what:s> <values…>` | — | reply to `probe` |
-| `/os/mute <uid:s> <device-muted:i> <effective-muted:i>` | — | reply to the exact-uid `mute` verb |
+| `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` | — | reply to the exact-uid `enabled` verb |
 | `/os/hostname <uid:s> <name:s> <ok\|err:s>` | — | reply to the exact-uid `hostname` verb |
 | `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
 | `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
@@ -264,13 +264,13 @@ Using [`oscsend`](https://liblo.sourceforge.net/) (part of `liblo-tools`;
 `10.0.0.5`/`02:53:49:4d:00:01` with your dashboard-machine broadcast address
 and the target node's real `uid`.
 
-**Mute one physical device**, dashboard or not in front of you:
+**Disable one physical device's audio output**, dashboard or not in front of you:
 
 ```sh
-oscsend 10.0.0.5 6660 /all/os/to ssi "02:53:49:4d:00:01" mute 1
+oscsend 10.0.0.5 6660 /all/os/to ssi "02:53:49:4d:00:01" enabled 0
 ```
 
-Un-mute the same box: swap the trailing `1` for `0`. Kill the whole room
+Enable the same box: swap the trailing `0` for `1`. MUTE ALL
 instead: `oscsend 10.0.0.5 6660 /all/os/mute i 1` (no uid needed — it's a
 fleet broadcast).
 
@@ -301,13 +301,13 @@ oscsend 10.0.0.5 6660 /all/os/patch s demo-pd
 # e.g. "ok switched" on success, "not-found" if demo-pd isn't installed
 ```
 
-**A raw Python one-liner** (no `liblo` needed) for the same mute, using the
+**A raw Python one-liner** (no `liblo` needed) for the same disable, using the
 `pyOSC3` module this repo already vendors:
 
 ```python
 import pyOSC3
 msg = pyOSC3.OSCMessage("/all/os/to")
-msg.append("02:53:49:4d:00:01"); msg.append("mute"); msg.append(1)
+msg.append("02:53:49:4d:00:01"); msg.append("enabled"); msg.append(0)
 client = pyOSC3.OSCClient(); client.connect(("10.0.0.5", 6660)); client.send(msg)
 ```
 
@@ -318,7 +318,7 @@ actual handler tables in `python/bopos.py` — `handle_lan_datagram`,
 `dispatch_uid_admin`/`UID_ADMIN_VERBS`, `dispatch_admin_verb`/
 `LIFECYCLE_VERBS`/`PROVISION_VERBS`, and the 7770 callback map
 (`ENGINE_ADMIN_VERBS` plus `/config`/`/store`/`/load`/`/report`), plus a live
-run against `tools/simfleet.py` (mute and report). See
+run against `tools/simfleet.py` (Device enabled and report). See
 `.loom/tied/4-osc-quickref/notes.md` for the original cross-check log that
 found the gap this doc now describes as fixed: through the 2026-07-17
 outcome-receipts revision, `addpatch`, `pullpatch`, `droppatch`,

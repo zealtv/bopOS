@@ -119,7 +119,7 @@ def allocate(uid, registry):
         alias = candidate(uid, probe)
         if alias.casefold() not in occupied:
             return {"alias": alias, "source": "generated",
-                    "generator": GENERATOR_VERSION, "device_muted": False}
+                    "generator": GENERATOR_VERSION, "device_enabled": True}
     raise ValueError("device alias registry exhausted")
 
 
@@ -144,11 +144,17 @@ def clean_registry(value):
         if key in owners and owners[key] != uid:
             return None
         owners[key] = uid
-        device_muted = entry.get("device_muted", False)
-        if not isinstance(device_muted, bool):
+        if "device_enabled" in entry:
+            device_enabled = entry["device_enabled"]
+        else:
+            legacy_muted = entry.get("device_muted", False)
+            if not isinstance(legacy_muted, bool):
+                return None
+            device_enabled = not legacy_muted
+        if not isinstance(device_enabled, bool):
             return None
         cleaned[uid] = {"alias": alias, "source": source, "generator": generator,
-                        "device_muted": device_muted}
+                        "device_enabled": device_enabled}
     return cleaned
 
 
@@ -162,4 +168,5 @@ def set_custom(registry, uid, value):
     if owner is not None:
         return None, f"Alias is already used by device …{owner[-8:]}."
     return {"alias": alias, "source": "custom", "generator": GENERATOR_VERSION,
-            "device_muted": bool(registry.get(uid, {}).get("device_muted", False))}, None
+            "device_enabled": bool(
+                registry.get(uid, {}).get("device_enabled", True))}, None

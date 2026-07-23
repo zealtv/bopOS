@@ -222,8 +222,8 @@ function paramControl(scope, id, members, declaration, disabled) {
   }
   const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
   const online = scope !== "seat" || (!!deviceForSeat(sourceSeat)?.online && Number(deviceForSeat(sourceSeat)?.engine_alive) !== 0);
-  const deviceMuted = scope === "seat" && !!(deviceForSeat(sourceSeat)?.device_muted || deviceForSeat(sourceSeat)?.effective_muted);
-  return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceMuted ? " automation-muted" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
+  const deviceOutputDisabled = scope === "seat" && !!(deviceForSeat(sourceSeat)?.device_enabled === false || deviceForSeat(sourceSeat)?.output_enabled === false);
+  return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
 }
 
 function paramTree(scope, id, members, declarations, disabled) {

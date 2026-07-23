@@ -118,11 +118,12 @@ class InstallationState:
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
         self._load_invalid = False
+        self._registry_migrated = False
         self.last_venue_rebind = {"rebound": [], "waiting": []}
         self._load()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
-        changed = False
+        changed = self._registry_migrated
         if (not self._load_invalid and not self.data["seats"] and devices_file
                 and os.path.exists(devices_file)):
             self._import_seed(devices_file)
@@ -193,6 +194,7 @@ class InstallationState:
                 self.data["seats"] = rebuilt
                 self.data["groups"] = groups
                 self.data["next_group_id"] = next_group_id
+                self._registry_migrated = loaded.get("device_registry") != registry
                 self.data["device_registry"] = registry
             else:
                 self._load_invalid = True
@@ -231,11 +233,11 @@ class InstallationState:
             # None means /os/params has not supplied a valid manifest yet.
             "active_asset_slots": None,
             "group_sync": None,  # runtime full-state membership convergence
-            # Runtime observations for the persistent physical-box mute intent.
+            # Runtime observations for persistent physical Device enabled.
             # Desired state lives in device_registry, never in a venue.
-            "mute_observed": None,
-            "effective_muted": None,
-            "mute_pending_at": None,
+            "enabled_observed": None,
+            "output_enabled": None,
+            "enabled_pending_at": None,
         }
 
     def _import_seed(self, path):
@@ -313,7 +315,7 @@ class InstallationState:
             entry = device_aliases.allocate(uid, self.device_registry)
         except ValueError as error:
             return None, str(error)
-        entry["device_muted"] = bool(previous.get("device_muted", False))
+        entry["device_enabled"] = bool(previous.get("device_enabled", True))
         self.device_registry[uid] = entry
         try:
             self.save()
@@ -326,21 +328,21 @@ class InstallationState:
         """Remove and return an entry in memory; callers own transaction save."""
         return self.device_registry.pop(uid, None)
 
-    def device_muted_for(self, uid):
+    def device_enabled_for(self, uid):
         entry = self.device_registry.get(uid)
-        return bool(entry.get("device_muted", False)) if isinstance(entry, dict) else False
+        return bool(entry.get("device_enabled", True)) if isinstance(entry, dict) else True
 
-    def set_device_muted(self, uid, value):
-        """Persist exact physical-box mute intent in the host-global registry."""
+    def set_device_enabled(self, uid, value):
+        """Persist exact physical-box enable intent in the host-global registry."""
         entry = self.device_registry.get(uid)
         if not isinstance(entry, dict) or not isinstance(value, bool):
             return False
-        previous = bool(entry.get("device_muted", False))
-        entry["device_muted"] = value
+        previous = bool(entry.get("device_enabled", True))
+        entry["device_enabled"] = value
         try:
             self.save()
         except (OSError, TypeError, ValueError):
-            entry["device_muted"] = previous
+            entry["device_enabled"] = previous
             return False
         return True
 
