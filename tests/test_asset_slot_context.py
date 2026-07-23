@@ -3,6 +3,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,21 @@ from tools import simfleet  # noqa: E402
 
 
 class AssetSlotContextTests(unittest.TestCase):
+    def test_identity_imports_through_the_python_package(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from python import identity; "
+                "assert identity.valid_asset_slot('slot')",
+            ],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_discovery_is_absolute_sorted_and_excludes_non_slots(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "assets"

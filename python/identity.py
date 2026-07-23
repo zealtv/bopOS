@@ -13,7 +13,10 @@ import os
 import threading
 import time
 
-import asset_slots
+if __package__:
+    from . import asset_slots
+else:
+    import asset_slots
 
 # per-file digests keyed by path, invalidated by stat signature, so repeated
 # fingerprints (a Zero answering /os/patches) re-hash only changed files
