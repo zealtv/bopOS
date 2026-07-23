@@ -92,12 +92,22 @@ a real regression hides among the drift.)
 
 ### Tier 2 — failing-test cleanup, then deferred Show polish
 
-7. **`27-tied-guard-rot`** (`.waiting`) — the 39/71 (likely more, incl. the
-   unswept Playwright set) failing tied guards. Elevated **above** the deferred
-   polish per Bob's 2026-07-23 emphasis on failing tests, but it stays gated on
-   Bob's **fresh briefed session** (`.notes/handoff-guard-rot-briefing.md`) — do
-   not build `tools/guard-sweep.sh` before that session rules. Runs after the
-   node work, not before.
+7. **`27-tied-guard-rot`** (`.waiting`) — **reframed by Bob 2026-07-23:** "we want
+   durable, maintainable tests for appropriate surfaces; running tests of tied
+   stitches was the wrong pattern." So this is **not** "repair the 39/71 reds + a
+   sweep script." It is a **two-tier split**: promote the guards that assert
+   *durable contracts* (OSC contract/wire, manifest schema, identity/fingerprint,
+   mute safety, fetch convergence) into a **living `tests/` suite organized by code
+   surface**, run in CI/pre-tie; **retire the rest** as authoring artifacts
+   (recorded, never silent-deleted, never maintained-in-place). Evidence: 6
+   diagnoses = 0 real defects — the tied archive catches nothing as a persisted
+   net, and its per-stitch (not per-code-surface) layout is *why* it rots. The
+   39/71 figure is now triage input, not a to-do list; no `tools/guard-sweep.sh`
+   over the archive. Full framing at the top of the thread's `instructions.md` and
+   `.notes/handoff-guard-rot-briefing.md`; still gated on Bob's fresh session, runs
+   after the node work. **Cheap thing to do now regardless (not gated):** a stitch
+   touching a genuinely shared surface writes its check into a `tests/` file, not a
+   new tied guard.
 8. **`20-console-dock`** (`.waiting`) — deferred Show polish (Bob's 2026-07-21
    fix-pass item). Resume after the guard-rot cleanup.
 9. **`25-message-pill-encoding`** (`.waiting`) — deferred. Bob ruled 2026-07-23
@@ -416,7 +426,15 @@ screenshots when done. A tied guard that pins something Bob has since ruled
 away is **superseded, not authoritative**: invert or repair the assertion in
 place with an inline comment naming the superseding stitch, and record the
 ruling in that stitch's `decisions.md` — don't leave a guard permanently red
-(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example).
+(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example;
+`.loom/tied/hb-identity/test_hb_identity.py` is another, superseded by
+`29-fleet-patch-sync-hang/2-fix`). This repair-in-place is the **interim** rule
+for a guard you break during other work. The **durable** direction (Bob,
+2026-07-23) is thread `27-tied-guard-rot`'s two-tier split: durable-contract
+assertions move into a living `tests/` suite organized by code surface; the rest
+retire as authoring artifacts. Running the tied archive as a regression suite was
+the wrong pattern — don't invest in maintaining it. New checks for genuinely
+shared surfaces go straight into `tests/`, not a new tied guard.
 
 ## Records
 

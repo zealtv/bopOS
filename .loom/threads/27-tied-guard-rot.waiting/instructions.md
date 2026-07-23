@@ -1,5 +1,50 @@
 # 27-tied-guard-rot
 
+## Bob's ruling (2026-07-23) — the reframing. READ FIRST.
+
+> "We want durable, maintainable tests for appropriate surfaces. Running tests of
+> tied stitches was the wrong pattern."
+
+This changes what this thread *is*. It is **not** "repair 39 red guards and stand
+up a sweep script." It is a **two-tier split**:
+
+1. **Promote the durable-contract guards into a living `tests/` suite** — the
+   minority of the 168 that assert invariants meant to hold *forever*: OSC wire
+   shapes / the contract, manifest schema, identity/fingerprint, **mute safety
+   semantics**, fetch convergence. Move those out of `.loom/tied/` into `tests/`
+   **organized by the code surface they test** (`test_osc_contract.py`,
+   `test_fetcher.py`, `test_mute.py`, …), dedupe overlapping assertions, and run
+   them in CI / before tie. A living test sits next to the code and is refactored
+   in the same commit that changes the code, so it cannot rot the way a tied
+   snapshot does.
+2. **Retire the rest as authoring artifacts.** A guard that pinned one stitch's UI
+   copy, a specific CSS mechanism, or a one-time delivery was proof-of-work, never
+   a forever-contract. It did its job at authoring time. It is **not** re-run and
+   **not** maintained; it stays as historical record (retirement recorded per
+   CLAUDE.md, never a silent delete).
+
+**Why (the evidence):** six diagnoses across threads 23/28 (plus the `hb-identity`
+repair in 29/2-fix) found **zero real defects — every red was a stale guard.** As a
+persisted regression net the guards are not catching anything; the value they had
+was captured at *authoring* time. And the tied-per-stitch organization is the root
+cause of the rot: guards are filed by *stitch*, not by *code surface*, so they
+can't move with the code and "re-run neighbouring stitches' guards" keys off the
+wrong axis (stitch-adjacency, not code-adjacency).
+
+**The discriminating question for each guard:** *does it assert a contract we want
+to guarantee forever (→ promote to `tests/`), or did it prove a one-time change
+(→ retire)?* That triage — not "fix the reds" — is the substance of this thread.
+
+**Consequences for the sub-sections below:** the "39/71 red" figure is now *input
+to the triage*, not a to-do list. The `tools/guard-sweep.sh` question is largely
+moot — a living `tests/` suite in CI is the detector; a sweep over the tied archive
+is not wanted. Do **not** invest in maintaining or re-running the tied archive.
+Cheap thing to start *now* regardless (not gated): when any stitch touches a
+genuinely shared surface, write its check straight into a `tests/` file rather than
+a new tied guard — this builds tier 1 organically and stops adding to the archive.
+
+---
+
 **Waiting on thread `20`** (`21-theme-cyan-tint` was **dropped** 2026-07-23, so
 it no longer gates this). Bob ruled 2026-07-22, revisited 2026-07-23:
 
@@ -77,19 +122,26 @@ Two starting points, either defensible:
 - **The API-drift cluster** (`FakeOSC`, `AuditionRig`), which is probably the
   cheapest per guard and will shrink the list fastest.
 
-## Shape of the work, once ruled on
+## Shape of the work (under the 2026-07-23 reframing)
 
-1. Triage the ~34 into repair / genuine defect / retire. House rule already
-   stated in CLAUDE.md: superseded guards are **repaired in place** with an
-   inline comment naming the superseding stitch, and the supersession recorded
-   in that stitch's `decisions.md` — never deleted, never left red.
-2. Fix the 4 guards that cannot be run under the copy-out rule (either the rule
-   grows a copy-the-directory variant, or they locate fixtures by repo-marker
-   the way they already locate the root).
-3. Only then a `tools/guard-sweep.sh`, if Bob wants one — a permanently-red
-   sweep is worse than no sweep.
-4. The cause, not the detector: a CLAUDE.md rule that a stitch touching a shared
-   surface (OSC bridge, `state.py`, manifest, a wire verb, shared CSS tokens)
-   re-runs *neighbouring* tied guards before tying.
+The old plan below (repair reds → fix copy-out guards → maybe a sweep script →
+re-run-neighbours rule) is **superseded** by Bob's two-tier ruling at the top.
+The work is now:
 
-Split per area rather than doing 34 in one stitch.
+1. **Enumerate the durable contracts** worth guaranteeing forever, by *code
+   surface* — OSC contract/wire shapes, manifest schema, identity/fingerprint,
+   mute safety, fetch convergence, and whatever else the triage surfaces. This is
+   the design deliverable; likely a Bob check-in on the list.
+2. **Build the living `tests/` suite** for those surfaces — mine the *real
+   assertions* out of the relevant tied guards, dedupe, re-express them against
+   current code, organize by code surface, wire into CI / a pre-tie run. (Note the
+   node bug in `29` was fresh-hardware-specific and invisible to any of this — so
+   include the honest limits of what unit/sim tests can catch.)
+3. **Retire the rest** — classify each remaining tied guard as *promoted*
+   (its assertion moved to the living suite) or *retired* (authoring artifact,
+   recorded per CLAUDE.md). No silent deletes; no leaving them red-and-maintained.
+4. Once tier 1 exists and runs itself, the tied archive is just history — no
+   `tools/guard-sweep.sh` over it, no re-run-neighbours discipline needed.
+
+Split per code surface rather than doing it in one stitch. Sequence the durable
+surfaces first (OSC contract, fetcher, mute) since those are the real invariants.

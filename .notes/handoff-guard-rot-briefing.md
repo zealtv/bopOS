@@ -1,5 +1,21 @@
 # Briefing — the tied-guard rot session
 
+> **Bob's ruling, 2026-07-23 (supersedes the framing below):** "We want durable,
+> maintainable tests for appropriate surfaces. Running tests of tied stitches was
+> the wrong pattern." So this session is **not** "decide a sweep script + repair 39
+> reds." It is a **two-tier split**: (1) promote the guards that assert *durable
+> contracts* (OSC wire/contract, manifest schema, identity/fingerprint, mute
+> safety, fetch convergence) into a **living `tests/` suite organized by code
+> surface** and run in CI/pre-tie; (2) **retire the rest** as authoring artifacts
+> (recorded, never silent-deleted, never maintained-in-place). Rationale: 6
+> diagnoses = 0 defects (the guards catch nothing as a persisted net), and the
+> tied-per-stitch layout files guards by *stitch* not *code surface*, which is why
+> they rot and why "re-run neighbours" was the wrong instrument. The "39/71 red" is
+> now *input to the triage*, not a to-do list. Full framing at the top of
+> `.loom/threads/27-tied-guard-rot.waiting/instructions.md`. The three questions
+> below are largely answered by this ruling (no sweep over the archive; the living
+> suite is the detector) — keep them for context, not as open decisions.
+
 Written 2026-07-22 at Bob's request: he wants to take the guard-sweep decision
 and the cleanup in a **fresh session**, not from the proposal cold. This file is
 that session's starting point. Read it, then
