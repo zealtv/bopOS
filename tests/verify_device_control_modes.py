@@ -82,6 +82,28 @@ def stop(process):
         process.wait(timeout=5)
 
 
+def drain_socket(sock):
+    while select.select([sock], [], [], 0)[0]:
+        sock.recvfrom(65535)
+
+
+def wait_engine_master(sock, value, timeout=5):
+    deadline = time.monotonic() + timeout
+    seen = []
+    while time.monotonic() < deadline:
+        readable, _, _ = select.select(
+            [sock], [], [], max(0, deadline - time.monotonic()))
+        if not readable:
+            break
+        message = OscMessage(sock.recvfrom(65535)[0])
+        frame = (message.address, list(message.params))
+        seen.append(frame)
+        if (message.address == "/os/master" and message.params
+                and abs(float(message.params[0]) - value) < 1e-5):
+            return True, seen
+    return False, seen
+
+
 def wait_http(url, process):
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
@@ -252,6 +274,9 @@ def main():
         http_port = free_port(socket.SOCK_STREAM)
         report_port = free_port(socket.SOCK_DGRAM)
         command_port = free_port(socket.SOCK_DGRAM, physical_target)
+        engine_port = free_port(socket.SOCK_DGRAM)
+        engine = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        engine.bind(("127.0.0.1", engine_port))
         base_url = f"http://127.0.0.1:{http_port}"
         dashboard = subprocess.Popen([
             sys.executable, str(ROOT / "dashboard" / "server.py"),
@@ -265,6 +290,7 @@ def main():
             "--public-url", base_url,
             "--sim-audio-backend", "none",
             "--sim-no-engine",
+            "--sim-engine-port-base", str(engine_port),
         ], cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         peer = PhysicalPeer(
             physical_target, command_port, report_port, manifest_text)
@@ -320,6 +346,7 @@ def main():
                 check(
                     "entering Simulation emits no physical enabled command",
                     not has_enabled(peer.snapshot()), repr(peer.snapshot()))
+                drain_socket(engine)
 
                 peer.clear()
                 page.locator("#device-enabled-toggle").click()
@@ -340,12 +367,25 @@ def main():
                 peer.clear()
                 page.locator("#mute-all").click()
                 page.wait_for_function("() => installation.muted === true")
-                time.sleep(.3)
+                muted_engine, muted_frames = wait_engine_master(engine, 0.0)
                 check(
-                    "Simulation MUTE ALL does not reach the physical receiver",
-                    not any(address == "/all/os/mute"
-                            for address, _args in peer.snapshot()),
-                    repr(peer.snapshot()))
+                    "Simulation MUTE ALL gates audition and not the physical receiver",
+                    muted_engine
+                    and not any(address == "/all/os/mute"
+                                for address, _args in peer.snapshot()),
+                    f"physical={peer.snapshot()!r} engine={muted_frames!r}")
+
+                drain_socket(engine)
+                page.locator("#master").evaluate(
+                    "(element) => { element.value = '0.25';"
+                    " element.dispatchEvent(new Event('input', {bubbles:true})); }")
+                held_engine, held_frames = wait_engine_master(engine, 0.0)
+                check(
+                    "master changes remain gated while Simulation is muted",
+                    held_engine
+                    and not any(address == "/all/os/mute"
+                                for address, _args in peer.snapshot()),
+                    f"physical={peer.snapshot()!r} engine={held_frames!r}")
 
                 peer.clear()
                 page.evaluate(
@@ -354,6 +394,7 @@ def main():
                 page.wait_for_function(
                     "() => installation.supervisor?.mode === 'edit'")
                 time.sleep(.5)
+                drain_socket(engine)
                 check(
                     "entering Patch Edit emits no physical enabled command",
                     not has_enabled(peer.snapshot()), repr(peer.snapshot()))
@@ -377,12 +418,13 @@ def main():
                 peer.clear()
                 page.locator("#mute-all").click()
                 page.wait_for_function("() => installation.muted === false")
-                time.sleep(.3)
+                resumed_engine, resumed_frames = wait_engine_master(engine, .25)
                 check(
-                    "Patch Edit MUTE ALL remains execution-only",
-                    not any(address == "/all/os/mute"
-                            for address, _args in peer.snapshot()),
-                    repr(peer.snapshot()))
+                    "Patch Edit MUTE ALL resumes latest master on execution only",
+                    resumed_engine
+                    and not any(address == "/all/os/mute"
+                                for address, _args in peer.snapshot()),
+                    f"physical={peer.snapshot()!r} engine={resumed_frames!r}")
 
                 peer.clear()
                 page.evaluate(
@@ -419,6 +461,7 @@ def main():
                 browser.close()
         finally:
             peer.close()
+            engine.close()
             stop(dashboard)
 
     print(f"\n{len(FAILURES)} failure(s)")

@@ -70,6 +70,7 @@ class VirtualNode:
     groups: tuple = ()
     device_enabled: bool = True
     mute_all: bool = False
+    master: float = 1.0
     process: subprocess.Popen | None = None
     param_generator: paramgen.GeneratorEngine | None = None
 
@@ -358,6 +359,25 @@ class AuditionRig:
         self.sock.sendto(builder.build().dgram,
                          (self.local_target, node.engine_port))
 
+    @staticmethod
+    def effective_master(node):
+        """Audition's engine-facing output gate for execution MUTE ALL."""
+        return 0.0 if node.mute_all else node.master
+
+    def set_master(self, node, value):
+        """Retain requested master while sending its mute-composed value."""
+        try:
+            node.master = float(value)
+        except (TypeError, ValueError):
+            return False
+        self.send_engine(node, "/os/master", (self.effective_master(node),))
+        return True
+
+    def set_mute_all(self, node, value):
+        """Apply MUTE ALL without exposing the framework mute verb to engines."""
+        node.mute_all = bool(value)
+        self.send_engine(node, "/os/master", (self.effective_master(node),))
+
     def send_groups(self, node):
         # Mirrors bopos.py's send_groups_to_engine: full, sentinel-shaped
         # membership list on every successful membership change (engine
@@ -561,6 +581,11 @@ class AuditionRig:
         shaped = relay.shape_provided_term(parts, message.params)
         if shaped is not None:
             address, args = shaped
+            if address == "/os/master":
+                for node in self.nodes:
+                    if matches(selector, node.device_id, getattr(node, "groups", ())):
+                        self.set_master(node, args[0])
+                return
             if address.startswith("/p/"):
                 identity = address[3:]
                 declaration = self.param_declarations.get(identity)
@@ -626,7 +651,7 @@ class AuditionRig:
                 return
             for node in self.nodes:
                 if matches(selector, node.device_id, getattr(node, "groups", ())):
-                    node.mute_all = bool(value)
+                    self.set_mute_all(node, value)
             return
 
     def stop(self):
