@@ -1,6 +1,6 @@
-# 05-wide-split-snap
+# 06-wide-split-snap
 
-**Waiting on `01-dock-design`.** Claim once the dock design is ratified.
+The interaction and persistence rules are ratified in `01-dock-design`.
 
 Bob: "In a narrow view, each of those views could be a tab on a single panel, but
 in a wider view, we should be able to drag those tabs either side so that they

@@ -17,6 +17,12 @@ fingerprint per node) and through the Patch tab. Bob is naming a *fleet-level*
 concept — "the fleet patch" as a single global intended state — and asking for a
 persistent, always-on-screen indicator of it, in the app's top menu bar.
 
+## Deferred
+
+Bob moved this thread into `feature-backlog` on 2026-07-23. Its design leaf
+remains waiting. Moving it changed priority only; the feature and its Bob
+design gate remain intact.
+
 ## Bob gate
 
 Menu-bar / global-chrome UI is user-facing Dashboard design — Bob ratifies.

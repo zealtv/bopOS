@@ -16,3 +16,5 @@ Current backlog:
 
 - `33b-device-network-config` — saved Wi-Fi profiles and write-only
   credentials from the Device tab.
+- `34-fleet-patch-global-state` — fleet-patch global state and a persistent
+  menu-bar convergence indicator. Bob moved it here on 2026-07-23.

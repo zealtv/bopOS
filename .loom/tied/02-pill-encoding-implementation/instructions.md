@@ -1,7 +1,6 @@
 # 02-pill-encoding-implementation
 
-**Waiting on `01-pill-encoding-design` being ratified by Bob.** Claim then, and
-mark this stitch `.waiting` until that happens.
+`01-pill-encoding-design` was ratified by Bob on 2026-07-23.
 
 Build the ratified pill encoding in `dashboard/static/js/show.js` +
 `dashboard/static/css/style.css`.

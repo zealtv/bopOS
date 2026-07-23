@@ -94,9 +94,9 @@ a real regression hides among the drift.)
    is an exact-physical, unprivileged, transactional engine restart with config
    rollback and output-safety reapplication. Software/browser gates pass; real
    Pi/JACK and audible behavior remain a hardware adoption check.
-6. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
-   in the Dashboard menu bar. Design gate; coordinate the fleet-patch
-   *definition* with 29 and `asset-fleet-distribution`.
+6. **Moved to feature backlog — `34-fleet-patch-global-state`.** "The fleet
+   patch" as global state shown in the Dashboard menu bar remains wanted, but
+   Bob deferred it on 2026-07-23. Its waiting design gate stays intact.
 
 ### Tier 2 — failing-test cleanup, then deferred Show polish
 
@@ -116,12 +116,14 @@ a real regression hides among the drift.)
    after the node work. **Cheap thing to do now regardless (not gated):** a stitch
    touching a genuinely shared surface writes its check into a `tests/` file, not a
    new tied guard.
-9. **`20-console-dock`** (`.waiting`) — deferred Show polish (Bob's 2026-07-21
-   fix-pass item). Resume after the guard-rot cleanup.
-10. **`25-message-pill-encoding`** (`.waiting`) — deferred. Bob ruled 2026-07-23
-   the pill colours are a **single flat 7-category set** (cue, point, raw,
-   param-value, param-fade, param-lfo, param-stop — confirm whether `loop`
-   folds/omits/adds an 8th), not two dimensions.
+9. **`20-console-dock`** — **Monitor v1 complete, children tied 2026-07-23.**
+   Incoming, Outgoing, Send, Reports, System, persistence, and wide split/snap
+   shipped. The parent remains open only for the deliberately deferred
+   `07-map-tab.waiting`.
+10. **`25-message-pill-encoding`** — **complete, tied 2026-07-23.** Message
+   pills use the ratified flat eight-category set (cue, point, raw,
+   param-value, param-fade, param-loop, param-lfo, param-stop), with visible
+   kind codes as a non-colour channel.
 
 ### Tier 3 — paused pending other design (not workable solo)
 
@@ -135,6 +137,9 @@ a real regression hides among the drift.)
   write-only credentials from the Device tab. Bob deferred it 2026-07-23;
   secret handling, privileged storage, safe switching, reconnect, and recovery
   remain an unratified design gate.
+- **`feature-backlog/34-fleet-patch-global-state`** — fleet-patch global state
+  and a persistent menu-bar convergence indicator. Bob deferred it 2026-07-23;
+  its definition and menu-bar design remain unratified.
 - **`35-node-logging`** — the append-only-log seed (destination in Device tab +
   USB auto-mount); grow the design when Bob wants it.
 - **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after
@@ -267,10 +272,10 @@ and tie one concrete stitch at a time:
    fixed 28px and the unnamed row is a flat line, no gradient; the
    generator duration field's unit box shrank to 56px *and* a dead
    `@container` ordering bug that kept the LFO fields two-up was
-   healed). Then `20-console-dock` (the two OSC terminals become one VS Code-style
-   bottom dock — design gate first, then the unified frame, with an OSC
-   send terminal, a system tab, wide-view drag-to-split, and a
-   deliberately deferred map tab); `21-theme-cyan-tint` (light-theme
+   healed). `20-console-dock` is now **Monitor v1 complete** (the two OSC
+   terminals became one app-wide bottom dock with Incoming, Outgoing, Send,
+   Reports, System, persistence, and wide-view split/snap; only the deliberately
+   deferred Map tab remains); `21-theme-cyan-tint` (light-theme
    green → cyan at the token layer); and `22-listener-range-ux` (the
    Seats listener range is only settable by dragging a handle that clips
    off the map — UX design gate, Bob ratifies, then implementation),
@@ -343,12 +348,13 @@ Everything else is `.waiting` for a reason stated in its stitch:
   (paused pending the lanes/scenes design — collapse may not survive a
   multi-lane grid) and `06-chrome-app-wide-assessment` (Bob lives with
   the Show chrome, then rules app-wide vs staged adoption). Next
-  software work is the rest of Bob's 2026-07-21 fix pass — `20` and `21`
-  remain (`19`, `22`, `23`, `24` and `26` are tied) — then the host-loom
+  software work is the rest of Bob's 2026-07-21 fix pass — `21`
+  remains (`19`, Monitor v1 from `20`, `22`, `23`, `24` and `26` are tied) —
+  then the host-loom
   patch-workflow documentation/starter-kit close-out (stage 14). Bob
-  gates outstanding: `20-console-dock/01-dock-design` (dock scope —
-  Show-tab-only vs app-wide, which also bears on `18/06`),
-  `25-message-pill-encoding/01-pill-encoding-design`, and the three
+  design gates for `20-console-dock/01-dock-design` and
+  `25-message-pill-encoding/01-pill-encoding-design` were ratified by Bob on
+  2026-07-23 and both v1 implementations are complete; outstanding gates are the three
   rulings in `27-tied-guard-rot`, of which Bob settled the ordering
   (after `20`/`21`) and the pulled-out defect on 2026-07-22 — the sweep
   question itself he will take in a fresh session, briefed by

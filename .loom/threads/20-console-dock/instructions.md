@@ -1,5 +1,10 @@
 # 20-console-dock
 
+**Monitor v1 complete, 2026-07-23.** The ratified Incoming, Outgoing, Send,
+Reports, System, persistence, and wide split/snap slices are tied. A follow-up
+also removes the visible `shown` / `seen` traffic-count copy. Only the
+deliberately deferred future Map tab remains waiting.
+
 Grow the Show tab's two independent OSC `<details>` consoles into a single
 VS Code-style dock at the bottom of the app: one frame, tabbed views, and — at
 wide widths — tabs draggable to either side of the frame to snap into a split.
@@ -22,14 +27,13 @@ and docs.
 
 ## Order of work
 
-1. `01-dock-design` — the shape: name, tab set, collapse model, narrow vs wide
-   behaviour, where the dock lives in the IA, persistence. Ends in a proposal;
-   Bob ratifies the scope call (see below) before the dependent children start.
+1. `01-dock-design` — **ratified 2026-07-23.** The app-wide surface is named
+   Monitor and ships Incoming, Outgoing, Send, Reports, and System in v1.
 2. `02-unified-frame` — Bob's actual complaint: the two OSC consoles become one
    collapsible frame with two tabs. This is the shippable slice on its own.
-3. `03-osc-send-tab.waiting`, `04-system-tab.waiting`,
-   `05-wide-split-snap.waiting` — unlocked by `01`.
-4. `06-map-tab.waiting` — explicitly deferred by Bob; a placeholder so the dock
+3. `03-osc-send-tab`, `04-reports-tab`, `05-system-tab`,
+   `06-wide-split-snap` — the remaining ratified v1 tabs and layout.
+4. `07-map-tab.waiting` — explicitly deferred by Bob; a placeholder so the dock
    is designed with room for it.
 
 ## Constraints carried in from the shipped consoles
@@ -43,10 +47,9 @@ and docs.
 - Self-contained app: no CDN, no icon fonts, no new runtime dependency.
 - Desktop-first, except the facilitator tab (which is out of scope here).
 
-## Open scope question for `01`
+## Ratified scope
 
-The consoles are currently a Show-tab feature. A bottom dock with a system tab
-reads app-wide. Whether the dock is Show-tab-only, app-wide, or app-wide-but-
-default-collapsed-elsewhere is **Bob's call** — put it in the proposal, don't
-implement past it. Note the related open question in
-`18-show-chrome-density/06-chrome-app-wide-assessment.waiting`.
+Monitor is app-wide (the standalone facilitator page remains excluded), lives
+outside all tab panels and `#show-root`, persists layout in browser
+`localStorage`, and does not auto-collapse when playback begins. See the tied
+`01-dock-design/decisions.md`.

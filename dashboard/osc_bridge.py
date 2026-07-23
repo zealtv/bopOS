@@ -86,6 +86,7 @@ class OSCBridge:
         # the fallback for simfleet, whose devices share one loopback address.
         self.fetch_pending = {}
         self.pending_timeouts = {}
+        self.probe_pending = {}
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
@@ -140,6 +141,9 @@ class OSCBridge:
                 record.get("timeout") and record["timeout"].cancel()
         for timeout in self.pending_timeouts.values():
             timeout.cancel()
+        for record in self.probe_pending.values():
+            record["timeout"].cancel()
+        self.probe_pending.clear()
         for timeout in self._audio_apply_timeouts.values():
             timeout.cancel()
         self._audio_apply_timeouts.clear()
@@ -559,6 +563,56 @@ class OSCBridge:
                 previous.get("timeout") and previous["timeout"].cancel()
         return self.request(uid, "assets")
 
+    def probe(self, uid, name):
+        """Request one retained patch-authored value from an assigned Device."""
+        device = self.state.devices.get(str(uid))
+        if device is None or not device.get("online"):
+            return False, "That Device is offline or unavailable."
+        try:
+            device_id = int(device.get("id", -1))
+        except (TypeError, ValueError):
+            device_id = -1
+        if device_id < 0:
+            return False, "Patch reports require an assigned Device."
+        if re.fullmatch(r"[A-Za-z0-9_-]+", str(name or "")) is None:
+            return False, "Report name may contain letters, numbers, _ and -."
+        key = (device_id, str(name))
+        previous = self.probe_pending.pop(key, None)
+        if previous:
+            previous["timeout"].cancel()
+        record = {"uid": str(uid), "id": device_id, "name": str(name)}
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_probe, key)
+        self.probe_pending[key] = record
+        self.send_physical(f"/{device_id}/os/probe", [str(name)])
+        return True, None
+
+    def _expire_probe(self, key):
+        record = self.probe_pending.pop(key, None)
+        if record is None:
+            return
+        self.broadcast("probe_result", {
+            "ok": False, "uid": record["uid"], "id": record["id"],
+            "name": record["name"], "values": [], "ts": time.time(),
+            "error": "No retained value replied before timeout.",
+        })
+
+    @staticmethod
+    def _typed_probe_values(values):
+        typed = []
+        for value in values:
+            if isinstance(value, bool):
+                typed.append({"type": "i", "value": int(value)})
+            elif isinstance(value, int):
+                typed.append({"type": "i", "value": value})
+            elif isinstance(value, float):
+                typed.append({"type": "f", "value": value})
+            elif isinstance(value, str):
+                typed.append({"type": "s", "value": value})
+            else:
+                typed.append({"type": "s", "value": str(value)})
+        return typed
+
     def _cancel_asset_requery(self, uid):
         record = self._asset_requeries.pop(uid, None)
         if record:
@@ -790,6 +844,28 @@ class OSCBridge:
                                       "source": ip})
         except RuntimeError:
             pass
+        if address == "/os/probe" and len(args) >= 2:
+            try:
+                device_id = int(args[0])
+            except (TypeError, ValueError):
+                return
+            name = str(args[1])
+            key = (device_id, name)
+            record = self.probe_pending.pop(key, None)
+            if record is not None:
+                record["timeout"].cancel()
+                uid = record["uid"]
+            else:
+                device = next(
+                    (candidate for candidate in self.state.devices.values()
+                     if int(candidate.get("id", -1)) == device_id),
+                    None)
+                uid = device.get("uid") if device else None
+            self.broadcast("probe_result", {
+                "ok": True, "uid": uid, "id": device_id, "name": name,
+                "values": self._typed_probe_values(args[2:]), "ts": time.time(),
+            })
+            return
         if address == "/audition/ready":
             try:
                 local = ipaddress.ip_address(ip).is_loopback

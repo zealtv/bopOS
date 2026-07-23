@@ -38,6 +38,7 @@ from python import manifest as patch_manifest
 
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+OSC_ADDRESS_RE = re.compile(r"/(?!/)(?:[^\s#*,?\[\]{}]+/?)*[^\s/#*,?\[\]{}]")
 PATCH_TEMPLATE = os.path.join(".templates", "bopos-template.pd")
 PATCH_SWITCH_RECEIPT_SECONDS = 8.0
 PATCH_SWITCH_RECONCILE_SECONDS = 2.0
@@ -273,6 +274,7 @@ class Dashboard:
             "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room", "set_points",
             "set_point", "clear_point", "save_venue", "load_venue",
+            "monitor_send", "monitor_probe",
         }
         edit_blocked_mutations = {
             "set_param", "set_live_param", "replay_live_params", "switch_patch",
@@ -292,7 +294,29 @@ class Dashboard:
         if kind in serialized_mutations and not supervisor_locked:
             async with self.supervisor_lock:
                 return await self.handle_ws(message, ws, supervisor_locked=True)
-        if kind == "set_param":
+        if kind == "monitor_probe":
+            ok, error = self.osc.probe(uid, data.get("name"))
+            if ws is not None:
+                await ws.send_json({
+                    "type": "monitor_probe_status",
+                    "data": {"ok": ok, "error": error},
+                })
+        elif kind == "monitor_send":
+            address, args, error = self.clean_monitor_message(data)
+            if error:
+                if ws is not None:
+                    await ws.send_json({
+                        "type": "monitor_send_result",
+                        "data": {"ok": False, "error": error},
+                    })
+                return
+            self.osc.send(address, args)
+            if ws is not None:
+                await ws.send_json({
+                    "type": "monitor_send_result",
+                    "data": {"ok": True},
+                })
+        elif kind == "set_param":
             name, value = str(data.get("name", "")), data.get("value")
             selector = "all" if data.get("broadcast") or uid == "all" else self.selector(uid)
             if not name or selector is None:
@@ -1432,6 +1456,45 @@ class Dashboard:
     async def ws_error(ws, message):
         if ws is not None:
             await ws.send_json({"type": "error", "data": {"message": message}})
+
+    @staticmethod
+    def clean_monitor_message(data):
+        if not isinstance(data, dict):
+            return None, None, "OSC send payload is invalid."
+        address = data.get("address")
+        arguments = data.get("args")
+        if (not isinstance(address, str) or len(address) > 255
+                or OSC_ADDRESS_RE.fullmatch(address) is None):
+            return None, None, "OSC address is invalid."
+        if not isinstance(arguments, list) or len(arguments) > 64:
+            return None, None, "OSC arguments are invalid."
+        cleaned = []
+        for argument in arguments:
+            if not isinstance(argument, dict):
+                return None, None, "OSC argument is invalid."
+            kind, value = argument.get("type"), argument.get("value")
+            if kind == "s":
+                if not isinstance(value, str) or len(value) > 4096:
+                    return None, None, "OSC string argument is invalid."
+                cleaned.append(value)
+                continue
+            if kind == "i":
+                if (isinstance(value, bool) or not isinstance(value, int)
+                        or value < -2147483648 or value > 2147483647):
+                    return None, None, "OSC integer argument is outside signed 32-bit range."
+                cleaned.append(value)
+                continue
+            if kind == "f":
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    return None, None, "OSC float argument is invalid."
+                number = float(value)
+                if (not math.isfinite(number)
+                        or number != float(format(number, ".6g"))):
+                    return None, None, "OSC float needs at most 6 significant figures."
+                cleaned.append(number)
+                continue
+            return None, None, "OSC argument type must be i, f, or s."
+        return address, cleaned, None
 
     @staticmethod
     def clean_editor_value(declaration, value):

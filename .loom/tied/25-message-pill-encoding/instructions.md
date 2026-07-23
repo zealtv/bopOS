@@ -1,5 +1,9 @@
 # 25-message-pill-encoding
 
+**Complete, 2026-07-23.** The ratified eight-category palette, visible codes,
+theme tokens, accessibility treatment, and focused browser verification are
+tied.
+
 Make the Show tab's message pill colours *mean* something.
 
 **Bob, 2026-07-21:** "In the show tab message pills, colours reflect the payload
@@ -49,8 +53,9 @@ skill's palette guidance applies).
 
 ## Shape of the work
 
-1. `01-pill-encoding-design` — UX proposal, **Bob ratifies before implementation**.
+1. `01-pill-encoding-design` — **ratified by Bob 2026-07-23**: eight flat
+   categories including loop, tinted fills plus visible kind codes.
 2. `02-pill-encoding-implementation` — build the ratified design.
 
-House rule: user-facing dashboard design is a Bob gate. Do not implement past an
-unratified design.
+The user-facing design gate is satisfied. The tied decision record is the
+implementation authority.

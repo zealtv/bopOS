@@ -7,16 +7,12 @@ stitch `.waiting`, and tie it with the ratified design as `decisions.md`.
 Read the parent `instructions.md` first — it states the problem and the current
 hash-based palette.
 
-## The problem
+## The problem — revised by Bob, 2026-07-23
 
-Encode **two** dimensions on one small pill:
-
-- payload mode — `param` / `cue` / `point` / `raw`
-- generator — `value` / `fade` / `loop` / `lfo` / `stop`, present **only** on
-  numeric `param` messages
-
-...where the second is conditional on the first, so the encoding must degrade
-gracefully to "mode only" for three of the four modes.
+The parent's newer ruling supersedes the original two-dimensional brief.
+Design one flat categorical set: `cue`, `point`, `raw`, `param-value`,
+`param-fade`, `param-lfo`, and `param-stop`, plus a ruling on the omitted
+`param-loop`. There is no independent mode/generator visual composition.
 
 ## Requirements
 
@@ -45,13 +41,12 @@ gracefully to "mode only" for three of the four modes.
 
 ## Deliver
 
-- At least three sketched alternatives — e.g. fill=mode + stroke-style=generator;
-  fill=generator + a leading mode swatch/glyph; a monochrome pill with a glyph
-  pair; shape/radius as one of the channels. Each with its failure modes at
-  density, in both themes, under CVD, and when the pill is focused or dragging.
+- At least three sketched categorical-palette treatments. Each must cover
+  failure modes at density, in both themes, under CVD, and when the pill is
+  focused or dragging.
 - A recommendation with reasoning.
-- Whether `point` is its own encoding or folds into `cue` (Bob named three modes,
-  the code has four) — this is a question for Bob if you cannot settle it.
+- Whether the omitted `loop` gets its own category, folds into another
+  category, or is deliberately excluded.
 - Concrete token names and values, ready for the implementation stitch.
 - ASCII/SVG sketches in markdown so Bob can read it without running anything.
 - Keep the full proposal as a lore item if it is substantial; `decisions.md`

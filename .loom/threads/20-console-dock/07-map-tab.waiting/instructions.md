@@ -1,4 +1,4 @@
-# 06-map-tab
+# 07-map-tab
 
 **Deferred by Bob, deliberately.** He named it so the dock would be designed with
 room for it, and said explicitly: "we don't need to implement it right now."
@@ -11,7 +11,7 @@ room for it, and said explicitly: "we don't need to implement it right now."
 
 ## Waiting on
 
-- `01-dock-design` ratified and the dock actually shipped.
+- The ratified dock actually shipped.
 - Enough of the spatial automation picture to know what there is to monitor —
   point motion and decomposed curves are deferred to the Bob-gated
   `scene-sequencing` co-design, and this view is most of its value once those

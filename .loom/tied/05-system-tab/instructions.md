@@ -1,7 +1,6 @@
-# 04-system-tab
+# 05-system-tab
 
-**Waiting on `01-dock-design`.** Claim once the dock design is ratified, and
-only if `01` kept this tab in v1 scope.
+The ratified `01-dock-design` keeps this tab in v1 scope.
 
 Bob: "perhaps some other like system utility stuff that could be a tab down there
 in a kind of like system overview inspector kind of thing."

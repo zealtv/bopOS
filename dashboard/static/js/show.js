@@ -117,17 +117,34 @@
     return out;
   }
 
-  const PILL_PALETTE_SIZE = 8;
+  const PILL_CATEGORIES = {
+    cue: {code: "CUE", label: "cue"},
+    point: {code: "PT", label: "point"},
+    raw: {code: "RAW", label: "raw OSC"},
+    "param-value": {code: "VAL", label: "parameter value"},
+    "param-fade": {code: "FD", label: "parameter fade"},
+    "param-loop": {code: "LP", label: "parameter loop"},
+    "param-lfo": {code: "LFO", label: "parameter LFO"},
+    "param-stop": {code: "STOP", label: "parameter stop"},
+  };
+
+  function pillCategory(message) {
+    const mode = inferMessageMode(message);
+    if (mode !== "param") return mode;
+    const args = message.args || [];
+    const first = String(argValue(args[0]) ?? "").toLowerCase();
+    const generator = ["loop", "lfo", "stop"].includes(first)
+      ? first : args.length > 1 ? "fade" : "value";
+    return `param-${generator}`;
+  }
+
+  function pillPresentation(message) {
+    const category = pillCategory(message);
+    return {category, ...PILL_CATEGORIES[category]};
+  }
 
   function pillColourClass(message) {
-    const alias = (message?.alias || "").trim();
-    if (!alias) return "";
-    let hash = 2166136261;
-    for (let index = 0; index < alias.length; index++) {
-      hash ^= alias.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-    }
-    return ` show-pill-${(hash >>> 0) % PILL_PALETTE_SIZE}`;
+    return ` show-pill-${pillCategory(message)}`;
   }
 
   function allSteps() {
@@ -271,10 +288,7 @@
   }
 
   function typedArg(kind, value) {
-    if (kind === "s") return {type: "s", value: String(value ?? "")};
-    if (kind === "i") return {type: "i", value: Math.trunc(Number(value) || 0)};
-    const number = Number(value) || 0;
-    return {type: "f", value: Number(number.toPrecision(6))};
+    return window.OscMessage.typedArg(kind, value);
   }
 
   const parseParamArgs = window.ParamSpec.parse;
@@ -330,8 +344,10 @@
     if (!messages.length) return '<span class="show-no-messages">No messages</span>';
     return messages.map(message => {
       const selected = focused("message", message.uid) ? " focused" : "";
-      const title = `${message.address || ""} -> ${terseTargets(message)}`;
-      return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" data-drag-message="${escapeHtml(message.uid)}" title="${escapeHtml(title)}"><span class="show-pill-drag" aria-hidden="true">⋮</span>${escapeHtml(messageLabel(message))}</button>`;
+      const presentation = pillPresentation(message);
+      const label = messageLabel(message);
+      const title = `${presentation.label}: ${message.address || ""} -> ${terseTargets(message)}`;
+      return `<button class="show-message-pill${pillColourClass(message)}${selected}" data-show-message-focus="${escapeHtml(message.uid)}" data-show-step="${escapeHtml(step.uid)}" data-drag-message="${escapeHtml(message.uid)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(`${presentation.label}: ${label}`)}"><span class="show-pill-drag" aria-hidden="true">⋮</span><span class="show-pill-kind" aria-hidden="true">${presentation.code}</span><span class="show-pill-label">${escapeHtml(label)}</span></button>`;
     }).join("");
   }
 
@@ -1683,139 +1699,6 @@
   }
   ws.on("state", renderForRelevantStateChange);
   ws.on("distribution", renderForRelevantStateChange);
-  // ------------------------------------------------------------------
-  // OSC consoles (stitch 7). These live outside #show-root so the
-  // high-rate osc_in/osc_out stream never re-renders the show table, and
-  // show-state renders never wipe the console DOM.
-  // ------------------------------------------------------------------
-  const CONSOLE_LIMIT = 500;
-  const CONSOLE_VISIBLE = 200;
-  const consoleHost = document.createElement("div");
-  consoleHost.id = "show-consoles";
-  root.after(consoleHost);
-  consoleHost.innerHTML = ["out", "in"].map(kind => `
-    <details class="show-console" data-console="${kind}">
-      <summary>${kind === "out" ? "Outgoing OSC" : "Incoming OSC"}
-        <output data-console-count aria-live="off"></output></summary>
-      <div class="show-console-bar">
-        <input data-console-filter type="text" autocomplete="off" spellcheck="false"
-               placeholder="filter: /p/* !/sync" aria-label="${kind} console filter">
-        <button type="button" data-console-pause>Pause</button>
-        <button type="button" data-console-clear>Clear</button>
-      </div>
-      <div class="show-console-log" data-console-log tabindex="0"></div>
-    </details>`).join("");
-
-  const consoles = {
-    out: {entries: [], paused: false, filter: "", autoScroll: true, dirty: false, total: 0},
-    in: {entries: [], paused: false, filter: "", autoScroll: true, dirty: false, total: 0},
-  };
-  let consoleFlush = null;
-
-  function consolePanel(kind) {
-    return consoleHost.querySelector(`[data-console="${kind}"]`);
-  }
-
-  function filterTerms(text) {
-    return text.trim().toLowerCase().split(/\s+/).filter(Boolean).map(term => {
-      const negated = term.startsWith("!");
-      const body = negated ? term.slice(1) : term;
-      const pattern = new RegExp(body.split("*").map(part =>
-        part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*"));
-      return {negated, pattern};
-    }).filter(term => term.pattern.source !== "(?:)");
-  }
-
-  function consoleLine(kind, entry) {
-    const stamp = new Date(entry.ts * 1000).toLocaleTimeString("en-GB", {hour12: false})
-      + "." + String(Math.floor((entry.ts % 1) * 1000)).padStart(3, "0");
-    const args = (entry.args || []).map(String).join(" ");
-    const peer = kind === "out" ? `-> ${entry.target || ""}` : `<- ${entry.source || ""}`;
-    return `${stamp}  ${entry.address}${args ? "  " + args : ""}  ${peer}`;
-  }
-
-  function renderConsole(kind) {
-    const state = consoles[kind];
-    const panel = consolePanel(kind);
-    const log = panel.querySelector("[data-console-log]");
-    let lines = state.entries.map(entry => entry.line);
-    let terms;
-    try { terms = filterTerms(state.filter); } catch (_error) { terms = []; }
-    if (terms.length) {
-      lines = lines.filter(line => {
-        const lower = line.toLowerCase();
-        return terms.every(term => term.negated
-          ? !term.pattern.test(lower) : term.pattern.test(lower));
-      });
-    }
-    const shown = lines.slice(-CONSOLE_VISIBLE);
-    log.textContent = shown.join("\n");
-    panel.querySelector("[data-console-count]").value =
-      `${shown.length} shown · ${state.total} seen`;
-    if (state.autoScroll) log.scrollTop = log.scrollHeight;
-    state.dirty = false;
-  }
-
-  for (const kind of ["out", "in"]) {
-    consolePanel(kind).open = false;
-    renderConsole(kind);
-  }
-
-  function scheduleConsoleFlush() {
-    if (consoleFlush !== null) return;
-    consoleFlush = setTimeout(() => {
-      consoleFlush = null;
-      for (const kind of ["out", "in"]) {
-        if (consoles[kind].dirty && !consoles[kind].paused) renderConsole(kind);
-      }
-    }, 150);
-  }
-
-  function pushConsole(kind, data) {
-    if (!data || typeof data.address !== "string") return;
-    const state = consoles[kind];
-    state.total += 1;
-    state.entries.push({line: consoleLine(kind, data)});
-    if (state.entries.length > CONSOLE_LIMIT) state.entries.shift();
-    state.dirty = true;
-    if (!state.paused) scheduleConsoleFlush();
-  }
-
-  consoleHost.addEventListener("input", event => {
-    const panel = event.target.closest("[data-console]");
-    if (!panel || !event.target.matches("[data-console-filter]")) return;
-    const state = consoles[panel.dataset.console];
-    state.filter = event.target.value;
-    renderConsole(panel.dataset.console);
-  });
-
-  consoleHost.addEventListener("click", event => {
-    const panel = event.target.closest("[data-console]");
-    if (!panel) return;
-    const state = consoles[panel.dataset.console];
-    if (event.target.matches("[data-console-pause]")) {
-      state.paused = !state.paused;
-      event.target.textContent = state.paused ? "Resume" : "Pause";
-      if (!state.paused) renderConsole(panel.dataset.console);
-    }
-    if (event.target.matches("[data-console-clear]")) {
-      state.entries = [];
-      state.total = 0;
-      renderConsole(panel.dataset.console);
-    }
-  });
-
-  consoleHost.addEventListener("scroll", event => {
-    const log = event.target;
-    if (!log.matches?.("[data-console-log]")) return;
-    const panel = log.closest("[data-console]");
-    consoles[panel.dataset.console].autoScroll =
-      log.scrollTop + log.clientHeight >= log.scrollHeight - 24;
-  }, true);
-
-  ws.on("osc_out", data => pushConsole("out", data));
-  ws.on("osc_in", data => pushConsole("in", data));
-
   window.ShowInspectorError = message => {
     showError = message || "Show edit failed.";
     if (shows.current) render();
