@@ -37,6 +37,7 @@ class DeviceInstallTests(unittest.TestCase):
         self.assertIn('"$VENV/bin/pip" install -r', installer)
         self.assertIn("git clone", installer)
         self.assertIn("git -C \"$BOPOS_DIR\" pull --ff-only", installer)
+        self.assertTrue(installer.rstrip().endswith("sudo systemctl reboot"))
 
     def test_device_install_generates_a_configurable_locale(self):
         installer = self.read("install-device.sh")

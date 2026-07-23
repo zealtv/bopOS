@@ -22,7 +22,9 @@ checkout and refreshes submodules; it does not use `bash/update.sh`, because
 that runtime convergence script deliberately runs `git restore .` and would
 make a first-time installer unexpectedly destructive to a working checkout.
 Privileged setup is composed through `bash/provision.sh`, which in turn composes
-`install-power-control.sh`.
+`install-power-control.sh`. A successful installer run reboots the device
+automatically so the locale, audio device, and enabled boot service are tested
+in their real cold-start environment.
 
 ## Device config and boot
 

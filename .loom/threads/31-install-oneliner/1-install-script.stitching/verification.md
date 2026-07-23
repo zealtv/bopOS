@@ -15,7 +15,8 @@ The living test checks explicit installer entry points, the raw-GitHub command,
 composition through provisioning, locale generation without global `LC_ALL`,
 config preservation, systemd lifecycle hooks, and the cold-audio readiness
 guard. It also fixes the fresh-Pi regression checks for headless JACK device
-reservation and systemd's realtime/memory-lock limits.
+reservation, systemd's realtime/memory-lock limits, and the terminal automatic
+reboot.
 
 ## Fresh-device gate — in progress on `new-bop`
 

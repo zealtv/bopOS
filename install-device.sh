@@ -100,6 +100,7 @@ echo "==> Installing device defaults and boot service"
 sudo "$BOPOS_DIR/bash/provision.sh"
 
 echo
-echo "bopOS device installation is ready."
+echo "bopOS device installation is complete."
 echo "Review $BOPOS_DIR/bopos.config if this device does not use a DigiAMP+."
-echo "Reboot with: sudo systemctl reboot"
+echo "Rebooting now; this session will disconnect."
+sudo systemctl reboot

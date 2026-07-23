@@ -69,8 +69,9 @@ curl -fsSL https://raw.githubusercontent.com/zealtv/bopOS/main/install-device.sh
 The script is served directly from the bopOS GitHub repository for now. It asks
 for sudo authentication, prepares Raspberry Pi OS, clones or fast-forwards the
 checkout, installs the Python environment, creates `bopos.config` if it is
-absent, and enables `bopos.service`. It is safe to rerun: existing device config
-is preserved, and an existing checkout is only fast-forwarded.
+absent, enables `bopos.service`, and reboots after a successful run. The SSH
+session will disconnect at that point. It is safe to rerun: existing device
+config is preserved, and an existing checkout is only fast-forwarded.
 
 The default system locale is `en_AU.UTF-8`. To choose another UTF-8 locale:
 
@@ -83,7 +84,8 @@ The installer generates the locale, sets `LANG`, and removes stale global
 `LC_ALL`/`LANGUAGE` overrides that otherwise produce warnings or confuse Python
 package installation.
 
-Review the reference DigiAMP+ defaults before rebooting:
+The installed defaults target a DigiAMP+. After the Pi returns, adjust them if
+this device uses a different audio board, then reboot again:
 
 ```sh
 nano ~/bopOS/bopos.config
