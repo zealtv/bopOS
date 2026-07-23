@@ -55,9 +55,20 @@ Three routes, depending on who you are today:
 | **[Composing](docs/COMPOSING.md)** | writing and deploying a piece — no Git required | the above + Pure Data |
 | **[Installing a node](docs/INSTALL.md)** | building the physical fleet and its network | a Raspberry Pi + audio board |
 
-On a laptop, `./install.sh` then `./run.sh` from the repo root set up the venv
-and start the dashboard — no need to type the `python -m venv` / `server.py`
-commands by hand.
+On a laptop, `./install-dashboard.sh` then `./run.sh` from the repo root set up
+the venv and start the dashboard — no need to type the `python -m venv` /
+`server.py` commands by hand.
+
+On a freshly flashed Raspberry Pi device, the equivalent setup is one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zealtv/bopOS/main/install-device.sh | env LANG=C LC_ALL=C bash
+```
+
+It installs the system packages, checks out bopOS from GitHub, creates the
+device virtualenv and config, and provisions the systemd boot service. See
+[Installing a node](docs/INSTALL.md) for the image settings, audio-board setup,
+manual fallback, and first-device checks.
 
 ## Documentation map
 

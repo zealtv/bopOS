@@ -122,7 +122,7 @@ network; real nodes appear as they heartbeat:
 ~/.venvs/bopos/bin/python dashboard/server.py --host 0.0.0.0
 ```
 
-From the repo root, `./run.sh` is a shortcut for exactly that (run `./install.sh`
+From the repo root, `./run.sh` is a shortcut for exactly that (run `./install-dashboard.sh`
 once first to build the venv). Extra flags pass straight through, e.g.
 `./run.sh --port 9000`.
 

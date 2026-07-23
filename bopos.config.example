@@ -1,0 +1,12 @@
+# Node-level bopOS hardware and framework defaults.
+# install-device.sh copies this to bopos.config once and preserves later edits.
+
+# ALSA card and mixer control verified for the reference IQaudIO DigiAMP+.
+SOUNDCARD=DigiAMP
+MIXER_CONTROL=Digital
+
+# Framework identity/reporting defaults.
+HB_TARGET=255.255.255.255
+HB_RSSI=1
+UPDATE_MODEL=persistent
+AUDIO_CHANNELS=2

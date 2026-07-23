@@ -1,20 +1,21 @@
 # 1-install-script
 
-Produce `install.sh` + the README `curl` one-liner. One concrete deliverable;
-split only if it grows a design decision Bob must gate (e.g. where the script is
-hosted).
+Produce explicit `install-device.sh` + the README `curl` one-liner. The existing
+laptop setup is explicitly `install-dashboard.sh`; do not overload one script or
+infer the target environment. One concrete deliverable; split only if it grows a
+design decision Bob must gate.
 
 ## Do
 
 1. Read `docs/INSTALL.md` and the existing `bash/` setup scripts; list every
    step a fresh Pi actually needs from bare flash to a running node.
-2. Write `install.sh` that performs them idempotently, composing
+2. Write `install-device.sh` that performs them idempotently, composing
    `bash/provision.sh` / `install-power-control.sh` / `update.sh` rather than
    duplicating them. Auth prompts (sudo/git) are allowed.
 3. Add the README one-liner (`curl -fsSL <url> | bash` shape) and point
    `docs/INSTALL.md` at it as the fast path, keeping the manual steps as the
    fallback/explanation.
-4. Surface the hosting-URL decision to Bob (where the raw script lives).
+4. Use the repository's raw GitHub URL for now; separate hosting is deferred.
 
 ## Land `bopos.config` at install (Bob, 2026-07-23)
 

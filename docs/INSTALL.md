@@ -58,34 +58,82 @@ Imager's settings:
 2. configure the installation Wi-Fi (your travel-router SSID);
 3. enable SSH.
 
-## 2. Prepare the system
+## 2. Install the device
+
+SSH into the freshly flashed Pi as `pi`, then paste this one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zealtv/bopOS/main/install-device.sh | env LANG=C LC_ALL=C bash
+```
+
+The script is served directly from the bopOS GitHub repository for now. It asks
+for sudo authentication, prepares Raspberry Pi OS, clones or fast-forwards the
+checkout, installs the Python environment, creates `bopos.config` if it is
+absent, and enables `bopos.service`. It is safe to rerun: existing device config
+is preserved, and an existing checkout is only fast-forwarded.
+
+The default system locale is `en_AU.UTF-8`. To choose another UTF-8 locale:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zealtv/bopOS/main/install-device.sh |
+  env LANG=C LC_ALL=C BOPOS_LOCALE=en_GB.UTF-8 bash
+```
+
+The installer generates the locale, sets `LANG`, and removes stale global
+`LC_ALL`/`LANGUAGE` overrides that otherwise produce warnings or confuse Python
+package installation.
+
+Review the reference DigiAMP+ defaults before rebooting:
+
+```sh
+nano ~/bopOS/bopos.config
+sudo systemctl reboot
+```
+
+After reboot, inspect the service with:
+
+```sh
+systemctl status bopos.service
+journalctl -u bopos.service -b
+```
+
+Continue at [Point it at the audio board](#4-point-it-at-the-audio-board).
+
+## 3. Manual installation fallback
+
+The one-liner above automates the following steps. Keep this path for
+troubleshooting, offline preparation, and reviewing exactly what changes.
+
+### Prepare the system
 
 Boot the Pi and log in (`ssh pi@raspberrypi.local`), then:
 
 ```sh
 sudo raspi-config nonint do_expand_rootfs
 sudo raspi-config nonint do_i2c 0
-sudo apt-get update
-sudo apt-get upgrade -y
+sudo env LANG=C LC_ALL=C apt-get update
+sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "jackd2 jackd/tweak_rt_limits boolean true" | sudo debconf-set-selections
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  jackd2 puredata git python3-pip python3-venv i2c-tools
+sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales
+sudo raspi-config nonint do_change_locale en_AU.UTF-8
+sudo update-locale LANG=en_AU.UTF-8 LC_ALL LANGUAGE
 ```
 
-## 3. Install bopOS
+### Install bopOS
 
 ```sh
 python3 -m venv ~/venv
 git clone --recursive https://github.com/zealtv/bopOS.git ~/bopOS
 ~/venv/bin/pip install -r ~/bopOS/python/requirements.txt
 cd ~/bopOS
-sudo bash/provision.sh
+sudo ./bash/provision.sh
 ```
 
 `provision.sh` is the **one-time privileged step**. It installs the boot
-entry, the validated hostname helper, and narrow sudoers rules that let the
-unprivileged node software reboot, power off, or apply a hostname — and
-nothing else. Everything after this runs as `pi`.
+service, the validated hostname helper, the initial device config, and narrow
+sudoers rules that let the unprivileged node software reboot, power off, or
+apply a hostname — and nothing else. Everything after this runs as `pi`.
 
 > Existing fleet Pis that predate the hostname helper need one manual
 > `sudo bash/provision.sh` after updating; the routine **Update bopOS**
@@ -93,12 +141,19 @@ nothing else. Everything after this runs as `pi`.
 
 ## 4. Point it at the audio board
 
-JACK opens the ALSA card named by `SOUNDCARD` (default `DigiAMP` in
-`bash/start-engine.sh`). Check what your board is called and set it if it
-differs:
+JACK opens the ALSA card named by `SOUNDCARD`; installation defaults to the
+verified DigiAMP+ pairing in `bopos.config`:
+
+```sh
+SOUNDCARD=DigiAMP
+MIXER_CONTROL=Digital
+```
+
+Check what your board is called and edit those values if it differs:
 
 ```sh
 cat /proc/asound/cards
+nano ~/bopOS/bopos.config
 ```
 
 A board bopOS hasn't been benched on must be checked for playback **and**
@@ -113,7 +168,7 @@ i2cdetect -y 1
 
 ## 5. First contact
 
-Reboot the node. On the dashboard machine (see
+Reboot the device. On the dashboard machine (see
 [Getting started](GETTING-STARTED.md) for setup):
 
 ```sh

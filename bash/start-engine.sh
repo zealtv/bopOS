@@ -5,9 +5,14 @@ BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
 RUN_DIR="$BOPOS_DIR/run"
 mkdir -p "$RUN_DIR"
 
+if [ -f "$BOPOS_DIR/bopos.config" ]; then
+    # shellcheck disable=SC1091
+    source "$BOPOS_DIR/bopos.config"
+fi
 SOUNDCARD="${SOUNDCARD:-DigiAMP}"
 JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
 JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
+AUDIO_WAIT_TIMEOUT="${BOPOS_AUDIO_WAIT_TIMEOUT:-60}"
 
 stop_failed_jack() {
     pid="$1"
@@ -69,8 +74,23 @@ fi
 rmdir "$ASSETS_DIR/samplepacks" 2>/dev/null || true
 
 #Start Jack
+echo "Waiting up to ${AUDIO_WAIT_TIMEOUT}s for ALSA card: $SOUNDCARD"
+AUDIO_READY=0
+for ((i=0; i<=AUDIO_WAIT_TIMEOUT; i++)); do
+    if [ -r /proc/asound/cards ] && grep -F "$SOUNDCARD" /proc/asound/cards >/dev/null; then
+        AUDIO_READY=1
+        break
+    fi
+    [ "$i" -lt "$AUDIO_WAIT_TIMEOUT" ] || break
+    sleep 1
+done
+if [ "$AUDIO_READY" -ne 1 ]; then
+    echo "ERROR: ALSA card '$SOUNDCARD' was not ready within ${AUDIO_WAIT_TIMEOUT}s" >&2
+    exit 1
+fi
+
 echo "------------------- Starting Jack..."
-jackd -P70 -p16 -t2000 -d alsa -dhw:$SOUNDCARD -p 512 -n 2 -r 44100 -s -P& #44.1khz
+jackd -P70 -p16 -t2000 -d alsa -dhw:"$SOUNDCARD" -p 512 -n 2 -r 44100 -s -P& #44.1khz
 JACK_PID=$!
 echo $JACK_PID > "$RUN_DIR/jackd.pid"
 # jackd -P80 -t2000 -d alsa -dhw:$SOUNDCARD -p 1024 -n 2 -r 22050 -s -P& #22khz

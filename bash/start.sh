@@ -1,19 +1,29 @@
 #!/bin/bash
-
-#1.) get list of available soundcards by running: cat /proc/asound/cards
-#2.) edit the SOUNDCARD variable below as needed
-
-#SOUNDCARD="YOUR_SOUNDCARD"
-# SOUNDCARD="sndrpihifiberry"
-# SOUNDCARD="IQaudIODAC"
-SOUNDCARD="DigiAMP"
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
 RUN_DIR="$BOPOS_DIR/run"
 mkdir -p "$RUN_DIR"
 
-PRIMARY_INTERFACE=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}')
+if [ -f "$BOPOS_DIR/bopos.config" ]; then
+    # Node-local shell assignments; this file is owned and edited by the pi user.
+    # shellcheck disable=SC1091
+    source "$BOPOS_DIR/bopos.config"
+fi
+SOUNDCARD="${SOUNDCARD:-DigiAMP}"
+
+start_failed() {
+    status=$?
+    trap - ERR
+    echo "ERROR: bopOS startup failed; stopping the partial stack" >&2
+    "$SCRIPT_DIR/stop.sh"
+    exit "$status"
+}
+trap start_failed ERR
+
+PRIMARY_INTERFACE=$(ip route get 1.1.1.1 2>/dev/null |
+    awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}' || true)
 if [ -z "$PRIMARY_INTERFACE" ]; then
     for interface in /sys/class/net/*; do
         [ "$(basename "$interface")" = "lo" ] && continue
@@ -35,27 +45,6 @@ else
     PYTHON_BIN="python3"
 fi
 
-
-# sleep 15
-
-echo "------------------- Waiting..."
-# Wait up to 15 seconds, allow skip by key press
-WAIT_TIME=15
-SKIP=0
-printf "Waiting %ds (press any key to skip)...\n" "$WAIT_TIME"
-if [ -t 0 ]; then stty -echo -icanon time 0 min 0; fi
-for ((i=0; i<$WAIT_TIME; i++)); do
-    [ -t 0 ] && read -t 1 -n 1 key && SKIP=1 && break
-    printf "."
-    sleep 1
-done
-if [ -t 0 ]; then stty sane; fi
-echo ""
-if [ $SKIP -eq 1 ]; then
-    echo "Wait skipped by key press."
-else
-    echo "Wait complete."
-fi
 
 echo "------------------- Starting bopOS..."
 echo "SOUNDCARD: $SOUNDCARD"
@@ -80,4 +69,4 @@ sleep 1
 
 SOUNDCARD="$SOUNDCARD" "$SCRIPT_DIR/start-engine.sh"
 
-exit
+trap - ERR

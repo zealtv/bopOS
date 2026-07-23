@@ -4,7 +4,7 @@
 #
 # Runs dashboard/server.py from the ~/.venvs/bopos virtualenv, bound to all
 # interfaces (--host 0.0.0.0) so real nodes on the venue LAN can reach it. This
-# is the one command a composer needs after ./install.sh; open the printed URL.
+# is the one command a composer needs after ./install-dashboard.sh; open the printed URL.
 # Press Ctrl-C to stop.
 #
 # Any extra arguments are passed straight through to server.py, e.g.
@@ -22,7 +22,7 @@ case "${1:-}" in
 esac
 
 if [ ! -x "$PYTHON" ]; then
-    echo "run.sh: no venv at $VENV — run ./install.sh first." >&2
+    echo "run.sh: no venv at $VENV — run ./install-dashboard.sh first." >&2
     exit 1
 fi
 

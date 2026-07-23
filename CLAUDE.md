@@ -79,7 +79,7 @@ a real regression hides among the drift.)
    (`1-reproduce-diagnose`) then fix. The node-installation error; jumps the queue.
 2. **`30-gdown-retirement`** — remove the stale `gdown` dep + bash-script
    staleness pass. Quick; unblocks 31.
-3. **`31-install-oneliner`** — condense Pi setup into a `curl`-able `install.sh`
+3. **`31-install-oneliner`** — condense Pi setup into a `curl`-able `install-device.sh`
    + README one-liner. After 30. (USB auto-mount install step wires into 35.)
 4. **`32-multi-asset-packs`** — multiple asset packs; engine context carries a
    **list of absolute asset-folder paths**. Design gate (`1-context-list-design`,

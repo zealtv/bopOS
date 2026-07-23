@@ -14,7 +14,7 @@ to an installation bash script."
 
 ## Target shape
 
-- An **`install.sh`** (repo root or `bash/`) that runs the full first-time node
+- An explicit **`install-device.sh`** at the repo root that runs the full first-time device
   setup end to end: system deps, the venv + `python/requirements.txt` (post
   `30-gdown-retirement`, so no stale `gdown`), the clone/checkout, and the
   privileged `bash/provision.sh` step. Auth prompts (sudo, git creds) are
@@ -41,9 +41,9 @@ should compose these, not reinvent them.
 
 ## Constraints / cautions
 
-- Hosting the script at a stable `curl` URL (raw GitHub or elsewhere) is a
-  decision to surface to Bob — where it's served, and that piping curl-to-bash is
-  the accepted UX here (Bob said so).
+- For now, host the script at the repository's raw GitHub URL. Keep the laptop
+  environment installer explicitly named `install-dashboard.sh`; do not infer
+  which machine is being installed.
 - Idempotence: re-running the one-liner shouldn't wreck an existing node.
 - Real verification needs a fresh Pi (Bob/rig gate) — a fresh flash is exactly
   the case `29-fleet-patch-sync-hang` is chasing; don't claim end-to-end verified

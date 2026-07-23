@@ -27,9 +27,9 @@ amixer mute                      the one framework-owned output control
 
 Two knobs belong to bopOS:
 
-- **`SOUNDCARD`** — the ALSA card jack opens. Default `DigiAMP` in
-  `bash/start-engine.sh` (and legacy `bash/start.sh`); override with the
-  `SOUNDCARD` environment variable or edit the default.
+- **`SOUNDCARD`** — the ALSA card jack opens. `install-device.sh` seeds the
+  verified `DigiAMP` default in the device's root `bopos.config`; edit that
+  value for another board.
 - **`MIXER_CONTROL`** — in the node's `bopos.config` (repo root on the Pi,
   *not* the per-patch `patches/<name>/bopos.config`). Names the amixer
   simple control that mute should drive. Optional: when unset, `set_mute`
@@ -48,8 +48,8 @@ pass/fail; stop at the first failure and fix it before moving on.
 2. **Confirm ALSA sees it:** `cat /proc/asound/cards`. Note the card *name*
    — that string is your `SOUNDCARD` value. USB interfaces appear here too,
    no overlay needed.
-3. **Point bopOS at it:** set `SOUNDCARD=<name>` (env var, or edit the
-   default in `bash/start-engine.sh`) and restart the stack
+3. **Point bopOS at it:** set `SOUNDCARD=<name>` in the device's root
+   `bopos.config` and restart the stack
    (`bash/stop-engine.sh && bash/start-engine.sh`, or `/os/restart-engine`
    from the dashboard).
 4. **Prove sound:** the `demo-pd` patch through the dashboard, or
