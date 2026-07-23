@@ -27,7 +27,7 @@
     "standalone-" ++ ~bopos.seed.asString.padLeft(6, "0")
 };
 ~bopos.patch = "BOPOS_ACTIVEPATCH".getenv ? "standalone";
-~bopos.assets = "BOPOS_ASSETS".getenv ? "";
+~bopos.assets = ("BOPOS_ASSETS".getenv ? "[]").parseJSON;
 thisThread.randSeed = ~bopos.seed;
 
 // bopos.py (or the audition rig) strips fleet selectors and relays the

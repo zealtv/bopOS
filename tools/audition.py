@@ -25,6 +25,7 @@ import manifest as patch_manifest  # noqa: E402
 import identity  # noqa: E402
 import audition_geometry  # noqa: E402
 import audition_matrix  # noqa: E402
+import asset_slots  # noqa: E402
 import paramgen  # noqa: E402
 import pointfield  # noqa: E402
 import relay  # noqa: E402
@@ -166,7 +167,8 @@ class AuditionRig:
         entrypoint = os.path.join(patch_dir, loaded["entrypoint"])
         if context is None:
             context = runcontext.generate(os.path.basename(patch_dir),
-                                          patches_dir=os.path.dirname(patch_dir))
+                                          patches_dir=os.path.dirname(patch_dir),
+                                          assets_dir=os.path.join(REPO_DIR, "assets"))
         if self.args.engine_command:
             values = {
                 "entrypoint": entrypoint,
@@ -193,7 +195,7 @@ class AuditionRig:
                 f"bopos-context seed {context['seed']}; "
                 f"bopos-context run-id {context['run_id']}; "
                 f"bopos-context patch {os.path.basename(patch_dir)}; "
-                f"bopos-context assets {os.path.join(REPO_DIR, 'assets')}; "
+                f"bopos-context assets {asset_slots.fudi_list(context['assets'])}; "
                 f"bopos-context version {context['version']}; "
                 f"bopos-context patch-fingerprint {context['patch_fingerprint']}; "
                 f"bopos-context groups "
@@ -211,13 +213,14 @@ class AuditionRig:
         patch_dir, loaded = self._load_patch()
         for node in self.nodes:
             context = runcontext.generate(os.path.basename(patch_dir),
-                                          patches_dir=os.path.dirname(patch_dir))
+                                          patches_dir=os.path.dirname(patch_dir),
+                                          assets_dir=os.path.join(REPO_DIR, "assets"))
             command = self.engine_command(node, patch_dir, loaded, context)
             env = os.environ.copy()
             env.update({
                 "BOPOS_ENGINE_PORT": str(node.engine_port),
                 "BOPOS_ACTIVEPATCH": os.path.basename(patch_dir),
-                "BOPOS_ASSETS": os.path.join(REPO_DIR, "assets"),
+                "BOPOS_ASSETS": asset_slots.json_list(context["assets"]),
                 "BOPOS_AUDITION_ID": str(node.device_id),
                 "BOPOS_SEED": str(context["seed"]),
                 "BOPOS_RUN_ID": context["run_id"],

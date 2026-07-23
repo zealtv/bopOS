@@ -64,9 +64,10 @@ add mixed-engine policy now.
 9. Run patch-specific `start.sh` if it exists
 
 Startup context sent to PD on the `bopos-context` bus (boundary-5, 2026-07-12):
-`seed` (int ≤6 digits), `run-id` (opaque string), `patch`, `assets`. Non-PD
+`seed` (int ≤6 digits), `run-id` (opaque string), `patch`, and `assets`
+(ordered absolute asset-slot folder paths). Non-PD
 engines get the same context as `BOPOS_SEED`/`BOPOS_RUN_ID`/`BOPOS_ACTIVEPATCH`/
-`BOPOS_ASSETS`/`BOPOS_ENGINE_PORT` environment variables.
+`BOPOS_ASSETS` (JSON array)/`BOPOS_ENGINE_PORT` environment variables.
 
 ### Shutdown (bash/stop.sh)
 

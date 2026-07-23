@@ -79,9 +79,10 @@ for cell in $CELLS; do
     BOPOS_RUN_ID="${BOPOS_RUN_ID:-perf-$LABEL}"
     BOPOS_VERSION="${BOPOS_VERSION:-unknown}"
     BOPOS_PATCH_FINGERPRINT="${BOPOS_PATCH_FINGERPRINT:-unknown}"
-    export BOPOS_ASSETS="$BOPOS_DIR/assets"
+    BOPOS_ASSETS_PD="${BOPOS_ASSETS_PD:-}"
+    export BOPOS_ASSETS
     pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" \
-        -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_DIR/assets; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT" \
+        -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_ASSETS_PD; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT" \
         >"$OUTDIR/pd-$LABEL.log" 2>&1 &
     PD_PID=$!
     sleep 5

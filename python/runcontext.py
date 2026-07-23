@@ -36,18 +36,20 @@ are 32-bit; contract sec 4.2, 12).
   after every successful membership change; this module only covers the
   launch delivery.
 
-Patch name and assets root complete the delivered context; the launcher
-already resolves those from `active_patch.txt` and the framework assets
-slot, and hands them over in the same launch step.
+Patch name and the installed asset-slot paths complete the delivered context.
+The slot list is a deterministic launch-time snapshot of the immediate visible
+directories below the framework assets directory.
 """
 
 import os
 import random
 import re
+import shlex
 import subprocess
 import sys
 import time
 
+import asset_slots
 import identity
 import groups as group_protocol
 from store import Store
@@ -115,7 +117,8 @@ def resolve_groups(repo_dir=None):
     return list(group_protocol.wire_groups(memberships))
 
 
-def generate(patch=None, now=None, repo_dir=None, patches_dir=None):
+def generate(patch=None, now=None, repo_dir=None, patches_dir=None,
+             assets_dir=None):
     """Return the full launch-delivered run context for one engine launch."""
     seed = random.randrange(SEED_SPAN)
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
@@ -125,12 +128,14 @@ def generate(patch=None, now=None, repo_dir=None, patches_dir=None):
     if patch:
         patch_path = os.path.join(patches_dir or os.path.join(repo_dir, "patches"),
                                   str(patch))
+    assets_root = assets_dir or os.path.join(repo_dir, "assets")
     return {
         "seed": seed,
         "run_id": f"{prefix}{stamp}-{seed:06d}",
         "version": resolve_version(repo_dir),
         "patch_fingerprint": resolve_patch_fingerprint(patch_path),
         "groups": resolve_groups(repo_dir),
+        "assets": asset_slots.installed_paths(assets_root),
     }
 
 
@@ -148,6 +153,8 @@ def main():
     print(f"BOPOS_VERSION='{context['version']}'")
     print(f"BOPOS_PATCH_FINGERPRINT='{context['patch_fingerprint']}'")
     print(f"BOPOS_GROUPS='{' '.join(str(g) for g in context['groups'])}'")
+    print(f"BOPOS_ASSETS={shlex.quote(asset_slots.json_list(context['assets']))}")
+    print(f"BOPOS_ASSETS_PD={shlex.quote(asset_slots.fudi_list(context['assets']))}")
     return 0
 
 

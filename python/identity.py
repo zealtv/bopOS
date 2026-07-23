@@ -13,6 +13,8 @@ import os
 import threading
 import time
 
+import asset_slots
+
 # per-file digests keyed by path, invalidated by stat signature, so repeated
 # fingerprints (a Zero answering /os/patches) re-hash only changed files
 _file_hashes = {}
@@ -197,8 +199,7 @@ def valid_asset_slot(value):
     accept that same namespace rather than a narrower ASCII token grammar.
     Patch names retain their separate, stricter grammar.
     """
-    return (isinstance(value, str) and bool(value) and not value.startswith(".")
-            and "/" not in value and "\\" not in value and "\x00" not in value)
+    return asset_slots.valid_name(value)
 
 
 def fingerprint(root):

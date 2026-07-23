@@ -26,6 +26,7 @@ import pointfield
 import relay
 import groups as group_protocol
 import paramgen
+import asset_slots
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -962,16 +963,10 @@ def initialise_patch_cache(patches_dir=None):
 def installed_assets(assets_root=None):
     """Return installed slots without ever hashing on the reply path."""
     assets_root = assets_root or ASSETS_ROOT
-    try:
-        names = sorted(os.listdir(assets_root))
-    except OSError:
-        names = []
     result = []
     needs_warm = False
-    for name in names:
+    for name in asset_slots.installed_names(assets_root):
         path = os.path.join(assets_root, name)
-        if name.startswith(".") or os.path.islink(path) or not os.path.isdir(path):
-            continue
         try:
             info = identity.cached_directory_info(path)
         except OSError:
@@ -1052,7 +1047,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.7",
+        "contract_version": "1.9",
         "groups": list(getattr(state, "groups", ())),
         "device_muted": bool(getattr(state, "device_muted", False)),
         "muted": effective_mute(state),

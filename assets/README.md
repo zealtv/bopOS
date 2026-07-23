@@ -17,9 +17,12 @@ images, models, or any other files a patch or engine needs. Choose boundaries
 operationally: content that should be sent, updated, rolled back, and removed
 together belongs in one slot.
 
-Engines receive this directory as their asset root through the run context.
-There is no reserved `samplepacks` folder or patch-local compatibility path;
-sample packs are ordinary named slots like any other asset content.
+At launch, engines receive the ordered list of absolute folders for every
+installed asset slot through the run context. Adding or removing a slot
+changes that list on the next engine start; updating content inside an
+already-listed slot is visible in place. There is no reserved `samplepacks`
+folder or patch-local compatibility path; sample libraries are ordinary named
+slots like any other asset content.
 
 ## Using a slot
 
@@ -39,8 +42,9 @@ update. The dashboard warns before continuing; it does not stop or restart the
 engine automatically.
 
 Slot names must be a single visible folder name: do not start with `.`, and do
-not use `/`, `\`, or a NUL character. Dot-prefixed entries, symlinks, and
-in-progress `.part` files are excluded from catalogs and fingerprints.
+not use `/`, `\`, control characters, or a NUL character. Dot-prefixed
+entries, symlinks, and in-progress `.part` files are excluded from catalogs
+and fingerprints.
 
 ## Repository boundary
 

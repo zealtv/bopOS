@@ -36,6 +36,7 @@ from pythonosc import osc_message, osc_message_builder
 REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 PATCHES_DIR = os.path.join(REPO_DIR, "patches")
 ASSETS_DIR = os.path.join(REPO_DIR, "assets")
+DEVICE_ASSETS_DIR = "/home/pi/bopOS/assets"
 DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 HOSTNAME_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
@@ -169,6 +170,9 @@ class Device:
         # Installed slots are snapshots: later host edits must not silently
         # alter a simulated node until another fetch converges that slot.
         self.asset_slots = {}
+        # Launch-time engine context is a snapshot, not a live view of
+        # inventory. It refreshes only on the simulated engine-start edges.
+        self.engine_asset_paths = []
         self.reports = {}
         self.last_hb = None
         self.last_command = "-"
@@ -195,6 +199,12 @@ class Device:
         return int(not self.engine_dead
                    and self.state in ("booting", "running")
                    and time.monotonic() >= self.engine_restart_until)
+
+    def capture_engine_context(self):
+        self.engine_asset_paths = [
+            os.path.join(DEVICE_ASSETS_DIR, name)
+            for name in sorted(self.asset_slots)
+        ]
 
     def wire_id(self):
         # list prepend 0 in bopos.osc.pd: reports carry id 0 until helper config lands
@@ -362,6 +372,7 @@ class SimFleet:
     def finish_boot(self, device, bump_version=False):
         if bump_version:
             self.bump(device)
+        device.capture_engine_context()
         self.set_state(device, "booting")
         self.schedule(1.0, self.promote_running, device)
         self.schedule(0.0, self.heartbeat, device, False)
@@ -421,7 +432,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.7",
+            "contract_version": "1.9",
             "groups": list(device.groups),
             "device_muted": bool(device.device_muted),
             "muted": bool(device.muted),
@@ -516,6 +527,7 @@ class SimFleet:
             return
         device, slot = job["device"], job["slot"]
         if job["active"]:
+            device.capture_engine_context()
             device.engine_restart_until = 0.0
         ok = job["ok"]
         if ok:
@@ -566,8 +578,13 @@ class SimFleet:
             self.fetch_pending.setdefault(device.mac, []).append(key)
 
     def finish_patch_switch(self, device, source):
+        device.capture_engine_context()
         device.engine_restart_until = 0.0
         self.send_rev(device, source, "ok", "switched")
+
+    def finish_engine_restart(self, device):
+        device.capture_engine_context()
+        device.engine_restart_until = 0.0
 
     def admin_verb(self, device, member, args, source):
         # bopos.py owns these, so a dead engine still answers
@@ -587,7 +604,8 @@ class SimFleet:
             self.schedule(0.5, self.set_state, device, "off")
         elif member == "restart-engine":
             self.send_rev(device, source)
-            device.engine_restart_until = time.monotonic() + 3.0
+            device.engine_restart_until = float("inf")
+            self.schedule(3.0, self.finish_engine_restart, device)
         elif member == "updatebopos" or (member == "checkout" and args):
             # the pull lands (sha bumps), the receipt goes out, then the reboot
             self.set_state(device, "updating")

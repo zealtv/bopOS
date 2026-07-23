@@ -33,6 +33,7 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import identity
+from python import asset_slots
 from python import manifest as patch_manifest
 
 
@@ -106,12 +107,13 @@ def directory_info(root_dir, name, kind):
 
 def distribution_catalog(assets_dir, patches_dir):
     def entries(root, kind):
-        valid_name = identity.valid_asset_slot if kind == "asset" \
-            else lambda value: NAME_RE.fullmatch(value) is not None
-        names = (name for name in os.listdir(root)
-                 if valid_name(name)
-                 and not os.path.islink(os.path.join(root, name))
-                 and os.path.isdir(os.path.join(root, name)))
+        if kind == "asset":
+            names = asset_slots.installed_names(root)
+        else:
+            names = (name for name in os.listdir(root)
+                     if NAME_RE.fullmatch(name) is not None
+                     and not os.path.islink(os.path.join(root, name))
+                     and os.path.isdir(os.path.join(root, name)))
         return [directory_info(root, name, kind) for name in sorted(names)]
     return {"assets": entries(assets_dir, "asset"),
             "patches": entries(patches_dir, "patch")}

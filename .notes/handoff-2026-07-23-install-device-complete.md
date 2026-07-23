@@ -1,4 +1,4 @@
-# Handoff — device installer complete; continue 32 → 33 → 34 → 27 → 20/25
+# Handoff — multi-asset slots complete; continue 33 → 33b → 34 → 27 → 20/25
 
 This is the current launch note for a fresh session. It supersedes
 `.notes/handoff-2026-07-23-autopilot-node-bug.md` for launch state and work
@@ -9,40 +9,39 @@ reached, but its historical order is stale.
 
 Work one loom stitch at a time in this order:
 
-1. **32 — multi-asset packs**
-2. **33 — device audio configuration**
+1. **33 — device audio configuration**
+2. **33b — saved device networks**
 3. **34 — fleet-patch global state**
 4. **27 — tied-guard rot**
 5. **20 / 25 — console dock and message-pill encoding**
 
 Threads 20 and 25 are the final pair in this sequence; no precedence between
-them was established here. Do not bring 27 forward ahead of 32–34.
+them was established here. Do not bring 27 forward ahead of 32–34, including
+33b.
 
-## Start here
+## Thread 32 — complete and tied
 
-Run:
+The `1-context-list-design` gate is ratified and tied. Bob accepted:
 
-```sh
-./.loom/loom.sh status
-```
+- every installed top-level asset slot in context;
+- deterministic slot-name order with no precedence meaning;
+- `bopos-context assets <absolute-path...>` for PD and JSON-array
+  `BOPOS_ASSETS` for other engines;
+- the intentional retirement of the old scalar-root meaning;
+- **asset slot** as the one consistent term (no separate asset-pack concept).
 
-Then claim:
+The software side of `2-multi-pack-implementation` is complete and verified.
+Bob also completed the `.pd` side, choosing direct
+`[r bopos-context] -> [route patch assets]` consumption rather than a second
+plural bus, and confirmed list lengths 0/1/2 for zero/one/two host slots.
+Thread 32 is tied. Read:
 
-```sh
-./.loom/loom.sh claim 1-context-list-design
-```
+- `.loom/tied/1-context-list-design/decisions.md`
+- `.loom/tied/2-multi-pack-implementation/results.md`
+- the top entry in `.notes/pd-edits-for-bob.md`
 
-Read:
-
-- `.loom/threads/32-multi-asset-packs/instructions.md`
-- `.loom/threads/32-multi-asset-packs/1-context-list-design.stitching/instructions.md`
-  after claiming (the current unclaimed path has no `.stitching` suffix)
-
-Thread 32 begins with a **design and Bob-ratification gate**, not
-implementation. Decide the pack model, ordering, engine-context list wire form,
-single-root compatibility, PD receiver impact, contract amendment, and complete
-touch surface. Agents must not edit `.pd`; put the exact required receiver
-change in `.notes/pd-edits-for-bob.md`.
+The next stitch is `33-device-audio-config/1-audio-config-design`. It is a
+Bob-ratified design gate; the ordered sweep remains one stitch at a time.
 
 ## Stitch 31 — complete and tied
 
@@ -136,6 +135,10 @@ identity/alias work; do not hide it inside a later installer edit.
 - **33** starts with `1-audio-config-design`: use the `bopos.config` keys seeded
   by 31 as the single source of truth for sound-card identity and future JACK
   rate/buffer/period settings. Design requires Bob ratification.
+- **33b** starts with `1-network-config-design`: manage an ordered set of saved
+  SSIDs and write-only passphrases from the Device tab. The design must settle
+  profile priority, secret handling, and safe switching/reconnect/recovery.
+  Design requires Bob ratification.
 - **34** starts with `1-menubar-fleet-patch-design`: define fleet-patch global
   state and its menu-bar convergence indicator. Design requires Bob
   ratification.

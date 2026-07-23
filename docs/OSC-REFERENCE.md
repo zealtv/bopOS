@@ -238,6 +238,11 @@ PD gets `bopos-context version <string>` / `bopos-context patch-fingerprint
 `patch-fingerprint` is the literal string `unknown` when it can't be
 resolved without blocking launch on a hash.
 
+In v1.9, `assets` is the ordered list of absolute installed asset-slot paths:
+PD gets `bopos-context assets <absolute-path...>` and other engines get the
+same list as a JSON array in `BOPOS_ASSETS`. The list may be empty and is
+refreshed on the next engine start after a slot is added or removed.
+
 ### Engine → bopos.py (7770)
 
 | address | args | what it does | reply |

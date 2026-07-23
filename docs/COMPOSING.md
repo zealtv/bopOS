@@ -108,7 +108,7 @@ exposes labelled buses instead of raw networking:
 | `bopos-point` | spatial proximity per moving point and element, 0→1 |
 | `bopos-cue` | named cue fires, already synchronized |
 | `bopos-master` | the venue master level |
-| `bopos-context` | seed, run ID, patch name, asset folder — at launch |
+| `bopos-context` | seed, run ID, patch name, asset-slot folder list — at launch |
 | `bopos-io` | sensor data, if you use I2C peripherals |
 
 Finish your signal chain through `[bopos.out~]`: it applies master level
@@ -175,8 +175,10 @@ assets/
 
 Declare the slot in your manifest (`"slots": ["my-piece-samples"]`), send it
 from the **Assets** tab (one device at a time — select the target device,
-then **Send**), and read it in your patch from the asset root that arrives
-on `bopos-context` at launch. Keeping media out of the patch keeps deploys
+then **Send**), and select its absolute folder path from the asset-slot list
+that arrives on `bopos-context` at launch. Adding or removing a slot changes
+that list on the next engine start; updating files inside an already-listed
+slot remains visible in place. Keeping media out of the patch keeps deploys
 fast: sending a one-line patch fix never re-ships gigabytes.
 
 [assets/README.md](../assets/README.md) covers slot naming, updating in

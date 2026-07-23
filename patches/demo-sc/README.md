@@ -40,7 +40,8 @@ mechanics out of the patch and works without a second LAN listener.
 bopOS generates run context in a bopOS-owned step and delivers it atomically
 at launch through the environment: `BOPOS_SEED` (an integer, at most six
 digits), `BOPOS_RUN_ID` (an opaque launch identifier — never parse civil time
-out of it), `BOPOS_ACTIVEPATCH`, and `BOPOS_ASSETS`. A standalone
+out of it), `BOPOS_ACTIVEPATCH`, and `BOPOS_ASSETS` (a JSON array of absolute
+installed asset-slot folder paths). A standalone
 `sclang main.scd` run degrades to a self-generated seed and a
 `standalone-*` run id rather than silence. The demo seeds sclang's
 thread RNG from `BOPOS_SEED` so a fleet launch can be reproduced.
@@ -83,7 +84,7 @@ below the patch and requires no SC handler.
 - Register cue functions in `~bopos.cues`, keyed by the string cue ID.
 - Read `~bopos.points[[pointId, element]]` or change the `/pt` responder to map
   proximity to filter, density, spatialization, or another patch concern.
-- Use `BOPOS_ASSETS` from the environment for framework-landed media.
+- Use the parsed `~bopos.assets` Array for framework-landed media.
 
 The Bob-owned PD follow-ups remain in
 [`../../.notes/pd-edits-for-bob.md`](../../.notes/pd-edits-for-bob.md); agents do

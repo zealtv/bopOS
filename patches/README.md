@@ -84,9 +84,9 @@ device patch containing `.git`, which prevents the two workflows from being
 mixed.
 
 Assets live in sibling directories under `assets/` and are sent separately.
-At launch, the framework supplies the shared asset root to the engine through
-its run context. The dashboard offers per-item sends and one aggregate Sync
-all operation.
+At launch, the framework supplies the ordered list of absolute installed
+asset-slot folders to the engine through its run context. Adding or removing a
+slot changes that list on the next engine start.
 
 ## Active patch
 

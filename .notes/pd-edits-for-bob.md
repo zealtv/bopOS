@@ -1,5 +1,36 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-23 — completed multi-asset-slot context
+
+Thread `32-multi-asset-packs/1-context-list-design` changes the
+launch context from one assets-root symbol to a list of absolute asset-slot
+folder paths:
+
+```text
+bopos-context assets <absolute-slot-path-0> ... <absolute-slot-path-N>
+```
+
+Bob completed the `.pd` side on 2026-07-23 and ruled that each top-level folder
+remains an **asset slot**; "asset pack" is not a distinct term.
+
+- `pd/bopos~.pd` no longer rebuilds or publishes the old scalar
+  `bopos-assets-path`.
+- No replacement plural bus was added. The template consumes the canonical
+  `[r bopos-context] -> [route patch assets]` surface directly.
+- `patches/.templates/bopos-template.pd` preserves and displays the complete
+  assets list and its length.
+- Bob confirmed in the local patch editor that zero, one, and two host asset
+  slots produce list lengths 0, 1, and 2.
+- The same PD pass completed the pending live `groups` route and added
+  `clip~ -1 1` immediately before both output channels.
+
+The launcher escapes PD/FUDI atoms before constructing `-send`, so the
+template receives already decoded absolute paths.
+
+This supersedes the 2026-07-14 `demo-pd asset-context landing` note below: the
+value is no longer one framework assets-root symbol. No further asset-context
+PD work is pending.
+
 ## 2026-07-20 — Seat-group membership on the bopos-context bus (engine group-context amendment)
 
 The Python side is live and verified: `bopos.py` now pushes the node's
@@ -14,8 +45,9 @@ or the single sentinel integer `-1` alone when the node has no membership
 (never an empty arg list).
 
 The wire target is the same `bopos-context` bus other context values land
-on, with shape `bopos-context groups <int...>`. That part needs a `.pd`
-edit — agents don't touch `.pd` files.
+on, with shape `bopos-context groups <int...>`. Bob completed this `.pd`
+edit on 2026-07-23 alongside the multi-asset-slot/template pass; the wiring
+description below is retained as the completion record.
 
 **Where:** `pd/bopos~.pd` (root canvas), the `[route id os audition]`
 object at roughly (51, 225), which is what turns the incoming `/id <n>`

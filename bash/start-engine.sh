@@ -41,6 +41,17 @@ if ! MANIFEST_OUTPUT=$(python3 "$BOPOS_DIR/python/manifest.py" "$PATCH_PATH"); t
 fi
 eval "$MANIFEST_OUTPUT"
 
+# Assets are exposed only through the engine-neutral run context. Retire the
+# former patch-local samplepacks compatibility symlink and remove its empty
+# framework-created target before discovering the installed slot list. Never
+# delete a real directory or any content.
+ASSETS_DIR="$BOPOS_DIR/assets"
+LEGACY_SAMPLEPACKS="$PATCH_PATH/bop/samplepacks"
+if [ -L "$LEGACY_SAMPLEPACKS" ]; then
+    rm "$LEGACY_SAMPLEPACKS"
+fi
+rmdir "$ASSETS_DIR/samplepacks" 2>/dev/null || true
+
 # bopOS-owned run context, delivered atomically at launch (never over OSC)
 eval "$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")"
 BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
@@ -48,12 +59,16 @@ BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
 BOPOS_VERSION="${BOPOS_VERSION:-unknown}"
 BOPOS_PATCH_FINGERPRINT="${BOPOS_PATCH_FINGERPRINT:-unknown}"
 BOPOS_GROUPS="${BOPOS_GROUPS:--1}"
+BOPOS_ASSETS="${BOPOS_ASSETS:-[]}"
+BOPOS_ASSETS_PD="${BOPOS_ASSETS_PD:-}"
+export BOPOS_ASSETS
 
 echo "SEED: $BOPOS_SEED"
 echo "RUN ID: $BOPOS_RUN_ID"
 echo "VERSION: $BOPOS_VERSION"
 echo "PATCH FINGERPRINT: $BOPOS_PATCH_FINGERPRINT"
 echo "GROUPS: $BOPOS_GROUPS"
+echo "ASSET SLOTS: $BOPOS_ASSETS"
 
 # Print the current active patch clearly
 echo "====================="
@@ -62,16 +77,6 @@ echo "PATCH PATH: $PATCH_PATH"
 echo "ENGINE: $ENGINE"
 echo "PATCH ENTRYPOINT: $PATCH_PATH/$ENTRYPOINT"
 echo "====================="
-
-# Assets are exposed only through the engine-neutral run context. Retire the
-# former patch-local samplepacks compatibility symlink and remove its empty
-# framework-created target. Never delete a real directory or any content.
-ASSETS_DIR="$BOPOS_DIR/assets"
-LEGACY_SAMPLEPACKS="$PATCH_PATH/bop/samplepacks"
-if [ -L "$LEGACY_SAMPLEPACKS" ]; then
-    rm "$LEGACY_SAMPLEPACKS"
-fi
-rmdir "$ASSETS_DIR/samplepacks" 2>/dev/null || true
 
 #Start Jack
 echo "Waiting up to ${AUDIO_WAIT_TIMEOUT}s for ALSA card: $SOUNDCARD"
@@ -124,11 +129,10 @@ if [ "$JACK_READY" -ne 1 ]; then
 fi
 echo "Jack is ready."
 
-export BOPOS_ASSETS="$BOPOS_DIR/assets"
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."
     # PUREDATA — run context lands on the bopos-context bus in the same launch
-    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_DIR/assets; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT; bopos-context groups $BOPOS_GROUPS" &
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_ASSETS_PD; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT; bopos-context groups $BOPOS_GROUPS" &
     ENGINE_PID=$!
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else

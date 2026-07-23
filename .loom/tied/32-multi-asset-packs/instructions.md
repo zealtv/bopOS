@@ -1,6 +1,6 @@
 # 32-multi-asset-packs
 
-**FEATURE.** Support **multiple asset packs** on a node, and deliver them to the
+**FEATURE.** Support **multiple asset slots** on a node, and deliver them to the
 bopOS engine context as a **list of absolute paths of asset folders** — not the
 single `assets/` root it gets today.
 
@@ -14,10 +14,14 @@ The engine gets exactly one assets root. `bash/start-engine.sh` sends
 `bopos-context assets $BOPOS_DIR/assets` (and exports `BOPOS_ASSETS` for the SC
 engine). `python/bopos.py` has a single `ASSETS_ROOT = .../assets`;
 `installed_assets()` lists the immediate children of that one root. The engine
-sees one directory and finds packs by convention underneath it.
+sees one directory and finds slots by convention underneath it.
 
-Bob wants the packs to be first-class and the context to carry the **list of
-absolute pack paths** explicitly.
+Bob wants the slots to be first-class and the context to carry the **list of
+absolute slot paths** explicitly.
+
+Terminology ruling (Bob, 2026-07-23): each top-level folder remains an
+**asset slot**. There is no separate "asset pack" concept; the thread's
+directory name is historical.
 
 ## Bob gate
 
@@ -37,11 +41,11 @@ Bob ratifies, then implement (`2-multi-pack-implementation`).
   single-device Assets workflow (tied) and `asset-fleet-distribution` both
   assume one root today. Decide compat vs clean break in the design.
 - 0-indexing and absolute-paths-on-the-wire only where the contract already
-  is; the packs list is device-local absolute paths (fine — they never go
+  is; the slots list is device-local absolute paths (fine — they never go
   through PD as floats).
 
 ## Relation to other threads
 
 Adjacent to `asset-fleet-distribution` (bulk rollout) but distinct: this is the
-*shape of the pack set and how it reaches the engine*, not fleet distribution.
+*shape of the slot set and how it reaches the engine*, not fleet distribution.
 Note the overlap in the design so we don't duplicate.

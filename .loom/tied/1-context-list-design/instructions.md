@@ -1,13 +1,13 @@
 # 1-context-list-design
 
-Design how multiple asset packs are modelled and how the pack set reaches the
+Design how multiple asset slots are modelled and how the slot set reaches the
 engine as a list of absolute folder paths. Written proposal, **Bob ratifies**,
 then tie with the ratified design as `decisions.md`.
 
 ## Decide
 
-- **Pack model.** What is a pack — a top-level directory under `assets/`? An
-  arbitrary registered path? How are packs added/named/ordered? Is ordering
+- **Slot model.** What is a slot — a top-level directory under `assets/`? An
+  arbitrary registered path? How are slots added/named/ordered? Is ordering
   significant to the engine (search order)?
 - **Context wire form.** How `bopos-context assets …` carries a *list* of
   absolute paths: repeated atoms, an indexed set of terms, a count+paths, etc.

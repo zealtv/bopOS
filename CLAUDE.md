@@ -6,14 +6,15 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.8: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.9: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
    fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
    unassignment revision, the device asset-inventory amendment, the
    2026-07-17 patch-admin-surface amendment (engine-sent `/admin` requests,
-   version/patch-fingerprint in the run context), plus the 2026-07-19
-   parameter-automation grammar (§3.2 generator slots on numeric `/p/*`)):
+   version/patch-fingerprint in the run context), the 2026-07-19
+   parameter-automation grammar (§3.2 generator slots on numeric `/p/*`),
+   and the 2026-07-23 multi-asset-slot run-context revision):
    grammar, planes, provided terms (§4.1), the engine surface (§4.2),
    identity/persistence, ports, constraints. Don't re-litigate it; the reasoning
    lives in lore items `2026-07-07-osc-schema-council`,
@@ -62,7 +63,7 @@ The loose-end thread numbers of the *active* tier were renumbered so
 Of the 39/71 red browser-free tied guards, the ones on the patch/fleet path
 (`dist-2-node-side`, `fp-2-fleet-state`, `patch-switch-lifecycle`,
 `fp-1-identity-module`) fail on the **known rot signatures** — a pinned
-`contract_version '1.3'` (now 1.7), the retired legacy-samplepacks link, pinned
+`contract_version '1.3'` (now 1.9), the retired legacy-samplepacks link, pinned
 exact refresh-message lists / UI copy, and fake-`state` API drift. The
 *behavioral* patch-sync assertions still **pass** in the sim (fetch progress,
 "converges bytes then switches responsive nodes", per-device fetch
@@ -81,18 +82,22 @@ a real regression hides among the drift.)
    staleness pass. Quick; unblocks 31.
 3. **`31-install-oneliner`** — condense Pi setup into a `curl`-able `install-device.sh`
    + README one-liner. After 30. (USB auto-mount install step wires into 35.)
-4. **`32-multi-asset-packs`** — multiple asset packs; engine context carries a
-   **list of absolute asset-folder paths**. Design gate (`1-context-list-design`,
-   touches the engine-boundary context surface + a Bob PD edit).
+4. **Complete — `32-multi-asset-packs`.** Multiple asset slots; engine context
+   carries a **list of absolute asset-folder paths**. Bob ratified the v1.9
+   list boundary and completed the direct `bopos-context` PD/template edits;
+   zero/one/two-slot local-editor checks passed 2026-07-23.
 5. **`33-device-audio-config`** — set sound card + JACK sample-rate/buffer from
    the Device tab. Design gate.
-6. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
+6. **`33b-device-network-config`** — manage an ordered collection of saved Wi-Fi
+   SSIDs and passphrases from the Device tab. Design gate; settle secret handling
+   plus safe switching/reconnect/recovery before implementation.
+7. **`34-fleet-patch-global-state`** — "the fleet patch" as global state shown
    in the Dashboard menu bar. Design gate; coordinate the fleet-patch
    *definition* with 29 and `asset-fleet-distribution`.
 
 ### Tier 2 — failing-test cleanup, then deferred Show polish
 
-7. **`27-tied-guard-rot`** (`.waiting`) — **reframed by Bob 2026-07-23:** "we want
+8. **`27-tied-guard-rot`** (`.waiting`) — **reframed by Bob 2026-07-23:** "we want
    durable, maintainable tests for appropriate surfaces; running tests of tied
    stitches was the wrong pattern." So this is **not** "repair the 39/71 reds + a
    sweep script." It is a **two-tier split**: promote the guards that assert
@@ -108,9 +113,9 @@ a real regression hides among the drift.)
    after the node work. **Cheap thing to do now regardless (not gated):** a stitch
    touching a genuinely shared surface writes its check into a `tests/` file, not a
    new tied guard.
-8. **`20-console-dock`** (`.waiting`) — deferred Show polish (Bob's 2026-07-21
+9. **`20-console-dock`** (`.waiting`) — deferred Show polish (Bob's 2026-07-21
    fix-pass item). Resume after the guard-rot cleanup.
-9. **`25-message-pill-encoding`** (`.waiting`) — deferred. Bob ruled 2026-07-23
+10. **`25-message-pill-encoding`** (`.waiting`) — deferred. Bob ruled 2026-07-23
    the pill colours are a **single flat 7-category set** (cue, point, raw,
    param-value, param-fade, param-lfo, param-stop — confirm whether `loop`
    folds/omits/adds an 8th), not two dimensions.
@@ -126,7 +131,7 @@ a real regression hides among the drift.)
 - **`35-node-logging`** — the append-only-log seed (destination in Device tab +
   USB auto-mount); grow the design when Bob wants it.
 - **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after
-  `32-multi-asset-packs` settles the pack shape.
+  `32-multi-asset-packs` settles the slot shape.
 - **`scene-sequencing`** (whole thread paused 2026-07-08; language is co-design),
   **`framework-version-management/version-0`** (parked on the UI-tabs-runway
   basis), **`pi-zero-performance/zero-2-engine-verdict`** (SC strategy co-design),
@@ -147,11 +152,11 @@ close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
 ## Thread ordering (reconciled 2026-07-16)
 
 **Foundation status (all complete, software-side):** the OSC contract is at
-**v1.8** (2026-07-07 base + seam amendment + engine-boundary revision +
+**v1.9** (2026-07-07 base + seam amendment + engine-boundary revision +
 distribution amendment + fleet-patch fingerprint/cues amendments + UID-admin
 and unassignment revision + additive unattended-update outcome receipts +
 2026-07-17 patch-admin-surface amendment + 2026-07-19 parameter-automation
-grammar §3.2);
+grammar §3.2 + 2026-07-23 multi-asset-slot run-context revision);
 `engine-boundary-design`, `patch-seam`, `clock-sync`
 (sync-0..3), spatial software (spatial-1/2), the dashboard's four phases + UI
 review, the audition preview stack (Stage 0 + preview-0..3), and
