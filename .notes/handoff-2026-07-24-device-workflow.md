@@ -1,5 +1,41 @@
 # Handoff — device-scoped patch workflow intake (2026-07-24)
 
+## Autopilot session results (2026-07-24) — items 1 & 2 done
+
+Bounded autopilot run (usage meter was blind — OAuth token expired/HTTP 401 —
+so this was scoped to the two named items, not an open-ended "until cap" loop).
+
+**Tied this session:**
+- `36-engine-startup-delivery-race` — commit `bf85372`. Root cause: the
+  bopos→engine port (6661) is closed until PD opens it; `send_to_engine` raised
+  `ConnectionRefusedError`, and because that is an `OSError`, an unwrapped send
+  inside a LAN handler propagated to `lan_listener_loop`'s `except OSError`,
+  which tore the LAN socket down mid-startup (node dark in Dashboard, SSH fine).
+  Fix: `send_to_engine` swallows connection errors (returns False, no leak);
+  `deliver_engine_context` redelivers id/groups/latest-static-params on the
+  engine-alive 0→1 transition in `heartbeat_loop`; transient cues/points not
+  buffered, automation not replayed. `tests/test_engine_ready_replay.py` (6
+  browser-free node-protocol tests); full `tests/` suite 50 OK.
+  **Remaining: cold-boot confirmation on a real Pi — do it on Finn Jet.**
+- `38-patch-edit-chrome` (both children + parent) — commit `eecded1`. Menu-bar
+  Patch Edit launches/closes the editor; removed "Hear it in the sim"/"Restart"/
+  "Launch selected patch"; `#editor-launch` toggles Launch editor ⇄ Stop Editor;
+  both affordances kept in sync. `verify_editor_toggle.py` (in tied 38/1) — 15
+  Playwright checks, edit mode reached headlessly via `--sim-no-engine`. Diff
+  delegated to a Sonnet subagent; orchestrator judged it and re-ran the verify.
+
+**Docs healed this session:** CLAUDE.md now records the `--sim-no-engine`
+headless-edit-mode verify trick (thread 37 will need it); the ai-kit
+`loom-autopilot` skill gained a tie-before-commit learning (that edit is
+uncommitted — it's in the separate `~/repos/ai-kit` repo).
+
+**Recommended next stitch:** per the order below, item 3 —
+`37-device-scoped-patch-control/1` design — but it is Bob-gated and wants the
+fleet-patch definition settled jointly with `feature-backlog/34`. Item 5
+(`39-remove-installed-pack-from-device`) is the next *unblocked, workable* loose
+end if a non-design session is wanted. Item 1 (`36`) is code-complete; its only
+open thread is the Finn Jet cold-boot check.
+
 ## State of play
 
 Bob brought a workflow intake: two real devices on one network — **Finn Jet**

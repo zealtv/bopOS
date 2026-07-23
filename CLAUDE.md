@@ -392,7 +392,13 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   launches the real `dashboard/server.py` + `tools/simfleet.py` on non-default
   ports and drives headless Chromium (Playwright). Copy the newest tied one
   (`.loom/tied/*/verify_*.py`) as the template — repo-by-marker root, sim ports,
-  teardown. **Verifies run from the `~/.venvs/bopos` venv** (the path
+  teardown. **Patch-edit / execution-mode flows verify headlessly:** launching
+  simfleet with `--sim-no-engine` (and `--sim-audio-backend none`) lets
+  `set_edit`/`set_simulation` reach real `edit`/`simulate` `supervisor.mode`
+  without spawning Pure Data — so the editor GUI and mode switch are testable in
+  CI (see `tests/verify_device_control_modes.py` and the tied
+  `38-patch-edit-chrome/1/verify_editor_toggle.py`). Only real PD/GUI behaviour
+  then remains a hardware adoption check. **Verifies run from the `~/.venvs/bopos` venv** (the path
   `dashboard/README.md` uses); system `pip` is PEP-668 externally-managed, so if
   that venv is missing, create it: `python3 -m venv ~/.venvs/bopos && ~/.venvs/
   bopos/bin/pip install -r dashboard/requirements.txt pyOSC3`. Browser-free
