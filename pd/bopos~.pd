@@ -108,6 +108,8 @@
 #X obj 51 225 route id groups os audition, f 37;
 #X obj 115 377 list prepend groups;
 #X obj 115 409 s bopos-context;
+#X obj 357 402 r bopos-context;
+#X obj 357 426 print bopos-context;
 #X connect 0 0 1 0;
 #X connect 1 0 4 0;
 #X connect 3 0 5 0;
@@ -171,3 +173,4 @@
 #X connect 68 3 59 0;
 #X connect 68 4 39 0;
 #X connect 69 0 70 0;
+#X connect 71 0 72 0;
