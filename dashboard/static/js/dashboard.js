@@ -1133,7 +1133,14 @@ function assetCatalogRow(device,item) {
   else if(observed.label==="unknown") { action="send-update"; actionLabel="Send / update"; }
   const unavailable=!device||pending;
   const reason=!device?"Choose an online, assigned physical device":pending?"Transfer already in progress":"";
-  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?Identity.primary(device,installation):'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'<span class="asset-no-action">No action needed</span>'}</div></article>`;
+  const primary=action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?Identity.primary(device,installation):'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'';
+  // Remove is offered on any installed catalog pack (current/stale/unknown),
+  // not just device-only extras. The active-slot warning lives in
+  // confirmAssetAction; server + node treat the drop by name (39-remove-installed-pack-from-device).
+  const removable=device&&observed.installed;
+  const remove=removable?`<button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${Identity.primary(device,installation)}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button>`:'';
+  const controls=`${primary}${remove}`||'<span class="asset-no-action">No action needed</span>';
+  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${controls}</div></article>`;
 }
 function assetExtraRow(device,item) {
   const state=assetLiveState(device,item.name,"extra"), pending=state==="queued"||state==="fetching";

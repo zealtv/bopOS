@@ -344,19 +344,23 @@ class Dashboard:
             if declaration is None or cleaned is None or seats is None:
                 await self.ws_error(ws, "That live parameter or target is unavailable.")
                 return
-            identity = declaration["identity"]
+            # Local name must not shadow the module-level `identity` import:
+            # handle_ws also calls identity.valid_asset_slot() in the
+            # drop_distribution branch, and a plain `identity =` here would make
+            # the whole function treat it as a local (39-remove-installed-pack-from-device).
+            param_identity = declaration["identity"]
             previous = {str(seat["id"]): dict(seat.get("params", {})) for seat in seats}
             previous_devices = {uid: dict(device.get("params", {}))
                                 for uid, device in self.state.devices.items()}
             for seat in seats:
-                seat.setdefault("params", {})[identity] = cleaned
+                seat.setdefault("params", {})[param_identity] = cleaned
                 device = self.state.devices.get(seat.get("bound"))
                 if device is not None:
-                    device.setdefault("params", {})[identity] = cleaned
+                    device.setdefault("params", {})[param_identity] = cleaned
                 for virtual in self.state.devices.values():
                     if (virtual.get("virtual")
                             and str(virtual.get("seat_id")) == str(seat["id"])):
-                        virtual.setdefault("params", {})[identity] = cleaned
+                        virtual.setdefault("params", {})[param_identity] = cleaned
             try:
                 self.state.save()
             except (OSError, TypeError, ValueError):
@@ -367,7 +371,7 @@ class Dashboard:
                         self.state.devices[uid]["params"] = params
                 await self.ws_error(ws, "Could not save the live parameter; no command was sent.")
                 return
-            self.osc.set_param(selector, identity, cleaned)
+            self.osc.set_param(selector, param_identity, cleaned)
             await self.broadcast("state", self.state.public())
         elif kind == "replay_live_params":
             scope = str(data.get("scope", ""))
