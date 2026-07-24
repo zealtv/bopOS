@@ -10,7 +10,7 @@ import shlex
 import os, sys
 from time import sleep, monotonic_ns
 from csv import reader
-from pyOSC3 import OSCServer, OSCClient, OSCMessage, decodeOSC
+from pyOSC3 import OSCServer, OSCClient, OSCMessage, OSCError, decodeOSC
 from sync_node import SyncState, CueScheduler
 import atexit
 import glob
@@ -73,13 +73,20 @@ def send_to_engine(message):
     Swallow connection-level errors here (returning False) so no call site can
     leak them; deliver_engine_context redelivers durable state once the port is
     open again (see heartbeat_loop). Returns True iff the datagram was sent.
+
+    Note: pyOSC3's OSCClient.send catches the socket error and re-raises it
+    wrapped in OSCClientError, which is *not* an OSError -- so `except OSError`
+    alone never caught the refusal on a real Pi (only in tests that faked a raw
+    ConnectionRefusedError). We must catch pyOSC3's OSCError base too, or the
+    refusal escapes and kills whatever thread issued the send (it killed the
+    heartbeat thread via deliver_engine_context on a cold boot).
     """
     global _engine_send_warned_at
     with engine_client_lock:
         try:
             client.send(message)
             return True
-        except OSError as error:
+        except (OSError, OSCError) as error:
             now = monotonic_ns()
             if now - _engine_send_warned_at > 5_000_000_000:
                 print("WARNING: engine send dropped (engine not ready?):", error)
@@ -454,14 +461,19 @@ def heartbeat_loop(state=None):
     state = state or node_state
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    last_engine_alive = None
+    context_delivered = False
     while True:
         alive = engine_alive()
-        if alive == 1 and last_engine_alive == 0:
-            # 0 -> 1: the engine just opened its port. Redeliver durable context
-            # that may have been sent (and dropped) while it was still starting.
-            deliver_engine_context(state)
-        last_engine_alive = alive
+        if alive == 1:
+            # The engine is (newly) ready: redeliver durable context that may
+            # have been sent (and dropped) while its port was still closed.
+            # engine_alive() can lead PD actually binding its port, so retry on
+            # later beats until the redelivery is accepted -- never let a refusal
+            # escape this loop (that killed the heartbeat thread on a cold boot).
+            if not context_delivered:
+                context_delivered = deliver_engine_context(state)
+        else:
+            context_delivered = False
         try:
             sock.sendto(build_heartbeat(state).getBinary(),
                         (state.config.get("HB_TARGET") or "255.255.255.255", 5550))
@@ -729,7 +741,11 @@ def deliver_engine_context(state=None):
     state = state or node_state
     msg = OSCMessage("/id")
     msg.append(state.id, 'i')
-    send_to_engine(msg)
+    # engine_alive() goes true on pid+JACK, which can be a beat before Pure Data
+    # actually binds its OSC port -- so this first send may still be refused.
+    # Report that so heartbeat_loop retries rather than dropping the redelivery.
+    if not send_to_engine(msg):
+        return False
     send_groups_to_engine(state)
     with param_replay_lock:
         pending = list(latest_static_params.items())
@@ -738,6 +754,7 @@ def deliver_engine_context(state=None):
             param_generator.apply(identity_str, spec, declaration)
         except Exception as error:
             print("WARNING: param replay failed for", identity_str, ":", error)
+    return True
 
 
 def typed_append(msg, value):

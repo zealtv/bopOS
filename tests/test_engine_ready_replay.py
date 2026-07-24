@@ -72,7 +72,11 @@ class ControllableClient:
 
     def send(self, message):
         if self.refuse:
-            raise ConnectionRefusedError(111, "Connection refused")
+            # Faithful to the real library: pyOSC3's OSCClient.send catches the
+            # socket error and re-raises it wrapped in OSCClientError, which is
+            # NOT an OSError. An earlier fake raised a raw ConnectionRefusedError
+            # and so missed that `except OSError` never caught the real refusal.
+            raise pyOSC3.OSCClientError("while sending: [Errno 111] Connection refused")
         self.sent.append(str(message.address))
 
 
@@ -108,9 +112,22 @@ class EngineReadyReplayTests(unittest.TestCase):
 
     def test_deliver_engine_context_redelivers_id_and_groups(self):
         state = types.SimpleNamespace(id=7, groups=())
-        bopos.deliver_engine_context(state)
+        self.assertIs(bopos.deliver_engine_context(state), True)
         self.assertIn("/id", self.client.sent)
         self.assertIn("/groups", self.client.sent)
+
+    def test_deliver_engine_context_reports_failure_when_port_refuses(self):
+        # engine_alive() can lead PD binding its port; the redelivery must not
+        # raise (that killed the heartbeat thread) and must report False so the
+        # caller retries instead of dropping durable context.
+        self.client.refuse = True
+        state = types.SimpleNamespace(id=7, groups=())
+        try:
+            delivered = bopos.deliver_engine_context(state)
+        except Exception as error:  # pragma: no cover - the bug we are fixing
+            self.fail("deliver_engine_context leaked %r" % (error,))
+        self.assertIs(delivered, False)
+        self.assertEqual(self.client.sent, [])
 
     def test_static_param_recorded_and_replayed(self):
         state = types.SimpleNamespace(id=3, groups=())
