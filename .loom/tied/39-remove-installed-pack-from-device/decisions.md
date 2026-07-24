@@ -42,5 +42,10 @@ left alone.
 Chromium): absent→Send-only, installed non-active row surfaces Remove and
 converges to absent (plain confirm, no active warning), only the selected
 device is touched, and an active catalog slot's Remove throws the
-break-the-running-patch warning. All pass. Real Pi/PD asset removal remains a
-hardware adoption check.
+break-the-running-patch warning. All pass.
+
+**Hardware-verified (Bob, 2026-07-24, Ciro Toast).** From the Asset tab: added
+then removed two catalog asset packs, and removed a device-only (extra) pack —
+all successful. File addition and removal confirmed on the node over SSH. This
+also exercises the `identity`-shadowing server fix on real hardware (the drop
+path that was silently no-op'ing before). Adoption check closed.
