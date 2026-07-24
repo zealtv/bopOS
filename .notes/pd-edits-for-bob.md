@@ -1,5 +1,29 @@
 # PD edits for Bob — boundary-4 rewrite wave
 
+## 2026-07-24 — `to-bopos-log` bus (node logging, thread 42)
+
+The ratified logging design (`.loom/threads/42-node-logging/` — proposal +
+decisions in `1-logging-seed-design`) adds one engine-sent term:
+`/log <stream> <values…>` on localhost 7770, next to `/store`/`/report`/
+`/admin`. The PD-side bus is Bob's edit, same pattern as `to-bopos-admin`
+and `to-bopos-report`:
+
+- Add `[r to-bopos-log]` in `pd/bopos.pd` feeding an OSC
+  `/log <stream> <values…>` message into the existing localhost **7770**
+  request `netsend`.
+- A patch sends `stream value…` on the bus, e.g. `[presses 1071.5(` →
+  `[s to-bopos-log]`; the abstraction wraps it as `/log presses 1071.5`.
+- Stream names are `[A-Za-z0-9_-]+`; bopos.py drops invalid names with a
+  logged warning, never fatally. The node stamps each entry at receipt —
+  patches never send absolute time. Interval-vs-raw-events encoding is the
+  patch author's choice (ratified Q6): a computed ms interval is safe to
+  ~100 s at PD float precision; raw events get node-exact timestamps.
+- No reply to the engine; fire-and-forget like `/store`.
+
+The Python side lands in stitch `2-nodelog-facility`; the bus edit can
+happen before or after — an unconsumed `/log` before that stitch is simply
+an unknown message on 7770.
+
 ## 2026-07-23 — completed multi-asset-slot context
 
 Thread `32-multi-asset-packs/1-context-list-design` changes the
