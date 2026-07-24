@@ -43,3 +43,19 @@ with a Device-tab shortcut and live-control panel.
 
 Produce a written proposal, mark `.waiting`, surface to Bob; do not implement
 past the ratified design. Design stitch: `1-device-patch-control-design`.
+
+## First bite ratified + design stitch tied (Bob, 2026-07-24)
+
+The **first clean bite** was scoped and ratified: per-node desired-patch
+override (durable UID registry) + Patches-tab target picker (fleet *or* one
+device, reusing `converge_fleet_patch` with a singleton target set) + a
+roster **"pinned"** marker (separate axis from the convergence badge) +
+fleet-patch drift/rollup **data** (the visible menu-bar chip stays deferred to
+`feature-backlog/34`). Design stitch `1-device-patch-control-design` is **tied**
+(`decisions.md`, `proposal-first-bite.md`). Implementation is the loose end
+`2-device-patch-targeting`.
+
+**Still open in this parent** (not the first bite): the shared control-surface
+component, Control-tab rename, per-device live-control panel, "Set patch…"
+Device-tab hand-off. **Generator editing parked** to
+`feature-backlog/38-generator-editing-on-surface`.

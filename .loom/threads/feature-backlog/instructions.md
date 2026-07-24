@@ -18,3 +18,6 @@ Current backlog:
   credentials from the Device tab.
 - `34-fleet-patch-global-state` — fleet-patch global state and a persistent
   menu-bar convergence indicator. Bob moved it here on 2026-07-23.
+- `38-generator-editing-on-surface` — per-parameter generator editing on the
+  shared control surface. Bob parked it here 2026-07-24 while thread 37 takes
+  its first bite.

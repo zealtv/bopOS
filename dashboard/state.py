@@ -346,6 +346,48 @@ class InstallationState:
             return False
         return True
 
+    def device_patch_for(self, uid):
+        """The per-device desired-patch override, or None when the device
+        follows the fleet default (thread 37). {name, fingerprint} shape."""
+        entry = self.device_registry.get(uid)
+        if not isinstance(entry, dict):
+            return None
+        return device_aliases.clean_desired_patch(entry.get("desired_patch"))
+
+    def set_device_patch_override(self, uid, name, fingerprint=None):
+        """Pin a registered device to a patch other than the fleet default."""
+        entry = self.device_registry.get(uid)
+        if not isinstance(entry, dict):
+            return False
+        override = device_aliases.clean_desired_patch(
+            {"name": name, "fingerprint": fingerprint})
+        if override is None:
+            return False
+        previous = entry.get("desired_patch")
+        entry["desired_patch"] = override
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            if previous is None:
+                entry.pop("desired_patch", None)
+            else:
+                entry["desired_patch"] = previous
+            return False
+        return True
+
+    def clear_device_patch_override(self, uid):
+        """Return a device to following the fleet default patch."""
+        entry = self.device_registry.get(uid)
+        if not isinstance(entry, dict) or "desired_patch" not in entry:
+            return False
+        previous = entry.pop("desired_patch")
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            entry["desired_patch"] = previous
+            return False
+        return True
+
     def public(self):
         return self.data
 

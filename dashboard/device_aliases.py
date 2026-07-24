@@ -14,6 +14,27 @@ import re
 GENERATOR_VERSION = 2
 ALIAS_RE = re.compile(r"[A-Za-z]{2,12} [A-Za-z]{2,12}")
 
+
+def clean_desired_patch(value):
+    """Validate a per-device desired-patch override, or None if unset/malformed.
+
+    A device may be pinned to a patch other than the fleet default (thread 37).
+    The record mirrors the fleet_patch shape's essentials — {name, fingerprint}
+    — but stays lenient: a bad field drops the override rather than invalidating
+    the whole registry, since the live catalog re-resolves the fingerprint at
+    read time anyway. Absent override is the common case and must round-trip as
+    simply no key.
+    """
+    if not isinstance(value, dict):
+        return None
+    name = str(value.get("name", "")).strip()
+    if not name:
+        return None
+    fingerprint = value.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint.strip():
+        fingerprint = None
+    return {"name": name, "fingerprint": fingerprint}
+
 # Freda Sparks is the ratified seed and tone reference. Keep both at index 0.
 GIVEN_NAMES = (
     "Freda", "Amara", "Amina", "Anya", "Asha", "Ayla", "Bayo", "Ciro",
@@ -155,6 +176,9 @@ def clean_registry(value):
             return None
         cleaned[uid] = {"alias": alias, "source": source, "generator": generator,
                         "device_enabled": device_enabled}
+        desired_patch = clean_desired_patch(entry.get("desired_patch"))
+        if desired_patch is not None:
+            cleaned[uid]["desired_patch"] = desired_patch
     return cleaned
 
 
@@ -167,6 +191,11 @@ def set_custom(registry, uid, value):
                   if other_uid != uid and alias_key(entry.get("alias")) == key), None)
     if owner is not None:
         return None, f"Alias is already used by device …{owner[-8:]}."
-    return {"alias": alias, "source": "custom", "generator": GENERATOR_VERSION,
-            "device_enabled": bool(
-                registry.get(uid, {}).get("device_enabled", True))}, None
+    entry = {"alias": alias, "source": "custom", "generator": GENERATOR_VERSION,
+             "device_enabled": bool(
+                 registry.get(uid, {}).get("device_enabled", True))}
+    # An alias rename must not silently drop a device's patch pin (thread 37).
+    desired_patch = clean_desired_patch(registry.get(uid, {}).get("desired_patch"))
+    if desired_patch is not None:
+        entry["desired_patch"] = desired_patch
+    return entry, None

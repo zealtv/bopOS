@@ -1412,6 +1412,23 @@ class Dashboard:
             desired["fingerprint"] = item["fingerprint"]
         return desired
 
+    async def device_desired_patch(self, device, fleet_desired):
+        """Resolve the patch a device should converge to: its per-device pin if
+        set, else the fleet default (thread 37). The pin's fingerprint is
+        re-resolved from the live host catalog, exactly as live_fleet_patch does
+        for the fleet target, so a host edit never leaves a stale digest on the
+        row badge."""
+        if device.get("virtual"):
+            return fleet_desired
+        override = self.state.device_patch_for(device.get("uid"))
+        if not override:
+            return fleet_desired
+        resolved = dict(override)
+        item = await self.catalog_patch(override["name"])
+        if item is not None:
+            resolved["fingerprint"] = item["fingerprint"]
+        return resolved
+
     async def public_device(self, device, desired=None):
         desired = desired if desired is not None else await self.live_fleet_patch()
         public = dict(device)
@@ -1436,7 +1453,17 @@ class Dashboard:
                 device_enabled=desired_enabled, enabled_observed=observed,
                 output_enabled=device.get("output_enabled"),
                 enabled_status=enabled_status)
-        public["patch_badge"] = patch_badge(device, desired)
+        # A device may be pinned to a patch other than the fleet default. The
+        # convergence badge (current/stale/…) measures against the *effective*
+        # desired target; the pin itself is a separate axis surfaced as
+        # patch_pinned so the roster can mark it without overloading the badge.
+        effective_desired = await self.device_desired_patch(device, desired)
+        override = (None if device.get("virtual")
+                    else self.state.device_patch_for(device.get("uid")))
+        public["patch_badge"] = patch_badge(device, effective_desired)
+        public["patch_pinned"] = override is not None
+        public["pinned_patch"] = override["name"] if override else None
+        public["desired_patch"] = effective_desired
         return public
 
     async def public_state(self):

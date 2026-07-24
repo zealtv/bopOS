@@ -81,6 +81,12 @@ component rather than duplicating it. (What generators mean *inside a
 preset* — capture and mix-interpolation — is thread 41's design, but the
 surface must host the per-param generator affordance.)
 
+**Generator editing PARKED (Bob, 2026-07-24):** the per-param generator
+affordance moved to `feature-backlog/38-generator-editing-on-surface` so this
+thread's first bite stays clean. It returns with the shared control-surface
+restructure. First bite = device-scoped patch targeting + drift badge +
+fleet-patch mirror; see `proposal-first-bite.md`.
+
 Presets themselves are **thread `41-preset-primitive`** (Bob-gated design:
 manifest-scoped presets, save-from-editor, load per seat/group/all,
 Show-tab triggering with optional interpolation). This design only needs to
