@@ -75,7 +75,7 @@
     <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
       <section id="fleet-patch-panel">
         <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
-        <div class="fleet-patch-deploy"><div class="fleet-patch-choice"><select id="patch-select" aria-label="Fleet patch"></select></div><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
+        <div class="fleet-patch-deploy"><div class="fleet-patch-choice"><select id="patch-select" aria-label="Fleet patch"></select><select id="patch-target" aria-label="Deploy target"></select></div><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
       </section>
       <section id="editor-panel">
