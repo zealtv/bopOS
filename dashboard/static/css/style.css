@@ -294,3 +294,9 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
 .show-message-pill[class*=show-pill-]{display:inline-flex;align-items:center;min-width:0;background:var(--show-pill-bg);color:var(--show-pill-text);border-color:var(--strong-line)}
 .show-pill-kind{flex:none;margin-right:4px;font-size:9px;font-weight:850;letter-spacing:.03em}
 .show-pill-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Precision typed entry on parameter readouts (40-precision-param-input). */
+output.precise-output{cursor:text;border-radius:4px}
+output.precise-output:hover{outline:1px solid var(--line);outline-offset:1px}
+output.precise-output:focus-visible{outline:2px solid var(--accent-cyan);outline-offset:1px}
+.params .precise-input{width:70px;background:var(--input);border:1px solid var(--accent-cyan);color:var(--text);border-radius:6px;padding:5px 6px;font:inherit;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}

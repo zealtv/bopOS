@@ -668,7 +668,7 @@ function editorControl(declaration, value) {
   const identity=paramIdentity(declaration);
   if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
   if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(identity)}" type="checkbox" ${value?'checked':''}></label>`;
-  return `<label><span>${name}</span><output>${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
+  return `<label><span>${name}</span><output data-precise="true">${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
 }
 function editorParamTree(declarations, values) {
   const roots=[];
@@ -774,19 +774,42 @@ function renderEditor() {
       && $("#editor-panel").contains(focused)) return;
   const controls=editorParamTree(editor.declarations||[],editor.params||{});
   $("#editor-params").innerHTML=editor.active
-    ? `<h3>master</h3><label><span>master</span><output>${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
+    ? `<h3>master</h3><label><span>master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
   document.querySelectorAll("[data-editor-param]").forEach(input=>{
     const send=()=>{const value=input.type==="checkbox"?(input.checked?1:0):(input.type==="range"?Number(input.value):input.value);editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});};
     if(input.type==="range") {
       let pending=null;
       input.oninput=()=>{if(input.previousElementSibling?.tagName==="OUTPUT")input.previousElementSibling.value=input.value;if(pending===null)pending=requestAnimationFrame(()=>{pending=null;send();});};
       input.onchange=send;
+      const output=input.previousElementSibling;
+      // Precision typed entry on the readout (40-precision-param-input). The
+      // editor re-render already bails while a number field is focused, so the
+      // guard just reconciles the readout after commit.
+      if(output?.dataset.precise==="true") window.PrecisionField.attach(output, {
+        min: input.min===""?null:Number(input.min),
+        max: input.max===""?null:Number(input.max),
+        integer: input.step==="1",
+        value: Number(input.value),
+        label: input.dataset.editorParam,
+        disabled: input.disabled,
+      }, value=>{editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});input.value=value;},
+         editing=>{if(!editing)renderEditor();});
     } else {
       input.onchange=send;
     }
   });
   const editorMaster=$("#editor-master");
-  if(editorMaster) editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
+  if(editorMaster) {
+    editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
+    // Master is a 0..1 level shown as integer percent; precision entry drives it
+    // in whole percent to match the readout and the slider's 1% step
+    // (40-precision-param-input).
+    const masterOut=editorMaster.previousElementSibling;
+    if(masterOut?.dataset.precise==="true") window.PrecisionField.attach(masterOut, {
+      min:0, max:100, integer:true, value:Math.round(master*100), label:"master", disabled:false,
+    }, value=>{master=value/100;editorMaster.value=master;ws.send("set_master",{value:master});},
+       editing=>{if(!editing)renderEditor();});
+  }
 }
 function row(d, seat) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";

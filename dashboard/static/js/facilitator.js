@@ -218,7 +218,11 @@ function paramControl(scope, id, members, declaration, disabled) {
     const fadeAttrs = model?.parsed.mode === "fade"
       ? `data-fade-anchor="${esc(Date.now() - model.elapsedMs)}" data-fade-duration="${esc(model.periodMs)}" data-fade-from="${esc(model.parsed.from ?? state.automation?.from ?? value)}" data-fade-curve="${esc(model.parsed.curve ?? 0)}" data-fade-segments="${esc(JSON.stringify(model.parsed.segments.map(segment => ({value: segment.value, ms: segment.duration.ms}))))}"`
       : "";
-    input = `<output>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
+    // A plain numeric readout (not mixed/automated) doubles as a click-to-type
+    // precision field (40-precision-param-input); mixed/automation states keep a
+    // static readout so takeover semantics are unchanged.
+    const preciseReadout = !state.automationMixed && !state.mixed && !model;
+    input = `<output${preciseReadout ? ' data-precise="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
   }
   const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
   const online = scope !== "seat" || (!!deviceForSeat(sourceSeat)?.online && Number(deviceForSeat(sourceSeat)?.engine_alive) !== 0);
@@ -490,12 +494,15 @@ function bindCards() {
       if (status) status.value = message;
       setTimeout(() => takeoverAnnouncements.delete(key), 2000);
     };
-    const send = () => {
+    const send = (override) => {
       if (takingOver && takeoverSent) return;
       input.indeterminate = false;
       input.dataset.mixed = "false";
       input.closest(".live-param")?.classList.remove("mixed");
-      const value = input.type === "checkbox" ? (input.checked ? 1 : 0) : input.type === "range" ? Number(input.value) : input.value;
+      // `override` carries the exact typed value from the precision field, which
+      // bypasses the range's coarse step so full precision reaches the wire.
+      const value = override !== undefined ? override
+        : input.type === "checkbox" ? (input.checked ? 1 : 0) : input.type === "range" ? Number(input.value) : input.value;
       const scope = input.dataset.liveScope;
       const id = input.dataset.liveId == null ? null : Number(input.dataset.liveId);
       const payload = {scope, name: input.dataset.paramPath, value};
@@ -519,6 +526,16 @@ function bindCards() {
       };
       input.onchange = send;
       input.onpointerup = send;
+      const output = input.closest(".live-param")?.querySelector('output[data-precise="true"]');
+      if (output) window.PrecisionField.attach(output, {
+        min: input.min === "" ? null : Number(input.min),
+        max: input.max === "" ? null : Number(input.max),
+        integer: input.step === "1",
+        value: Number(input.value),
+        label: input.dataset.paramName,
+        disabled: input.disabled,
+      }, value => { input.value = value; send(value); },
+         editing => { interacting = editing; if (!editing) render(); });
     } else input.onchange = send;
   });
   startFadeAnimator();
