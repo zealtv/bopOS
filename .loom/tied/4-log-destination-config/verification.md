@@ -68,8 +68,24 @@ The Device-tab "Logging" block UI is a Bob gate at implementation review. The
 proposal fixed only what it must convey (destination selector, effective state,
 USB presence); the visual specifics are his to ratify. See `logging-block.png`.
 
-## Not verified here (hardware adoption check — Ciro Toast)
+## Hardware adoption check — Ciro Toast (Bob, 2026-07-24)
 
-Real `usb` write to a mounted stick under `/media/bopos-usb/bopos-logs/`,
-unprivileged FAT write permission, and hot insert/remove taking effect on the
-next entry. Software models the fallback and the per-entry resolution.
+Confirmed live on Ciro Toast (standalone):
+
+- **Persistence across reboot.** Selecting USB in the Device tab persisted
+  `LOG_DESTINATION=usb` in `~/bopos/bopos.config`, and after a full reboot the
+  choice loaded back (still `usb` in the file; Dashboard Logging block came up
+  on USB, not internal) — exercising the `read_node_config` `LOG_DESTINATION`
+  allowlist fix end to end.
+- **Real USB write from the Dashboard.** Log entries land on the mounted stick
+  under `/media/bopos-usb/bopos-logs/` — real unprivileged FAT write, driven
+  from the dashboard.
+- **Hot insert/remove.** Working as intended: removing the stick falls entries
+  back to internal (`~/bopos-logs/`) and reinserting resumes writes to the stick
+  on the next entry, no restart — the per-entry `os.path.ismount` resolution
+  proven on hardware.
+
+Stray SD-card fallback logs under `~/bopos-logs/` (accumulated while USB was
+configured but unmounted) were cleared.
+
+**Hardware adoption check complete** — nothing outstanding.
