@@ -50,6 +50,14 @@ remain the authority for a particular piece of work.
 
 ## Next sweep — holistic ordered program of work (2026-07-23)
 
+> **Update 2026-07-25 (autopilot):** the Tier-1 framing below is a 2026-07-23
+> snapshot and is now stale — `29-fleet-patch-sync-hang`, `30`, `31`, `39`, `40`
+> are **tied**; work moved to **thread 37 (device-scoped patch control)**, whose
+> bite-2 (`2-device-patch-targeting`) is shipped and tied, with four widened-scope
+> design proposals now `.waiting` on Bob (`3`–`6`). For the current state of play
+> read `.notes/handoff-2026-07-25-device-patch-autopilot.md` first; the prose
+> below remains the durable rationale for the *rest* of the loom.
+
 This is the whole-loom order, not just the 2026-07-23 intake. Bob set the
 priority: **the node-installation bug first, then the node-enablement cluster,
 then the failing-test / guard-rot cleanup, then deferred Show polish** —
@@ -439,7 +447,11 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   shape painted outside its clip — sample screenshot pixels (Pillow) for
   that, and take the reference pixel from *inside* the same surface you
   are probing (an outside-the-room reference makes every in-room probe
-  "differ", so the check passes vacuously).
+  "differ", so the check passes vacuously); (12) a device row's
+  `data-uid` is **not** unique — the Seats-tab seat rows carry it too
+  (`.device-row.seat-row`), so `page.click('.device-row[data-uid="…"]')`
+  resolves two elements and clicks the hidden one from the inactive tab.
+  Scope roster clicks to the container (`#device-roster .device-row[data-uid=…]`).
 
 **Re-running a tied guard:** the harness declines to execute scripts living
 under `.loom/tied/`. Copy the guard into your own stitch directory and run
