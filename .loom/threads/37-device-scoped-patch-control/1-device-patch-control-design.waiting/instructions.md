@@ -85,6 +85,8 @@ Presets themselves are **thread `41-preset-primitive`** (Bob-gated design:
 manifest-scoped presets, save-from-editor, load per seat/group/all,
 Show-tab triggering with optional interpolation). This design only needs to
 leave room on the surface for save/load-preset affordances; `41` designs
-what a preset *is*. Precision float entry is thread
+what a preset *is*. One storage ruling to honour (Bob, 2026-07-24):
+**presets live in the patch folder** — the editor surface's "save preset"
+writes into the patch being edited, not into dashboard state. Precision float entry is thread
 `40-precision-param-input` (workable, ungated) — the shared surface should
 assume typed-entry-capable controls.

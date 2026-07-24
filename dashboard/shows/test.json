@@ -1,0 +1,222 @@
+{
+  "items": [
+    {
+      "alias": "RESET",
+      "kind": "divider",
+      "uid": "15986b01"
+    },
+    {
+      "alias": "Reset",
+      "duration_s": 5.0,
+      "kind": "step",
+      "messages": [
+        {
+          "address": "/p/gain0",
+          "alias": null,
+          "args": [
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "s",
+              "value": "1s"
+            }
+          ],
+          "target": [
+            "all"
+          ],
+          "uid": "9c3af9b1"
+        },
+        {
+          "address": "/p/gain1",
+          "alias": null,
+          "args": [
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "s",
+              "value": "1s"
+            }
+          ],
+          "target": [
+            "all"
+          ],
+          "uid": "3aa34bb4"
+        },
+        {
+          "address": "/p/gain",
+          "alias": null,
+          "args": [
+            {
+              "type": "f",
+              "value": 0.0
+            }
+          ],
+          "target": [
+            "all"
+          ],
+          "uid": "bd3ce514"
+        }
+      ],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "stop"
+        }
+      ],
+      "uid": "2b12befd"
+    },
+    {
+      "alias": "Start",
+      "kind": "divider",
+      "uid": "d236d8fc"
+    },
+    {
+      "alias": "go",
+      "duration_s": 10.0,
+      "kind": "step",
+      "messages": [
+        {
+          "address": "/p/gain1",
+          "alias": "gain lfo",
+          "args": [
+            {
+              "type": "s",
+              "value": "lfo"
+            },
+            {
+              "type": "s",
+              "value": "sine"
+            },
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "f",
+              "value": 1.0
+            },
+            {
+              "type": "s",
+              "value": "4s"
+            }
+          ],
+          "target": [
+            "0"
+          ],
+          "uid": "68be560d"
+        },
+        {
+          "address": "/pt",
+          "alias": "s0 gain rise",
+          "args": [
+            {
+              "type": "i",
+              "value": 0
+            },
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "f",
+              "value": 1.0
+            },
+            {
+              "type": "i",
+              "value": 1
+            }
+          ],
+          "target": [
+            "0"
+          ],
+          "uid": "e164c02c"
+        }
+      ],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "next_step"
+        }
+      ],
+      "uid": "72056afa"
+    },
+    {
+      "alias": null,
+      "duration_s": 5.0,
+      "kind": "step",
+      "messages": [
+        {
+          "address": "/p/gain1",
+          "alias": null,
+          "args": [
+            {
+              "type": "f",
+              "value": 0.8
+            }
+          ],
+          "target": [
+            "0"
+          ],
+          "uid": "3aad5318"
+        },
+        {
+          "address": "/p/gain0",
+          "alias": "s0 gain rise",
+          "args": [
+            {
+              "type": "f",
+              "value": 0.0
+            },
+            {
+              "type": "f",
+              "value": 1.0
+            },
+            {
+              "type": "s",
+              "value": "5s"
+            }
+          ],
+          "target": [
+            "0"
+          ],
+          "uid": "5833249e"
+        }
+      ],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "stop"
+        }
+      ],
+      "uid": "456b9d04"
+    },
+    {
+      "alias": null,
+      "kind": "divider",
+      "uid": "3ba46036"
+    },
+    {
+      "alias": "after divider",
+      "duration_s": 5.0,
+      "kind": "step",
+      "messages": [],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "stop"
+        }
+      ],
+      "uid": "8a53cb96"
+    }
+  ],
+  "name": "test",
+  "schema": 1
+}

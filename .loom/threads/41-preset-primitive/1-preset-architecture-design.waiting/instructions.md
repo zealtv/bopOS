@@ -79,12 +79,34 @@ approach." Consequences the proposal builds on, not re-litigates:
   the richer scheme, and per-param individual targetability is
   non-negotiable.
 
+**Also ruled (Bob, 2026-07-24): storage — presets travel with the patch;
+shows do not.**
+
+- **Presets live in the patch folder** (e.g. a `presets/` beside the
+  manifest): strictly 1:1 with the manifest, versioned and distributed
+  with the patch through the existing fetch machinery, dead with the patch
+  if it's deleted. This settles the Q1 storage fork (patch-side, not
+  dashboard-side) and the Q7 save destination (the editor's "save preset"
+  writes into the patch folder). Q1's remaining live part is the
+  **manifest-drift policy** (what happens to saved presets when the
+  manifest changes under them).
+- **Shows stay composition-level** (`dashboard/shows/` is the canonical
+  home, now versioned): a show is potentially 1:N over patches (37's
+  per-device direction), carries composition material no manifest defines,
+  and must survive patch deletion. Instead of containment, the **show
+  document records the patch name(s) + fingerprint(s) it was authored
+  against** — reuse the same drift-detection mechanism presets need, so
+  the dashboard can warn on mismatch. A patch **may bundle** a demo show
+  as an *import source* (matches the "demos live in `patches/`" ruling):
+  opening the patch offers a copy into `dashboard/shows/`; the copy is the
+  live document. The proposal designs the fingerprint-reference field and
+  the drift warning; it does not revisit where things live.
+
 ## Questions the proposal must answer
 
-1. **Identity & storage.** Does a preset live with the patch on disk (so it
-   distributes with the patch and versions with it) or dashboard-side keyed
-   to the patch fingerprint? What survives a patch edit — partial apply on
-   manifest drift, or a fingerprint-mismatch policy?
+1. **Identity & storage.** *Ruled (see above): patch-side, in the patch
+   folder.* Remaining: the manifest-drift policy — what survives a patch
+   edit (partial apply on drift, or a fingerprint-mismatch rule?).
 2. **Shape.** Named map over the manifest's numeric `/p/*` params where
    each entry is a static value **or a generator spec** (per the
    2026-07-24 extension). What about params a preset deliberately omits
@@ -109,9 +131,9 @@ approach." Consequences the proposal builds on, not re-litigates:
    (a new then-action, or a message kind alongside param-fade?); how the
    pill encoding taxonomy extends (coordinate with the ratified flat
    eight-category set from `25-message-pill-encoding`).
-7. **Editor save flow.** Where saved presets land when saving from the
-   patch editor (this couples to Q1), and how they sync to nodes if
-   node-side at all — or whether apply is always dashboard-driven.
+7. **Editor save flow.** *Destination ruled: the patch folder.* Remaining:
+   whether presets sync to nodes at all (they ride patch distribution
+   anyway) or apply stays purely dashboard-driven fan-out.
 8. **Migration.** What happens to today's dashboard-side presets (the
    empty-preset cleanup already happened; is there anything worth
    migrating, or retire them?).
