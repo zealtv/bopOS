@@ -5,6 +5,11 @@ on the shared control surface — not only via the Show inspector's message
 builder. The `automation-2` generator-builder GUI already compiles to the §3.2
 wire grammar; extract/reuse it rather than duplicating.
 
+## Pushed to someday-later (Bob, 2026-07-24)
+
+Marked `.waiting` — a someday-later task, not queued behind the current sweep.
+Resume only on an explicit Bob call.
+
 ## Deferred here by Bob, 2026-07-24
 
 Parked while thread `37-device-scoped-patch-control` takes its first clean bite
