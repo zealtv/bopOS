@@ -1,0 +1,92 @@
+#!/bin/bash
+# bopOS USB auto-mount helper (thread 42-node-logging).
+#
+# Called by bopos-usb@.service on udev add/remove of a USB block partition.
+# Mounts the first USB stick's first partition at a stable path so the node
+# logging facility (and any other consumer) discovers it by
+# os.path.ismount("/media/bopos-usb"). One stick at a time is the supported
+# model, per the ratified design (.loom/tied/1-logging-seed-design/): the
+# already-mounted guard ignores further partitions and further sticks.
+#
+# Pull-without-eject is the expected user behaviour and must be safe: FAT is
+# mounted with `flush` and native filesystems with `sync`, so a yanked stick
+# costs at worst a truncated last line — the append-only log's accepted
+# failure mode.
+set -euo pipefail
+
+MOUNT_POINT="/media/bopos-usb"
+BOPOS_USER="pi"
+
+usage() {
+    echo "usage: bopos-usb-mount {mount <devname>|unmount}" >&2
+    exit 2
+}
+
+mount_stick() {
+    local devname="$1"
+    local dev="/dev/${devname}"
+    if [ ! -b "$dev" ]; then
+        echo "bopos-usb-mount: $dev is not a block device; ignoring"
+        exit 0
+    fi
+
+    # One stick at a time: if the stable point already holds a stick, leave it.
+    if mountpoint -q "$MOUNT_POINT"; then
+        echo "bopos-usb-mount: $MOUNT_POINT already mounted; ignoring $dev"
+        exit 0
+    fi
+
+    mkdir -p "$MOUNT_POINT"
+
+    local fstype uid gid
+    fstype="$(blkid -o value -s TYPE "$dev" 2>/dev/null || true)"
+    uid="$(id -u "$BOPOS_USER")"
+    gid="$(id -g "$BOPOS_USER")"
+
+    case "$fstype" in
+        vfat|msdos|exfat)
+            # FAT-family carries no unix ownership: map it to the bopos user so
+            # the unprivileged node process can write. flush leans writes toward
+            # the device for pull-without-eject safety.
+            mount -t "$fstype" \
+                -o "rw,uid=${uid},gid=${gid},flush,noatime" "$dev" "$MOUNT_POINT"
+            ;;
+        ext2|ext3|ext4)
+            # Native unix ownership already; sync-leaning for the same reason.
+            mount -t "$fstype" -o "rw,sync,noatime" "$dev" "$MOUNT_POINT"
+            chown "${uid}:${gid}" "$MOUNT_POINT" 2>/dev/null || true
+            ;;
+        "")
+            echo "bopos-usb-mount: no filesystem detected on $dev; ignoring"
+            exit 0
+            ;;
+        *)
+            echo "bopos-usb-mount: unsupported filesystem '$fstype' on $dev; ignoring"
+            exit 0
+            ;;
+    esac
+    echo "bopos-usb-mount: mounted $dev ($fstype) at $MOUNT_POINT"
+}
+
+unmount_stick() {
+    if mountpoint -q "$MOUNT_POINT"; then
+        # A yanked stick may already be gone; lazy unmount reclaims the point.
+        umount "$MOUNT_POINT" 2>/dev/null \
+            || umount -l "$MOUNT_POINT" 2>/dev/null \
+            || true
+        echo "bopos-usb-mount: unmounted $MOUNT_POINT"
+    fi
+}
+
+case "${1:-}" in
+    mount)
+        [ "$#" -eq 2 ] || usage
+        mount_stick "$2"
+        ;;
+    unmount)
+        unmount_stick
+        ;;
+    *)
+        usage
+        ;;
+esac

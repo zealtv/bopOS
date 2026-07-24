@@ -141,7 +141,7 @@ class AssetSlotContextTests(unittest.TestCase):
         self.assertEqual(pd_adapter.count("clip~ -1 1"), 2)
 
         contract = (REPO / "docs" / "OSC-CONTRACT.md").read_text()
-        self.assertIn("**Version 1.11**", contract)
+        self.assertIn("**Version 1.13**", contract)
         self.assertIn("`BOPOS_ASSETS` is a UTF-8 JSON array", contract)
 
     def test_simfleet_context_is_a_restart_snapshot(self):

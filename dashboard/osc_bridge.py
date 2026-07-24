@@ -105,6 +105,7 @@ class OSCBridge:
         # fingerprint warming has not completed yet.
         self._asset_requeries = {}
         self._audio_apply_timeouts = {}
+        self._log_apply_timeouts = {}
         # Last generator the dashboard sent, deliberately runtime-only.  The
         # durable state serializer has an explicit allowlist and omits this.
         self.automation = {}
@@ -147,6 +148,9 @@ class OSCBridge:
         for timeout in self._audio_apply_timeouts.values():
             timeout.cancel()
         self._audio_apply_timeouts.clear()
+        for timeout in self._log_apply_timeouts.values():
+            timeout.cancel()
+        self._log_apply_timeouts.clear()
         for waiter in self._unassign_waiters.values():
             if not waiter.done():
                 waiter.cancel()
@@ -481,6 +485,32 @@ class OSCBridge:
             audio["status"] = "error"
             audio["error"] = "Audio apply timed out; refreshing observed state."
         device["audio_apply"] = {
+            "status": "err", "phase": "timeout", "at": time.time(),
+        }
+        self.broadcast("device_update", device)
+        self.request(uid, "report")
+
+    def set_log_config(self, uid, destination):
+        """Persist one bounded log destination on an exact physical Device.
+
+        No engine restart on the node, so this returns quickly; a timeout still
+        guards an offline/lost request so the pending receipt does not hang."""
+        previous = self._log_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._log_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_log_apply, uid)
+        self.uid_command(
+            uid, "log-config",
+            [json.dumps({"destination": str(destination)},
+                        separators=(",", ":"), sort_keys=True)])
+
+    def _expire_log_apply(self, uid):
+        self._log_apply_timeouts.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        device["log_apply"] = {
             "status": "err", "phase": "timeout", "at": time.time(),
         }
         self.broadcast("device_update", device)
@@ -1100,6 +1130,28 @@ class OSCBridge:
             }
             self.broadcast("report", device)
             self.request(uid, "report")
+            return
+        if address == "/os/log-config" and len(args) >= 3:
+            uid, status = str(args[0]), str(args[1])
+            device = self.state.devices.get(uid)
+            if (device is None or device.get("virtual")
+                    or status not in ("ok", "err")):
+                return
+            try:
+                log = json.loads(args[2])
+            except (ValueError, TypeError):
+                return
+            if not isinstance(log, dict):
+                return
+            timeout = self._log_apply_timeouts.pop(uid, None)
+            if timeout:
+                timeout.cancel()
+            device.setdefault("report", {})["log"] = log
+            device["log_apply"] = {
+                "status": status, "phase": "applied" if status == "ok" else "invalid",
+                "at": time.time(),
+            }
+            self.broadcast("report", device)
             return
         if address == "/os/params":
             device = self._device_for_reply("params", ip)

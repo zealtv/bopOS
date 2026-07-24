@@ -265,7 +265,7 @@ class Dashboard:
         uid = data.get("uid")
         serialized_mutations = {
             "set_param", "set_live_param", "replay_live_params", "set_device_enabled",
-            "set_device_hostname", "set_audio_config",
+            "set_device_hostname", "set_audio_config", "set_log_config",
             "action", "identify", "switch_patch", "set_fleet_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
@@ -440,6 +440,20 @@ class Dashboard:
                 "at": time.time(),
             }
             self.osc.set_audio_config(audio_uid, config)
+            await self.broadcast("device_update", device)
+        elif kind == "set_log_config":
+            log_uid = str(data.get("uid", ""))
+            device = self.state.devices.get(log_uid)
+            destination = data.get("destination")
+            if (device is None or device.get("virtual") or not device.get("online")
+                    or destination not in ("internal", "usb")):
+                await self.ws_error(
+                    ws, "That physical Device log target is unavailable.")
+                return
+            device["log_apply"] = {
+                "status": "pending", "phase": "applying", "at": time.time(),
+            }
+            self.osc.set_log_config(log_uid, destination)
             await self.broadcast("device_update", device)
         elif kind == "set_editor_param":
             name, value = str(data.get("name", "")), data.get("value")

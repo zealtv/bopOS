@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.11** — base ratified 2026-07-07; latest revision 2026-07-23. The
+**Version 1.13** — base ratified 2026-07-07; latest revision 2026-07-24. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -389,6 +389,23 @@ same handful of node-lifecycle actions the dashboard can already trigger:
 /store <key> <values…>         persistence store (§10)
 /load <key>                    → /load <key> <values…> back on the engine port
 /report <name> <values…>       retained typed values for demand inspection (§6)
+/log <stream> <values…>        append one entry to the named append-only log
+                               stream (v1.12, additive). The node stamps it at
+                               receipt with local civil time (ISO-8601 with
+                               offset, ms precision) and appends one
+                               tab-separated line
+                               `timestamp<TAB>stream<TAB>values…` (values
+                               space-joined) to a per-stream daily file
+                               `<stream>-YYYY-MM-DD.log` under the log
+                               destination (the internal default `~/bopos-logs/`;
+                               the internal/usb selection is a later additive
+                               revision). Stream names match the report rule
+                               `[A-Za-z0-9_-]+`. No reply;
+                               fire-and-forget like `/store`. An invalid or
+                               missing stream name is dropped with a logged
+                               warning, never fatal. Absolute time never enters
+                               PD (§12) — the patch sends events or relative
+                               intervals; the node owns the clock.
 /admin <action>                bounded admin request (v1.7, additive);
                                action ∈ {update-patch, update-bopos, shutdown,
                                reboot} — routes to the node's existing admin
@@ -530,6 +547,8 @@ deferred and unratified.
 /all/os/to <uid> hostname <name> → /os/hostname <uid> <name> <ok|err>
 /all/os/to <uid> audio-config <json>
     → /os/audio-config <uid> <ok|err> <phase> <json>
+/all/os/to <uid> log-config <json>
+    → /os/log-config <uid> <ok|err> <json>
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -556,8 +575,8 @@ move to the uniform envelope.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
-  `device_enabled`, execution `mute_all`, effective `output_enabled`, and the
-  `audio` object below. This
+  `device_enabled`, execution `mute_all`, effective `output_enabled`, the
+  `audio` object below, and the `log` object below. This
   is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
 - **The framework output gate is safety-critical.** It is a transport-level
@@ -611,6 +630,24 @@ move to the uniform envelope.
   `status`, and `error`. Detection is point-in-time availability, not a
   capability promise or a periodic stream. This routine path never edits boot
   overlays or invokes privileged provisioning.
+- **Exact-device log configuration (v1.13)** is physical administration on the
+  same installation-LAN route, independent of execution target. The complete
+  JSON object is exactly `{"destination": "internal"|"usb"}` — a bounded choice,
+  no free paths; missing, additional, wrongly typed, or out-of-range values
+  reject the whole request. Applying writes only `LOG_DESTINATION` in the
+  node-level `bopos.config`; there is no engine restart (logging is independent
+  of audio) and no rollback phase — the write is atomic and the receipt carries
+  the resulting state. `internal` is the SD-card default `~/bopos-logs/`; `usb`
+  is the auto-mounted stick at `/media/bopos-usb/bopos-logs/`. When `usb` is
+  configured but no stick is mounted, entries fall back to `internal` and stay
+  on the SD card — never dropped, never RAM-buffered, no copy-on-insert
+  catch-up. The effective destination is resolved per entry, so a hot-inserted
+  or removed stick takes effect on the next write without a restart. The `log`
+  report object carried by `/os/report` (and the receipt JSON) contains
+  `destination` (configured), `effective` (what is actually written now), and
+  `usb_present` (media presence) — configured vs effective vs media are all
+  visible without SSH. Log *content* is not browsable over OSC in v1; retrieval
+  is the USB stick or SSH.
 
 ## 7. Admin and convergence (`/os/*` verbs)
 
@@ -883,3 +920,5 @@ reasoning.
 | 1.9 | 2026-07-23 | Multi-asset-slot run-context revision (§4.2, §9): the engine receives the deterministic list of absolute installed-slot folder paths instead of one assets root. PD gets `bopos-context assets <absolute-path...>`; other engines get the same list as JSON-array `BOPOS_ASSETS`. Intentional scalar-root-to-list migration. | stitch `1-context-list-design` |
 | 1.10 | 2026-07-23 | Physical/execution routing revision: exact-device `mute` becomes positive `enabled`, reports `device_enabled`, `mute_all`, and `output_enabled`, and execution transitions cannot replay physical-device state. MUTE ALL remains execution-scoped like master. | thread `37-physical-device-control-routing` |
 | 1.11 | 2026-07-23 | Exact physical-device audio configuration: detected ALSA cards only, complete validated JACK settings, transactional engine restart with rollback, and attributable audio state/receipts. | `.loom/tied/1-audio-config-design/` |
+| 1.12 | 2026-07-24 | Node logging facility (§4.2): additive engine-sent `/log <stream> <values…>` on 7770 — a patch appends one node-stamped, tab-separated line to a per-stream daily append-only file, fire-and-forget like `/store`, invalid stream names dropped with a warning. Purely additive; no existing term changes shape. Destination selection (internal/usb) and the Device-tab surface follow as a later revision. | thread `42-node-logging` |
+| 1.13 | 2026-07-24 | Log-destination configuration (§6): additive exact-device `/all/os/to <uid> log-config <json>` → `/os/log-config <uid> <ok\|err> <json>`, a bounded `{"destination": "internal"\|"usb"}` choice persisted as `LOG_DESTINATION` in `bopos.config` — no engine restart, no rollback. `/os/report` gains a `log` object (`destination`, `effective`, `usb_present`); `usb` falls back to `internal` when the stick is absent, resolved per entry. Purely additive. | thread `42-node-logging` |

@@ -1,0 +1,17 @@
+[Unit]
+Description=bopOS USB auto-mount for %I
+# Started by the udev rule (99-bopos-usb.rules) for a USB block partition.
+# BindsTo the backing device unit so a pull (device node vanishes) stops this
+# unit and fires ExecStop, unmounting the stable point. One stick at a time is
+# enforced by the helper's already-mounted guard.
+DefaultDependencies=no
+BindsTo=dev-%i.device
+After=dev-%i.device
+Conflicts=umount.target
+Before=umount.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/pi/bopOS/bash/bopos-usb-mount mount %I
+ExecStop=/home/pi/bopOS/bash/bopos-usb-mount unmount

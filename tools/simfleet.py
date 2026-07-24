@@ -18,6 +18,7 @@ message bytes live only in LegacyProtocol so the v1 contract can swap in there.
 
 import argparse
 import csv
+import datetime
 import hashlib
 import heapq
 import itertools
@@ -49,6 +50,19 @@ import pointfield  # noqa: E402
 import groups as group_protocol  # noqa: E402
 import paramgen  # noqa: E402
 import audio_config  # noqa: E402
+import log_config  # noqa: E402
+
+
+def device_log_state(device):
+    # Effective mirrors the real node: usb only if chosen *and* the stick is
+    # present; otherwise internal (the visible fallback).
+    effective = ("usb" if device.log_destination == "usb" and device.usb_present
+                 else "internal")
+    return {
+        "destination": device.log_destination,
+        "effective": effective,
+        "usb_present": bool(device.usb_present),
+    }
 
 
 def load_manifest(path):
@@ -175,6 +189,15 @@ class Device:
         # inventory. It refreshes only on the simulated engine-start edges.
         self.engine_asset_paths = []
         self.reports = {}
+        # Node-side log streams (contract sec 4.2 /log): stream name -> list of
+        # (stamp, values) appended entries. In-memory parity for the real
+        # node's append-only files; a verify harness inspects this.
+        self.log_streams = {}
+        # Log destination (contract sec 4.2 log-config): the bounded choice and
+        # a simulated USB presence a verify harness can flip. Effective mirrors
+        # the real node -- usb only if chosen *and* the stick is present.
+        self.log_destination = "internal"
+        self.usb_present = False
         self.last_hb = None
         self.last_command = "-"
         self.wired = wired
@@ -462,12 +485,13 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.11",
+            "contract_version": "1.13",
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),
             "output_enabled": bool(device.output_enabled),
             "audio": audio,
+            "log": device_log_state(device),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -552,6 +576,24 @@ class SimFleet:
             builder.add_arg(json.dumps(payload, separators=(",", ":")), arg_type="s")
             self.sock.sendto(builder.build().dgram,
                              (source[0], self.args.report_port))
+            return
+        if member == "log-config" and len(args) == 1:
+            try:
+                candidate = log_config.validate(json.loads(str(args[0])))
+                device.log_destination = candidate["destination"]
+                status = "ok"
+            except (ValueError, TypeError):
+                status = "err"
+            builder = osc_message_builder.OscMessageBuilder(
+                address="/os/log-config")
+            builder.add_arg(device.mac, arg_type="s")
+            builder.add_arg(status, arg_type="s")
+            builder.add_arg(
+                json.dumps(device_log_state(device), separators=(",", ":")),
+                arg_type="s")
+            self.sock.sendto(builder.build().dgram,
+                             (source[0], self.args.report_port))
+            self.log(device, f"log-config {device.log_destination} {status}")
             return
         if member not in allowed or args:
             return
@@ -857,6 +899,25 @@ class SimFleet:
             self.log(device, f"admin unknown-action={action}")
             return
         self.log(device, f"admin {action}")
+
+    def log_request(self, device, stream, values):
+        # a real node's engine sends /log <stream> <values...> to bopos.py on
+        # localhost 7770 (contract sec 4.2); like /admin, that per-node
+        # channel never touches the LAN wire this simulator answers on, and N
+        # simulated devices share one process with no private 7770 to bind.
+        # This is the direct call a verify harness drives to exercise the same
+        # stamp/append/validate contract nodelog.append implements. Invalid
+        # stream names are dropped with a logged warning, never fatal; the
+        # node stamps at receipt.
+        stream = str(stream)
+        if re.fullmatch(r"[A-Za-z0-9_-]+", stream) is None:
+            self.log(device, f"log invalid-stream={stream!r}")
+            return
+        stamp = datetime.datetime.now().astimezone().isoformat(
+            timespec="milliseconds")
+        payload = " ".join(format_token(value) for value in values)
+        device.log_streams.setdefault(stream, []).append((stamp, list(values)))
+        self.log(device, f"log {stream} {payload}".rstrip())
 
     def receive(self):
         while True:

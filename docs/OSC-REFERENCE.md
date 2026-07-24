@@ -75,6 +75,7 @@ to be certain you're hitting exactly one physical device:
 | `enabled` | `<0\|1:i>` | see Output controls above | `/os/enabled` (5550) |
 | `hostname` | `<name:s>` | applies one validated lowercase hostname (1–63 chars, alnum + internal hyphens) | `/os/hostname <uid:s> <name:s> <ok\|err:s>` (5550) |
 | `audio-config` | `<json:s>` | validates and transactionally applies one complete detected-card/JACK configuration, restarting the audio engine and rolling back on failure | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
+| `log-config` | `<json:s>` | **v1.13.** persists one bounded log destination `{"destination":"internal"\|"usb"}` as `LOG_DESTINATION` in `bopos.config`; no engine restart, no rollback; `usb` falls back to `internal` when the stick is absent (resolved per log entry) | `/os/log-config <uid:s> <ok\|err:s> <json:s>` (5550) |
 | `identify` | — | chirp/flash | — |
 | `report` | — | static-facts JSON | `/os/report <json:s>` (5550) |
 | `reboot` | — | reboot the node | bare `/os/rev <sha:s> <model:s> <uid:s>` (5550), sent before the box goes down |
@@ -87,7 +88,7 @@ Any other verb (`patch`, `checkout`, `addpatch`, `pullpatch`, `droppatch`,
 `dropassets`, patch parameters, probes, storage, distribution) is **not**
 reachable through this envelope by design (contract §3) — use the
 selector-addressed form below instead. Every listed verb above except
-`enabled`/`hostname`/`audio-config` takes **zero** arguments; sending any
+`enabled`/`hostname`/`audio-config`/`log-config` takes **zero** arguments; sending any
 triggers a silent
 reject (no reply, no effect).
 
@@ -204,6 +205,7 @@ sending the commands above, or unprompted (heartbeats):
 | `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` | — | reply to the exact-uid `enabled` verb |
 | `/os/hostname <uid:s> <name:s> <ok\|err:s>` | — | reply to the exact-uid `hostname` verb |
 | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | terminal reply to exact-uid `audio-config`; phase is `applied`, `invalid`, `rolled-back`, or `rollback-failed` |
+| `/os/log-config <uid:s> <ok\|err:s> <json:s>` | — | reply to exact-uid `log-config`; json is the complete `log` state object (`destination`, `effective`, `usb_present`) |
 | `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
 | `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
 | `/os/load <key:s> <values…>` | — | reply to `load` |
@@ -220,7 +222,7 @@ These never leave one Pi — they're for patch and engine authors, not a
 fleet-wide OSC client. `/id`, `/os/master`, `/p/*`, `/pt`, `/cue`, and
 `/notify` arrive on the **engine's** port (6661 in production, or the
 audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
-`/report`, `/admin` are sent **by the engine to bopos.py** on **7770**.
+`/report`, `/log`, `/admin` are sent **by the engine to bopos.py** on **7770**.
 
 ### bopos.py → engine (6661)
 
@@ -254,6 +256,7 @@ refreshed on the next engine start after a slot is added or removed.
 | `/store <key:s> <values…>` | — | persistence write | — |
 | `/load <key:s>` | — | persistence read | `/load <key:s> <values…>` (6661) |
 | `/report <name:s> <values…>` | — | retain a typed value for `/os/probe` to pull later | — |
+| `/log <stream:s> <values…>` | — | **v1.12, additive.** Append one node-stamped, tab-separated line to the per-stream daily append-only file `<stream>-YYYY-MM-DD.log` under the log destination (internal default `~/bopos-logs/`; internal/usb selection is a later revision). Fire-and-forget like `/store`. `stream` matches `[A-Za-z0-9_-]+`; an invalid or missing name is dropped with a logged warning, never fatal. | — |
 | `/admin <action:s>` | `action` ∈ `update-patch`, `update-bopos`, `shutdown`, `reboot` | **v1.7, additive.** A patch running on the Pi asks bopos.py for the same node-lifecycle action the LAN `/os/*` verbs already provide — routes to the identical implementation (`pullpatch`/`updatebopos`/`shutdown`/`reboot`). No selector, no reply to the engine (these are terminal or restart the engine anyway); `/os/rev` outcome receipts still flow to the LAN model where a real requester exists. An unknown or missing action logs a warning and is otherwise ignored — never fatal. |
 
 The PD-side bus that would let a real `[bopos]`-using patch send `/admin` is

@@ -13,3 +13,7 @@ HB_TARGET=255.255.255.255
 HB_RSSI=1
 UPDATE_MODEL=persistent
 AUDIO_CHANNELS=2
+
+# Node log destination (Device tab): internal (SD card ~/bopos-logs/) or usb
+# (auto-mounted stick). usb falls back to internal when no stick is present.
+LOG_DESTINATION=internal

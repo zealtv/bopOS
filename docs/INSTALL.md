@@ -133,13 +133,17 @@ sudo ./bash/provision.sh
 ```
 
 `provision.sh` is the **one-time privileged step**. It installs the boot
-service, the validated hostname helper, the initial device config, and narrow
+service, the validated hostname helper, the initial device config, narrow
 sudoers rules that let the unprivileged node software reboot, power off, or
-apply a hostname — and nothing else. Everything after this runs as `pi`.
+apply a hostname — and nothing else — and the USB auto-mount udev rule +
+mount unit (a stick is mounted at the stable path `/media/bopos-usb` so the
+node logging facility can write to it). Everything after this runs as `pi`;
+the mount itself needs no privilege at runtime.
 
-> Existing fleet Pis that predate the hostname helper need one manual
-> `sudo bash/provision.sh` after updating; the routine **Update bopOS**
-> action deliberately cannot install root-owned pieces.
+> Existing fleet Pis that predate the hostname helper or the USB auto-mount
+> need one manual `sudo bash/provision.sh` after updating; the routine
+> **Update bopOS** action deliberately cannot install root-owned pieces.
+> `provision.sh` is idempotent — a re-run installs only the missing pieces.
 
 ## 4. Point it at the audio board
 

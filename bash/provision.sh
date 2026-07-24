@@ -20,6 +20,7 @@ LEGACY_RC_LOCAL_BACKUP="/etc/rc.local.bopos-legacy"
 install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-hostname" \
     /usr/local/sbin/bopos-set-hostname
 "$SCRIPT_DIR/install-power-control.sh"
+"$SCRIPT_DIR/install-usb-automount.sh"
 chown -R pi:pi "$BOPOS_DIR"
 
 if [ ! -e "$CONFIG_FILE" ]; then

@@ -29,6 +29,8 @@ import groups as group_protocol
 import paramgen
 import asset_slots
 import audio_config
+import log_config
+import nodelog
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -98,7 +100,7 @@ def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
               "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2",
               "JACK_SAMPLE_RATE": "44100", "JACK_PERIOD_SIZE": "512",
-              "JACK_NPERIODS": "2"}
+              "JACK_NPERIODS": "2", "LOG_DESTINATION": "internal"}
     if path is None:
         path = os.path.join(BOPOS_DIR, "bopos.config")
     try:
@@ -264,6 +266,12 @@ class NodeState:
 
 
 node_state = NodeState()
+
+# The log facility resolves its destination per entry from the live node
+# config, so a `usb` choice follows a hot-inserted stick and falls back to
+# internal when it is absent -- no restart, no dropped entries (contract
+# sec 4.2 /log; log-destination design .loom/tied/1-logging-seed-design/ §3).
+nodelog.configure(lambda: log_config.effective_dir(node_state.config))
 
 
 def process_is(pid, name):
@@ -1113,6 +1121,45 @@ def audio_report(state=None):
     }
 
 
+def log_report(state=None):
+    state = state or node_state
+    return log_config.status_object(state.config)
+
+
+def log_config_reply(reply_socket, requester, status, state=None):
+    # /os/log-config <uid> <ok|err> <json> -- the json is the complete log
+    # state object (configured/effective/usb_present). Mirrors audio-config,
+    # minus the phase arg: applying a destination is atomic and needs no
+    # transactional restart/rollback.
+    state = state or node_state
+    msg = OSCMessage("/os/log-config")
+    msg.append(str(state.uid), 's')
+    msg.append(str(status), 's')
+    msg.append(json.dumps(log_report(state), separators=(",", ":")), 's')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+
+
+def apply_log_config(payload, reply_socket, requester, state=None):
+    """Persist one bounded log destination (internal|usb). No engine restart:
+    logging is independent of audio; the destination hook picks up the new
+    config on the next entry."""
+    state = state or node_state
+    try:
+        candidate = log_config.validate(json.loads(str(payload)))
+    except (ValueError, TypeError):
+        log_config_reply(reply_socket, requester, "err", state)
+        return False
+    config_path = os.path.join(BOPOS_DIR, "bopos.config")
+    try:
+        log_config.update_config_file(config_path, candidate["destination"])
+        state.config = read_node_config(config_path)
+    except (OSError, ValueError):
+        log_config_reply(reply_socket, requester, "err", state)
+        return False
+    log_config_reply(reply_socket, requester, "ok", state)
+    return True
+
+
 def audio_config_reply(reply_socket, requester, status, phase, state=None):
     state = state or node_state
     msg = OSCMessage("/os/audio-config")
@@ -1261,12 +1308,13 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.11",
+        "contract_version": "1.13",
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),
         "output_enabled": output_enabled(state),
         "audio": audio_report(state),
+        "log": log_report(state),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -1315,6 +1363,11 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
         return True
     if member == "audio-config" and len(args) == 1:
         threading.Thread(target=apply_audio_config,
+                         args=(args[0], reply_socket, requester, state),
+                         daemon=True).start()
+        return True
+    if member == "log-config" and len(args) == 1:
+        threading.Thread(target=apply_log_config,
                          args=(args[0], reply_socket, requester, state),
                          daemon=True).start()
         return True
@@ -1972,6 +2025,19 @@ def report_callback(path='', tags='', args='', source=''):
         node_state.reports[str(args[0])] = tuple(args[1:])
 
 
+def log_callback(path='', tags='', args='', source=''):
+    # /log <stream> <values...> on localhost 7770 (contract sec 4.2) -- a
+    # patch appends one entry to the named node-side log stream. The node
+    # stamps it at receipt. Fire-and-forget, no reply. An invalid or missing
+    # stream name is dropped with a logged warning by nodelog.append, never
+    # fatal. Destination (internal/usb) is stitch 4's concern; here it is the
+    # internal default.
+    if not args:
+        print("WARNING: /log received with no stream")
+        return
+    nodelog.append(str(args[0]), list(args[1:]))
+
+
 # /os/* admin verbs on the 6660 LAN listener call these implementation
 # functions directly. Engines otherwise cannot issue administrative
 # commands, except for the bounded /admin request on 7770 (contract sec
@@ -2044,6 +2110,7 @@ param_generator = paramgen.GeneratorEngine(
 def exit_handler():
     print("exiting.  closing server...")
     param_generator.close()
+    nodelog.close()
     server.close()
 
 
@@ -2051,6 +2118,7 @@ server.addMsgHandler( "/config", config_callback )
 server.addMsgHandler( "/store", store_callback )
 server.addMsgHandler( "/load", load_callback )
 server.addMsgHandler( "/report", report_callback )
+server.addMsgHandler( "/log", log_callback )
 server.addMsgHandler( "/admin", admin_callback )
 
 atexit.register(exit_handler)

@@ -14,6 +14,7 @@ let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
 const seatBindingDrafts = new Map();
+const logDestinationDrafts = new Map();  // uid -> unsaved log destination choice
 let fleetPatchChoice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
@@ -998,6 +999,30 @@ function audioSection(d) {
   </section>`;
 }
 
+function logSection(d) {
+  const log=d.report?.log;
+  if(!log||!log.destination) return `<section id="device-log"><div class="section-head"><div><h2>Logging</h2><p class="dim">Refresh the report to load the log destination.</p></div></div></section>`;
+  const destination=log.destination, effective=log.effective, usbPresent=!!log.usb_present;
+  if(logDestinationDrafts.get(d.uid)===destination) logDestinationDrafts.delete(d.uid);
+  const choice=logDestinationDrafts.get(d.uid)??destination;
+  const fellBack=destination==="usb"&&effective==="internal";
+  const receipt=d.log_apply;
+  const feedback=receipt?.phase==="applied"?(fellBack?"Saved — USB not mounted, logging to internal storage.":"Saved log destination.")
+    :receipt?.phase==="invalid"?"The node rejected that log destination."
+    :receipt?.phase==="timeout"?"Log destination apply timed out; refreshing observed state."
+    :receipt?.status==="pending"?"Saving log destination…"
+    :fellBack?"USB selected but no stick is mounted — logging to internal storage.":"";
+  const sub=`Writing to ${effective==="usb"?"USB stick":"internal storage"}${fellBack?" (USB not mounted)":""} · USB ${usbPresent?"present":"absent"}`;
+  const opt=(value,label)=>`<option value="${value}" ${value===choice?'selected':''}>${label}</option>`;
+  return `<section id="device-log" data-log-effective="${esc(effective||'internal')}" data-log-usb="${usbPresent?'1':'0'}">
+    <div class="section-head"><div><h2>Logging</h2><p class="dim">${esc(sub)}</p></div><span class="log-state">${esc(effective||'internal')}</span></div>
+    <div class="log-config-row">
+      <label>destination<select id="log-destination" ${d.online?'':'disabled'}>${opt("internal","Internal storage (SD card)")}${opt("usb","USB stick")}</select></label>
+      <button id="log-apply" ${!d.online||choice===destination?'disabled':''}>Save log destination</button>
+      <output id="log-feedback" class="${receipt?.status==="err"?'error':''}" aria-live="polite">${esc(feedback)}</output>
+    </div></section>`;
+}
+
 function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
@@ -1022,6 +1047,7 @@ function renderDeviceDetail() {
     ${binding}
     ${patchDiagnostics(d,!!seat)}
     ${audioSection(d)}
+    ${logSection(d)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
     <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
@@ -1055,6 +1081,7 @@ function bindDeviceDetailControls(d) {
   const hostnameSet=$("#device-hostname-set");if(hostnameSet)hostnameSet.onclick=()=>ws.send("set_device_hostname",{uid:d.uid});
   const enabledToggle=$("#device-enabled-toggle");if(enabledToggle)enabledToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_enabled",{uid:d.uid,value:current.device_enabled===false?1:0});};
   bindAudioControls(d);
+  bindLogControls(d);
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
@@ -1092,6 +1119,21 @@ function bindAudioControls(d) {
     apply.disabled=true;
     const feedback=$("#audio-feedback");if(feedback){feedback.className="";feedback.value="Applying settings and restarting audio…";}
     ws.send("set_audio_config",{uid:d.uid,config:desired});
+  };
+}
+
+function bindLogControls(d) {
+  const log=d.report?.log, select=$("#log-destination"), apply=$("#log-apply");
+  if(!log?.destination||!select||!apply)return;
+  const refresh=()=>{apply.disabled=!d.online||select.value===log.destination;};
+  select.onchange=()=>{logDestinationDrafts.set(d.uid,select.value);refresh();};
+  refresh();
+  apply.onclick=()=>{
+    const destination=select.value;
+    logDestinationDrafts.delete(d.uid);
+    const feedback=$("#log-feedback");if(feedback){feedback.className="";feedback.value="Saving log destination…";}
+    apply.disabled=true;
+    ws.send("set_log_config",{uid:d.uid,destination});
   };
 }
 
