@@ -281,6 +281,10 @@ function liveCard(scope, item, members, declarations, schemaAvailable) {
 }
 
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "" : "reconnecting…"; $("#ws-status").className = connected ? "online" : "offline"; });
+// The facilitator view was silently swallowing server ws_error messages (no
+// handler → ws.js buffers and never surfaces them). A rejected set_live_param
+// then looked like "nothing happened" (thread 43). Surface it like dashboard.js.
+ws.on("error", data => { alert(data?.message || "The dashboard rejected that action."); });
 ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
   refreshAutomationAnchors(data);
@@ -309,12 +313,13 @@ ws.on("cue_scheduled", data => {
 let interacting = false;
 $("#cue-lead").addEventListener("input", () => { cueLeadModified = true; });
 document.addEventListener("pointerdown", event => {
-  if (event.target.matches('input[type="range"], input[type="checkbox"][data-automated="true"]')) interacting = true;
+  if (event.target.matches('input[type="range"], input[type="checkbox"][data-live-param]')) interacting = true;
 });
 document.addEventListener("pointerup", () => {
   if (!interacting) return;
   // Checkbox change/click follows pointerup; keep the render guard through that
-  // event so the automated input survives long enough to send its plain value.
+  // event so a live-param checkbox (automated or plain) survives a heartbeat
+  // re-render long enough to fire onchange and send its value (thread 43).
   setTimeout(() => { interacting = false; render(); }, 0);
 });
 
@@ -524,8 +529,10 @@ function bindCards() {
         if (now - last >= 33) { last = now; send(); }
         else { clearTimeout(timer); timer = setTimeout(send, 33 - (now - last)); }
       };
-      input.onchange = send;
-      input.onpointerup = send;
+      // Wrapped: DOM handlers pass the Event, which would land in `override`
+      // and go to the wire as {isTrusted:true} (thread 43).
+      input.onchange = () => send();
+      input.onpointerup = () => send();
       const output = input.closest(".live-param")?.querySelector('output[data-precise="true"]');
       if (output) window.PrecisionField.attach(output, {
         min: input.min === "" ? null : Number(input.min),
@@ -536,7 +543,7 @@ function bindCards() {
         disabled: input.disabled,
       }, value => { input.value = value; send(value); },
          editing => { interacting = editing; if (!editing) render(); });
-    } else input.onchange = send;
+    } else input.onchange = () => send();
   });
   startFadeAnimator();
   document.querySelectorAll("[data-replay-live]").forEach(button => button.onclick = () => {
