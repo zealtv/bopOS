@@ -47,3 +47,44 @@ both; see the `finn-ciro-test-rig` memory.
 
 `decisions.md` here; child implementation stitch(es) from the ratified design;
 update the parent.
+
+## Scope widened 2026-07-24 (Bob-confirmed): the shared control surface
+
+Bob's braindump — lore item `2026-07-24-patching-session-braindump` —
+generalizes this thread's per-device control panel, and Bob confirmed the
+widened scope same day: this design session also owns the **reusable
+control-surface component** and its three hosts. The proposal should cover:
+
+- **One control-surface component**, manifest-driven, rendered in three
+  contexts: the **patch editor** (drives the patch being edited, live), the
+  **Device tab** (this thread's per-device panel — an instance, not a
+  one-off), and a **Control tab** — the Dashboard tab renamed — where a
+  target filter (all / groups / specific seats) selects what the surface
+  addresses, alongside cues, master control, and presets.
+- **The IA lesson behind it:** as patches grow parameters, the Seats-tab
+  per-seat grid detail runs out of vertical room and the cue section crowds
+  out the parameters, which should be the focus ("that whole cue section is
+  much too big — maybe off to the side"). Targeting should be a filter on
+  one view, not navigation to different views; the per-seat grid "perhaps
+  isn't the best approach." Fold the cue-section-size complaint into this
+  restructure rather than patching it separately.
+- **Dashboard → Control rename**: settle it here; it also touches the
+  parked `dashboard-terminology-review` thread — one owner, note the
+  ruling there.
+
+**Generator editing on the surface (Bob, 2026-07-24, same conversation):**
+each param control on the shared surface should offer generator editing —
+choose an LFO, set rate/depth etc. from the interface, not only via the
+Show inspector's message builder. The `automation-2` generator builder GUI
+already compiles to the §3.2 wire grammar; extract/reuse it as part of the
+component rather than duplicating it. (What generators mean *inside a
+preset* — capture and mix-interpolation — is thread 41's design, but the
+surface must host the per-param generator affordance.)
+
+Presets themselves are **thread `41-preset-primitive`** (Bob-gated design:
+manifest-scoped presets, save-from-editor, load per seat/group/all,
+Show-tab triggering with optional interpolation). This design only needs to
+leave room on the surface for save/load-preset affordances; `41` designs
+what a preset *is*. Precision float entry is thread
+`40-precision-param-input` (workable, ungated) — the shared surface should
+assume typed-entry-capable controls.
