@@ -1,4 +1,4 @@
-# 35-node-logging
+# 42-node-logging
 
 **SEED.** A general logging facility for bopOS: an **append-only, timestamped
 log** on the node, with a **destination settable from the Device tab**, and —
@@ -7,8 +7,12 @@ target.
 
 This is a *seed*, not a spec. Bob planted it because he can already see several
 places that will need to log data. The design is not ratified; the goal starts
-with a design/scoping stitch (`1-logging-seed-design`) and stays `.waiting` until
-Bob wants to grow it.
+with a design/scoping stitch (`1-logging-seed-design`).
+
+**Activated 2026-07-24:** Bob set this **medium priority** — "logging I need to
+get done." Renumbered `35`→`42` so the queue serves it after
+`40-precision-param-input`; the design stitch is un-waited and workable. The
+proposal still ends in Bob ratification before implementation.
 
 Bob, 2026-07-23: "I can see multiple instances where I'm going to need to log
 data. So I think we're going to need a log function in bopOS that does an

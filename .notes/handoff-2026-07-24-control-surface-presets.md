@@ -46,20 +46,32 @@ the output-crossfade mix function against generator-arg interpolation
 (Bob: "if there is a more elegant approach I might prefer it") and
 recommend with wire-shape deltas.
 
-**5. Implementation stitches out of 37, then 41** — laid out as children
+**5. `42-node-logging/1-logging-seed-design`** — **activated 2026-07-24**
+(Bob: "logging I need to get done as a medium priority"). Renumbered from
+`35` so the queue stays literal; the design stitch is un-waited and
+workable without Bob present — grow the seed (append-only timestamped log
+facility, Device-tab destination, USB auto-mount, enumerate first callers)
+into a written proposal; **Bob ratifies** before implementation children.
+Sits here so 39/40 clear first, but it need not wait for the 37/41 design
+sessions — it is independent of the control-surface work and is the right
+thing to pick up whenever those sessions are blocked on Bob's availability.
+
+**6. Implementation stitches out of 37, then 41** — laid out as children
 after each ratification. Expect 37's implementation to subsume the old
 Seats-detail vertical-overflow complaint (don't patch it separately).
 
-**6. Resume the pre-existing backlog** in its standing order: 27 guard-rot
+**7. Resume the pre-existing backlog** in its standing order: 27 guard-rot
 (Bob's fresh briefed session, `.notes/handoff-guard-rot-briefing.md`),
-then deferred items per CLAUDE.md's Next sweep (35 logging seed, 34
-fleet-patch global state + 33b network config in feature-backlog,
-20/07-map-tab, tier 3–5 gates).
+then deferred items per CLAUDE.md's Next sweep (34 fleet-patch global
+state + 33b network config in feature-backlog, 20/07-map-tab, tier 3–5
+gates).
 
 ## Why this order
 
-39 and 40 are the only ungated workable items and both are small; they
-clear the runway. 37 before 41 because the preset UI lives on the surface
+39 and 40 are the smallest ungated items; they clear the runway. Logging
+(42) is Bob-assigned medium priority and Bob-independent until its
+ratification gate, so it slots after them and fills any gap while the
+design sessions wait on Bob. 37 before 41 because the preset UI lives on the surface
 37 designs — designing presets first would force guesses about their home.
 40 before 37's implementation because the shared surface should be born
 with precision entry, not retrofitted.
@@ -70,7 +82,7 @@ with precision entry, not retrofitted.
   anchors (39, 40) or a full decision inventory + open-questions list
   (37/1, 41/1). Read the stitch before this note wins any disagreement —
   the stitch is authoritative.
-- Design stitches (37/1, 41/1) end in a **written proposal Bob ratifies**,
+- Design stitches (37/1, 41/1, 42/1) end in a **written proposal Bob ratifies**,
   then tie with `decisions.md`. Do not implement past an unratified design.
 - Verification: headless Playwright + simfleet per CLAUDE.md's "Testing
   without hardware" (venv `~/.venvs/bopos`; copy the newest tied
@@ -81,10 +93,8 @@ with precision entry, not retrofitted.
 - Test rig for 37/41 hardware checks: Finn Jet (fleet-node) + Ciro Toast
   (standalone) — see the `finn-ciro-test-rig` memory and 37/1's rig note.
 
-## Not included in this commit
+## Session artifacts
 
-`bopos.devices` (modified) and `dashboard/shows/` (untracked) predate this
-session — they look like artifacts of Bob's patching session (device store
-churn + saved show documents). Left for Bob to commit or discard
-deliberately; `bopos.devices` was separately flagged stale (old MACs) as a
-cleanup candidate.
+`bopos.devices`: Bob confirmed the modification is intentional; committed.
+`dashboard/shows/` (untracked saved show documents from the patching
+session) remains uncommitted — Bob to commit or discard deliberately.

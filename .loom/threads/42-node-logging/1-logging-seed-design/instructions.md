@@ -1,7 +1,7 @@
 # 1-logging-seed-design
 
-Grow the logging seed into a scoped design. This stitch starts `.waiting` — it
-runs when Bob wants to take the seed forward, not before. When claimed: produce a
+Grow the logging seed into a scoped design. Un-waited 2026-07-24 —
+Bob wants it done, medium priority. When claimed: produce a
 written proposal, **Bob ratifies**, tie with `decisions.md`.
 
 ## Cover

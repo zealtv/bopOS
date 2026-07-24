@@ -42,7 +42,7 @@ Bob brought a workflow intake: two real devices on one network — **Finn Jet**
 (kite spool, bopOS-as-a-fleet-node case) and **Ciro Toast** (standalone) — and
 wants to target/interact with a patch on a single device without pushing to the
 whole fleet, plus editor-chrome cleanup and a device-side asset-pack removal.
-Parsed into four loom threads (37/38/39 new, plus the pre-existing 35 logging
+Parsed into four loom threads (37/38/39 new, plus the pre-existing 35 logging (since renumbered 42 and activated, 2026-07-24)
 seed and 36 startup-race bug). Several design calls were ratified in-session;
 the meaty per-device design stays Bob-gated.
 
@@ -78,7 +78,7 @@ the meaty per-device design stays Bob-gated.
    write the proposal; settle **drift semantics jointly with
    `feature-backlog/34-fleet-patch-global-state`** (define "the fleet patch"
    once). Best done as a sit-down with Finn & Ciro on the bench.
-4. **`35-node-logging/1` (design, `.waiting`, Bob-gated)** — grow the logging +
+4. **`35-node-logging/1` (design, `.waiting`, Bob-gated)** *(2026-07-24: renumbered `42-node-logging`, un-waited — Bob set medium priority)* — grow the logging +
    USB-auto-mount seed. Note: `31-install-oneliner` is already tied, so the
    automount install step is net-new install work spawned as a child here.
    Pairs with step 3 (both design sit-downs; USB wants a stick in a real

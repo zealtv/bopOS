@@ -140,8 +140,11 @@ a real regression hides among the drift.)
 - **`feature-backlog/34-fleet-patch-global-state`** — fleet-patch global state
   and a persistent menu-bar convergence indicator. Bob deferred it 2026-07-23;
   its definition and menu-bar design remain unratified.
-- **`35-node-logging`** — the append-only-log seed (destination in Device tab +
-  USB auto-mount); grow the design when Bob wants it.
+- **`42-node-logging`** (ex-`35`, renumbered + **activated 2026-07-24**: Bob
+  set it medium priority — no longer parked) — the append-only-log seed
+  (destination in Device tab + USB auto-mount). Design stitch is un-waited and
+  queued after `40-precision-param-input`; proposal still ends in Bob
+  ratification. See `.notes/handoff-2026-07-24-control-surface-presets.md`.
 - **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after
   `32-multi-asset-packs` settles the slot shape.
 - **`scene-sequencing`** (whole thread paused 2026-07-08; language is co-design),
