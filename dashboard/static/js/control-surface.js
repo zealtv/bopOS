@@ -16,9 +16,14 @@
   const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
   function create(context) {
-    // context: {getState, deviceForSeat, send, onLocalUpdate, setInteracting, requestRender}
+    // context: {getState, deviceForSeat, send, sendAutomation, setInteracting, requestRender}
     const automationAnchors = new Map();
     const takeoverAnnouncements = new Map();
+    // Which generator drawers are open, and the argument list each one is
+    // currently authoring. Both survive the heartbeat re-render, which is why
+    // they live here and not in the DOM.
+    const openDrawers = new Set();
+    const drafts = new Map();
     let fadeAnimationFrame = null;
     let lastReducedFadeUpdate = 0;
 
@@ -138,6 +143,59 @@
       return model;
     }
 
+    // ---- generator drawer (37/08) -----------------------------------------
+    // A numeric row authors either a value or a generator against the same
+    // param address. The mode switch says which one the operator is editing;
+    // whether a generator is *running* is a separate axis, which is why stop
+    // is a control inside the drawer and not a third switch state.
+    const GEN_KINDS = ["fade", "loop", "lfo"];
+    const numericDeclaration = declaration => declaration.type === "f" || declaration.type === "i";
+    const drawerKey = (scope, id, declaration) => `${scope}:${id ?? "all"}:${declaration.identity}`;
+
+    function generatorAvailable(declaration) {
+      return !!window.ParamGenerator && !!window.ParamSpec && numericDeclaration(declaration);
+    }
+
+    function draftSpec(key, declaration, running) {
+      const args = drafts.get(key);
+      if (args) {
+        try { return window.ParamSpec.parse(args, declaration.type); }
+        catch (_error) { /* fall through to the running/blank default */ }
+      }
+      if (running?.args) {
+        try { return window.ParamSpec.parse(running.args, declaration.type); }
+        catch (_error) { /* not authorable — start blank */ }
+      }
+      return window.ParamGenerator.blank(declaration, "lfo");
+    }
+
+    function modeSwitch(key, declaration, open, disabled) {
+      const label = `${declaration.name} authoring mode`;
+      const button = (mode, text, pressed) =>
+        `<button type="button" class="live-param-mode-button" data-gen-mode="${mode}" data-gen-key="${esc(key)}" aria-pressed="${pressed}" ${disabled ? "disabled" : ""}>${text}</button>`;
+      return `<span class="live-param-mode" role="group" aria-label="${esc(label)}">${button("value", "value", !open)}${button("gen", "gen", open)}</span>`;
+    }
+
+    function generatorDrawer(scope, id, key, declaration, running, disabled) {
+      const spec = draftSpec(key, declaration, running);
+      const kind = GEN_KINDS.includes(spec.mode) ? spec.mode : "lfo";
+      const options = GEN_KINDS.map(item =>
+        `<option value="${item}" ${item === kind ? "selected" : ""}>${item}</option>`).join("");
+      const off = disabled ? "disabled" : "";
+      return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
+        <div class="live-param-gen-head">
+          <label>generator <select data-gen-kind ${off}>${options}</select></label>
+          <span class="live-param-gen-actions">
+            <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
+            <button type="button" data-gen-stop ${off}>Stop</button>
+          </span>
+        </div>
+        <div class="live-param-gen-fields">${window.ParamGenerator.fields(declaration, spec)}</div>
+        <div class="live-param-gen-preview">${window.ParamGenerator.preview(spec, declaration)}</div>
+        <output class="live-param-gen-error" aria-live="polite"></output>
+      </div>`;
+    }
+
     function scopeAttrs(scope, id, declaration) {
       return `data-live-param data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"`;
     }
@@ -199,7 +257,16 @@
       const seatScoped = scope === "seat" || scope === "device";
       const online = !seatScoped || (!!device?.online && Number(device?.engine_alive) !== 0);
       const deviceOutputDisabled = seatScoped && !!(device?.device_enabled === false || device?.output_enabled === false);
-      return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}</label>`;
+      // Every numeric row carries the value/gen switch; the drawer is a sibling
+      // of the label rather than a child, because a <label> must not wrap a
+      // form region of its own. `.promoted-controls` is a grid, so the drawer
+      // lands directly beneath its row.
+      const generator = generatorAvailable(declaration);
+      const key = drawerKey(scope, id, declaration);
+      const open = generator && openDrawers.has(key);
+      const switcher = generator ? modeSwitch(key, declaration, open, disabled) : "";
+      const drawer = open ? generatorDrawer(scope, id, key, declaration, state.automation, disabled) : "";
+      return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${switcher}${input}</label>${drawer}`;
     }
 
     function paramTree(scope, id, members, declarations, disabled) {
@@ -356,7 +423,108 @@
              });
         } else input.onchange = () => send();
       });
+      bindGenerators(root);
       startFadeAnimator();
+    }
+
+    function bindGenerators(root = document) {
+      root.querySelectorAll("[data-gen-mode]").forEach(button => {
+        button.onclick = event => {
+          // The switch lives inside the row's <label>, so a plain click would
+          // also activate the labelled control — toggling the very checkbox
+          // the operator was trying to open a drawer for.
+          event.preventDefault();
+          const key = button.dataset.genKey;
+          if (button.dataset.genMode === "gen") openDrawers.add(key);
+          else openDrawers.delete(key);
+          context.requestRender?.();
+        };
+      });
+
+      root.querySelectorAll("[data-gen-drawer]").forEach(drawer => {
+        const key = drawer.dataset.genDrawer;
+        const identity = drawer.dataset.paramPath;
+        const scope = drawer.dataset.liveScope;
+        const id = drawer.dataset.liveId ?? null;
+        const declaration = (state().live_controls?.declarations || [])
+          .find(item => item.identity === identity) || {type: "f", identity};
+        const kindSelect = drawer.querySelector("[data-gen-kind]");
+        const error = drawer.querySelector(".live-param-gen-error");
+
+        // Editing inside a drawer must survive the heartbeat: the host's
+        // render guard is the same one the precision field uses.
+        drawer.onfocusin = () => context.setInteracting?.(true);
+        drawer.onfocusout = () => context.setInteracting?.(false);
+
+        const compile = () => window.ParamGenerator.compile(drawer, declaration, kindSelect?.value || "lfo");
+        const refresh = () => {
+          const args = compile();
+          if (!args) return null;
+          drafts.set(key, args);
+          const preview = drawer.querySelector(".live-param-gen-preview");
+          if (preview) {
+            try {
+              preview.innerHTML = window.ParamGenerator.preview(
+                window.ParamSpec.parse(args, declaration.type), declaration);
+            } catch (_error) { preview.innerHTML = ""; }
+          }
+          return args;
+        };
+
+        if (kindSelect) kindSelect.onchange = () => {
+          // Switching kind starts that kind's own defaults rather than trying
+          // to reinterpret the previous kind's fields.
+          drafts.delete(key);
+          const blank = window.ParamGenerator.blank(declaration, kindSelect.value);
+          drawer.querySelector(".live-param-gen-fields").innerHTML =
+            window.ParamGenerator.fields(declaration, blank);
+          bindGenerators(drawer.parentElement || root);
+          refresh();
+        };
+
+        drawer.querySelectorAll("input, select").forEach(field => {
+          if (field === kindSelect) return;
+          field.oninput = refresh;
+          field.onchange = refresh;
+        });
+
+        const addSegment = drawer.querySelector("[data-add-param-segment]");
+        if (addSegment) addSegment.onclick = () => {
+          const list = drawer.querySelector("[data-param-segments]");
+          const count = list.querySelectorAll("[data-param-segment]").length;
+          list.insertAdjacentHTML("beforeend", window.ParamGenerator.segmentRow(
+            {value: declaration.max ?? 1, duration: {ms: 1000, amount: "1", unit: "s"}},
+            count, declaration, count + 1));
+          bindGenerators(drawer.parentElement || root);
+          refresh();
+        };
+        drawer.querySelectorAll("[data-remove-param-segment]").forEach(button => {
+          button.onclick = () => {
+            button.closest("[data-param-segment]")?.remove();
+            bindGenerators(drawer.parentElement || root);
+            refresh();
+          };
+        });
+
+        const apply = drawer.querySelector("[data-gen-apply]");
+        if (apply) apply.onclick = () => {
+          const args = refresh();
+          if (!args) {
+            if (error) error.value = "Those generator fields are incomplete.";
+            return;
+          }
+          if (error) error.value = "";
+          context.sendAutomation?.({scope, id, name: identity, args});
+        };
+        const stop = drawer.querySelector("[data-gen-stop]");
+        if (stop) stop.onclick = () => {
+          if (error) error.value = "";
+          context.sendAutomation?.({
+            scope, id, name: identity,
+            args: [window.OscMessage.typedArg("s", "stop")],
+          });
+        };
+      });
     }
 
     return {

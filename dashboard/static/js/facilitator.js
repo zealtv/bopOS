@@ -26,6 +26,15 @@ const surface = window.ControlSurface.create({
     ws.send("set_live_param", payload);
     updateLocalParams(scope, numericId, name, value);
   },
+  // A drawer-authored generator takes the same targeting but carries a §3.2
+  // argument list, so it needs its own verb; the server records the automation
+  // and clears it again on `stop`.
+  sendAutomation: ({scope, id, name, args}) => {
+    const numericId = id == null ? null : Number(id);
+    const payload = {scope, name, args};
+    if (numericId != null) payload.id = numericId;
+    ws.send("set_live_automation", payload);
+  },
   setInteracting: editing => { interacting = editing; },
   requestRender: () => render(),
 });

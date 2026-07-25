@@ -26,6 +26,7 @@ import device_aliases
 import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
+from python.paramgen import ParamGrammarError, parse_message
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
 
@@ -268,7 +269,8 @@ class Dashboard:
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         serialized_mutations = {
-            "set_param", "set_live_param", "replay_live_params", "set_device_enabled",
+            "set_param", "set_live_param", "set_live_automation",
+            "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
             "action", "identify", "switch_patch", "set_fleet_patch",
             "set_device_patch", "clear_device_patch",
@@ -282,7 +284,8 @@ class Dashboard:
             "monitor_send", "monitor_probe",
         }
         edit_blocked_mutations = {
-            "set_param", "set_live_param", "replay_live_params", "switch_patch",
+            "set_param", "set_live_param", "set_live_automation",
+            "replay_live_params", "switch_patch",
             "set_fleet_patch", "set_device_patch", "clear_device_patch",
             "revert_fleet_patch", "save_preset", "load_preset",
             "set_room", "set_points", "set_point", "clear_point",
@@ -378,6 +381,37 @@ class Dashboard:
                 await self.ws_error(ws, "Could not save the live parameter; no command was sent.")
                 return
             self.osc.set_param(selector, param_identity, cleaned)
+            await self.broadcast("state", self.state.public())
+        elif kind == "set_live_automation":
+            # The live counterpart of set_live_param: the control surface's
+            # generator drawer (37/08) authors a §3.2 argument list rather than
+            # a scalar. Targeting is identical -- same scopes, same selector --
+            # and osc.set_param already knows how to record a generator and
+            # clear one on `stop`, so this is a validation boundary, not a new
+            # mechanism. Deliberately no seat["params"] write: a generator's
+            # durable value is whatever the node last emitted, and set_param
+            # owns the fade-destination case.
+            scope = str(data.get("scope", ""))
+            declaration = self.live_param_declaration(data.get("name"))
+            seats, selector = self.live_param_target(scope, data.get("id"))
+            raw = data.get("args")
+            args = None
+            if isinstance(raw, list) and raw:
+                cleaned_args = [show_model.clean_arg(item) for item in raw]
+                if all(item is not None for item in cleaned_args):
+                    args = [item["value"] for item in cleaned_args]
+            declared_type = (declaration or {}).get("type")
+            if (declaration is None or seats is None or args is None
+                    or declared_type not in {"f", "i"}):
+                await self.ws_error(
+                    ws, "That live generator or target is unavailable.")
+                return
+            try:
+                parse_message(args, declared_type)
+            except ParamGrammarError as error:
+                await self.ws_error(ws, f"That generator is not valid: {error}")
+                return
+            self.osc.set_param(selector, declaration["identity"], args)
             await self.broadcast("state", self.state.public())
         elif kind == "replay_live_params":
             scope = str(data.get("scope", ""))

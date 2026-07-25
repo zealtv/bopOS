@@ -169,7 +169,10 @@ PARITY_JS = """
   });
   const normalize = html => html
     .replace(/data-live-scope="[^"]*"/g, 'data-live-scope="X"')
-    .replace(/data-live-id="[^"]*"/g, 'data-live-id="X"');
+    .replace(/data-live-id="[^"]*"/g, 'data-live-id="X"')
+    // The generator drawer key is scope:id:identity, so it varies for the
+    // same reason the scope attributes do.
+    .replace(/data-gen-key="[^"]*"/g, 'data-gen-key="X"');
   const seatHtml = probe.tree("seat", seat.id, [seat], declarations, false);
   const deviceHtml = probe.tree("device", seat.bound, [seat], declarations, false);
   const host = document.createElement("div");
