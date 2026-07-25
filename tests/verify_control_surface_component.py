@@ -247,13 +247,13 @@ def main():
                           " === 'function'"))
 
                 # --- (b) every scope still renders through the component ---
-                for scope in ("all", "group"):
-                    check(
-                        f"{scope} card renders rows through the component",
-                        page.locator(
-                            f'.live-card[data-live-scope="{scope}"] '
-                            '[data-live-param][data-param-path="density"]'
-                        ).count() >= 1)
+                # The target filter (37/10) shows one scope at a time, so walk
+                # it rather than expecting all the cards at once.
+                check("all card renders rows through the component",
+                      page.locator(
+                          '.live-card[data-live-scope="all"] '
+                          '[data-live-param][data-param-path="density"]'
+                      ).count() >= 1)
                 # Both the wrapping label and the input carry data-param-path,
                 # so pin the input to get an unambiguous count.
                 check("nested path renders a param branch",
@@ -272,13 +272,21 @@ def main():
                           'input[type="checkbox"][data-param-path="gate"]'
                       ).count() == 1)
 
-                page.click('[data-live-scope-view="seats"]')
+                page.click('[data-target-mode="groups"]')
+                page.wait_for_selector('.live-card[data-live-scope="group"]')
+                check("group card renders rows through the component",
+                      page.locator(
+                          '.live-card[data-live-scope="group"] '
+                          '[data-live-param][data-param-path="density"]'
+                      ).count() >= 1)
+
+                page.click('[data-target-mode="seat"]')
                 page.wait_for_selector('.live-card[data-live-scope="seat"]')
                 check("seat cards render rows through the component",
                       page.locator(
                           '.live-card[data-live-scope="seat"] '
                           '[data-live-param][data-param-path="density"]'
-                      ).count() == 2)
+                      ).count() == 1)
 
                 # --- (c) device scope is the same render as seat scope ---
                 parity = page.evaluate(PARITY_JS)

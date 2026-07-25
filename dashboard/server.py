@@ -777,11 +777,18 @@ class Dashboard:
             if not name:
                 return
             # partial state by construction: params + master only, never
-            # positions or assignments (facilitator proposal Q5)
-            seats = {str(seat["id"]): dict(seat["params"])
-                     for seat in self.state.seats.values()}
-            self.state.data["presets"][name] = {"master": self.state.data.get("master", 1.0),
-                                                "seats": seats}
+            # positions or assignments (facilitator proposal Q5).
+            # Presets follow the target filter (thread 37/10): a preset saved
+            # under one Seat captures that Seat, not the whole venue. The scope
+            # is recorded so a load can honour it; a preset without one is an
+            # older whole-venue preset and still loads that way.
+            scoped = self.preset_scope_seats(data.get("scope"), data.get("id"))
+            seats = {str(seat["id"]): dict(seat["params"]) for seat in scoped}
+            self.state.data["presets"][name] = {
+                "master": self.state.data.get("master", 1.0),
+                "scope": str(data.get("scope") or "all"),
+                "scope_id": data.get("id") if data.get("id") is not None else None,
+                "seats": seats}
             self.state.save_debounced()
             await self.broadcast("presets", {"names": sorted(self.state.data["presets"])})
         elif kind == "load_preset":
@@ -793,7 +800,15 @@ class Dashboard:
             await self.broadcast("master", {"value": master})
             values = preset.get("seats") if isinstance(preset.get("seats"), dict) else {}
             active = self.active_param_identities()
+            # A load is scoped by the filter the operator is looking at now, so
+            # recalling an All preset while focused on one Seat touches only
+            # that Seat. Passing no scope keeps the whole-venue behaviour.
+            allowed = {str(seat["id"]) for seat
+                       in self.preset_scope_seats(data.get("scope"),
+                                                  data.get("id"))}
             for seat_id, params in values.items():
+                if str(seat_id) not in allowed:
+                    continue
                 seat = self.state.seats.get(str(seat_id))
                 if seat is None or not isinstance(params, dict):
                     continue
@@ -1462,6 +1477,23 @@ class Dashboard:
             return None
         return next((item for item in self.live_control_declarations(patch_name)
                      if item["identity"] == identity), None)
+
+    def preset_scope_seats(self, scope, target_id):
+        """Seats a preset save or load applies to, for a filter target.
+
+        `all` and anything unrecognised (including a preset saved before the
+        filter existed) mean the whole venue. `groups` means every Seat that
+        belongs to at least one group -- the Groups view shows the group cards,
+        so its preset is about grouped Seats, not ungrouped ones.
+        """
+        every = list(self.state.seats.values())
+        if scope == "seat":
+            seat_id = self.state.clean_seat_id(target_id)
+            seat = self.state.seats.get(str(seat_id))
+            return [seat] if seat is not None else []
+        if scope == "groups":
+            return [seat for seat in every if seat.get("groups")]
+        return every
 
     def live_scope_patch(self, scope, target_id):
         """The patch whose promoted schema owns this scope.

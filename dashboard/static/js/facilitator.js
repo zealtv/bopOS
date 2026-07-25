@@ -7,7 +7,6 @@ let cueLeadModified = false;
 let muted = false;
 let master = 1.0;
 let presetNames = [];
-let liveScopeView = "aggregate";
 let renderedCueSignature = null;
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
@@ -37,6 +36,15 @@ const surface = window.ControlSurface.create({
   },
   setInteracting: editing => { interacting = editing; },
   requestRender: () => render(),
+});
+
+// All / Groups / Seat. The filter is the reusable component (37/10); this page
+// only decides which cards a chosen target implies.
+const targetFilter = window.SeatFilter.create({
+  host: $("#target-filter-host"),
+  getSeats: () => seats(),
+  label: "Control target",
+  onChange: () => { renderCards(); renderPresets(); $("#cards").scrollTop = 0; },
 });
 
 function liveSchema() {
@@ -151,6 +159,7 @@ document.addEventListener("pointerup", () => {
 
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
+  targetFilter.render();
   renderCues(); renderCards(); renderControls(); renderCommands(); renderPresets();
 }
 
@@ -198,37 +207,23 @@ function renderCards() {
   const schema = liveSchema();
   const declarations = schema?.declarations || [];
   const allSeats = seats();
-  const cards = liveScopeView === "seats"
-    ? allSeats.map(seat => liveCard("seat", seat, [seat], declarations, declarations.length > 0))
-    : [liveCard("all", {}, allSeats, declarations, declarations.length > 0 && allSeats.length > 0),
-       ...groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, declarations.length > 0))];
-  $("#cards").dataset.liveView = liveScopeView;
-  $("#cards").setAttribute("aria-labelledby", liveScopeView === "seats" ? "live-scope-seats" : "live-scope-aggregate");
-  $("#cards").innerHTML = cards.join("") || '<p class="empty">No Seats</p>';
+  const available = declarations.length > 0;
+  const chosen = targetFilter ? targetFilter.target() : {mode: "all"};
+  let cards;
+  if (chosen.mode === "seat") {
+    // The filter always resolves to a real Seat when one exists, so an empty
+    // list here means the venue has no Seats, not that none was chosen.
+    cards = chosen.seat ? [liveCard("seat", chosen.seat, [chosen.seat], declarations, available)] : [];
+  } else if (chosen.mode === "groups") {
+    cards = groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, available));
+  } else {
+    cards = [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0)];
+  }
+  $("#cards").dataset.liveView = chosen.mode;
+  $("#cards").innerHTML = cards.join("")
+    || `<p class="empty">${chosen.mode === "groups" ? "No groups" : "No Seats"}</p>`;
   bindCards();
 }
-
-function activateLiveScope(view, moveFocus = false) {
-  liveScopeView = view === "seats" ? "seats" : "aggregate";
-  document.querySelectorAll("[data-live-scope-view]").forEach(button => {
-    const active = button.dataset.liveScopeView === liveScopeView;
-    button.setAttribute("aria-selected", active ? "true" : "false");
-    button.tabIndex = active ? 0 : -1;
-    if (active && moveFocus) button.focus();
-  });
-  renderCards();
-  $("#cards").scrollTop = 0;
-}
-
-document.querySelectorAll("[data-live-scope-view]").forEach(button => {
-  button.onclick = () => activateLiveScope(button.dataset.liveScopeView);
-  button.onkeydown = event => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const next = event.key === "ArrowRight" || event.key === "End" ? "seats" : "aggregate";
-    activateLiveScope(next, true);
-  };
-});
 
 function updateLocalParams(scope, id, identity, value) {
   const members = scope === "all" ? seats() : scope === "group" ? groupSeats(id) : seats().filter(seat => Number(seat.id) === Number(id));
@@ -259,10 +254,35 @@ function renderControls() {
   silence.classList.toggle("active", muted);
 }
 
+// Presets follow the target filter (Bob, 2026-07-25): saving under All is a
+// different preset from saving under Seat 2, so both the save and the load
+// carry the current target. The shelf is no longer hidden when embedded — the
+// Control tab reserves a place for it.
+function presetScope() {
+  const chosen = targetFilter.target();
+  if (chosen.mode === "seat" && chosen.seat) {
+    return {scope: "seat", id: Number(chosen.seat.id),
+            label: chosen.seat.name || `Seat ${chosen.seat.id}`};
+  }
+  if (chosen.mode === "groups") return {scope: "groups", id: null, label: "Groups"};
+  return {scope: "all", id: null, label: "All Seats"};
+}
+
 function renderPresets() {
-  $("#preset-section").hidden = document.body.classList.contains("embedded") || presetNames.length === 0;
-  $("#presets").innerHTML = presetNames.map(name => `<button class="chip" data-preset="${esc(name)}">${esc(name)}</button>`).join("");
-  document.querySelectorAll("[data-preset]").forEach(button => button.onclick = () => ws.send("load_preset", {name: button.dataset.preset}));
+  const scope = presetScope();
+  // Embedded, the Control tab owns the preset shelf (it has Save as…), so this
+  // page's own shelf stays a standalone-only affordance rather than a second
+  // copy inside the iframe.
+  $("#preset-section").hidden = document.body.classList.contains("embedded");
+  const label = $("#preset-scope");
+  if (label) label.value = scope.label;
+  $("#presets").innerHTML = presetNames.length
+    ? presetNames.map(name => `<button class="chip" data-preset="${esc(name)}">${esc(name)}</button>`).join("")
+    : '<span class="dim">No presets saved</span>';
+  document.querySelectorAll("[data-preset]").forEach(button => button.onclick = () => {
+    const target = presetScope();
+    ws.send("load_preset", {name: button.dataset.preset, scope: target.scope, id: target.id});
+  });
 }
 
 const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);

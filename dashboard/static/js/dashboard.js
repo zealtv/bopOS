@@ -15,6 +15,7 @@ let master = 1.0;
 const heartbeats = new Map();
 const seatBindingDrafts = new Map();
 const logDestinationDrafts = new Map();  // uid -> unsaved log destination choice
+let presetNames = [];
 let fleetPatchChoice = null;
 let fleetPatchTarget = "all";
 let renderedFleetDesired = null;
@@ -56,8 +57,15 @@ const GROUP_SLOTS = [
   {colour:"#00B98B", pattern:"dot"},
   {colour:"#CC79A7", pattern:"dash-dot"},
 ];
-const TAB_NAMES = ["show", "dashboard", "seats", "devices", "patches", "assets"];
-let activeTab = TAB_NAMES.includes(location.hash.slice(1)) ? location.hash.slice(1) : "show";
+const TAB_NAMES = ["show", "control", "seats", "devices", "patches", "assets"];
+// The Control tab was called Dashboard until 2026-07-25 (37/10). Existing
+// bookmarks and links still say #dashboard, so keep resolving it.
+const TAB_ALIASES = {dashboard: "control"};
+function tabFromHash(hash) {
+  const name = TAB_ALIASES[hash] || hash;
+  return TAB_NAMES.includes(name) ? name : null;
+}
+let activeTab = tabFromHash(location.hash.slice(1)) || "show";
 
 function activateTab(name, updateHash=true) {
   if (!TAB_NAMES.includes(name)) name="show";
@@ -70,6 +78,9 @@ function activateTab(name, updateHash=true) {
   document.querySelectorAll("[data-tab-panel]").forEach(panel=>{
     panel.hidden=panel.dataset.tabPanel!==name;
   });
+  // The preset shelf is scoped by the target filter, which lives in the
+  // embedded surface; re-read it whenever the tab comes forward.
+  if (name==="control") renderPresets();
   if (updateHash) history.replaceState(null,"",`#${name}`);
   window.scrollTo(0,0);
   if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws,groupView()));
@@ -88,7 +99,7 @@ document.querySelectorAll("[data-tab]").forEach(button=>{
     $(`[data-tab="${TAB_NAMES[index]}"]`)?.focus();
   };
 });
-window.addEventListener("hashchange",()=>activateTab(location.hash.slice(1),false));
+window.addEventListener("hashchange",()=>activateTab(tabFromHash(location.hash.slice(1))||"show",false));
 document.addEventListener("keydown",event=>{
   if (event.key!=="Escape" || activeTab!=="seats" || event.target.matches("input,select,textarea")) return;
   if (focusedGroup!==null) {
@@ -236,19 +247,50 @@ function renderVenues() {
   if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
 })();
-let presetNames = [];
 ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
+// Presets follow the target filter (Bob, 2026-07-25). The filter itself lives
+// in the embedded Control surface, but its choice is in shared storage, so the
+// shelf here reads the same target the operator is looking at.
+function presetTarget() {
+  const filter = window.SeatFilter;
+  if (!filter) return {scope: "all", id: null, label: "All Seats"};
+  const mode = localStorage.getItem("bopos.target-filter-mode") || "all";
+  if (mode === "seat") {
+    const id = filter.selectedSeat();
+    const seat = id == null ? null : installation.seats?.[String(id)];
+    if (seat) return {scope: "seat", id: Number(seat.id), label: seat.name || `Seat ${seat.id}`};
+  }
+  if (mode === "groups") return {scope: "groups", id: null, label: "Groups"};
+  return {scope: "all", id: null, label: "All Seats"};
+}
+
 function renderPresets() {
   const select = $("#preset-select"); if (!select) return;
   select.innerHTML = presetNames.map(name => `<option>${esc(name)}</option>`).join("") || '<option disabled>none saved</option>';
+  const scope = $("#preset-scope");
+  if (scope) scope.value = presetTarget().label;
 }
+// The target filter lives in the embedded surface, which writes its choice to
+// shared storage; a storage event is how this document hears about it.
+window.addEventListener("storage", event => {
+  if (event.key === "bopos.target-filter-mode"
+      || event.key === window.SeatFilter?.SELECTED_SEAT_KEY) renderPresets();
+});
 (function bindPresets() {
   const save = $("#preset-save"), load = $("#preset-load");
   if (save) save.onclick = () => {
-    const name = prompt("Save current seat params + master as preset:", "");
-    if (name && (!presetNames.includes(name) || confirm(`Overwrite preset "${name}"?`))) ws.send("save_preset", {name});
+    const target = presetTarget();
+    const name = prompt(`Save ${target.label} params + master as preset:`, "");
+    if (name && (!presetNames.includes(name) || confirm(`Overwrite preset "${name}"?`))) {
+      ws.send("save_preset", {name, scope: target.scope, id: target.id});
+    }
   };
-  if (load) load.onclick = () => { const name = $("#preset-select").value; if (name) ws.send("load_preset", {name}); };
+  if (load) load.onclick = () => {
+    const name = $("#preset-select").value;
+    if (!name) return;
+    const target = presetTarget();
+    ws.send("load_preset", {name, scope: target.scope, id: target.id});
+  };
 })();
 
 function render() {
@@ -906,6 +948,9 @@ function select(uid) {
 }
 function selectSeat(id) {
   activateSeatSidebar("seats");
+  // The Control tab's target filter reads the same shared key, so choosing a
+  // Seat here is the choice it lands on (37/10).
+  window.SeatFilter?.selectSeat(id);
   selectedSeat=id; const seat=installation.seats?.[String(id)]||installation.seats?.[id];
   const d=seat&&occupant(seat); selected=d?.uid||null;
   if(d&&!d.declared) ws.send("request_params",{uid:d.uid});

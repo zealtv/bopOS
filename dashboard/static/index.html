@@ -6,18 +6,18 @@
   <header><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"><button data-execution-target="off" aria-pressed="true">Live Fleet</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div><span class="app-header-spacer" aria-hidden="true"></span><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div><button id="mute-all" class="danger">MUTE ALL</button><label class="theme-control"><span>theme</span><select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
   <nav id="primary-tabs" class="primary-tabs" aria-label="bopOS views" role="tablist">
     <button id="tab-button-show" role="tab" aria-controls="tab-show" aria-selected="true" data-tab="show">Show</button>
-    <button id="tab-button-dashboard" role="tab" aria-controls="tab-dashboard" aria-selected="false" data-tab="dashboard">Dashboard</button>
+    <button id="tab-button-control" role="tab" aria-controls="tab-control" aria-selected="false" data-tab="control">Control</button>
     <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
     <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
     <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
     <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
   </nav>
   <div class="tab-stage">
-    <section id="tab-dashboard" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-dashboard" data-tab-panel="dashboard" hidden>
-      <div class="dashboard-heading"><div><p class="eyebrow">Live control</p><h2>Dashboard</h2></div><a href="/facilitator" id="facilitator-link" class="view-link">Open standalone dashboard</a></div>
+    <section id="tab-control" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-control" data-tab-panel="control" hidden>
+      <div class="dashboard-heading"><div><p class="eyebrow">Live control</p><h2>Control</h2></div><a href="/facilitator" id="facilitator-link" class="view-link">Open standalone dashboard</a></div>
       <div class="dashboard-controls">
         <label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label>
-        <div id="preset-bar"><h3>Seat presets</h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button></div>
+        <div id="preset-bar"><h3>Presets <output id="preset-scope" class="preset-scope"></output></h3><select id="preset-select"></select><button id="preset-load">Load</button><button id="preset-save">Save as…</button></div>
       </div>
       <iframe id="dashboard-live-view" src="/facilitator?embedded=1" title="Dashboard live controls"></iframe>
     </section>
@@ -133,5 +133,5 @@
     </section>
     <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show"><div id="show-root"></div></section>
   </div>
-  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/show.js"></script>
+  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/seat-filter.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/show.js"></script>
 </body></html>
