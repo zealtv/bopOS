@@ -54,9 +54,10 @@ maintain":
 
 ![Dashboard tab: master fader, seat presets, and per-Seat live controls](images/tab-dashboard.png)
 
-**Dashboard** is the live-performance surface: the master fader, MUTE ALL,
-seat presets, and whichever patch parameters the active patch has promoted
-for live control. **Open standalone dashboard** gives the same surface as a
+**Control** is the live-performance surface: the master fader, MUTE ALL,
+presets, and whichever patch parameters the active patch has promoted for live
+control, scoped by an All / Groups / Seat target filter. (It was called
+Dashboard until 2026-07-25; the old `#dashboard` link still works.) **Open standalone dashboard** gives the same surface as a
 full-screen page for a tablet at the venue.
 
 ![Seats tab: the room map with numbered elements and the seat roster](images/tab-seats.png)

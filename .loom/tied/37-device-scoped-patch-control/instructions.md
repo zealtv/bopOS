@@ -80,3 +80,24 @@ Implementation order (Bob-confirmed), one stitch at a time:
 
 Generator editing is no longer parked: `feature-backlog/38` was reparented in as
 `3-generator-affordance-design` and is now ratified.
+
+## Thread complete (2026-07-25)
+
+All eleven stitches are tied. An operator can target a patch to one device
+independently of the fleet (bite 2, hardware-verified on Finn Jet + Ciro
+Toast), and can now *interact* with that device too: the Device tab renders its
+live controls through the shared surface, generators are authorable from any
+numeric row, the live-control tab is **Control** with a reusable target filter,
+and **Set patch…** hands off from a device to the pre-scoped Patches picker.
+
+Left deliberately for others:
+
+- **`41-preset-primitive`** — what a preset captures, how it loads, and
+  generator interpolation. Stitch 10 fixed only the *scoping rule* (a preset
+  follows the target filter) and reserved the shelf.
+- **Seats-detail overflow** — the Device panel gives per-device controls a home
+  of their own, which was the substantive fix. Whether anything in the Seats
+  inspector is now redundant is a UX call for Bob, not a silent deletion.
+- **Cue placement** — "let's try cues up the top" was provisional by Bob's own
+  framing. The strip is self-contained so it can move without touching the
+  surface.

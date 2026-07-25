@@ -186,9 +186,11 @@ place, and safe side-by-side revisions.
 
 ## Step 7 — perform
 
-The **Dashboard** tab (or **Open standalone dashboard** on a tablet) is the
-show surface: master, MUTE ALL, seat presets, your promoted parameters at
-All / Group / Seat scope, and your declared cue triggers.
+The **Control** tab (or **Open standalone dashboard** on a tablet) is the
+show surface: master, MUTE ALL, presets, your promoted parameters, and your
+declared cue triggers. A target filter at the top scopes the surface to All,
+Groups, or one Seat, and presets follow that target. Any numeric row can switch
+from `value` to `gen` to author a generator inline.
 
 ![Dashboard tab with per-Seat live controls](images/tab-dashboard-seats.png)
 

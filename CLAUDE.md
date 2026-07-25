@@ -50,13 +50,23 @@ remain the authority for a particular piece of work.
 
 ## Next sweep — holistic ordered program of work (2026-07-23)
 
-> **Update 2026-07-25 (autopilot):** the Tier-1 framing below is a 2026-07-23
-> snapshot and is now stale — `29-fleet-patch-sync-hang`, `30`, `31`, `39`, `40`
-> are **tied**; work moved to **thread 37 (device-scoped patch control)**, whose
-> bite-2 (`2-device-patch-targeting`) is shipped and tied, with four widened-scope
-> design proposals now `.waiting` on Bob (`3`–`6`). For the current state of play
-> read `.notes/handoff-2026-07-25-device-patch-autopilot.md` first; the prose
-> below remains the durable rationale for the *rest* of the loom.
+> **Update 2026-07-25 (second autopilot session):** the Tier-1 framing below is
+> a 2026-07-23 snapshot and is stale — `29`, `30`, `31`, `39`, `40` are tied,
+> and **thread 37 (device-scoped patch control) is now complete and tied in
+> full** (eleven stitches). Bite 2 passed hardware verification on the Finn Jet
+> + Ciro Toast rig. Bob ratified all four widened-scope designs and the five
+> implementation stitches shipped: shared `ControlSurface`, the `value ▸ gen`
+> generator drawer, the Device-tab control panel, the **Dashboard → Control**
+> rename with a reusable target filter, and the "Set patch…" hand-off.
+>
+> **The loom now has no loose ends** — everything remaining is `.waiting` on
+> Bob. The obvious next gates are `41-preset-primitive` (the generator
+> affordance it depended on now exists) and `27-tied-guard-rot`. Read
+> `.notes/handoff-2026-07-25b-control-surface-autopilot.md` first; the prose
+> below remains the durable rationale for the rest of the loom.
+>
+> **User-facing rename:** the Dashboard tab is **Control**. `#dashboard` still
+> resolves via a tab alias, but new docs and prose should say Control.
 
 This is the whole-loom order, not just the 2026-07-23 intake. Bob set the
 priority: **the node-installation bug first, then the node-enablement cluster,
@@ -451,7 +461,16 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   `data-uid` is **not** unique — the Seats-tab seat rows carry it too
   (`.device-row.seat-row`), so `page.click('.device-row[data-uid="…"]')`
   resolves two elements and clicks the hidden one from the inactive tab.
-  Scope roster clicks to the container (`#device-roster .device-row[data-uid=…]`).
+  Scope roster clicks to the container (`#device-roster .device-row[data-uid=…]`);
+  (13) a **Seats-roster** row's centre is its name `<input>`, and the row's
+  click handler deliberately ignores clicks inside inputs — `page.click()` on
+  the row selects nothing. Aim at the `small` (ID label) instead; (14) the
+  offline sweep marks a device down **30 s** after its last heartbeat, so a
+  test that kills simfleet and waits for `online === false` needs a timeout
+  longer than that; (15) the Control surface is an **iframe**
+  (`#dashboard-live-view`) — reach its filter and cards through
+  `page.frame_locator("#dashboard-live-view")`, and note that `localStorage` is
+  the only state the two documents share.
 
 **Re-running a tied guard:** the harness declines to execute scripts living
 under `.loom/tied/`. Copy the guard into your own stitch directory and run
