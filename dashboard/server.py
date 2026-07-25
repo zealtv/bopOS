@@ -347,7 +347,8 @@ class Dashboard:
                 await self.broadcast("device_update", device)
         elif kind == "set_live_param":
             scope = str(data.get("scope", ""))
-            declaration = self.live_param_declaration(data.get("name"))
+            declaration = self.live_param_declaration(
+                data.get("name"), self.live_scope_patch(scope, data.get("id")))
             cleaned = self.clean_editor_value(declaration, data.get("value"))
             seats, selector = self.live_param_target(scope, data.get("id"))
             if declaration is None or cleaned is None or seats is None:
@@ -392,7 +393,8 @@ class Dashboard:
             # durable value is whatever the node last emitted, and set_param
             # owns the fade-destination case.
             scope = str(data.get("scope", ""))
-            declaration = self.live_param_declaration(data.get("name"))
+            declaration = self.live_param_declaration(
+                data.get("name"), self.live_scope_patch(scope, data.get("id")))
             seats, selector = self.live_param_target(scope, data.get("id"))
             raw = data.get("args")
             args = None
@@ -1414,9 +1416,14 @@ class Dashboard:
         return {patch_manifest.qualify_param(item)
                 for item in manifest.get("params", ())}
 
-    def live_control_manifest(self):
-        """Return the validated staged manifest that owns live controls."""
-        patch_name = self.state.data.get("params_patch")
+    def live_control_manifest(self, patch_name=None):
+        """Return the validated manifest that owns live controls.
+
+        Defaults to the staged fleet patch. A device pinned to another patch
+        (thread 37) runs a different set of promoted params, so its panel asks
+        for that patch's manifest by name.
+        """
+        patch_name = patch_name or self.state.data.get("params_patch")
         if not patch_name:
             return None
         manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
@@ -1424,9 +1431,9 @@ class Dashboard:
             return None
         return manifest
 
-    def live_control_declarations(self):
+    def live_control_declarations(self, patch_name=None):
         """Validated promoted schema for Seat-owned live controls."""
-        manifest = self.live_control_manifest()
+        manifest = self.live_control_manifest(patch_name)
         if manifest is None:
             return []
         declarations = []
@@ -1450,11 +1457,24 @@ class Dashboard:
         manifest = self.live_control_manifest()
         return list(manifest.get("cues", ())) if manifest is not None else []
 
-    def live_param_declaration(self, identity):
+    def live_param_declaration(self, identity, patch_name=None):
         if not isinstance(identity, str):
             return None
-        return next((item for item in self.live_control_declarations()
+        return next((item for item in self.live_control_declarations(patch_name)
                      if item["identity"] == identity), None)
+
+    def live_scope_patch(self, scope, target_id):
+        """The patch whose promoted schema owns this scope.
+
+        Only a device scope can differ from the fleet: a pinned device runs its
+        own patch, so its controls must be declared by that patch, not by the
+        fleet's. Everything else returns None and falls back to the staged
+        fleet patch.
+        """
+        if scope != "device" or not isinstance(target_id, str):
+            return None
+        override = self.state.device_patch_for(target_id)
+        return override["name"] if override else None
 
     def live_param_target(self, scope, target_id):
         if scope == "all":
@@ -1463,6 +1483,17 @@ class Dashboard:
             seat_id = self.state.clean_seat_id(target_id)
             seat = self.state.seats.get(str(seat_id))
             return ([seat], seat_id) if seat is not None else (None, None)
+        if scope == "device":
+            # A device-scoped write is a presentation scope over a seat
+            # selector: OSC v1.5 targets content by seat, and pinning already
+            # requires a seat binding, so there is always one to resolve to.
+            device = self.state.devices.get(target_id)
+            if device is None or device.get("virtual"):
+                return None, None
+            seat = self.state.seat_for_uid(device.get("uid"))
+            if seat is None:
+                return None, None
+            return [seat], int(seat["id"])
         if scope == "group":
             group_id = self.state.clean_group_id(target_id)
             if group_id is None or str(group_id) not in self.state.data.get("groups", {}):
@@ -1532,6 +1563,18 @@ class Dashboard:
         public["patch_badge"] = patch_badge(device, effective_desired)
         public["patch_pinned"] = override is not None
         public["pinned_patch"] = override["name"] if override else None
+        # A pinned device runs a patch other than the fleet's, so its live
+        # controls are declared by that patch. This has to live here rather
+        # than in public_state: a device_update broadcast carries one device,
+        # not the whole state, and that is the message the roster acts on.
+        # Only pinned devices carry their own schema; everything else falls
+        # back to the fleet-wide live_controls.
+        if override is not None:
+            public["live_controls"] = {
+                "patch": override["name"],
+                "declarations": self.live_control_declarations(
+                    override["name"]),
+            }
         public["desired_patch"] = effective_desired
         return public
 

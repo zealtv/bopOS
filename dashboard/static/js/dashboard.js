@@ -1058,6 +1058,59 @@ function logSection(d) {
     </div></section>`;
 }
 
+// The Device tab renders the same live controls the Control tab does, through
+// the shared component (37/07). Only the scope and the send differ: a device
+// write targets one device, resolved node-side to its seat selector.
+let deviceControlInteracting=false;
+const deviceSurface=window.ControlSurface.create({
+  getState:()=>installation,
+  deviceForSeat:seat=>seat?.bound?installation.devices?.[seat.bound]:null,
+  deviceForScope:uid=>installation.devices?.[uid],
+  send:({scope,id,name,value})=>ws.send("set_live_param",{scope,id,name,value}),
+  sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
+  setInteracting:editing=>{deviceControlInteracting=editing;},
+  requestRender:()=>renderDeviceDetail(),
+});
+
+const DEVICE_CONTROL_OPEN="bopos.device-control-open";
+function deviceControlOpen() {
+  // Collapsed by default (Bob, 2026-07-25); the choice is remembered.
+  try { return localStorage.getItem(DEVICE_CONTROL_OPEN)==="1"; }
+  catch (_error) { return false; }
+}
+function setDeviceControlOpen(open) {
+  try { localStorage.setItem(DEVICE_CONTROL_OPEN,open?"1":"0"); }
+  catch (_error) { /* private mode: the panel just forgets */ }
+}
+
+// A pinned device runs its own patch, so the server publishes that patch's
+// promoted schema on the device; everything else uses the fleet-wide one.
+function deviceLiveSchema(d) {
+  const schema=d?.live_controls?.declarations?.length?d.live_controls:installation.live_controls;
+  if(!schema||!Array.isArray(schema.declarations))return null;
+  return {patch:schema.patch,declarations:schema.declarations.map(item=>({...item,path:item.path||[]}))};
+}
+
+function deviceControlSection(d) {
+  const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
+  const schema=deviceLiveSchema(d);
+  const open=deviceControlOpen();
+  const declarations=schema?.declarations||[];
+  const live=!!d.online&&Number(d.engine_alive)!==0;
+  // Offline shows last known values, disabled — never hidden (Bob, 2026-07-25).
+  const disabled=!seat||!live;
+  const why=!seat?'Unbound device. Live control targets content by Seat, so bind this device to a Seat first.'
+    :!live?'Offline — showing the last known values.':'';
+  const body=!declarations.length
+    ? '<p class="dim">This patch promotes no Dashboard controls.</p>'
+    : `<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
+  const source=schema?.patch?`<p class="dim">${esc(schema.patch)}${d.patch_pinned?' · pinned to this device':' · fleet patch'}</p>`:"";
+  return `<section id="device-control" class="device-control${disabled?' disabled':''}">
+    <div class="section-head"><div><h2>Device control</h2>${source}</div><button id="device-control-toggle" aria-expanded="${open}" aria-controls="device-control-body">${open?'Hide':'Show'}</button></div>
+    <div id="device-control-body" ${open?'':'hidden'}>${why?`<p class="dim">${esc(why)}</p>`:''}${body}</div>
+  </section>`;
+}
+
 function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
@@ -1081,10 +1134,11 @@ function renderDeviceDetail() {
   $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
+    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
+    ${deviceControlSection(d)}
     ${audioSection(d)}
     ${logSection(d)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
-    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
 }
@@ -1117,9 +1171,17 @@ function bindDeviceDetailControls(d) {
   const enabledToggle=$("#device-enabled-toggle");if(enabledToggle)enabledToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_enabled",{uid:d.uid,value:current.device_enabled===false?1:0});};
   bindAudioControls(d);
   bindLogControls(d);
+  bindDeviceControl(d);
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
   const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
+}
+
+function bindDeviceControl(d) {
+  const toggle=$("#device-control-toggle");
+  if(toggle)toggle.onclick=()=>{setDeviceControlOpen(!deviceControlOpen());renderDeviceDetail();};
+  const body=$("#device-control-body");
+  if(body&&!body.hidden)deviceSurface.bind(body);
 }
 
 function bindAudioControls(d) {
