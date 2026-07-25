@@ -55,7 +55,28 @@ fleet-patch drift/rollup **data** (the visible menu-bar chip stays deferred to
 (`decisions.md`, `proposal-first-bite.md`). Implementation is the loose end
 `2-device-patch-targeting`.
 
-**Still open in this parent** (not the first bite): the shared control-surface
-component, Control-tab rename, per-device live-control panel, "Set patch…"
-Device-tab hand-off. **Generator editing parked** to
-`feature-backlog/38-generator-editing-on-surface`.
+## All four widened-scope designs ratified (Bob, 2026-07-25)
+
+Bite 2 also **passed hardware verification** on the Finn Jet + Ciro Toast rig
+(recorded in the tied `2-device-patch-targeting/progress.md`).
+
+Design stitches `3`–`6` are **tied**, each with a `decisions.md` carrying Bob's
+rulings; `control-surface-proposals.html` is updated to match. Two rulings
+changed the proposals rather than merely approving them:
+
+- **Deployment stays on the Patch tab.** Only the *Dashboard* tab is renamed to
+  **Control**, and Control hosts no patch picker. Stitches `4` and `6` were
+  written assuming a Control-tab picker; both are corrected.
+- **"Pinned" stays patch-only.** A seat-bound standalone device gets an ordinary
+  seat and no new vocabulary.
+
+Implementation order (Bob-confirmed), one stitch at a time:
+
+1. `07-control-surface-component` — extract the shared surface (predecessor).
+2. `08-generator-drawer` — `value ▸ gen` drawer. Bob's priority, ahead of 41.
+3. `09-device-control-panel` — Device tab panel + actions reorder.
+4. `10-control-tab` — rename, reusable target filter, cues top, presets shelf.
+5. `11-set-patch-handoff` — Device → Patch tab hand-off + one-click seat.
+
+Generator editing is no longer parked: `feature-backlog/38` was reparented in as
+`3-generator-affordance-design` and is now ratified.

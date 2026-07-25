@@ -58,7 +58,11 @@ becomes an implementation stitch out of thread 37; `5` (the shared component) is
 its natural predecessor if Bob wants the component extracted first. Everything
 else in thread 37 stays gated on Bob.
 
-## Hardware verification check (Finn Jet + Ciro Toast) — for Bob or a live rig
+## Hardware verification check (Finn Jet + Ciro Toast) — ✅ PASSED (Bob, 2026-07-25)
+
+Bob ran this sequence on the real rig and reported it successful. Bite 2 is
+hardware-adopted; the recipe below is retained as the regression procedure, not
+as an outstanding task.
 
 Software gates pass; this is the real-Pi/PD adoption check the sim can't do.
 Two-device rig: **Finn Jet** (fleet node) + **Ciro Toast** (standalone). See the

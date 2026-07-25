@@ -81,3 +81,16 @@ seat-bound + online** (`distribution_targets(uid)` yields nothing otherwise) —
 including the "standalone" Ciro Toast (bind it to its own lone seat). Not a new
 limitation (the fleet retry guard already says it); the truly-seatless-control
 question belongs to the deferred set-patch-hand-off / shared-surface design.
+
+## Hardware verification — PASSED (Bob, 2026-07-25)
+
+Bob ran the Finn Jet + Ciro Toast sequence from
+`.notes/handoff-2026-07-25-device-patch-autopilot.md` on the real rig and
+reported it **successful**. That closes the hardware adoption check this stitch
+left open: per-device pinning, independent convergence, and — the property the
+whole bite turns on — **a whole-fleet deploy leaving an existing pin intact**
+hold on real Pis with real JACK/PD restart timing, not just against the
+simulator's 2 s stub.
+
+Nothing to change in the implementation; recorded here so the tied stitch is
+not read later as still awaiting hardware.

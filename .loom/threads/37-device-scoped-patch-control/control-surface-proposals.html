@@ -219,9 +219,9 @@
        the Device-tab “Set patch…” hand-off, the per-device live-control panel, and the Dashboard → Control
        tab rename. Prepared for Bob; nothing here is implemented past this document.</p>
     <div class="statusbar">
-      <span class="pill gate"><span class="dot"></span>Awaiting ratification</span>
+      <span class="pill rec"><span class="dot"></span>All four ratified by Bob · 2026-07-25</span>
       <span class="pill"><span class="mono">generated 2026-07-25</span></span>
-      <span class="pill rec"><span class="dot"></span>Each section carries a recommendation</span>
+      <span class="pill gate"><span class="dot"></span>02 &amp; 04 corrected on ratification — see rulings</span>
     </div>
   </div>
 </header>
@@ -327,11 +327,11 @@
           <div class="annot"><span class="num">4</span><p><b>“On take-over”</b> reuses the runtime rule: when a generator starts it can adopt the current static value or its own center — the one place authoring-on-the-surface adds a choice the Show builder implies.</p></div>
         </div>
 
-        <h3 class="block">Open questions for Bob</h3>
+        <h3 class="block">Bob’s rulings · ratified 2026-07-25</h3>
         <div class="q-list">
-          <div class="q"><span class="tag dec">decision</span><p><b>Drawer vs popover.</b> Inline drawer (shown) keeps the param in place and reads well in the editor; a popover keeps rows dense on the All card where dozens of params stack. Recommendation: inline in editor/Device, popover on the All aggregate. Confirm or collapse to one.</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Mixed aggregate.</b> On the All / Group card, some seats may run a generator and others a static value on the same param. Does <span class="mono">gen</span> mode on an aggregate broadcast one generator to all, or is it disabled when members disagree? (Mirrors the existing mixed-value readout.)</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Stop affordance.</b> Where does “stop the generator, keep the last value” live — a third seg state, or a control inside the drawer?</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Drawer — everywhere.</b> “drawer”. The popover variant for the dense All aggregate is dropped; one affordance, one implementation, no host-conditional behaviour.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Mixed aggregate — the existing pattern.</b> “when members disagree use the existing pattern. adjusting the parameter — either as a value or a generator, then sets all members. same behaviour as before.” Generators are not a special case and the aggregate is never disabled: reuse the mixed-value code path rather than branching on <span class="mono">gen</span> mode.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Stop lives inside the drawer.</b> “a stop control inside the drawer”. The mode switch stays strictly two-state — “which authoring mode” and “is it running” are independent, so no third segment.</p></div>
         </div>
         <div class="seam"><b>Seam to 41.</b> What a generator means <i>inside a preset</i> (captured spec vs captured value) stays the preset primitive’s design. This proposal only settles authoring a generator <i>live</i>; presets consume the same wire grammar later.</div>
       </section>
@@ -353,7 +353,7 @@
           <div class="bar"></div>
           <div>
             <div class="label">Recommendation</div>
-            <p>Put a <b>Set patch…</b> button in the Device-tab patch-diagnostics panel. It routes to the Control-tab
+            <p>Put a <b>Set patch…</b> button in the Device-tab patch-diagnostics panel. It routes to the <b>Patch-tab</b>
                target picker with the target <b>pre-selected to this device</b>. For an <b>unbound</b> device it first
                offers a one-click <b>“Give this device a seat”</b> — because pinning needs a seat, and the operator
                shouldn’t have to learn why.</p>
@@ -383,7 +383,7 @@
             </div>
 
             <div class="card" style="outline:2px solid color-mix(in srgb,var(--accent) 40%,transparent);outline-offset:2px">
-              <div class="card-head"><h4>Deploy target</h4><span class="hint">Control ▸ Patch</span></div>
+              <div class="card-head"><h4>Deploy target</h4><span class="hint">Patch tab · pre-scoped</span></div>
               <div class="rowline" style="margin-bottom:10px"><span class="mockselect" style="flex:1">bonks-pd ▾</span></div>
               <div class="rowline">
                 <span class="mockselect" style="flex:1;border-color:color-mix(in srgb,var(--accent) 50%,var(--line));color:var(--accent)">▸ Ciro Toast (this device) ▾</span>
@@ -402,12 +402,13 @@
           <div class="annot"><span class="num">3</span><p><b>Seat reality made humane.</b> An unbound device is offered a seat inline, so “independent control” isn’t gated on the operator understanding the seat model — honoring the “don’t gate control on seatless” intent while respecting the wire.</p></div>
         </div>
 
-        <h3 class="block">Open questions for Bob</h3>
+        <h3 class="block">Bob’s rulings · ratified with a correction 2026-07-25</h3>
         <div class="q-list">
-          <div class="q"><span class="tag dec">decision</span><p><b>Tab switch vs in-place.</b> Hand off to the Control tab (shown, one target picker to maintain) or float a mini-picker over the Device tab (no context loss)? Recommendation: switch tabs, with the device pre-scoped and a “← back to device” crumb.</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Auto-seat semantics.</b> Does “Give this device a seat” allocate a hidden/utility seat, or drop the operator into the Seats tab to place it? What does a standalone device’s seat mean spatially?</p></div>
+          <div class="q"><span class="tag dec">correction</span><p><b>The picker stays on the Patch tab.</b> “the dashboard is what is being renamed to control, not patches. patch deployment to the fleet or to a pinned device happens on the patch tab.” This proposal originally routed the hand-off to a Control-tab picker; it now routes to the <b>Patch tab</b>, and the shipped bite-2 picker does not move.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Tab switch, one picker.</b> Settled in favour of the tab switch with the device pre-scoped. No second, in-place mini-picker is built.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>An ordinary seat.</b> “standalone devices are no different spatially than fleet devices… we can assign a seat.” Not a hidden or utility seat. And the terminology collision is settled: <b>“pinned” keeps meaning patch-pinned only</b> — a seat-bound standalone device gets no new name, just a seat like any node.</p></div>
         </div>
-        <div class="seam"><b>Depends on 04.</b> The picker’s home is the renamed Control tab (Proposal 04). If the rename slips, this button targets today’s Patches tab unchanged.</div>
+        <div class="seam"><b>Superseded dependency.</b> This no longer depends on the 04 rename: deployment lives on the Patch tab either way.</div>
       </section>
 
       <!-- ===================== PROPOSAL 3 ===================== -->
@@ -468,11 +469,12 @@
           <div class="annot"><span class="num">3</span><p><b>Patch-aware.</b> The panel renders the device’s <i>effective</i> patch — its pin if pinned, else the fleet patch — so a pinned Ciro Toast shows <i>its</i> params, not the fleet’s.</p></div>
         </div>
 
-        <h3 class="block">Open questions for Bob</h3>
+        <h3 class="block">Bob’s rulings · ratified 2026-07-25</h3>
         <div class="q-list">
-          <div class="q"><span class="tag dec">decision</span><p><b>Default open or collapsed?</b> Recommendation: collapsed by default on the Device tab (diagnostics-first), remembered per session.</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Offline device.</b> Show the last-known controls read-only, or hide the panel? (Mirrors how promoted controls treat offline seats today — durable values, disabled.)</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Write authority.</b> A Device-tab control writes to one device; an All/Seat control fans out. Same component, different send — confirm the seam is just the scope, not two code paths.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Collapsed by default.</b> “collapsed by default is fine.”</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Offline: disabled, showing last values.</b> Never hidden — reuse the durable offline/unbound value behaviour already ratified in stage 7.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>One code path.</b> “yes — same component, different send.” Two parallel renderers would be a defect, not an option.</p></div>
+          <div class="q"><span class="tag dec">added</span><p><b>Device-tab order (new ruling).</b> “move the device actions up directly below the diagnostics while you a here, device control sits below actions.” Order becomes: patch diagnostics → device actions → device control.</p></div>
         </div>
         <div class="seam"><b>Feeds 01 &amp; 04.</b> This component is where the generator affordance (01) lands and what the Control tab (04) hosts. Ratifying its inputs/outputs unblocks both.</div>
       </section>
@@ -543,11 +545,12 @@
           <div class="annot"><span class="num">3</span><p><b>Cues + master shrink to a strip</b>, freeing vertical room for the surface; <b>Presets</b> gets a reserved shelf so 41 has a known home and doesn’t force a re-layout later.</p></div>
         </div>
 
-        <h3 class="block">Open questions for Bob</h3>
+        <h3 class="block">Bob’s rulings · ratified with a scope correction 2026-07-25</h3>
         <div class="q-list">
-          <div class="q"><span class="tag dec">decision</span><p><b>Which tab is renamed,</b> and does “Seat” in the filter reuse the Seats-tab selection or carry its own? Recommendation: reuse the global selected-seat so the filter and the Seats roster stay in sync.</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Cue placement.</b> Strip above the surface (shown) vs a persistent left rail. Bob’s call after living with the density.</p></div>
-          <div class="q"><span class="tag">open</span><p><b>Presets scope.</b> Do presets follow the target filter (save “All” vs save “Seat 2”)? Likely yes — but that’s the seam to 41.</p></div>
+          <div class="q"><span class="tag dec">correction</span><p><b>Control is the renamed Dashboard tab, and nothing more.</b> “the dashboard is what is being renamed to control, not patches.” This tab hosts <em>no</em> patch deployment — the target picker stays on the Patch tab (see 02).</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Dashboard → Control</b>, and the seat filter is built as a <b>reusable component</b>, not a one-off widget on this tab. It reuses the global selected seat.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Cues at the top.</b> “let’s try cues up the top.” Provisional by Bob’s own framing — keep the cue strip a self-contained block that can be relocated without touching the surface below.</p></div>
+          <div class="q"><span class="tag dec">ratified</span><p><b>Presets follow the target filter.</b> Saving under “All” is a different preset from saving under “Seat 2”. What a preset <i>captures</i> is still 41’s.</p></div>
         </div>
         <div class="seam"><b>Seam to 41.</b> The Presets shelf is placement-only here. What a preset captures, how it loads per seat/group/all, and generator-interpolation are the preset primitive’s ratification.</div>
       </section>
@@ -559,6 +562,6 @@
 <footer class="foot">
   <div class="wrap">
     <span>Thread 37 · device-scoped-patch-control · widened design scope</span>
-    <span class="mono">4 proposals · awaiting Bob’s ratification · bite 2 shipped</span>
+    <span class="mono">4 proposals · ratified 2026-07-25 · bite 2 shipped &amp; hardware-verified</span>
   </div>
 </footer>
