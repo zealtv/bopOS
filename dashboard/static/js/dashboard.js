@@ -18,6 +18,7 @@ const logDestinationDrafts = new Map();  // uid -> unsaved log destination choic
 let presetNames = [];
 let fleetPatchChoice = null;
 let fleetPatchTarget = "all";
+let patchHandoffDevice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
 let assetTarget = null;
@@ -140,7 +141,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); renderPresets(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); resumePatchHandoff(); renderPresets(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -512,6 +513,24 @@ function pinnedMarker(d) {
   const name=d.pinned_patch||"a patch";
   return `<span class="patch-pin" title="Pinned to ${esc(name)} — follow fleet to clear" aria-label="Pinned to ${esc(name)}">📌</span>`;
 }
+// Deliberately its own function: inside renderFleetPatch, `select` is the
+// local <select> element, which would shadow the global select(uid) and make
+// the crumb throw instead of returning to the device.
+function renderPatchHandoffCrumb() {
+  const crumb=$("#patch-handoff-crumb"), back=$("#patch-handoff-back");
+  if (!crumb || !back) return;
+  const origin=patchHandoffDevice?installation.devices?.[patchHandoffDevice]:null;
+  crumb.hidden=!origin;
+  if (!origin) return;
+  back.textContent=`← Back to ${Identity.primary(origin,installation)}`;
+  back.onclick=()=>{
+    const uid=patchHandoffDevice;
+    patchHandoffDevice=null;
+    select(uid);
+    activateTab("devices");
+  };
+}
+
 function renderFleetPatch() {
   const select=$("#patch-select"), target=$("#patch-target"), set=$("#patch-switch"), revert=$("#fleet-patch-revert");
   if (!select || !target || !set || !revert) return;
@@ -531,6 +550,7 @@ function renderFleetPatch() {
   if (fleetPatchTarget!=="all" && !deployable.some(device=>device.uid===fleetPatchTarget)) fleetPatchTarget="all";
   target.innerHTML=[`<option value="all" ${fleetPatchTarget==="all"?'selected':''}>Whole fleet</option>`]
     .concat(deployable.map(device=>`<option value="${esc(device.uid)}" ${device.uid===fleetPatchTarget?'selected':''}>${esc(Identity.primary(device,installation))}${device.patch_pinned?" · pinned":""}</option>`)).join("");
+  renderPatchHandoffCrumb();
   const editing=installation.supervisor?.mode==="edit";
   const toFleet=fleetPatchTarget==="all";
   select.disabled=!patches.length||editing;
@@ -972,11 +992,14 @@ function patchDiagnostics(d, allowRemediation) {
   const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch","failed","timeout"].includes(d.patch_badge)
     ? `<button id="fleet-patch-retry">Sync to ${d.patch_pinned?'pinned':'fleet'} patch</button>`:"";
   const follow=d.patch_pinned&&d.online?'<button id="patch-follow-fleet">Follow fleet patch</button>':"";
+  // Hand-off to the Patches tab, pre-scoped to this device (37/11). Deployment
+  // itself stays on the Patch tab; this is a shortcut to it, not a second picker.
+  const setPatch=d.virtual?"":`<button id="device-set-patch" ${d.online?'':'disabled'}>Set patch…</button>`;
   const unboundNote=!allowRemediation&&desired.name
     ? '<p class="dim patch-target-note">Assign this device to a Seat before syncing content. OSC v1.5 does not UID-target patch distribution or switching.</p>':"";
   const pull=allowRemediation&&d.online&&active?.git?'<button id="patch-pull">Pull latest</button>':"";
   const switchAttempt=d.patch_switch||{};
-  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${pinnedMarker(d)}${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired patch${d.patch_pinned?' (pinned)':''}</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd>${copyIdentity(desired.fingerprint,'—')}</dd><dt>Reported content identity</dt><dd>${copyIdentity(active?.fingerprint,'unreported')}</dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull||follow?`<div class="actions patch-remediation">${remediation}${pull}${follow}</div>`:''}${unboundNote}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
+  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${pinnedMarker(d)}${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired patch${d.patch_pinned?' (pinned)':''}</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd>${copyIdentity(desired.fingerprint,'—')}</dd><dt>Reported content identity</dt><dd>${copyIdentity(active?.fingerprint,'unreported')}</dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · ${active?.git?'git-managed patch':'host-mirrored patch'} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Source</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation||pull||follow||setPatch?`<div class="actions patch-remediation">${setPatch}${remediation}${pull}${follow}</div>`:''}${unboundNote}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
 }
 function bindPatchDiagnostics(d) {
   const retry=$("#fleet-patch-retry");
@@ -985,6 +1008,43 @@ function bindPatchDiagnostics(d) {
   if(pull) pull.onclick=()=>{if(confirm(`Pull latest active Git patch on ${Identity.primary(d,installation)}? It reboots.`))ws.send("pull_patch",{uid:d.uid});};
   const follow=$("#patch-follow-fleet");
   if(follow) follow.onclick=()=>{if(confirm(`Clear the pin on ${Identity.primary(d,installation)} and follow the fleet patch again? This device converges to the fleet default and restarts.`))ws.send("clear_device_patch",{uid:d.uid});};
+  const setPatch=$("#device-set-patch");
+  if(setPatch) setPatch.onclick=()=>startSetPatchHandoff(d);
+}
+
+// Pinning a patch needs a Seat, because OSC v1.5 targets content by Seat. The
+// operator should not have to learn that: an unbound device is offered one in
+// a single step, and the hand-off completes once the binding lands (37/11).
+let pendingPatchHandoff=null;
+
+function seatForDevice(uid) {
+  return Object.values(installation.seats||{}).find(item=>item.bound===uid)||null;
+}
+
+function handoffToPatchTab(uid) {
+  fleetPatchTarget=uid;
+  patchHandoffDevice=uid;
+  activateTab("patches");
+  render();
+}
+
+function startSetPatchHandoff(d) {
+  if (seatForDevice(d.uid)) { handoffToPatchTab(d.uid); return; }
+  const alias=Identity.primary(d,installation);
+  if (!confirm(`${alias} has no Seat. Targeting a patch at one device addresses it by Seat, so bopOS will give ${alias} a Seat of its own. Continue?`)) return;
+  const id=nextFreeId();
+  ws.send("add_seat",{id,name:alias,positions:[]});
+  ws.send("bind_seat",{id,uid:d.uid,confirmed:false});
+  pendingPatchHandoff=d.uid;
+}
+
+// The binding arrives asynchronously; finish the hand-off when it does.
+function resumePatchHandoff() {
+  if (!pendingPatchHandoff) return;
+  const uid=pendingPatchHandoff;
+  if (!seatForDevice(uid)) return;
+  pendingPatchHandoff=null;
+  handoffToPatchTab(uid);
 }
 
 function renderSeatDetail() {

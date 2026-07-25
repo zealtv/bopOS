@@ -348,3 +348,7 @@ output.precise-output:focus-visible{outline:2px solid var(--accent-cyan);outline
 
 /* Preset shelf scope label (37/10). */
 .preset-scope{margin-left:8px;color:var(--dim);font-size:12px;font-weight:500;text-transform:none}
+
+/* Set patch… hand-off crumb (37/11). */
+.patch-handoff-crumb{margin:8px 0 0}
+.link-button{border:0;background:transparent;color:var(--accent-soft);padding:4px 0;font:inherit;text-decoration:underline}

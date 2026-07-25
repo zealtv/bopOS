@@ -77,6 +77,7 @@
         <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
         <div class="fleet-patch-deploy"><div class="fleet-patch-choice"><select id="patch-select" aria-label="Fleet patch"></select><select id="patch-target" aria-label="Deploy target"></select></div><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
+        <p id="patch-handoff-crumb" class="patch-handoff-crumb" hidden><button id="patch-handoff-back" class="link-button">← Back to device</button></p>
       </section>
       <section id="editor-panel">
         <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
