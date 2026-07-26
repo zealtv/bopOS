@@ -1,15 +1,27 @@
 # version-0-currentness-design
 
-Design framework-version currentness and update UX for Devices.
+Design the remaining framework-currentness model and UX for Devices.
 
-Survey the existing heartbeat `version`, `/os/report` `git-rev`,
-`contract-version`, `update_model`, `/os/rev`, and `/os/updatebopos` flow. Define
-which host/release fact is desired state; current/stale/unknown/diverged badges;
-per-device and fleet update actions; confirmation, progress, reboot/reappearance
-and failure semantics; and how persistent versus ephemeral update models differ.
-Do not conflate framework version with patch content fingerprint or OSC contract
+Verified current baseline (2026-07-26):
+
+- the dashboard publishes and displays its `host_version`;
+- heartbeat `version` and report `git_rev`, `contract_version`, and
+  `update_model` are retained and visible;
+- per-device and fleet **Update bopOS** actions already exist;
+- `/os/rev` retains status/phase, and `updatebopos-unattended` proved
+  noninteractive convergence, success-before-reboot receipts, reappearance,
+  and active-patch preservation on a real persistent node.
+
+Do not redesign those shipped mechanisms. Define what desired framework state
+means: whether the dashboard host checkout is sufficient, how branch/release
+intent is represented, and whether equality alone can distinguish stale from
+diverged or requires ancestry/release metadata. Specify current, stale,
+unknown, and diverged classifications; where compact per-device and fleet
+summaries live; how actions select only appropriate persistent nodes; and how
+ephemeral nodes are explained without implying they can persist an update.
+Reuse the existing confirmation, receipt, reboot, and reappearance behavior.
+Do not conflate framework revision with patch fingerprint or OSC contract
 version.
 
 Deliver a short proposal and implementation split, lore-keep it, and return to
-waiting for Bob's ratification. Parked from the 2026-07-15 tabs-0 session until
-Bob explicitly resumes it after the current UI-tabs runway.
+waiting for Bob's ratification.

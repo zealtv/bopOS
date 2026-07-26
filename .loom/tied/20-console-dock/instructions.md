@@ -2,8 +2,9 @@
 
 **Monitor v1 complete, 2026-07-23.** The ratified Incoming, Outgoing, Send,
 Reports, System, persistence, and wide split/snap slices are tied. A follow-up
-also removes the visible `shown` / `seen` traffic-count copy. Only the
-deliberately deferred future Map tab remains waiting.
+also removes the visible `shown` / `seen` traffic-count copy. Bob dropped the
+deferred Map placeholder on 2026-07-26 until sequencing practice gives it a
+clear purpose, so this thread is complete.
 
 Grow the Show tab's two independent OSC `<details>` consoles into a single
 VS Code-style dock at the bottom of the app: one frame, tabbed views, and — at
@@ -33,8 +34,8 @@ and docs.
    collapsible frame with two tabs. This is the shippable slice on its own.
 3. `03-osc-send-tab`, `04-reports-tab`, `05-system-tab`,
    `06-wide-split-snap` — the remaining ratified v1 tabs and layout.
-4. `07-map-tab.waiting` — explicitly deferred by Bob; a placeholder so the dock
-   is designed with room for it.
+4. The future Map placeholder was dropped by Bob on 2026-07-26; it can return
+   from hands-on sequencing requirements rather than remaining an open gate.
 
 ## Constraints carried in from the shipped consoles
 

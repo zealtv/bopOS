@@ -7,6 +7,12 @@ This is the human-readable priority runway. `./.loom/loom.sh status` remains
 authoritative for claims and live stitch state; `CLAUDE.md` remains authoritative
 for repository rules. Work one stitch at a time using claim → work → tie.
 
+**2026-07-26 update:** this older runway is retained as history. The current
+loose end is `desktop-ui-overhaul/01-density-and-layout-design`. Fleet asset
+distribution, clock acceptance, and spatial acceptance are grouped beneath
+`fleet-testing`; the Monitor Map placeholder and terminology-review thread were
+dropped. See `.notes/handoff-2026-07-26-loom-tidy.md`.
+
 ## Current position
 
 The sweep is complete through Seat groups and the single-device Assets

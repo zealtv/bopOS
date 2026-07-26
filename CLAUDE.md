@@ -50,6 +50,20 @@ remain the authority for a particular piece of work.
 
 ## Next sweep — holistic ordered program of work (2026-07-23)
 
+> **Update 2026-07-26 (loom tidy):** Bob dropped the old
+> `18-show-chrome-density` goal and replaced its remaining intent with
+> `desktop-ui-overhaul/01-density-and-layout-design`: an app-wide desktop pass
+> for smaller controls, tighter spacing, clearer hierarchy, and less wasted
+> space. `dashboard-terminology-review` is dropped because the Control rename
+> shipped in thread 37. The deferred Monitor Map placeholder is dropped and
+> `20-console-dock` is tied. `asset-fleet-distribution`, `clock-sync`, and
+> `spatial-audio` now sit under the `fleet-testing` umbrella.
+> `framework-version-management` was audited and retained: update mechanics
+> have shipped, but desired-version comparison and honest
+> current/stale/unknown/diverged classification remain unbuilt. Read
+> `.notes/handoff-2026-07-26-loom-tidy.md`; the desktop design is the new loose
+> end.
+>
 > **Update 2026-07-25 (second autopilot session):** the Tier-1 framing below is
 > a 2026-07-23 snapshot and is stale — `29`, `30`, `31`, `39`, `40` are tied,
 > and **thread 37 (device-scoped patch control) is now complete and tied in
@@ -59,11 +73,11 @@ remain the authority for a particular piece of work.
 > generator drawer, the Device-tab control panel, the **Dashboard → Control**
 > rename with a reusable target filter, and the "Set patch…" hand-off.
 >
-> **The loom now has no loose ends** — everything remaining is `.waiting` on
-> Bob. The obvious next gates are `41-preset-primitive` (the generator
-> affordance it depended on now exists) and `27-tied-guard-rot`. Read
-> `.notes/handoff-2026-07-25b-control-surface-autopilot.md` first; the prose
-> below remains the durable rationale for the rest of the loom.
+> At that point the loom had no loose ends. The obvious gates were
+> `41-preset-primitive` (the generator affordance it depended on now exists)
+> and `27-tied-guard-rot`. Read
+> `.notes/handoff-2026-07-25b-control-surface-autopilot.md` for that session;
+> the newer 2026-07-26 update above governs current live state.
 >
 > **User-facing rename:** the Dashboard tab is **Control**. `#dashboard` still
 > resolves via a tab alias, but new docs and prose should say Control.
@@ -116,7 +130,7 @@ a real regression hides among the drift.)
    patch" as global state shown in the Dashboard menu bar remains wanted, but
    Bob deferred it on 2026-07-23. Its waiting design gate stays intact.
 
-### Tier 2 — failing-test cleanup, then deferred Show polish
+### Tier 2 — failing-test cleanup, then desktop overhaul
 
 8. **`27-tied-guard-rot`** (`.waiting`) — **reframed by Bob 2026-07-23:** "we want
    durable, maintainable tests for appropriate surfaces; running tests of tied
@@ -134,20 +148,21 @@ a real regression hides among the drift.)
    after the node work. **Cheap thing to do now regardless (not gated):** a stitch
    touching a genuinely shared surface writes its check into a `tests/` file, not a
    new tied guard.
-9. **`20-console-dock`** — **Monitor v1 complete, children tied 2026-07-23.**
+9. **Complete — `20-console-dock`.** Monitor v1 shipped with
    Incoming, Outgoing, Send, Reports, System, persistence, and wide split/snap
-   shipped. The parent remains open only for the deliberately deferred
-   `07-map-tab.waiting`.
+   on 2026-07-23. Bob dropped the deferred Map placeholder on 2026-07-26, so
+   the parent is tied.
 10. **`25-message-pill-encoding`** — **complete, tied 2026-07-23.** Message
    pills use the ratified flat eight-category set (cue, point, raw,
    param-value, param-fade, param-loop, param-lfo, param-stop), with visible
    kind codes as a non-colour channel.
 
-### Tier 3 — paused pending other design (not workable solo)
+### Tier 3 — desktop UI overhaul
 
-- **`18-show-chrome-density`** — `01`/`03` paused on the lanes/scenes design
-  (collapse may not survive a multi-lane grid); `06-chrome-app-wide-assessment`
-  waits on Bob living with the Show chrome, then ruling app-wide vs staged.
+- **`desktop-ui-overhaul/01-density-and-layout-design`** — audit and propose an
+  app-wide desktop language with smaller controls, tighter spacing, clearer
+  hierarchy, and better viewport use. The standalone facilitator retains its
+  separate tablet-first constraints.
 
 ### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
 
@@ -163,17 +178,17 @@ a real regression hides among the drift.)
   (destination in Device tab + USB auto-mount). Design stitch is un-waited and
   queued after `40-precision-param-input`; proposal still ends in Bob
   ratification. See `.notes/handoff-2026-07-24-control-surface-presets.md`.
-- **`asset-fleet-distribution`** — bulk asset rollout; sequence its model after
-  `32-multi-asset-packs` settles the slot shape.
 - **`scene-sequencing`** (whole thread paused 2026-07-08; language is co-design),
-  **`framework-version-management/version-0`** (parked on the UI-tabs-runway
-  basis), **`pi-zero-performance/zero-2-engine-verdict`** (SC strategy co-design),
-  **`dashboard-terminology-review`**.
+  **`framework-version-management/version-0`** (desired-state comparison and
+  currentness UX; existing update mechanics are already shipped), and
+  **`pi-zero-performance/zero-2-engine-verdict`** (SC strategy co-design).
 
 ### Tier 5 — hardware / rig-gated (need Bob or a live rig)
 
-- **`clock-sync/sync-4-hw-measurement`**, **`spatial-audio/spatial-3-rig-sweep`**,
-  **`pi-zero-performance/zero-1-tuning-matrix`** (claimable in any session that
+- **`fleet-testing`** — umbrella for `asset-fleet-distribution`,
+  `clock-sync/sync-4-hw-measurement`, and
+  `spatial-audio/spatial-3-rig-sweep`.
+- **`pi-zero-performance/zero-1-tuning-matrix`** (claimable in any session that
   confirms `bop000` reachable).
 
 Then, after the sweep: the host-loom patch-workflow documentation/starter-kit
@@ -343,15 +358,17 @@ The latest sequencer brainstorm is input to the separately Bob-gated
 the 2026-07-18 braindump authorized the `14-show-tab` slice and the
 2026-07-19 braindump authorizes exactly the `15-show-polish` sweep.
 
-Everything else is `.waiting` for a reason stated in its stitch:
+Everything else is `.waiting` for a reason stated in its stitch, apart from the
+new desktop-overhaul design loose end:
 
-- **Bob + hardware gates:** `sync-4` (rig jitter measurement),
-  `spatial-3-rig-sweep`, and `zero-1` (claimable in any session that confirms
-  bop000 reachable).
+- **Bob + hardware gates:** the `fleet-testing` clock and spatial acceptance
+  children, and `zero-1` (claimable in any session that confirms bop000
+  reachable).
 - **Bob-gated decisions/pauses:** `scene-sequencing` (whole thread paused
   2026-07-08; language is co-design, never solo), `zero-2-engine-verdict`
   (SC strategy is co-design), and `framework-version-management` (device
-  framework-currentness/update design, parked on the UI-tabs-runway basis).
+  desired-state comparison/currentness design; the updater itself is already
+  shipped).
   `parameter-addresses`, `seat-groups`, the single-device Assets workflow, and
   Dashboard live controls, diagnostic density, Show polish, and parameter
   automation are complete, and Bob's 2026-07-20 feedback pass landed
@@ -361,15 +378,13 @@ Everything else is `.waiting` for a reason stated in its stitch:
   OSC terminals, per the tied `01-layout-review` ratified decisions) and
   `engine-group-context` (groups on the engine-context surface; Bob still
   owes the `bopos~.pd` receiver edit in `.notes/pd-edits-for-bob.md`) are
-  all tied. The `18-show-chrome-density` workable stitches are also
-  **tied** (2026-07-21 autopilot): the collapsible inspector sidebar
+  all tied. The completed Show-density slices are also **tied** (2026-07-21
+  autopilot): the inspector sidebar
   (`02`), named section dividers + the unified click-to-edit title
   pattern (`04`), and the Show-tab-only compact chrome pass (`05`,
-  `--chrome-*` variables). Still waiting on that thread: `01`/`03`
-  (paused pending the lanes/scenes design — collapse may not survive a
-  multi-lane grid) and `06-chrome-app-wide-assessment` (Bob lives with
-  the Show chrome, then rules app-wide vs staged adoption). Next
-  software work is the rest of Bob's 2026-07-21 fix pass — `21`
+  `--chrome-*` variables). The remaining thread was dropped on 2026-07-26;
+  broader density work now lives in `desktop-ui-overhaul`. Next software work
+  in this historical sequence was the rest of Bob's 2026-07-21 fix pass — `21`
   remains (`19`, Monitor v1 from `20`, `22`, `23`, `24` and `26` are tied) —
   then the host-loom
   patch-workflow documentation/starter-kit close-out (stage 14). Bob
