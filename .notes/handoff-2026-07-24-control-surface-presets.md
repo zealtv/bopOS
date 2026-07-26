@@ -8,19 +8,21 @@ fixes the order of work. Each item's authoritative spec is its stitch
 
 ## The order
 
-**1. `39-remove-installed-pack-from-device`** — workable now, pre-existing.
+**1. ✅  `39-remove-installed-pack-from-device`** — workable now, pre-existing.
 Device-side uninstall of an installed asset pack from the Asset tab. Small,
 self-contained, fully specced with file:line anchors. First because it was
 already the queue head and nothing new depends on it.
 
-**2. `40-precision-param-input`** — workable, no design gate. Typed float
+**2. ✅ `40-precision-param-input`** — workable, no design gate. Typed float
 entry beside every param slider (live-control surface + patch-editor panel;
 Show inspector is verify-only — already typed). Second because it pays off
 Bob's patching sessions immediately, and the thread-37 design assumes
 typed-entry-capable controls exist — landing it first keeps the surface
 design honest.
 
-**3. `37-device-scoped-patch-control/1-device-patch-control-design`** —
+
+
+✅ **3. `37-device-scoped-patch-control/1-device-patch-control-design`** —
 **Bob-gated design session** (`.waiting`; needs Bob live or a written
 proposal he ratifies). Scope was widened 2026-07-24 and Bob confirmed: it
 now owns (a) per-device patch targeting (the original scope, with its
@@ -32,6 +34,10 @@ filter (all/groups/seat) + cues-master-presets placement and the
 cue-section shrink, and (d) the **per-param generator affordance** on the
 surface (reuse the `automation-2` builder GUI). Third because both
 remaining items sit on this surface.
+
+
+
+
 
 **4. `41-preset-primitive/1-preset-architecture-design`** — **Bob-gated
 design**, right behind (or interleaved with) 37's session since the surface
@@ -46,7 +52,9 @@ the output-crossfade mix function against generator-arg interpolation
 (Bob: "if there is a more elegant approach I might prefer it") and
 recommend with wire-shape deltas.
 
-**5. `42-node-logging/1-logging-seed-design`** — **activated 2026-07-24**
+
+
+**5. ✅ `42-node-logging/1-logging-seed-design`** — **activated 2026-07-24**
 (Bob: "logging I need to get done as a medium priority"). Renumbered from
 `35` so the queue stays literal; the design stitch is un-waited and
 workable without Bob present — grow the seed (append-only timestamped log
@@ -55,6 +63,8 @@ into a written proposal; **Bob ratifies** before implementation children.
 Sits here so 39/40 clear first, but it need not wait for the 37/41 design
 sessions — it is independent of the control-surface work and is the right
 thing to pick up whenever those sessions are blocked on Bob's availability.
+
+
 
 **6. Implementation stitches out of 37, then 41** — laid out as children
 after each ratification. Expect 37's implementation to subsume the old
