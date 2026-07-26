@@ -55,6 +55,29 @@ ASSET_REQUERY_SECONDS = (0.5, 1.0, 2.0, 4.0)
 TRANSPORT_ERROR_THROTTLE_SECONDS = 5.0
 
 
+def source_for_peer(peer):
+    """Return the host source address that reaches a physical LAN peer.
+
+    Prefer a directly attached interface so a tunnel advertising the same
+    subnet cannot win ordinary route lookup. Routed venues retain the ordinary
+    lookup fallback.
+    """
+    direct_error = None
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_DONTROUTE, 1)
+            probe.connect((str(peer), 9))
+            return probe.getsockname()[0]
+        except OSError as error:
+            direct_error = error
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect((str(peer), 9))
+            return probe.getsockname()[0]
+        except OSError:
+            raise direct_error
+
+
 class OSCProtocol(asyncio.DatagramProtocol):
     def __init__(self, bridge):
         self.bridge = bridge
@@ -241,26 +264,7 @@ class OSCBridge:
 
     @staticmethod
     def _source_for_peer(peer):
-        # Physical fleet heartbeats are link-local installation traffic. On a
-        # Mac with a tunnel advertising the same subnet, ordinary route lookup
-        # can select the tunnel even though the heartbeat arrived on Wi-Fi.
-        # SO_DONTROUTE prefers the directly attached interface without parsing
-        # platform-specific route/interface output. Fall back for explicitly
-        # routed unusual venues.
-        direct_error = None
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            try:
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_DONTROUTE, 1)
-                probe.connect((str(peer), 9))
-                return probe.getsockname()[0]
-            except OSError as error:
-                direct_error = error
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-            try:
-                probe.connect((str(peer), 9))
-                return probe.getsockname()[0]
-            except OSError:
-                raise direct_error
+        return source_for_peer(peer)
 
     def _bind_lan_sender(self, source):
         replacement = self._new_sender(source)

@@ -25,7 +25,7 @@ import points
 import device_aliases
 import show_model
 from show_engine import ShowEngine
-from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge
+from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from python.paramgen import ParamGrammarError, parse_message
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
@@ -2145,11 +2145,16 @@ class Dashboard:
             ) from error
         if target_ip.is_loopback:
             return f"http://127.0.0.1:{self.args.port}"
-        family = socket.AF_INET6 if target_ip.version == 6 else socket.AF_INET
         try:
-            with socket.socket(family, socket.SOCK_DGRAM) as route:
-                route.connect((target, 9))
-                local = route.getsockname()[0]
+            if target_ip.version == 4:
+                # Patch/asset HTTP transfers need the same direct-LAN source
+                # selection as OSC. Ordinary macOS routing may otherwise pick
+                # a tunnel advertising the installation subnet.
+                local = source_for_peer(target)
+            else:
+                with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as route:
+                    route.connect((target, 9))
+                    local = route.getsockname()[0]
         except OSError as error:
             raise ValueError(
                 f"Cannot find a LAN route to {target}. Start the dashboard with "

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.dont_write_bytecode = True
@@ -210,6 +211,27 @@ class DashboardShutdownTests(unittest.IsolatedAsyncioTestCase):
         await dashboard.stop_supervisor()
 
         self.assertEqual(calls, ["terminate", "clear"])
+
+
+class DistributionUrlRoutingTests(unittest.TestCase):
+    def test_localhost_distribution_url_prefers_direct_lan_source(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.args = SimpleNamespace(public_url=None, port=8080)
+        dashboard.state = SimpleNamespace(devices={
+            "imani": {"ip": "192.168.0.103"},
+        })
+        ws = SimpleNamespace(
+            url=SimpleNamespace(scheme="ws", hostname="localhost"),
+            headers={"host": "localhost:8080"},
+        )
+
+        with mock.patch(
+                "server.source_for_peer",
+                return_value="192.168.0.100") as discover:
+            url = dashboard.public_url(ws, "imani")
+
+        self.assertEqual(url, "http://192.168.0.100:8080")
+        discover.assert_called_once_with("192.168.0.103")
 
 
 class MonitorTransportLogTests(unittest.TestCase):
