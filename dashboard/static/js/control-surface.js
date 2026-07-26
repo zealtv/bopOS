@@ -201,10 +201,7 @@
     }
 
     function paramControl(scope, id, members, declaration, disabled) {
-      const state = scope === "seat" || scope === "device"
-        ? {value: valueForSeat(members[0], declaration), mixed: false,
-           automation: automationForSeat(members[0], declaration), automationMixed: false}
-        : aggregateValue(members, declaration);
+      const state = aggregateValue(members, declaration);
       const mixed = state.mixed || state.automationMixed;
       const value = state.value;
       const sourceSeat = members[0];

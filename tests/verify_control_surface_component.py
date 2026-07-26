@@ -157,6 +157,18 @@ def make_fixture(root):
 PARITY_JS = """
 () => {
   const seat = Object.values(installation.seats)[0];
+  installation.automation = {
+    [String(seat.id)]: {
+      density: {
+        args: ["lfo", "sine", 0.1, 0.9, "2s"],
+        kind: "lfo",
+        shape: "sine",
+        free: false,
+        phase_at_send_ms: 250,
+        sent_at: Date.now() / 1000,
+      },
+    },
+  };
   const declarations = installation.live_controls.declarations
     .map(d => ({...d, path: d.path || []}));
   const device = {online: true, engine_alive: 1, device_enabled: true,
@@ -167,12 +179,16 @@ PARITY_JS = """
     deviceForScope: () => device,
     send: payload => (window.__probeSent = window.__probeSent || []).push(payload),
   });
+  probe.refreshAnchors(installation);
   const normalize = html => html
     .replace(/data-live-scope="[^"]*"/g, 'data-live-scope="X"')
     .replace(/data-live-id="[^"]*"/g, 'data-live-id="X"')
     // The generator drawer key is scope:id:identity, so it varies for the
     // same reason the scope attributes do.
-    .replace(/data-gen-key="[^"]*"/g, 'data-gen-key="X"');
+    .replace(/data-gen-key="[^"]*"/g, 'data-gen-key="X"')
+    // Sequential renders can cross a millisecond boundary; elapsed phase is
+    // presentation bookkeeping, not a seat/device scope difference.
+    .replace(/--auto-elapsed:[^;"]+/g, '--auto-elapsed:X');
   const seatHtml = probe.tree("seat", seat.id, [seat], declarations, false);
   const deviceHtml = probe.tree("device", seat.bound, [seat], declarations, false);
   const host = document.createElement("div");
@@ -182,6 +198,10 @@ PARITY_JS = """
   probe.bind(host);
   return {
     identical: normalize(seatHtml) === normalize(deviceHtml),
+    seatAutomated: seatHtml.includes('data-automated="true"')
+      && seatHtml.includes("live-param-marker"),
+    deviceAutomated: deviceHtml.includes('data-automated="true"')
+      && deviceHtml.includes("live-param-marker"),
     seatHtml: normalize(seatHtml).slice(0, 400),
     deviceHtml: normalize(deviceHtml).slice(0, 400),
   };
@@ -290,8 +310,10 @@ def main():
 
                 # --- (c) device scope is the same render as seat scope ---
                 parity = page.evaluate(PARITY_JS)
-                check("device-scoped render is markup-identical to seat scope",
-                      parity["identical"],
+                check("device-scoped value and automation presentation is "
+                      "markup-identical to seat scope",
+                      parity["identical"] and parity["seatAutomated"]
+                      and parity["deviceAutomated"],
                       f"seat={parity['seatHtml']!r} "
                       f"device={parity['deviceHtml']!r}")
 

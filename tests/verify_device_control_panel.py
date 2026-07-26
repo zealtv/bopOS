@@ -44,6 +44,7 @@ FAILURES = []
 RESERVED = set()
 UID_A = "02:53:49:4d:00:01"
 UID_B = "02:53:49:4d:00:02"
+UID_C = "02:53:49:4d:00:03"
 
 
 def check(label, condition, detail=""):
@@ -169,6 +170,10 @@ def main():
                 "2": {"id": 2, "name": "Ciro", "positions": [[2, 1]],
                       "params": {"density": .2}, "bound": UID_B},
             },
+            "device_registry": {
+                UID_C: {"alias": "Imani Silver", "source": "custom",
+                        "generator": 2, "device_enabled": True},
+            },
         }
         with open(state_path, "w", encoding="utf-8") as target:
             json.dump(state, target)
@@ -195,7 +200,8 @@ def main():
             wait_http(base_url, server)
             fleet = subprocess.Popen([
                 sys.executable, os.path.join(REPO, "tools", "simfleet.py"),
-                "--devices", "2", "--target", "127.0.0.1",
+                "--devices", "3", "--unassigned", "1",
+                "--target", "127.0.0.1",
                 "--report-port", str(listen_port),
                 "--cmd-port", str(send_port),
                 "--hb-interval", "0.3", "--boot-secs", "0.2",
@@ -216,7 +222,7 @@ def main():
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
                 page.wait_for_function(
-                    "() => Object.keys(installation.devices||{}).length === 2")
+                    "() => Object.keys(installation.devices||{}).length === 3")
 
                 page.click("#tab-button-devices")
                 page.wait_for_selector("#tab-devices:not([hidden])")
@@ -252,7 +258,94 @@ def main():
                 check("the open choice is remembered across a reload",
                       page.locator(BODY).get_attribute("hidden") is None)
 
+                # --- fresh unbound device: full detail, safe default values ---
+                # Recreate Imani's first-session record at the moment of the
+                # click. The snapshot is taken synchronously with rendering so
+                # the simulator's report replies cannot race the null-state
+                # assertions.
+                unbound = page.evaluate(
+                    """uid => {
+                      const device = installation.devices[uid];
+                      Object.assign(device, {
+                        id: -1, report: null, patches: null, assets: null,
+                        declared: null,
+                      });
+                      document.querySelector(
+                        `#device-roster .device-row[data-uid="${uid}"]`
+                      ).click();
+                      const detail = document.querySelector("#detail");
+                      const controls = [...detail.querySelectorAll(
+                        "#device-control [data-live-param]")];
+                      const density = detail.querySelector(
+                        '#device-control input[type="range"]'
+                        + '[data-param-path="density"]');
+                      return {
+                        selected: document.querySelector(
+                          `#device-roster .device-row[data-uid="${uid}"]`
+                        ).classList.contains("selected"),
+                        text: detail.innerText,
+                        controls: controls.length,
+                        allDisabled: controls.every(node => node.disabled),
+                        densityValue: density?.value,
+                        densityReadout: density?.closest(".live-param")
+                          ?.querySelector("output")?.textContent,
+                        assignment: !!detail.querySelector("#device-binding"),
+                        diagnostics: !!detail.querySelector(
+                          "#patch-diagnostics"),
+                        actions: detail.querySelectorAll(
+                          "[data-action], [data-identify]").length,
+                        enabled: !!detail.querySelector(
+                          "#device-enabled-toggle"),
+                        audio: !!detail.querySelector("#device-audio"),
+                        logging: !!detail.querySelector("#device-log"),
+                        assets: !!detail.querySelector(
+                          ".device-assets-summary"),
+                        report: !!detail.querySelector("#refresh-report"),
+                      };
+                    }""", UID_C)
+                check("fresh unbound roster selection opens Imani detail",
+                      unbound["selected"]
+                      and "Imani Silver" in unbound["text"]
+                      and UID_C in unbound["text"]
+                      and "unbound" in unbound["text"].lower(),
+                      repr(unbound))
+                check("fresh unbound detail exposes administration surfaces",
+                      unbound["assignment"] and unbound["diagnostics"]
+                      and unbound["actions"] == 5 and unbound["enabled"]
+                      and unbound["audio"] and unbound["logging"]
+                      and unbound["assets"] and unbound["report"],
+                      repr(unbound))
+                check("unbound controls show patch defaults and provenance",
+                      unbound["controls"] >= 1 and unbound["allDisabled"]
+                      and unbound["densityValue"] == "0.2"
+                      and unbound["densityReadout"] == "0.2"
+                      and "showing patch defaults" in unbound["text"].lower(),
+                      repr(unbound))
+
+                page.evaluate(
+                    """() => {
+                      window.__unboundControlMessages = [];
+                      const original = ws.send.bind(ws);
+                      ws.send = (kind, data) => {
+                        if (kind === "set_live_param"
+                            || kind === "set_live_automation") {
+                          window.__unboundControlMessages.push({kind, data});
+                        }
+                        return original(kind, data);
+                      };
+                      document.querySelector(
+                        '#device-control input[data-live-param]'
+                      )?.click();
+                      document.querySelector(
+                        '#device-control [data-gen-mode="gen"]'
+                      )?.click();
+                    }""")
+                check("unbound disabled controls emit no content messages",
+                      page.evaluate(
+                          "() => window.__unboundControlMessages.length") == 0)
+
                 # --- one code path: a device write reaches only that device ---
+                select_device(page, UID_A)
                 slider = (BODY + ' input[type="range"][data-live-param]'
                           '[data-param-path="density"]')
                 check("the panel renders the shared component's rows",

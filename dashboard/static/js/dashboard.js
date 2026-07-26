@@ -1204,7 +1204,7 @@ function deviceControlSection(d) {
   const live=!!d.online&&Number(d.engine_alive)!==0;
   // Offline shows last known values, disabled — never hidden (Bob, 2026-07-25).
   const disabled=!seat||!live;
-  const why=!seat?'Unbound device. Live control targets content by Seat, so bind this device to a Seat first.'
+  const why=!seat?'Unbound device — showing patch defaults. Live control targets content by Seat, so bind this device to a Seat first.'
     :!live?'Offline — showing the last known values.':'';
   const body=!declarations.length
     ? '<p class="dim">This patch promotes no Dashboard controls.</p>'
