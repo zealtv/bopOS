@@ -3,6 +3,7 @@
   const MONITOR_TABS = ["out", "in", "send", "reports", "system"];
   const CONSOLE_LIMIT = 500;
   const CONSOLE_VISIBLE = 200;
+  const TRANSPORT_ERROR_LIMIT = 50;
   const DEFAULT_HEIGHT = 320;
   const MIN_HEIGHT = 180;
 
@@ -150,6 +151,14 @@
             <small>Dashboard host checkout</small>
           </section>
         </div>
+        <section class="monitor-system-errors" data-monitor-transport-errors hidden>
+          <div class="monitor-system-errors-head">
+            <h3>Transport errors</h3>
+            <small data-monitor-transport-error-count></small>
+          </div>
+          <div class="monitor-system-error-log" data-monitor-transport-error-log
+               role="log" aria-live="polite" aria-label="OSC transport errors"></div>
+        </section>
       </div>
     </div>`;
   document.querySelector(".tab-stage").after(monitor);
@@ -207,6 +216,7 @@
   let sendHistoryIndex = 0;
   let reportDevices = {};
   let systemConnected = false;
+  const transportErrors = [];
 
   function maxHeight() {
     return Math.max(MIN_HEIGHT, Math.floor(window.innerHeight * .55));
@@ -667,11 +677,34 @@
     systemText("version", state?.host_version || "—");
   }
 
+  function renderTransportErrors() {
+    const section = panels.system.querySelector("[data-monitor-transport-errors]");
+    const count = section.querySelector("[data-monitor-transport-error-count]");
+    const output = section.querySelector("[data-monitor-transport-error-log]");
+    section.hidden = transportErrors.length === 0;
+    count.textContent = `${transportErrors.length} recent`;
+    output.textContent = transportErrors.map(entry => {
+      const date = new Date(Number(entry.ts || 0) * 1000);
+      const stamp = date.toLocaleTimeString("en-GB", {hour12: false})
+        + "." + String(date.getMilliseconds()).padStart(3, "0");
+      const destination = `${entry.destination || "?"}:${entry.port || "?"}`;
+      const errorName = entry.errno == null ? "error" : `errno ${entry.errno}`;
+      return `${stamp}  ${entry.address || "OSC send"}  -> ${destination}  `
+        + `${errorName}: ${entry.message || "send failed"}`;
+    }).join("\n");
+    output.scrollTop = output.scrollHeight;
+  }
+
   ws.on("connection", connected => {
     systemConnected = Boolean(connected);
     renderSystem();
   });
   ws.on("state", renderSystem);
+  ws.on("osc_transport_error", data => {
+    transportErrors.push(data || {});
+    if (transportErrors.length > TRANSPORT_ERROR_LIMIT) transportErrors.shift();
+    renderTransportErrors();
+  });
   for (const event of ["device_update", "device_offline", "heartbeat", "report",
                        "distribution", "show", "show_playback"]) {
     ws.on(event, () => renderSystem());

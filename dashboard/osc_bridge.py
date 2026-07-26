@@ -52,6 +52,7 @@ AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
 GROUP_RETRY_SECONDS = (0.5, 1.0, 2.0)
 GROUP_RETRY_EXPIRE_SECONDS = 2.0
 ASSET_REQUERY_SECONDS = (0.5, 1.0, 2.0, 4.0)
+TRANSPORT_ERROR_THROTTLE_SECONDS = 5.0
 
 
 class OSCProtocol(asyncio.DatagramProtocol):
@@ -79,6 +80,10 @@ class OSCBridge:
         self.destination = self.physical_destination
         self.transport = None
         self.sender = None
+        self.lan_sender = None
+        self.lan_source = None
+        self._lan_peer = None
+        self._transport_errors = {}
         self.pending = {"params": deque(), "report": deque(), "patches": deque(),
                         "assets": deque()}
         # v1.3 distribution replies carry slot + phase/status but no uid. Real
@@ -123,8 +128,7 @@ class OSCBridge:
         sock.setblocking(False)
         loop = asyncio.get_running_loop()
         self.transport, _ = await loop.create_datagram_endpoint(lambda: OSCProtocol(self), sock=sock)
-        self.sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sender.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sender = self._new_sender()
         self._ping_task = asyncio.create_task(self.sync_ping_loop())
         self._points_task = asyncio.create_task(self.points_loop())
 
@@ -137,6 +141,10 @@ class OSCBridge:
             self.transport.close()
         if self.sender:
             self.sender.close()
+        if self.lan_sender and self.lan_sender is not self.sender:
+            self.lan_sender.close()
+        self.sender = None
+        self.lan_sender = None
         for records in self.fetch_pending.values():
             for record in records:
                 record.get("timeout") and record["timeout"].cancel()
@@ -213,8 +221,139 @@ class OSCBridge:
         return [arg if isinstance(arg, (str, int, float, bool)) else str(arg)
                 for arg in args]
 
+    @staticmethod
+    def _new_sender(source=None):
+        sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sender.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if source is not None:
+            sender.bind((source, 0))
+        return sender
+
+    @staticmethod
+    def _is_loopback_destination(destination):
+        host = str(destination[0])
+        if host.lower() == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _source_for_peer(peer):
+        # Physical fleet heartbeats are link-local installation traffic. On a
+        # Mac with a tunnel advertising the same subnet, ordinary route lookup
+        # can select the tunnel even though the heartbeat arrived on Wi-Fi.
+        # SO_DONTROUTE prefers the directly attached interface without parsing
+        # platform-specific route/interface output. Fall back for explicitly
+        # routed unusual venues.
+        direct_error = None
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            try:
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_DONTROUTE, 1)
+                probe.connect((str(peer), 9))
+                return probe.getsockname()[0]
+            except OSError as error:
+                direct_error = error
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            try:
+                probe.connect((str(peer), 9))
+                return probe.getsockname()[0]
+            except OSError:
+                raise direct_error
+
+    def _bind_lan_sender(self, source):
+        replacement = self._new_sender(source)
+        previous = self.lan_sender
+        self.lan_sender = replacement
+        self.lan_source = source
+        if previous is not None and previous is not self.sender:
+            previous.close()
+
+    def observe_lan_peer(self, peer):
+        """Select the host source address that routes toward a physical node."""
+        peer = str(peer)
+        if peer == self._lan_peer and self.lan_sender is not None:
+            return
+        try:
+            if ipaddress.ip_address(peer).is_loopback:
+                return
+            source = self._source_for_peer(peer)
+        except (OSError, ValueError):
+            log.debug("could not discover OSC source route toward %s", peer,
+                      exc_info=True)
+            return
+        self._lan_peer = peer
+        if source != self.lan_source or self.lan_sender is None:
+            try:
+                self._bind_lan_sender(source)
+            except OSError:
+                log.warning("could not bind OSC sender to %s", source,
+                            exc_info=True)
+            else:
+                log.info("OSC LAN sender bound to %s for peer %s",
+                         source, peer)
+
+    def _sender_for(self, destination):
+        if self._is_loopback_destination(destination):
+            if self.sender is None:
+                self.sender = self._new_sender()
+            return self.sender
+        if self.lan_sender is not None:
+            return self.lan_sender
+        if self.sender is None:
+            self.sender = self._new_sender()
+        return self.sender
+
+    def _refresh_lan_sender(self):
+        if self._lan_peer is None:
+            return
+        try:
+            source = self._source_for_peer(self._lan_peer)
+        except OSError:
+            return
+        if source != self.lan_source:
+            try:
+                self._bind_lan_sender(source)
+            except OSError:
+                log.debug("could not rebind OSC sender to %s", source,
+                          exc_info=True)
+            else:
+                log.info("OSC LAN sender rebound to %s for peer %s",
+                         source, self._lan_peer)
+
+    def _report_transport_error(self, address, destination, error):
+        error_number = error.errno
+        key = (destination, error_number)
+        now = time.monotonic()
+        if now - self._transport_errors.get(key, float("-inf")) \
+                < TRANSPORT_ERROR_THROTTLE_SECONDS:
+            return
+        self._transport_errors[key] = now
+        payload = {
+            "ts": time.time(),
+            "address": address,
+            "destination": destination[0],
+            "port": destination[1],
+            "errno": error_number,
+            "message": str(error),
+        }
+        log.warning("OSC send failed for %s to %s:%s: %s",
+                    address, destination[0], destination[1], error)
+        try:
+            self.broadcast("osc_transport_error", payload)
+        except RuntimeError:
+            pass
+
     def _send_to(self, address, args, destination, route):
-        self.sender.sendto(self._datagram(address, args), destination)
+        try:
+            self._sender_for(destination).sendto(
+                self._datagram(address, args), destination)
+        except OSError as error:
+            if not self._is_loopback_destination(destination):
+                self._refresh_lan_sender()
+            self._report_transport_error(address, destination, error)
+            return False
         # Console tap (design note sec 3): everything the dashboard sends,
         # any tab. Always-on; filtering is client-side. Guarded: sends can
         # legally happen before the asyncio loop exists.
@@ -224,6 +363,7 @@ class OSCBridge:
                                        "target": destination[0], "route": route})
         except RuntimeError:
             pass
+        return True
 
     def send(self, address, args=()):
         """Send to the active execution target."""
@@ -917,6 +1057,7 @@ class OSCBridge:
                 self.send_audition_listener()
             return
         if address == "/hb" and len(args) >= 4:
+            self.observe_lan_peer(ip)
             uid = str(args[0])
             supervisor_mode = self.state.data.get("supervisor", {}).get("mode", "off")
             audition_uid = re.fullmatch(r"audition-\d{4}", uid) is not None

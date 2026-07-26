@@ -223,6 +223,12 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
 .monitor-system-card strong,.monitor-system-card small{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .monitor-system-card strong{color:var(--text);font-size:14px}
 .monitor-system-card small{margin-top:4px;color:var(--dim);font-size:11px}
+.monitor-system-errors{min-height:0;flex:1;margin-top:9px;padding:10px 11px;border:1px solid var(--status-danger-border);border-radius:var(--chrome-radius-control);background:var(--status-danger-bg);display:flex;flex-direction:column;gap:7px}
+.monitor-system-errors[hidden]{display:none}
+.monitor-system-errors-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.monitor-system-errors-head h3{margin:0;color:var(--status-danger-text);font-size:10px}
+.monitor-system-errors-head small{color:var(--dim);font-size:11px}
+.monitor-system-error-log{min-height:54px;overflow:auto;overscroll-behavior:contain;color:var(--status-danger-text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px;line-height:1.5;white-space:pre}
 
 /* Ratified wide Monitor layout: pane-local draggable tabs, visible drop
    targets, a clamped split, and a keyboard-operable action menu. */

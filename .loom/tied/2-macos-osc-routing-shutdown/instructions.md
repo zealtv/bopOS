@@ -73,9 +73,12 @@ source address makes limited broadcast routable on this Mac. So:
   address would need `IP_RECVDSTADDR`/pktinfo plumbing — don't add it).
   Instead, on heartbeat, UDP-connect a throwaway datagram socket toward that
   device's source IP and read `getsockname()`; bind the LAN socket to the
-  result. First-seen sends only ever happen in response to a heartbeat, so a
-  device IP is always available at the moment discovery is needed. Discover
-  lazily on first need, cache the result.
+  result. Prefer `SO_DONTROUTE` on that probe so a tunnel advertising the same
+  installation subnet cannot outrank the directly attached interface; fall
+  back to ordinary route lookup for explicitly routed unusual venues.
+  First-seen sends only ever happen in response to a heartbeat, so a device IP
+  is always available at the moment discovery is needed. Discover lazily on
+  first need, cache the result.
 - Handle re-binding on network change explicitly: if sends start failing and a
   fresh probe yields a different source address, rebind and retry later
   sends. Keep it simple — lazy re-discovery on failure, not an interface

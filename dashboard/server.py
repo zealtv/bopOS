@@ -184,13 +184,29 @@ class Dashboard:
         return task
 
     async def stop(self):
-        await self.stop_supervisor()
-        for task in self.tasks:
-            task.cancel()
-        if self.tasks:
-            await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
-        self.osc.close()
-        await self.state.close()
+        try:
+            await self.stop_supervisor()
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception(
+                "supervisor cleanup failed during dashboard shutdown")
+        try:
+            for task in self.tasks:
+                task.cancel()
+            if self.tasks:
+                await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception(
+                "task cleanup failed during dashboard shutdown")
+        try:
+            self.osc.close()
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception(
+                "OSC cleanup failed during dashboard shutdown")
+        try:
+            await self.state.close()
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception(
+                "state cleanup failed during dashboard shutdown")
 
     def queue_broadcast(self, message_type, data):
         asyncio.create_task(self.broadcast(message_type, data))
@@ -2260,7 +2276,6 @@ class Dashboard:
         else:
             await self.terminate_supervisor_process()
             self.clear_audition_devices()
-            self.restore_live_state()
 
     async def restart_simulation(self):
         patch_name = self.state.data["simulation"].get("patch")
