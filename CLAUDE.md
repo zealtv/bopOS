@@ -82,9 +82,15 @@ remain the authority for a particular piece of work.
 > the control-panel work and `41-preset-primitive`**. Bob also added the
 > **capture-as-step** workflow (Control tab → one click stores the current
 > target→preset arrangement as a show step) as design input for 41's Q6.
-> Order: `01-control-panel` → `44-event-plane/1` → `41/1`. Standing
-> constraint: the system works today and must keep working; prefer small
-> ordered changes over rewrites.
+> **Order (27 slotted in, 2026-07-27):**
+> `01-control-panel/1-full-manifest-visibility` (ship now) →
+> **`27-tied-guard-rot`** (Bob's triage session; the durable `tests/` suite
+> should exist before the implementation waves and contract amendments
+> below write their checks — pair it with the control-panel design
+> ratification session) alongside `01-control-panel/2-control-panel-design`
+> → control-panel implementation → `44-event-plane/1` → `41/1` →
+> `02-app-wide-rollout-design`. Standing constraint: the system works today
+> and must keep working; prefer small ordered changes over rewrites.
 >
 > **Update 2026-07-26 (loom tidy):** Bob dropped the old
 > `18-show-chrome-density` goal and replaced its remaining intent with

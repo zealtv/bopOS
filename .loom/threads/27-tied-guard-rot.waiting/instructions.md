@@ -150,3 +150,15 @@ The work is now:
 
 Split per code surface rather than doing it in one stitch. Sequence the durable
 surfaces first (OSC contract, fetcher, mute) since those are the real invariants.
+
+## Sequencing (2026-07-27, slotted into the current program)
+
+Bob asked for this thread to join the active order. Slot: **after
+`desktop-ui-overhaul/01-control-panel/1-full-manifest-visibility`, alongside
+the `2-control-panel-design` gate, and before the control-panel
+implementation wave, `44-event-plane`, and `41-preset-primitive`** — the
+durable `tests/` suite this thread creates should exist before those write
+their checks into it, and before the event-plane contract amendment churns
+more tied guards. Still `.waiting` on Bob's fresh triage session
+(`.notes/handoff-guard-rot-briefing.md`); it pairs naturally with the
+control-panel design-ratification session.
