@@ -364,7 +364,10 @@ KIND_SHAPE_JS = """
     rowHeight: Math.round(row("steps").getBoundingClientRect().height),
     eventArity: event.dataset.eventArity,
     eventBoxes: boxes.map(box => box.textContent),
-    eventHidden: boxes.map(box => getComputedStyle(box).visibility),
+    // The name hugs the last box; only the gap separates them.
+    eventNameGap: Math.round(
+      event.querySelector(":scope > .live-param-name").getBoundingClientRect().left
+      - boxes[boxes.length - 1].getBoundingClientRect().right),
     eventButtons: [...event.querySelectorAll("button")].map(
       button => [button.textContent.trim(), button.disabled]),
     eventNoLiveParam: !event.querySelector("[data-live-param]"),
@@ -677,8 +680,9 @@ def main():
                       and enum_sent.get("value") == 2, repr(enum_sent))
                 check("an event declaration renders arity boxes plus sync/send",
                       kinds["eventArity"] == "2"
-                      and kinds["eventBoxes"] == ["64", "127", ""]
-                      and kinds["eventHidden"][2] == "hidden",
+                      # Exactly arity boxes: no slot is held open for the
+                      # elements a lower-arity event does not have.
+                      and kinds["eventBoxes"] == ["64", "127"],
                       repr(kinds))
                 check("the event row sends nothing until 44-event-plane lands",
                       kinds["eventNoLiveParam"]
@@ -687,8 +691,10 @@ def main():
                       repr(kinds["eventButtons"]))
                 check("the event row reads send · elements · name, sync right",
                       kinds["eventLayout"]["ordered"]
-                      and kinds["eventLayout"]["syncFlush"] <= 1,
-                      repr(kinds["eventLayout"]))
+                      and kinds["eventLayout"]["syncFlush"] <= 1
+                      # Hugging its last box, not floating in a fixed column.
+                      and kinds["eventNameGap"] <= 8,
+                      repr([kinds["eventLayout"], kinds["eventNameGap"]]))
 
                 # --- no misleading automation cue (8-kind-feedback-pass) ---
                 pulse = page.evaluate(PULSE_JS)

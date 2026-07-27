@@ -256,10 +256,10 @@
       const arity = Math.min(3, Math.max(1, Number(declaration.arity) || 1));
       const labels = Array.isArray(declaration.labels) ? declaration.labels : [];
       const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
-      const boxes = [0, 1, 2].map(index => {
-        // `blank`, not `empty`: the facilitator page owns a global `.empty`
-        // utility (the "no seats" message) that would push the box down 8vh.
-        if (index >= arity) return '<span class="live-event-box blank" aria-hidden="true"></span>';
+      // Exactly `arity` boxes, no held-open slots: the name hugs the last box
+      // (Bob, 2026-07-27), so a one-element event's name sits where its one
+      // box ends rather than where a triplet's third box would have.
+      const boxes = Array.from({length: arity}, (_unused, index) => {
         const shown = defaults[index] == null ? "—" : defaults[index];
         const name = labels[index] || `element ${index}`;
         return `<span class="live-event-box" aria-label="${esc(`${declaration.name} ${name}`)}">${esc(shown)}</span>`;

@@ -752,10 +752,11 @@
 /* --- the event row: rendered, inert (44-event-plane owns the wire) --- */
 .live-card .live-param-event,
 .device-control .live-param-event {
-  display:grid;
-  /* send · elements · name (all left) · sync, pushed right by the name's 1fr
-     into the column the other kinds give their generator toggle. */
-  grid-template-columns:auto repeat(3,58px) minmax(60px,1fr) auto;
+  /* send · elements · name, packed left in that order, and `sync` alone at
+     the right edge — the column the other kinds give their generator toggle.
+     Flex, not a grid: the name hugs whichever box is last (Bob, 2026-07-27),
+     so the row must not hold empty element columns open. */
+  display:flex;
   gap:4px;
   align-items:center;
   min-height:var(--row-h);
@@ -765,7 +766,9 @@
 .device-control .live-event-box {
   box-sizing:border-box;
   display:flex;
+  flex:none;
   align-items:center;
+  width:58px;                 /* the panel's standard number-box width */
   height:var(--row-h);
   padding:0 6px;
   border:1px solid var(--control-line);
@@ -774,13 +777,12 @@
   color:var(--text);
   font-variant-numeric:tabular-nums;
 }
-.live-card .live-event-box.blank,
-.device-control .live-event-box.blank {
-  visibility:hidden;          /* the slot holds the column, arity holds the box */
-}
+/* The name takes the slack, so `sync` lands against the row's right edge. */
 .live-card .live-param-event > .live-param-name,
 .device-control .live-param-event > .live-param-name {
+  flex:1 1 auto;
   min-width:0;
+  margin-left:2px;            /* it hugs the last box, one hair off it */
   color:var(--dim);
   white-space:nowrap;
   overflow:hidden;
@@ -788,6 +790,7 @@
 }
 .live-card .live-param-event button,
 .device-control .live-param-event button {
+  flex:none;
   min-height:20px;
   padding:1px 6px;
   border:1px solid var(--control-line);
