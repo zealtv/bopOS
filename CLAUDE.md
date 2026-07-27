@@ -82,6 +82,19 @@ remain the authority for a particular piece of work.
 > the control-panel work and `41-preset-primitive`**. Bob also added the
 > **capture-as-step** workflow (Control tab → one click stores the current
 > target→preset arrangement as a show step) as design input for 41's Q6.
+> **Second 2026-07-27 braindump** (lore
+> `2026-07-27-events-cues-and-global-controls-braindump`): **a cue is an
+> event with zero elements**, and Bob ruled same-session that cues are
+> **absorbed into the event plane as a hard break** — the `/cue` plane goes
+> away in `44-event-plane`'s contract revision, no compatibility shim (no
+> production shows rely on cues; keep the code clean). Cue triggering moves
+> onto the control panel targetable at all/group/seat. The control panel
+> gets separate parameters and events sections. Master fader, MUTE ALL, and
+> cue lead time relocate to a Monitor-dock panel
+> (`desktop-ui-overhaul/03-global-controls-monitor`, ratified direction);
+> the Monitor name itself may be revisited later. Patch-tab manifest entries
+> become drag-reorderable to reorder the control panel
+> (`desktop-ui-overhaul/01-control-panel/8-manifest-reorder`).
 > **Order (27 slotted in, 2026-07-27):**
 > `01-control-panel/1-full-manifest-visibility` (ship now) →
 > **Complete — `27-tied-guard-rot`** (the durable `tests/` suite and canonical

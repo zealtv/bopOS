@@ -12,5 +12,13 @@ behavior change, shippable now) then `2-control-panel-design` (the
 mockup-driven design pass; Bob ratifies before implementation children are
 laid out).
 
+Added 2026-07-27 from the second braindump (lore
+`2026-07-27-events-cues-and-global-controls-braindump`):
+`8-manifest-reorder` — drag-reorder manifest entries in the Patch tab so the
+control panel can be reordered. Independent of the event plane; workable
+after `7-preset-slot`. The same braindump rules that the panel will grow
+separate parameters/events sections (that lands with `44-event-plane`) and
+relocates the global controls (`../03-global-controls-monitor`).
+
 Constraint from the same session: the system currently works and must keep
 working — evolve the existing shared `ControlSurface`, don't fork it.

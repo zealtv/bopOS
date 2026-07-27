@@ -17,3 +17,10 @@ Order: `01-control-panel` (full-manifest visibility, then the mockup-driven
 design pass and its implementation) → `02-app-wide-rollout-design` (extract
 the language, propose the app-wide rollout, split implementation into
 coherent tab/surface slices after Bob ratifies the direction).
+
+Added 2026-07-27 from the second braindump (lore
+`2026-07-27-events-cues-and-global-controls-braindump`):
+`03-global-controls-monitor` — master fader, MUTE ALL, and cue lead time
+relocate to a panel in the Monitor dock (ratified direction, try it first).
+Slot it after the control-panel implementation children; coordinate with
+`02` since both touch app chrome.

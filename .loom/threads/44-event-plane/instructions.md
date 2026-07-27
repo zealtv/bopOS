@@ -8,6 +8,20 @@ integers, enumerators** (wire as integer; automation applicability TBD) and
 (note + velocity + duration) — "specced out carefully", with **forward
 synchronization** ("so these are probably a new plane ie `<target>/e/*`").
 
+**Widened same day** (lore `2026-07-27-events-cues-and-global-controls-braindump`):
+**a cue is an event with zero elements.** **RULED (Bob, 2026-07-27, same
+session): cues ARE absorbed into the event plane, as a hard break.** No
+production shows rely on the existing `/cue` machinery, so the OSC schema
+changes cleanly — no compatibility shim, no legacy `/cue` path retained;
+keep the code clean. Existing cue surfaces (manifest-declared cues, Show-tab
+cue steps, Control-tab cue triggers) migrate to zero-element events in the
+same sweep. Cue triggering moves onto the control panel, targetable at all
+seats / a group / an individual seat; the control panel gains separate
+**parameters** and **events** sections (no intermingling for now — keeps the
+manifest construction area less changed). Cue lead time remains a single
+global control (see the global-controls relocation in
+`desktop-ui-overhaul/03-global-controls-monitor`).
+
 Bob's sequencing call (2026-07-27): this "might be something that needs to
 be implemented before the preset design" — so this thread is **queued ahead
 of `41-preset-primitive`**, and 41's design must treat event-kind params as
