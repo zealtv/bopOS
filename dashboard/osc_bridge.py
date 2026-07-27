@@ -1283,15 +1283,15 @@ class OSCBridge:
                     or status not in ("ok", "err")):
                 return
             try:
-                log = json.loads(args[2])
+                log_config = json.loads(args[2])
             except (ValueError, TypeError):
                 return
-            if not isinstance(log, dict):
+            if not isinstance(log_config, dict):
                 return
             timeout = self._log_apply_timeouts.pop(uid, None)
             if timeout:
                 timeout.cancel()
-            device.setdefault("report", {})["log"] = log
+            device.setdefault("report", {})["log"] = log_config
             device["log_apply"] = {
                 "status": status, "phase": "applied" if status == "ok" else "invalid",
                 "at": time.time(),
