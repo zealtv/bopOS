@@ -81,6 +81,14 @@
   --radius-small:3px;
   --radius-momentary:7px;   /* PD bang: momentary is round */
   --radius-toggle:1px;      /* PD toggle: latching is square */
+  --row-h:24px;             /* a parameter row is never taller than this */
+  --gap:6px;
+}
+
+/* The standalone facilitator is tablet-first: same row grammar, bigger touch
+   target. Coarse pointers get a taller row rather than a different layout. */
+@media (pointer:coarse) {
+  :root { --row-h:34px; }
 }
 
 /* ---- 3. Panel scope ------------------------------------------------------
@@ -145,24 +153,19 @@
 .device-control button[aria-pressed] {
   border-radius:var(--radius-toggle);
 }
-.live-card .live-param-mode,
-.device-control .live-param-mode {
-  border-radius:var(--radius-toggle);
-  border-color:var(--control-line);
-}
 /* A latching button that is ON wears the modulation ink. */
-.live-card .live-param-mode-button[aria-pressed=true],
-.device-control .live-param-mode-button[aria-pressed=true] {
+.live-card button[aria-pressed=true],
+.device-control button[aria-pressed=true] {
   background:var(--mod-fill);
   color:var(--text);
   box-shadow:inset 0 0 0 1px var(--mod);
 }
 
 /* ---- 6. The ∿ modulation icon (design-language §5) ----------------------
-   Always an 18px circle, exempt from the momentary/latching radii. The
-   markup that uses this class arrives with `4-row-regrind`, which replaces
-   the `value ▸ gen` switch above; the shape rule lands here with the rest of
-   the button vocabulary so that stitch only has to emit the element. */
+   Always an 18px circle, exempt from the momentary/latching radii. The icon
+   is both the drawer disclosure and the row's modulation indicator, so it
+   lights on `aria-expanded` OR a running generator. (`4-row-regrind` emits
+   the markup; it replaced the `value ▸ gen` switch.) */
 
 .live-card .live-param-mod,
 .device-control .live-param-mod {
@@ -207,13 +210,13 @@
 }
 
 /* ---- 7b. Native widget inks ---------------------------------------------
-   The shipping surface painted the range track cyan and the facilitator's
-   0/1 checkbox warm amber. Both are off-book under the ratified palette:
-   cyan is reserved for modulation and there is no third hue. Manual controls
-   take the structural accent. (`4-row-regrind` replaces the native track
-   with the `--value-fill` fill + marker; until then the accent stands in.)
-   The facilitator's text param reads `--bg` for its field, which is now the
-   saturated page pink — a value box is `--input`. */
+   The shipping surface painted the facilitator's 0/1 checkbox warm amber,
+   which is off-book under the ratified palette: cyan is reserved for
+   modulation and there is no third hue. Manual controls take the structural
+   accent. (The numeric range track no longer paints itself at all — §12
+   replaces it with the `--value-fill` fill + marker line.) The facilitator's
+   text param reads `--bg` for its field, which is now the saturated page
+   pink — a value box is `--input`. */
 
 .live-card .live-param input[type=range],
 .device-control .live-param input[type=range],
@@ -229,8 +232,8 @@
 }
 
 /* ---- 8. Generator drawer chrome (design-language §7) --------------------
-   A `--subpanel` region indented 12px under its row. Layout of the drawer's
-   innards (kind tabs, waveform display, mini-sliders) is `4-row-regrind`. */
+   A `--subpanel` region indented 12px under its row. The waveform display and
+   mini-sliders are still the shipping ones; the kind tabs land in §13. */
 
 .live-card .live-param-gen,
 .device-control .live-param-gen {
@@ -251,4 +254,310 @@
 .device-control .live-param-gen button.primary {
   border-color:var(--accent);
   background:var(--control);
+}
+
+/* ---- 12. The parameter row (design-language §5, §6) ---------------------
+   `4-row-regrind`. The ratified grammar is
+
+       [ value box 58px ][ name-in-slider (flexible) ][ ∿ 18px ]
+
+   The native `<input type=range>` stays the interactive element — every
+   pointer, keyboard, takeover and ARIA behaviour on it is unchanged — but it
+   is stripped to a transparent overlay: the trough, the fill, the marker line
+   and the parameter name are all painted by `.live-param-range-wrap` from the
+   `--v` custom property, which `control-surface.js` keeps in step with the
+   input's value.
+
+   Scoped with `:has(.live-param-range-wrap)` so only numeric rows regrind.
+   Strings and 0/1 toggles keep the shipping flex row until
+   `6-non-float-kinds`. */
+
+.live-card .live-param:has(.live-param-range-wrap),
+.device-control .live-param:has(.live-param-range-wrap) {
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr) 18px;
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+}
+
+/* --- the value box --- */
+.live-card .live-param > output.live-param-value,
+.device-control .live-param > output.live-param-value {
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  width:58px;             /* the standardized number-box width */
+  min-width:0;
+  height:var(--row-h);
+  padding:0 5px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+  font-variant-numeric:tabular-nums;
+  /* Alignment says the kind: floats left, integers right (Bob, 2026-07-27). */
+  justify-content:flex-start;
+  text-align:left;
+}
+.live-card .live-param > output.live-param-value[data-integer],
+.device-control .live-param > output.live-param-value[data-integer] {
+  justify-content:flex-end;
+  text-align:right;
+}
+/* The precision field swaps the box for a number input in the same 58px slot. */
+.live-card .live-param > .precise-input,
+.device-control .live-param > .precise-input {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:var(--row-h);
+  padding:0 4px;
+  flex:none;
+}
+
+/* --- the slider: trough, fill, marker, name --- */
+.live-card .live-param .live-param-range-wrap,
+.device-control .live-param .live-param-range-wrap {
+  position:relative;
+  display:block;
+  min-width:0;
+  height:var(--row-h);
+  flex:1 1 auto;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+  cursor:ew-resize;
+}
+.live-card .live-param-fill,
+.device-control .live-param-fill {
+  position:absolute;
+  inset:0;
+  width:calc(var(--v,0) * 100%);
+  background:var(--value-fill);
+  pointer-events:none;
+}
+.live-card .live-param.automated .live-param-fill,
+.device-control .live-param.automated .live-param-fill {
+  background:var(--mod-fill);
+}
+/* The manual marker line: 1.5px at the exact current value, on every slider. */
+.live-card .live-param .live-param-range-wrap::after,
+.device-control .live-param .live-param-range-wrap::after {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:calc(var(--v,0) * 100%);
+  width:1.5px;
+  margin-left:-.75px;
+  background:var(--control-line);
+  pointer-events:none;
+}
+.live-card .live-param.automated .live-param-range-wrap::after,
+.device-control .live-param.automated .live-param-range-wrap::after {
+  background:var(--mod);
+}
+/* The shipping cyan "automated" bar across the trough is superseded by the
+   fill: the fill IS the modulation indicator now. */
+.live-card .live-param.automated:not(.mixed) .live-param-range-wrap::before,
+.device-control .live-param.automated:not(.mixed) .live-param-range-wrap::before {
+  display:none;
+}
+/* The name lives inside the slider — PD's `label: value` idiom. */
+.live-card .live-param-range-wrap > .live-param-name,
+.device-control .live-param-range-wrap > .live-param-name {
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  padding:0 6px;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  pointer-events:none;
+}
+.live-card .live-param-range-wrap > .live-param-name .live-param-glyph,
+.device-control .live-param-range-wrap > .live-param-name .live-param-glyph {
+  margin-left:0;
+  font-size:12px;
+}
+
+/* --- the native range, stripped to a transparent overlay --- */
+.live-card .live-param-range-wrap input[type=range],
+.device-control .live-param-range-wrap input[type=range] {
+  position:absolute;
+  inset:0;
+  z-index:3;
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent;
+  cursor:ew-resize;
+}
+.live-card .live-param-range-wrap input[type=range]::-webkit-slider-runnable-track,
+.device-control .live-param-range-wrap input[type=range]::-webkit-slider-runnable-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-track,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+/* A hairline thumb: the painted marker line is the value indicator, and a
+   1px thumb also makes the pointer position map to the fill position. */
+.live-card .live-param-range-wrap input[type=range]::-webkit-slider-thumb,
+.device-control .live-param-range-wrap input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-thumb,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-thumb {
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+  border-radius:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-progress,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-progress {
+  background:transparent;
+}
+
+/* --- mixed: one 45° slash pattern, two inks (design-language §6) --- */
+.live-card .live-param.mixed .live-param-fill,
+.device-control .live-param.mixed .live-param-fill {
+  width:100%;
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--hatch) 4px 5.5px);
+}
+.live-card .live-param.mixed.mixed-mod .live-param-fill,
+.device-control .live-param.mixed.mixed-mod .live-param-fill {
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--mod-hatch) 4px 5.5px);
+}
+/* Nothing is at "the" value, so no marker line. */
+.live-card .live-param.mixed .live-param-range-wrap::after,
+.device-control .live-param.mixed .live-param-range-wrap::after {
+  display:none;
+}
+/* The value box hatches too — with dots for the value it cannot state. */
+.live-card .live-param.mixed > output.live-param-value,
+.device-control .live-param.mixed > output.live-param-value {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+  letter-spacing:.12em;
+}
+.live-card .live-param.mixed.mixed-mod > output.live-param-value,
+.device-control .live-param.mixed.mixed-mod > output.live-param-value {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+/* The mixed slider is not dimmed or striped by the shipping treatment. */
+.live-card .live-param.mixed input[type=range],
+.device-control .live-param.mixed input[type=range] {
+  opacity:1;
+  background:transparent;
+}
+
+/* --- the animated generator marker ---
+   Under a periodic generator the marker element is the only thing that knows
+   where the value is between heartbeats, so it carries BOTH the marker line
+   (::after, at its own left edge) and the fill behind it (::before, extending
+   left to the trough edge and clipped by the wrap). The static fill and the
+   static marker step aside for it. */
+.live-card .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+.device-control .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+.live-card .live-param-range-wrap:has(.live-param-marker)::after,
+.device-control .live-param-range-wrap:has(.live-param-marker)::after {
+  display:none;
+}
+.live-card .live-param-marker,
+.device-control .live-param-marker {
+  top:0;
+  height:100%;
+  z-index:2;
+}
+.live-card .live-param-marker::after,
+.device-control .live-param-marker::after {
+  top:0;
+  left:0;
+  margin-left:-.75px;
+  width:1.5px;
+  height:100%;
+  border-radius:0;
+  background:var(--mod);
+}
+.live-card .live-param-marker::before,
+.device-control .live-param-marker::before {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  right:100%;
+  width:100vw;
+  background:var(--mod-fill);
+}
+/* A free-running LFO is off the fleet clock: the marker says so as a broken
+   line, which is what a 1.5px rule can still carry. */
+.live-card .live-param-marker.free::after,
+.device-control .live-param-marker.free::after {
+  background:repeating-linear-gradient(180deg,var(--mod) 0 3px,transparent 3px 6px);
+  border:0;
+}
+
+/* Reduced motion: the shipping rule hides the animated marker, which would
+   take the fill with it. The static fill steps back in — a stepped, per
+   heartbeat reading of the modulated value (design-language §10). */
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+  .device-control .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+  .live-card .live-param-range-wrap:has(.live-param-marker)::after,
+  .device-control .live-param-range-wrap:has(.live-param-marker)::after {
+    display:block;
+  }
+}
+
+/* ---- 13. Generator drawer kind tabs (design-language §7) ----------------
+   `LFO | loop | fade` latching buttons replace the kind <select>. */
+
+.live-card .live-param-gen-tabs,
+.device-control .live-param-gen-tabs {
+  display:flex;
+  flex:1;
+  gap:5px;
+  min-width:120px;
+}
+.live-card .live-param-gen-tabs button,
+.device-control .live-param-gen-tabs button {
+  flex:1;
+  min-height:20px;
+  padding:3px 0;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-weight:700;
+  line-height:1;
+}
+.live-card .live-param-gen-tabs button[aria-pressed=true],
+.device-control .live-param-gen-tabs button[aria-pressed=true] {
+  background:var(--mod-soft);
+  border-color:var(--mod);
+  color:var(--mod);
+  box-shadow:none;
 }

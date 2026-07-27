@@ -179,7 +179,7 @@ def main():
                 check("unflagged numeric params retain generator authoring",
                       frame.locator(
                           '.live-param[data-param-path="texture/density"]'
-                          ' [data-gen-mode="gen"]'
+                          ' [data-gen-toggle]'
                       ).count() >= 1)
 
                 facilitator = browser.new_page()

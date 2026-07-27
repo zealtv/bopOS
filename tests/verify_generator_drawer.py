@@ -180,8 +180,10 @@ ALL_DENSITY = ('.live-card[data-live-scope="all"] '
                'input[data-live-param][data-param-path="density"]')
 ALL_ROW = ('.live-card[data-live-scope="all"] '
            '.live-param[data-param-path="density"]')
-GEN_BUTTON = (ALL_ROW + ' [data-gen-mode="gen"]')
-VALUE_BUTTON = (ALL_ROW + ' [data-gen-mode="value"]')
+# The ratified row grammar (01-control-panel/4-row-regrind) replaced the
+# `value ▸ gen` two-button switch with the ∿ icon: one disclosure that both
+# opens the drawer and indicates modulation.
+MOD_ICON = (ALL_ROW + " [data-gen-toggle]")
 DRAWER = '.live-card[data-live-scope="all"] .live-param-gen'
 
 
@@ -193,25 +195,58 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
 
     label = "mixed" if mixed else "agreeing"
 
-    # --- 1. the switch exists on numeric rows only ---
-    check(f"[{label}] numeric row carries a value/gen switch",
-          page.locator(GEN_BUTTON).count() == 1)
-    check(f"[{label}] string row carries no generator switch",
+    # --- 1. the ∿ icon exists on numeric rows only ---
+    check(f"[{label}] numeric row carries a ∿ generator icon",
+          page.locator(MOD_ICON).count() == 1)
+    check(f"[{label}] string row carries no generator icon",
           page.locator('.live-card[data-live-scope="all"] '
                        '.live-param[data-param-path="label"] '
-                       '[data-gen-mode]').count() == 0)
-    check(f"[{label}] the switch is exactly two states",
-          page.locator(ALL_ROW + " [data-gen-mode]").count() == 2)
+                       '[data-gen-toggle]').count() == 0)
+    check(f"[{label}] the icon is a disclosure, closed to start",
+          page.locator(MOD_ICON).get_attribute("aria-expanded") == "false")
 
     # --- 2. mixed aggregates are NOT disabled ---
     if mixed:
         check("[mixed] the aggregate row reports its mixed state",
               "mixed" in (page.locator(ALL_ROW).get_attribute("class") or ""))
-        check("[mixed] the gen switch is NOT disabled by disagreement",
-              not page.locator(GEN_BUTTON).is_disabled())
+        check("[mixed] the ∿ icon is NOT disabled by disagreement",
+              not page.locator(MOD_ICON).is_disabled())
+        # The ratified encoding: one 45° slash pattern across the whole
+        # slider, the same pattern in the value box, dots for the value the
+        # box cannot state, and no marker line — nothing is at "the" value.
+        presentation = page.evaluate(
+            """sel => {
+              const row = document.querySelector(sel);
+              const box = row.querySelector("output.live-param-value");
+              const fill = row.querySelector(".live-param-fill");
+              const wrap = row.querySelector(".live-param-range-wrap");
+              return {
+                boxText: box.textContent,
+                boxHatch: getComputedStyle(box).backgroundImage,
+                fillHatch: getComputedStyle(fill).backgroundImage,
+                // clientWidth is the trough inside its 1px border, which is
+                // the box the absolutely-positioned fill spans.
+                fillWidth: Math.round(fill.getBoundingClientRect().width),
+                wrapWidth: wrap.clientWidth,
+                marker: getComputedStyle(wrap, "::after").display,
+                modInk: row.classList.contains("mixed-mod"),
+              };
+            }""", ALL_ROW)
+        check("[mixed] the value box hatches and shows dots",
+              presentation["boxText"] == "·····"
+              and "repeating-linear-gradient" in presentation["boxHatch"],
+              repr(presentation))
+        check("[mixed] the slider hatches across its whole width",
+              "repeating-linear-gradient" in presentation["fillHatch"]
+              and presentation["fillWidth"] == presentation["wrapWidth"],
+              repr(presentation))
+        check("[mixed] a mixed row carries no marker line",
+              presentation["marker"] == "none", repr(presentation))
+        check("[mixed] no generator is involved, so the hatch stays gray",
+              not presentation["modInk"], repr(presentation))
 
     # --- the drawer opens inline ---
-    page.click(GEN_BUTTON)
+    page.click(MOD_ICON)
     page.wait_for_selector(DRAWER)
     check(f"[{label}] gen opens an inline drawer",
           page.locator(DRAWER).count() == 1)
@@ -221,17 +256,26 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
               " return d.previousElementSibling?.classList"
               ".contains('live-param'); }", DRAWER))
 
-    # --- 3. stop is inside the drawer, not a third switch state ---
+    # --- 3. stop is inside the drawer, not an icon state ---
     check(f"[{label}] stop is a control inside the drawer",
           page.locator(DRAWER + " [data-gen-stop]").count() == 1)
-    check(f"[{label}] the switch gained no third state",
-          page.locator(ALL_ROW + " [data-gen-mode]").count() == 2)
+    check(f"[{label}] the row still carries exactly one ∿ icon",
+          page.locator(ALL_ROW + " [data-gen-toggle]").count() == 1)
+    check(f"[{label}] opening the drawer lights the icon",
+          page.locator(MOD_ICON).get_attribute("aria-expanded") == "true")
 
-    # --- the builder is the ratified one: kinds, fields, preview ---
+    # --- the builder is the ratified one: kind tabs, fields, preview ---
     kinds = page.eval_on_selector_all(
-        DRAWER + " [data-gen-kind] option", "nodes => nodes.map(n => n.value)")
-    check(f"[{label}] the drawer offers the generator kinds",
-          kinds == ["fade", "loop", "lfo"], repr(kinds))
+        DRAWER + " [data-gen-kind-tab]",
+        "nodes => nodes.map(n => n.dataset.genKindTab)")
+    check(f"[{label}] the drawer offers the generator kinds as tabs",
+          kinds == ["lfo", "loop", "fade"], repr(kinds))
+    pressed = page.eval_on_selector_all(
+        DRAWER + " [data-gen-kind-tab]",
+        "nodes => nodes.filter(n => n.getAttribute('aria-pressed') === 'true')"
+        ".map(n => n.dataset.genKindTab)")
+    check(f"[{label}] exactly one kind tab is latched on",
+          pressed == ["lfo"], repr(pressed))
     check(f"[{label}] lfo fields and waveform preview render",
           page.locator(DRAWER + ' [data-param-lfo="shape"]').count() == 1
           and page.locator(DRAWER + " .show-param-preview").count() == 1)
@@ -269,9 +313,9 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
         ".every(entry => !entry.density)", timeout=8000)
     check(f"[{label}] stop clears the recorded automation", cleared is not None)
 
-    # --- switching back to value closes the drawer and stops nothing ---
-    page.click(VALUE_BUTTON)
-    check(f"[{label}] value closes the drawer",
+    # --- a second click on the ∿ icon closes the drawer and stops nothing ---
+    page.click(MOD_ICON)
+    check(f"[{label}] the ∿ icon closes the drawer again",
           page.locator(DRAWER).count() == 0)
     check(f"[{label}] the underlying control is still usable",
           page.locator(ALL_DENSITY).count() == 1

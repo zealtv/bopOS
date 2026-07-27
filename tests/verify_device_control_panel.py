@@ -337,7 +337,7 @@ def main():
                         '#device-control input[data-live-param]'
                       )?.click();
                       document.querySelector(
-                        '#device-control [data-gen-mode="gen"]'
+                        '#device-control [data-gen-toggle]'
                       )?.click();
                     }""")
                 check("unbound disabled controls emit no content messages",

@@ -143,12 +143,17 @@
       return model;
     }
 
-    // ---- generator drawer (37/08) -----------------------------------------
+    // ---- generator drawer (37/08, reground by 01-control-panel/4) ----------
     // A numeric row authors either a value or a generator against the same
-    // param address. The mode switch says which one the operator is editing;
-    // whether a generator is *running* is a separate axis, which is why stop
-    // is a control inside the drawer and not a third switch state.
+    // param address. The ∿ icon opens the drawer; "which am I editing" is now
+    // drawer-open state rather than a separate two-button switch (the ratified
+    // row grammar). Whether a generator is *running* stays a separate axis,
+    // which is why stop is a control inside the drawer and not an icon state.
     const GEN_KINDS = ["fade", "loop", "lfo"];
+    // Tab order is the ratified reading order; GEN_KINDS stays the wire/parse
+    // order so nothing downstream has to care about presentation.
+    const GEN_TAB_ORDER = ["lfo", "loop", "fade"];
+    const GEN_TAB_LABELS = {lfo: "LFO", loop: "loop", fade: "fade"};
     const numericDeclaration = declaration => declaration.type === "f" || declaration.type === "i";
     const drawerKey = (scope, id, declaration) => `${scope}:${id ?? "all"}:${declaration.identity}`;
 
@@ -169,22 +174,23 @@
       return window.ParamGenerator.blank(declaration, "lfo");
     }
 
-    function modeSwitch(key, declaration, open, disabled) {
-      const label = `${declaration.name} authoring mode`;
-      const button = (mode, text, pressed) =>
-        `<button type="button" class="live-param-mode-button" data-gen-mode="${mode}" data-gen-key="${esc(key)}" aria-pressed="${pressed}" ${disabled ? "disabled" : ""}>${text}</button>`;
-      return `<span class="live-param-mode" role="group" aria-label="${esc(label)}">${button("value", "value", !open)}${button("gen", "gen", open)}</span>`;
+    // The ∿ icon: disclosure for the drawer AND the row's modulation indicator.
+    // `aria-expanded` carries the disclosure state; the automated class on the
+    // row paints the active ink even when the drawer is shut.
+    function modIcon(key, declaration, open, disabled) {
+      const label = `${declaration.name} generator`;
+      return `<button type="button" class="live-param-mod" data-gen-toggle data-gen-key="${esc(key)}" aria-expanded="${open}" aria-label="${esc(label)}" ${disabled ? "disabled" : ""}>∿</button>`;
     }
 
     function generatorDrawer(scope, id, key, declaration, running, disabled) {
       const spec = draftSpec(key, declaration, running);
       const kind = GEN_KINDS.includes(spec.mode) ? spec.mode : "lfo";
-      const options = GEN_KINDS.map(item =>
-        `<option value="${item}" ${item === kind ? "selected" : ""}>${item}</option>`).join("");
       const off = disabled ? "disabled" : "";
-      return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
+      const tabs = GEN_TAB_ORDER.map(item =>
+        `<button type="button" data-gen-kind-tab="${item}" aria-pressed="${item === kind}" ${off}>${GEN_TAB_LABELS[item]}</button>`).join("");
+      return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-gen-kind="${esc(kind)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
         <div class="live-param-gen-head">
-          <label>generator <select data-gen-kind ${off}>${options}</select></label>
+          <span class="live-param-gen-tabs" role="group" aria-label="generator kind">${tabs}</span>
           <span class="live-param-gen-actions">
             <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
             <button type="button" data-gen-stop ${off}>Stop</button>
@@ -212,16 +218,25 @@
       const label = automation ? `${valueLabel}, automated, ${automation.label}` : valueLabel;
       const common = `${attrs} data-param-name="${esc(declaration.name)}" aria-label="${esc(label)}" ${automation ? 'data-automated="true"' : ""} ${disabled ? "disabled" : ""}`;
       const mixedText = state.automationMixed ? '<span class="live-param-auto-mixed">auto·mixed</span>' : "";
+      const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
+      const nameSpan = `<span class="live-param-name">${esc(declaration.name)}${glyph}</span>`;
       let input;
       if (declaration.type === "s") {
         input = `<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
       } else if (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1) {
         input = `<input ${common} type="checkbox" ${!mixed && Number(value) ? "checked" : ""} ${mixed ? 'data-mixed="true"' : ""}>`;
       } else {
-        const kind = model?.parsed.mode === "lfo" ? model.parsed.shape : model?.parsed.mode;
-        const display = state.automationMixed ? "auto·mixed" : state.mixed ? "mixed"
-          : model?.parsed.mode === "fade" ? `→ ${model.target}`
-          : model ? `${value} · ${kind}` : value;
+        // The value box is a number box, not a state legend: mixed states show
+        // the ratified dots and carry the words in the accessible name, which
+        // leaves room for the value itself at full width. A running generator
+        // shows the live value alone — the ∿ icon and the cyan ink already say
+        // "modulated", so the kind no longer has to fit in 58px.
+        const display = mixed ? "·····"
+          : model?.parsed.mode === "fade" ? model.target
+          : value;
+        const boxLabel = state.automationMixed ? `${declaration.name}, mixed automation`
+          : state.mixed ? `${declaration.name}, mixed values`
+          : `${declaration.name} value`;
         const rangeValue = mixed ? (declaration.default ?? declaration.min ?? 0) : value;
         let motion = "";
         if (model) {
@@ -247,23 +262,34 @@
         // precision field (40-precision-param-input); mixed/automation states keep a
         // static readout so takeover semantics are unchanged.
         const preciseReadout = !state.automationMixed && !state.mixed && !model;
-        input = `<output${preciseReadout ? ' data-precise="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap">${motion}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
+        // `--v` is the fill/marker position for a *manual* row. Under a
+        // periodic generator the animated marker element carries the fill
+        // instead (it is the only thing that knows where the value is between
+        // heartbeats), and the CSS hides the static fill behind it.
+        const fillPosition = mixed ? 1 : window.ParamSpec.position(rangeValue, declaration);
+        input = `<output${preciseReadout ? ' data-precise="true"' : ""} class="live-param-value" aria-label="${esc(boxLabel)}"${declaration.type === "i" ? ' data-integer="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap" style="--v:${fillPosition}"><span class="live-param-fill" aria-hidden="true"></span>${motion}${nameSpan}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
       }
-      const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
       const device = scope === "device" ? context.deviceForScope?.(id) : deviceForSeat(sourceSeat);
       const seatScoped = scope === "seat" || scope === "device";
       const online = !seatScoped || (!!device?.online && Number(device?.engine_alive) !== 0);
       const deviceOutputDisabled = seatScoped && !!(device?.device_enabled === false || device?.output_enabled === false);
-      // Every numeric row carries the value/gen switch; the drawer is a sibling
-      // of the label rather than a child, because a <label> must not wrap a
-      // form region of its own. `.promoted-controls` is a grid, so the drawer
-      // lands directly beneath its row.
+      // Every numeric row carries the ∿ icon; the drawer is a sibling of the
+      // label rather than a child, because a <label> must not wrap a form
+      // region of its own. `.promoted-controls` is a grid, so the drawer lands
+      // directly beneath its row.
       const generator = generatorAvailable(declaration);
       const key = drawerKey(scope, id, declaration);
       const open = generator && openDrawers.has(key);
-      const switcher = generator ? modeSwitch(key, declaration, open, disabled) : "";
+      const modButton = generator ? modIcon(key, declaration, open, disabled) : "";
       const drawer = open ? generatorDrawer(scope, id, key, declaration, state.automation, disabled) : "";
-      return `<label class="live-param${mixed ? " mixed" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}" data-param-path="${esc(declaration.identity)}"><span class="live-param-name">${esc(declaration.name)}${glyph}</span>${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${switcher}${input}</label>${drawer}`;
+      // A mixed row hatches in the modulation ink as soon as a generator is
+      // anywhere in the aggregate — one pattern, two inks (design §6).
+      const mixedMod = mixed && (state.automationMixed || !!state.automation);
+      // Numeric rows put the name inside the slider; the other kinds keep the
+      // leading name span until `6-non-float-kinds` regrinds them.
+      const nameOutside = declaration.type === "s" ||
+        (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1);
+      return `<label class="live-param${mixed ? " mixed" : ""}${mixedMod ? " mixed-mod" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}" data-param-path="${esc(declaration.identity)}">${nameOutside ? nameSpan : ""}${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}${modButton}</label>${drawer}`;
     }
 
     function paramTree(scope, id, members, declarations, disabled) {
@@ -285,6 +311,20 @@
         return leaves + branches;
       };
       return renderNode(roots);
+    }
+
+    // The slider's fill and marker are painted by the wrapper from `--v`, so
+    // any code that moves the native range's value has to move `--v` with it:
+    // dragging, precision entry, and the fade animator all land here.
+    function syncFill(input) {
+      const wrap = input.closest(".live-param-range-wrap");
+      if (!wrap) return;
+      const minimum = Number(input.min);
+      const maximum = Number(input.max);
+      const span = maximum - minimum;
+      const position = Number.isFinite(span) && span !== 0
+        ? (Number(input.value) - minimum) / span : 0;
+      wrap.style.setProperty("--v", String(Math.min(1, Math.max(0, position))));
     }
 
     function fadeValueAt(input, elapsedMs) {
@@ -309,6 +349,7 @@
 
     function finishFade(input, value) {
       input.value = value;
+      syncFill(input);
       const control = input.closest(".live-param");
       const output = control?.querySelector("output");
       if (output) output.value = input.value;
@@ -339,6 +380,7 @@
         if (complete) finishFade(input, value);
         else {
           input.value = value;
+          syncFill(input);
           const output = control?.querySelector("output");
           if (output) output.value = input.value;
         }
@@ -394,6 +436,7 @@
         input.onpointerdown = beginTakeover;
         if (input.type === "range") {
           input.oninput = () => {
+            syncFill(input);
             const output = input.closest(".live-param")?.querySelector("output");
             if (output?.tagName === "OUTPUT") output.value = input.value;
             const now = performance.now();
@@ -413,7 +456,7 @@
             value: Number(input.value),
             label: input.dataset.paramName,
             disabled: input.disabled,
-          }, value => { input.value = value; send(value); },
+          }, value => { input.value = value; syncFill(input); send(value); },
              editing => {
                context.setInteracting?.(editing);
                if (!editing) context.requestRender?.();
@@ -425,15 +468,15 @@
     }
 
     function bindGenerators(root = document) {
-      root.querySelectorAll("[data-gen-mode]").forEach(button => {
+      root.querySelectorAll("[data-gen-toggle]").forEach(button => {
         button.onclick = event => {
-          // The switch lives inside the row's <label>, so a plain click would
-          // also activate the labelled control — toggling the very checkbox
-          // the operator was trying to open a drawer for.
+          // The icon lives inside the row's <label>, so a plain click would
+          // also activate the labelled control — nudging the very slider the
+          // operator was trying to open a drawer for.
           event.preventDefault();
           const key = button.dataset.genKey;
-          if (button.dataset.genMode === "gen") openDrawers.add(key);
-          else openDrawers.delete(key);
+          if (openDrawers.has(key)) openDrawers.delete(key);
+          else openDrawers.add(key);
           context.requestRender?.();
         };
       });
@@ -445,15 +488,18 @@
         const id = drawer.dataset.liveId ?? null;
         const declaration = (state().live_controls?.declarations || [])
           .find(item => item.identity === identity) || {type: "f", identity};
-        const kindSelect = drawer.querySelector("[data-gen-kind]");
         const error = drawer.querySelector(".live-param-gen-error");
+        // The kind used to live in a <select>; it is now the drawer's own
+        // dataset, written by the tab row, so the compile path has one source
+        // of truth whatever the chrome looks like.
+        const currentKind = () => drawer.dataset.genKind || "lfo";
 
         // Editing inside a drawer must survive the heartbeat: the host's
         // render guard is the same one the precision field uses.
         drawer.onfocusin = () => context.setInteracting?.(true);
         drawer.onfocusout = () => context.setInteracting?.(false);
 
-        const compile = () => window.ParamGenerator.compile(drawer, declaration, kindSelect?.value || "lfo");
+        const compile = () => window.ParamGenerator.compile(drawer, declaration, currentKind());
         const refresh = () => {
           const args = compile();
           if (!args) return null;
@@ -468,19 +514,26 @@
           return args;
         };
 
-        if (kindSelect) kindSelect.onchange = () => {
-          // Switching kind starts that kind's own defaults rather than trying
-          // to reinterpret the previous kind's fields.
-          drafts.delete(key);
-          const blank = window.ParamGenerator.blank(declaration, kindSelect.value);
-          drawer.querySelector(".live-param-gen-fields").innerHTML =
-            window.ParamGenerator.fields(declaration, blank);
-          bindGenerators(drawer.parentElement || root);
-          refresh();
-        };
+        drawer.querySelectorAll("[data-gen-kind-tab]").forEach(tab => {
+          tab.onclick = () => {
+            const kind = tab.dataset.genKindTab;
+            if (kind === currentKind()) return;
+            // Switching kind starts that kind's own defaults rather than trying
+            // to reinterpret the previous kind's fields.
+            drawer.dataset.genKind = kind;
+            drafts.delete(key);
+            for (const other of drawer.querySelectorAll("[data-gen-kind-tab]")) {
+              other.setAttribute("aria-pressed", String(other === tab));
+            }
+            const blank = window.ParamGenerator.blank(declaration, kind);
+            drawer.querySelector(".live-param-gen-fields").innerHTML =
+              window.ParamGenerator.fields(declaration, blank);
+            bindGenerators(drawer.parentElement || root);
+            refresh();
+          };
+        });
 
         drawer.querySelectorAll("input, select").forEach(field => {
-          if (field === kindSelect) return;
           field.oninput = refresh;
           field.onchange = refresh;
         });

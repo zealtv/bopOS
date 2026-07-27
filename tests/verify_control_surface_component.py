@@ -116,6 +116,10 @@ def make_fixture(root):
              "default": 0, "dashboard": True},
             {"name": "density", "type": "f", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
+            # A non-boolean integer: its value box right-aligns, which is how
+            # the ratified row grammar says "this parameter is an integer".
+            {"name": "steps", "type": "i", "min": 0, "max": 8,
+             "default": 2, "dashboard": True},
             # A nested path exercises the branch renderer.
             {"name": "cutoff", "type": "f", "min": 0, "max": 1,
              "default": .5, "path": ["filter"], "dashboard": True},
@@ -133,8 +137,8 @@ def make_fixture(root):
         # and seat renders are comparable.
         return {"id": seat_id, "name": name, "positions": [[seat_id, 1]],
                 "groups": [0], "bound": uid, "patch": "alpha",
-                "params": {"gate": 0, "density": .2, "filter/cutoff": .5,
-                           "label": "hello"}}
+                "params": {"gate": 0, "density": .2, "steps": 2,
+                           "filter/cutoff": .5, "label": "hello"}}
 
     state = {
         "schema": 1, "name": "Control surface verifier",
@@ -204,6 +208,101 @@ PARITY_JS = """
       && deviceHtml.includes("live-param-marker"),
     seatHtml: normalize(seatHtml).slice(0, 400),
     deviceHtml: normalize(deviceHtml).slice(0, 400),
+  };
+}
+"""
+
+
+# Measures the ratified parameter-row grammar
+# (`[value box][name-in-slider][∿]`) on the probe host, moved inside a real
+# `.live-card` so the panel stylesheet applies. `density` there is
+# generator-driven, `steps`/`filter/cutoff` are manual.
+ROW_GRAMMAR_JS = """
+() => {
+  const host = document.getElementById("surface-probe");
+  document.querySelector(".live-card").appendChild(host);
+  const row = path => host.querySelector(`.live-param[data-param-path="${path}"]`);
+  const density = row("density");
+  const steps = row("steps");
+  const cutoff = row("filter/cutoff");
+  const wrap = cutoff.querySelector(".live-param-range-wrap");
+  const range = wrap.querySelector('input[type="range"]');
+  const fillOf = element => element.querySelector(".live-param-range-wrap")
+    .style.getPropertyValue("--v");
+  // Drive the range the way a drag does, so the binding under test is the
+  // shipping `oninput` handler rather than a re-render.
+  range.value = "0.8";
+  range.dispatchEvent(new Event("input", {bubbles: true}));
+  const marker = density.querySelector(".live-param-marker");
+  return {
+    // `precise-output` is added by the precision-field binding, so name the
+    // row's own class rather than the whole class list.
+    shape: [...cutoff.children].map(
+      node => `${node.tagName}.${node.classList[0]}`),
+    nameInsideSlider: !!density.querySelector(
+      ".live-param-range-wrap > .live-param-name"),
+    nameText: density.querySelector(".live-param-name").textContent,
+    fillPosition: fillOf(density),
+    integerFillPosition: fillOf(steps),
+    fillAfterDrag: fillOf(cutoff),
+    floatAlign: getComputedStyle(
+      cutoff.querySelector("output.live-param-value")).textAlign,
+    integerAlign: getComputedStyle(
+      steps.querySelector("output.live-param-value")).textAlign,
+    rangeBackground: getComputedStyle(range).backgroundColor,
+    automatedStaticFill: getComputedStyle(
+      density.querySelector(".live-param-fill")).display,
+    automatedMarkerFill: marker
+      ? getComputedStyle(marker, "::before").backgroundColor : "",
+    manualStaticFill: getComputedStyle(
+      steps.querySelector(".live-param-fill")).display,
+    manualMarkerLine: getComputedStyle(
+      steps.querySelector(".live-param-range-wrap"), "::after").display,
+  };
+}
+"""
+
+
+# "Editing unifies" (design-language §6) rendered on a probe aggregate, so the
+# takeover is measurable without sending anything to the fleet: the probe's
+# send callback collects payloads instead of reaching a host websocket.
+MIXED_TAKEOVER_JS = """
+() => {
+  const [first, second] = Object.values(installation.seats);
+  const disagreeing = {...second, params: {...second.params, density: .9}};
+  const declarations = installation.live_controls.declarations
+    .map(d => ({...d, path: d.path || []}));
+  const probe = window.ControlSurface.create({
+    getState: () => installation,
+    deviceForSeat: () => ({online: true, engine_alive: 1,
+                           device_enabled: true, output_enabled: true}),
+    send: payload => (window.__mixedSent = window.__mixedSent || []).push(payload),
+  });
+  const host = document.createElement("div");
+  host.id = "mixed-probe";
+  host.innerHTML = probe.tree("all", null, [first, disagreeing],
+                              declarations, false);
+  document.querySelector(".live-card").appendChild(host);
+  probe.bind(host);
+  const row = host.querySelector('.live-param[data-param-path="density"]');
+  const fill = row.querySelector(".live-param-fill");
+  const range = row.querySelector('input[type="range"]');
+  const before = {
+    mixed: row.classList.contains("mixed"),
+    hatch: getComputedStyle(fill).backgroundImage,
+    width: getComputedStyle(fill).width,
+  };
+  range.value = "0.6";
+  range.dispatchEvent(new Event("input", {bubbles: true}));
+  return {
+    before,
+    after: {
+      mixed: row.classList.contains("mixed"),
+      hatch: getComputedStyle(fill).backgroundImage,
+      position: row.querySelector(".live-param-range-wrap")
+        .style.getPropertyValue("--v"),
+    },
+    sent: window.__mixedSent || [],
   };
 }
 """
@@ -329,6 +428,68 @@ def main():
                       and sent[0].get("name") == "gate"
                       and sent[0].get("value") == 1,
                       repr(sent))
+
+                # --- (e) the ratified row grammar (01-control-panel/4) ---
+                # The probe host is moved inside a real `.live-card` so the
+                # panel-scoped stylesheet applies to it; that gives a
+                # deterministic automated row (PARITY_JS put an LFO on
+                # `density`) alongside manual ones, with no heartbeat racing
+                # the measurement.
+                grammar = page.evaluate(ROW_GRAMMAR_JS)
+                check("the row is [value box][name-in-slider][∿]",
+                      grammar["shape"] == ["OUTPUT.live-param-value",
+                                           "SPAN.live-param-range-wrap",
+                                           "BUTTON.live-param-mod"],
+                      repr(grammar["shape"]))
+                check("the parameter name lives inside the slider",
+                      grammar["nameInsideSlider"]
+                      and grammar["nameText"].startswith("density"),
+                      repr(grammar))
+                check("the fill position follows the value",
+                      grammar["fillPosition"] == "0.2"
+                      and grammar["integerFillPosition"] == "0.25",
+                      repr([grammar["fillPosition"],
+                            grammar["integerFillPosition"]]))
+                check("dragging the slider moves the fill with it",
+                      grammar["fillAfterDrag"] == "0.8",
+                      repr(grammar["fillAfterDrag"]))
+                check("floats left-align in the value box, integers right",
+                      grammar["floatAlign"] == "left"
+                      and grammar["integerAlign"] == "right",
+                      repr([grammar["floatAlign"], grammar["integerAlign"]]))
+                check("the native range is a transparent overlay",
+                      grammar["rangeBackground"] in ("rgba(0, 0, 0, 0)",
+                                                     "transparent"),
+                      repr(grammar["rangeBackground"]))
+                check("a generator-driven row hands the fill to its marker",
+                      grammar["automatedStaticFill"] == "none"
+                      and grammar["automatedMarkerFill"]
+                      not in ("", "rgba(0, 0, 0, 0)", "none"),
+                      repr([grammar["automatedStaticFill"],
+                            grammar["automatedMarkerFill"]]))
+                check("a manual row keeps its own fill and marker line",
+                      grammar["manualStaticFill"] == "block"
+                      and grammar["manualMarkerLine"] != "none",
+                      repr([grammar["manualStaticFill"],
+                            grammar["manualMarkerLine"]]))
+
+                takeover = page.evaluate(MIXED_TAKEOVER_JS)
+                check("a disagreeing aggregate hatches its slider",
+                      takeover["before"]["mixed"]
+                      and "repeating-linear-gradient"
+                      in takeover["before"]["hatch"],
+                      repr(takeover["before"]))
+                check("editing a mixed row renders it solid at the new value",
+                      not takeover["after"]["mixed"]
+                      and "repeating-linear-gradient"
+                      not in takeover["after"]["hatch"]
+                      and takeover["after"]["position"] == "0.6",
+                      repr(takeover["after"]))
+                check("editing a mixed row sends the value to every member",
+                      len(takeover["sent"]) >= 1
+                      and takeover["sent"][-1].get("scope") == "all"
+                      and takeover["sent"][-1].get("value") == .6,
+                      repr(takeover["sent"]))
 
                 check("facilitator emitted no page errors",
                       not page_errors, repr(page_errors))
