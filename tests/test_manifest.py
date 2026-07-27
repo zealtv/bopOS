@@ -189,18 +189,12 @@ class ManifestTests(unittest.TestCase):
         self.assertIsNone(loaded)
         self.assertEqual(error, "param gate: toggle default must be 0 or 1")
 
-    def test_cues_caps_and_slots_use_the_declared_schema(self):
+    def test_caps_and_slots_use_the_declared_schema(self):
         loaded, error = self.validate(
-            cues=[{"id": "snap", "label": "Snap", "description": "Fire"}],
             caps=["screen"],
             slots=["samples"],
         )
         self.assertIsNone(error)
-        self.assertEqual(loaded["cues"][0]["id"], "snap")
-
-        self.assert_invalid(cues=[{"id": "same"}, {"id": "same"}])
-        self.assert_invalid(cues=[{"id": "bad\nid"}])
-        self.assert_invalid(cues=[{"id": "cue", "label": 7}])
         self.assert_invalid(caps="screen")
         self.assert_invalid(slots=[1])
 
@@ -236,7 +230,8 @@ class ManifestTests(unittest.TestCase):
             [self.declaration("gain")],
             events=[{"name": "note", "arity": 2,
                      "labels": ["pitch", "velocity"], "defaults": [64, 127]},
-                    {"name": "hit", "path": ["drum"]}],
+                    {"name": "hit", "path": ["drum"]},
+                    {"name": "snap", "arity": 0}],
         )
         self.assertIsNone(error)
         self.assertEqual(loaded["events"][0]["arity"], 2)
@@ -244,7 +239,9 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(loaded["events"][1]["arity"], 1)
         self.assertEqual(
             manifest.qualify_param(loaded["events"][1]), "drum/hit")
+        self.assertEqual(loaded["events"][2]["arity"], 0)
 
+        self.assert_invalid(events=[{"name": "note", "arity": -1}])
         self.assert_invalid(events=[{"name": "note", "arity": 4}])
         self.assert_invalid(events=[{"name": "note", "arity": 2,
                                      "labels": ["only"]}])
@@ -252,9 +249,13 @@ class ManifestTests(unittest.TestCase):
         self.assert_invalid(events=[{"name": "note"}, {"name": "note"}])
         self.assert_invalid(events=[{"name": "bad name"}])
         self.assert_invalid(events="note")
-        # An event and a param cannot claim the same address.
-        self.assert_invalid([self.declaration("note", "int", min=0, max=1)],
-                            events=[{"name": "note"}])
+        # The same identity is unambiguous across the distinct /p and /e planes.
+        loaded, error = self.validate(
+            [self.declaration("note", "int", min=0, max=1)],
+            events=[{"name": "note", "arity": 0}],
+        )
+        self.assertIsNone(error)
+        self.assertEqual(loaded["events"][0]["name"], "note")
 
     def test_atomic_write_normalizes_without_mutating_the_candidate(self):
         candidate = self.candidate([

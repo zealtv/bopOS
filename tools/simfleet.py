@@ -216,7 +216,7 @@ class Device:
         self.audio_error = None
         self.ident_until = 0.0
         # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
-        # clock, plus the offset the leader has pushed for cue conversion
+        # clock, plus the offset the leader has pushed for event conversion
         self.sync_skew_ns = 0
         self.sync_offset_ns = 0
         self.sync_synced = False
@@ -485,7 +485,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.14",
+            "contract_version": "1.15",
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),
@@ -846,42 +846,6 @@ class SimFleet:
         for point_id, element, value in entries:
             self.log(device, f"pt {point_id} el{element} v={value:.6f}")
 
-    def handle_cue(self, args):
-        # /cue <cueId> <sharedTimeNs>: broadcast leader-clock instant. Each node
-        # converts with its stored offset and fires at its local deadline.
-        if len(args) < 2:
-            return
-        cue_id = str(args[0])
-        if not self.tty:
-            # PD float precision law (sec 12): sharedTimeNs must arrive as a
-            # wire string, never a float. The receipt type tag is otherwise
-            # invisible to a verify that only reads the eventual fire_mono
-            # log line, so record it explicitly (show-tab stitch 3).
-            print(f"{time.strftime('%H:%M:%S')} cue-recv id={cue_id} "
-                 f"shared_time_ns_type={type(args[1]).__name__} raw={args[1]!r}", flush=True)
-        try:
-            shared = int(str(args[1]))
-        except (TypeError, ValueError):
-            return
-        for device in self.devices:
-            if device.unresponsive or device.state not in ("booting", "running"):
-                continue
-            if random.random() < self.args.drop:
-                continue
-            deadline_dev = shared + device.sync_offset_ns  # device-clock ns
-            # device fires when device_now (= monotonic_ns()+skew) reaches the
-            # deadline, i.e. at real monotonic == deadline_dev - skew
-            delay = (deadline_dev - device.sync_skew_ns - time.monotonic_ns()) / 1e9
-            self.schedule(max(0.0, delay), self.fire_cue, device, cue_id,
-                          deadline_dev, delay < 0)
-
-    def fire_cue(self, device, cue_id, deadline_dev, late):
-        # a real node fires the bare /cue <cueId> to its engine on localhost; the
-        # sim has no engine, so it logs the fire with the real monotonic instant
-        # (fire_mono) so a test can prove cross-device coherence
-        self.log(device, f"cue {cue_id} fired dev_deadline={deadline_dev} "
-                         f"fire_mono={time.monotonic_ns()}" + (" LATE" if late else ""))
-
     def handle_event(self, parts, args):
         identity_parts = parts[2:]
         identity = "/".join(identity_parts)
@@ -972,13 +936,10 @@ class SimFleet:
         except Exception:
             return
         parts = [part for part in address.split("/") if part]
-        # clock-sync plane (contract sec 3.1): ping/cue omit the selector
-        # (always fleet-wide); events are targetable and offsets are per-device.
+        # Clock-sync ping omits the selector; events are targetable and offsets
+        # are per-device.
         if parts == ["sync", "ping"]:
             self.handle_ping(args, source)
-            return
-        if parts == ["cue"]:
-            self.handle_cue(args)
             return
         if len(parts) >= 3 and parts[1] == "e":
             self.handle_event(parts, args)

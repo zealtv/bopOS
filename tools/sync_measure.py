@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Clock-sync jitter harness (clock-sync thread, sync-3).
 
-Measures how tightly a /cue actually fires across N devices. It acts as a
+Measures how tightly a zero-element /e event fires across N devices. It acts as a
 minimal clock leader -- ping/pong, estimate each device's offset, push
 /<id>/sync/offset (the same low-RTT-median math as the dashboard leader,
-dashboard/osc_bridge.py) -- then fires a cue burst and gathers each device's
+dashboard/osc_bridge.py) -- then fires an event burst and gathers each device's
 real fire timestamp, reporting the cross-device spread.
 
 Two evidence modes:
@@ -25,7 +25,7 @@ Two evidence modes:
 
 Usage:
   python3 tools/sync_measure.py --devices 5 --sync-skew-ms 40 --report out.md
-  python3 tools/sync_measure.py --mode hardware --cues 8   # no sim, prints plan
+  python3 tools/sync_measure.py --mode hardware --events 8   # no sim, prints plan
 
 Deps: pip install python-osc
 """
@@ -130,14 +130,14 @@ class Leader:
             self.send(f"/{device_id}/sync/offset", (str(est), "s"))
 
     def fire_burst(self, count, lead_ns, gap_ns):
-        """Broadcast `count` cues; returns {cueId: sharedTime_ns}."""
+        """Broadcast `count` events; returns {eventId: sharedTime_ns}."""
         base = time.monotonic_ns() + lead_ns
         schedule = {}
         for index in range(count):
-            cue_id = f"m{index}"
+            event_id = f"m{index}"
             shared = base + index * gap_ns
-            schedule[cue_id] = shared
-            self.send("/cue", (cue_id, "s"), (str(shared), "s"))
+            schedule[event_id] = shared
+            self.send(f"/all/e/{event_id}", (str(shared), "s"))
         return schedule
 
     def close(self):
@@ -145,25 +145,25 @@ class Leader:
 
 
 def parse_fires(text):
-    """{cueId: {device_id: fire_mono_ns}} from simfleet/helper stdout lines like
-    `... id=3 ... cue m0 fired ... fire_mono=12345`."""
+    """{eventId: {device_id: fire_mono_ns}} from simfleet/helper stdout lines like
+    `... id=3 ... event m0 fired ... fire_mono=12345`."""
     fires = {}
-    pattern = re.compile(r"id=(-?\d+).*?cue (\S+) (?:fired|.*fired).*?fire_mono=(\d+)")
+    pattern = re.compile(r"id=(-?\d+).*?event (\S+) (?:fired|.*fired).*?fire_mono=(\d+)")
     for line in text.splitlines():
         match = pattern.search(line)
         if match:
-            device_id, cue_id, mono = int(match.group(1)), match.group(2), int(match.group(3))
-            fires.setdefault(cue_id, {})[device_id] = mono
+            device_id, event_id, mono = int(match.group(1)), match.group(2), int(match.group(3))
+            fires.setdefault(event_id, {})[device_id] = mono
     return fires
 
 
 def spread_stats(fires):
-    """Per-cue cross-device spread (max - min fire_mono), in ns."""
+    """Per-event cross-device spread (max - min fire_mono), in ns."""
     spreads = {}
-    for cue_id, per_device in fires.items():
+    for event_id, per_device in fires.items():
         if len(per_device) >= 2:
             values = list(per_device.values())
-            spreads[cue_id] = max(values) - min(values)
+            spreads[event_id] = max(values) - min(values)
     return spreads
 
 
@@ -179,20 +179,20 @@ def write_report(path, args, offsets, mac_to_id, schedule, fires, spreads):
              "> externally. Target there: <10 ms typical spread.", "",
              "## Run", "",
              f"- devices: {args.devices}   skew: ±{args.sync_skew_ms} ms   "
-             f"jitter: {args.sync_jitter_ms} ms   cues: {args.cues}",
-             f"- sync settle: {args.settle}s   cue lead: {args.lead_ms} ms   "
+             f"jitter: {args.sync_jitter_ms} ms   events: {args.events}",
+             f"- sync settle: {args.settle}s   event lead: {args.lead_ms} ms   "
              f"gap: {args.gap_ms} ms", "",
-             "## Cross-device cue spread", ""]
+             "## Cross-device event spread", ""]
     if spreads:
         values = list(spreads.values())
         lines += [f"- **max spread:** {ms(max(values)):.3f} ms",
                   f"- **typical (median) spread:** {ms(statistics.median(values)):.3f} ms",
-                  f"- cues measured: {len(values)} / {args.cues}", "",
-                  "| cue | devices | spread (ms) |", "|---|---|---|"]
-        for cue_id in sorted(spreads, key=lambda c: int(c[1:]) if c[1:].isdigit() else c):
-            lines.append(f"| {cue_id} | {len(fires[cue_id])} | {ms(spreads[cue_id]):.3f} |")
+                  f"- events measured: {len(values)} / {args.events}", "",
+                  "| event | devices | spread (ms) |", "|---|---|---|"]
+        for event_id in sorted(spreads, key=lambda c: int(c[1:]) if c[1:].isdigit() else c):
+            lines.append(f"| {event_id} | {len(fires[event_id])} | {ms(spreads[event_id]):.3f} |")
     else:
-        lines.append("- no cue was heard on ≥2 devices (see raw output).")
+        lines.append("- no event was heard on ≥2 devices (see raw output).")
     lines += ["", "## Per-device offset estimate", "",
               "| id | uid | offset (ms) |", "|---|---|---|"]
     id_to_uid = {device_id: uid for uid, device_id in mac_to_id.items()}
@@ -220,9 +220,9 @@ def run_sim(args):
     try:
         time.sleep(3.0)                 # boot
         leader.pump(args.settle)        # sync
-        schedule = leader.fire_burst(args.cues, int(args.lead_ms * 1e6),
+        schedule = leader.fire_burst(args.events, int(args.lead_ms * 1e6),
                                      int(args.gap_ms * 1e6))
-        time.sleep(args.lead_ms / 1000.0 + args.cues * args.gap_ms / 1000.0 + 1.5)
+        time.sleep(args.lead_ms / 1000.0 + args.events * args.gap_ms / 1000.0 + 1.5)
     finally:
         fleet.terminate()
         try:
@@ -241,10 +241,10 @@ def run_sim(args):
     heard = len(spreads)
     if spreads:
         worst = max(spreads.values()) / 1e6
-        print(f"measured {heard}/{args.cues} cues; max spread {worst:.3f} ms; "
+        print(f"measured {heard}/{args.events} events; max spread {worst:.3f} ms; "
               f"report -> {report}")
     else:
-        print(f"no cue heard on >=2 devices; report -> {report}")
+        print(f"no event heard on >=2 devices; report -> {report}")
     return 0 if heard >= 1 else 1
 
 
@@ -260,13 +260,13 @@ def run_hardware(args):
             print(f"  {uid} (id {leader.mac_to_id.get(uid, '?')}): offset {off/1e6:.3f} ms")
         if not leader.offsets:
             print("  no pongs -- are nodes running bopos.py and synced?")
-        schedule = leader.fire_burst(args.cues, int(args.lead_ms * 1e6),
+        schedule = leader.fire_burst(args.events, int(args.lead_ms * 1e6),
                                      int(args.gap_ms * 1e6))
         print("fired burst; expected fire instants (leader monotonic ns) -- align "
               "your external recording to these:")
-        for cue_id in sorted(schedule, key=lambda c: int(c[1:]) if c[1:].isdigit() else c):
-            print(f"  {cue_id}: {schedule[cue_id]}")
-        time.sleep(args.lead_ms / 1000.0 + args.cues * args.gap_ms / 1000.0 + 0.5)
+        for event_id in sorted(schedule, key=lambda c: int(c[1:]) if c[1:].isdigit() else c):
+            print(f"  {event_id}: {schedule[event_id]}")
+        time.sleep(args.lead_ms / 1000.0 + args.events * args.gap_ms / 1000.0 + 0.5)
     finally:
         leader.close()
     print("Collect the external recording and compute cross-device spread by hand "
@@ -281,10 +281,10 @@ def parse_args():
     parser.add_argument("--devices", type=int, default=5)
     parser.add_argument("--sync-skew-ms", type=float, default=40.0)
     parser.add_argument("--sync-jitter-ms", type=float, default=2.0)
-    parser.add_argument("--cues", type=int, default=8)
+    parser.add_argument("--events", type=int, default=8)
     parser.add_argument("--settle", type=float, default=4.0, help="seconds to sync before firing")
-    parser.add_argument("--lead-ms", type=float, default=500.0, help="first cue this far ahead")
-    parser.add_argument("--gap-ms", type=float, default=250.0, help="spacing between cues")
+    parser.add_argument("--lead-ms", type=float, default=500.0, help="first event this far ahead")
+    parser.add_argument("--gap-ms", type=float, default=250.0, help="spacing between events")
     parser.add_argument("--report", help="report path (sim mode; default tools/sync-baseline-report.md)")
     parser.add_argument("--report-port", type=int, default=5550)
     parser.add_argument("--cmd-port", type=int, default=6660)

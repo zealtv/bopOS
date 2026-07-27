@@ -115,7 +115,6 @@ class AuditionRig:
         self.report_target = (args.target, args.report_port)
         self.listener = None
         self.editor_element = 0
-        self.pending_cues = []
         self.pending_events = []
         self.event_sequence = itertools.count()
         for node in self.nodes:
@@ -267,7 +266,7 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.14",
+            "contract_version": "1.15",
             "groups": list(getattr(node, "groups", ())),
             "device_enabled": bool(node.device_enabled),
             "mute_all": bool(node.mute_all),
@@ -492,22 +491,6 @@ class AuditionRig:
                 changed = {}
             self.send_point_values(node, changed, removed)
 
-    def schedule_cue(self, params):
-        if len(params) < 2:
-            return
-        try:
-            deadline = int(str(params[1]))
-        except (TypeError, ValueError):
-            return
-        heapq.heappush(self.pending_cues, (deadline, str(params[0])))
-
-    def dispatch_due_cues(self):
-        now = time.monotonic_ns()
-        while self.pending_cues and self.pending_cues[0][0] <= now:
-            _deadline, cue_id = heapq.heappop(self.pending_cues)
-            for node in self.nodes:
-                self.send_engine(node, "/cue", (cue_id,))
-
     def schedule_event(self, parts, params):
         identity_parts = parts[2:]
         identity = "/".join(identity_parts)
@@ -643,9 +626,6 @@ class AuditionRig:
             return
         if parts == ["audition", "editor-element"]:
             self.set_editor_element(message.params, source)
-            return
-        if parts == ["cue"]:
-            self.schedule_cue(message.params)
             return
         if len(parts) >= 3 and parts[1] == "e":
             self.schedule_event(parts, message.params)
@@ -842,7 +822,6 @@ class AuditionRig:
             ids_sent = False
             while self.running:
                 now = time.monotonic()
-                self.dispatch_due_cues()
                 self.dispatch_due_events()
                 if now >= next_hb:
                     self.send_heartbeats()
@@ -851,9 +830,6 @@ class AuditionRig:
                     self.send_ids()
                     ids_sent = True
                 timeout = 0.1
-                if self.pending_cues:
-                    until_cue = (self.pending_cues[0][0] - time.monotonic_ns()) / 1e9
-                    timeout = max(0.001, min(timeout, until_cue))
                 if self.pending_events:
                     until_event = (
                         self.pending_events[0][0] - time.monotonic_ns()) / 1e9
@@ -864,7 +840,6 @@ class AuditionRig:
                     self.relay(datagram, source)
                 except socket.timeout:
                     pass
-                self.dispatch_due_cues()
                 self.dispatch_due_events()
         finally:
             self.stop()

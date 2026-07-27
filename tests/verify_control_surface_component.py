@@ -139,7 +139,7 @@ def make_fixture(root):
         "events": [{"name": "strike", "arity": 2,
                     "labels": ["note", "velocity"], "defaults": [64, 127],
                     "dashboard": True}],
-        "cues": [], "caps": [], "slots": [],
+        "caps": [], "slots": [],
     }
     with open(os.path.join(patch, "bopos.patch.json"), "w",
               encoding="utf-8") as target:
@@ -369,25 +369,24 @@ KIND_SHAPE_JS = """
       string.querySelector('input[type="text"]').getBoundingClientRect().height),
     rowHeight: Math.round(row("steps").getBoundingClientRect().height),
     eventArity: event.dataset.eventArity,
-    eventBoxes: boxes.map(box => box.textContent),
+    eventBoxes: boxes.map(box => box.value),
     // The name hugs the last box; only the gap separates them.
     eventNameGap: Math.round(
       event.querySelector(":scope > .live-param-name").getBoundingClientRect().left
       - boxes[boxes.length - 1].getBoundingClientRect().right),
     eventButtons: [...event.querySelectorAll("button")].map(
       button => [button.textContent.trim(), button.disabled]),
-    eventNoLiveParam: !event.querySelector("[data-live-param]"),
-    // Left to right: send, the element boxes, the name — then sync, alone
-    // against the row's right edge.
+    // Left to right: fire, the element boxes, then the name. The `sync`
+    // toggle this once pinned is gone -- superseded by `4-cue-retirement`
+    // (Bob, 2026-07-27: every event forward-syncs, so a per-row choice
+    // cannot exist; global lead 0 is the only sync-off).
     eventLayout: (() => {
       const x = node => node.getBoundingClientRect().left;
-      const right = node => node.getBoundingClientRect().right;
       const send = event.querySelector(".live-event-send");
-      const sync = event.querySelector(".live-event-sync");
       const name = event.querySelector(":scope > .live-param-name");
       return {
-        ordered: x(send) < x(boxes[0]) && x(boxes[0]) < x(name) && x(name) < x(sync),
-        syncFlush: Math.round(event.getBoundingClientRect().right - right(sync)),
+        ordered: x(send) < x(boxes[0]) && x(boxes[0]) < x(name),
+        noSyncToggle: !event.querySelector(".live-event-sync"),
       };
     })(),
   };
@@ -456,13 +455,24 @@ PULSE_JS = """
 
 # Changing an enum puts the option INDEX on the wire, not its label: the enum
 # is a labelled view of the same integer a generator drives (Q2).
+# Reading `__probeSent.at(-1)` straight after the dispatch is a race: a
+# heartbeat re-render landing between the value write and the dispatch swaps
+# the <select> for a freshly bound one, and the last entry is then still
+# whatever the previous interaction sent. Re-query after the write and look
+# for THIS param's send rather than trusting position. (Pre-existing flake,
+# reproduced on the commit before `4-cue-retirement`; fixed here because it
+# reddens the browser tier at roughly one run in three.)
 ENUM_SEND_JS = """
 () => {
-  const select = document.querySelector(
+  const find = () => document.querySelector(
     '#surface-probe select.live-enum[data-param-path="mode"]');
+  const before = (window.__probeSent || []).length;
+  const select = find();
   select.value = "2";
-  select.dispatchEvent(new Event("change", {bubbles: true}));
-  return (window.__probeSent || []).at(-1);
+  find().dispatchEvent(new Event("change", {bubbles: true}));
+  const sent = window.__probeSent || [];
+  return sent.slice(before).find(entry => entry && entry.name === "mode")
+    ?? sent.at(-1);
 }
 """
 
@@ -678,25 +688,35 @@ def main():
                 check("an enum renders its manifest option labels",
                       kinds["enumOptions"] == ["dry", "hall", "plate"]
                       and kinds["enumValue"] == "1", repr(kinds))
+                # `bindParams` assigns `onchange` after each re-render, so a
+                # dispatch aimed at a freshly rendered <select> lands on an
+                # unbound element and sends nothing. Wait for the binding
+                # rather than the element.
+                page.wait_for_function(
+                    "() => !!document.querySelector("
+                    "'#surface-probe select.live-enum"
+                    "[data-param-path=\"mode\"]')?.onchange")
                 enum_sent = page.evaluate(ENUM_SEND_JS)
                 check("choosing an enum option sends its integer index",
                       enum_sent
                       and enum_sent.get("name") == "mode"
                       and enum_sent.get("value") == 2, repr(enum_sent))
-                check("an event declaration renders arity boxes plus sync/send",
+                check("an event declaration renders exactly arity boxes",
                       kinds["eventArity"] == "2"
                       # Exactly arity boxes: no slot is held open for the
                       # elements a lower-arity event does not have.
                       and kinds["eventBoxes"] == ["64", "127"],
                       repr(kinds))
-                check("the event row sends nothing until 44-event-plane lands",
-                      kinds["eventNoLiveParam"]
-                      and kinds["eventButtons"] == [["send", True],
-                                                    ["sync", True]],
+                # Superseded by `4-cue-retirement`: this asserted the row was
+                # inert ("sends nothing until 44-event-plane lands") and
+                # carried a disabled `sync` toggle. The plane landed, so the
+                # row is live and has exactly one fire button.
+                check("the event row is live with a single fire button",
+                      kinds["eventButtons"] == [["fire", False]],
                       repr(kinds["eventButtons"]))
-                check("the event row reads send · elements · name, sync right",
+                check("the event row reads fire · elements · name",
                       kinds["eventLayout"]["ordered"]
-                      and kinds["eventLayout"]["syncFlush"] <= 1
+                      and kinds["eventLayout"]["noSyncToggle"]
                       # Hugging its last box, not floating in a fixed column.
                       and kinds["eventNameGap"] <= 8,
                       repr([kinds["eventLayout"], kinds["eventNameGap"]]))

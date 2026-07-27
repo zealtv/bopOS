@@ -4,18 +4,18 @@ const embedded = new URLSearchParams(location.search).get("embedded") === "1";
 if (embedded) document.body.classList.add("embedded");
 const ws = new BopSocket("/ws");
 let installation = {devices: {}, seats: {}, groups: {}};
-let cueLeadModified = false;
+let eventLeadModified = false;
 let muted = false;
 let master = 1.0;
 let presetNames = [];
-let renderedCueSignature = null;
+let renderedEventSignature = null;
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
 // The parameter rows themselves live in control-surface.js (37/07) so the
 // Device tab can render the identical surface. This page keeps what is its
-// own: which cards exist, cues, master/silence, presets, device commands.
+// own: which cards exist, events, master/silence, presets, device commands.
 const surface = window.ControlSurface.create({
   getState: () => installation,
   deviceForSeat: seat => deviceForSeat(seat),
@@ -25,6 +25,10 @@ const surface = window.ControlSurface.create({
     if (numericId != null) payload.id = numericId;
     ws.send("set_live_param", payload);
     updateLocalParams(scope, numericId, name, value);
+  },
+  sendEvent: ({scope, id, identity, elements}) => {
+    const selector = scope === "all" ? "all" : scope === "group" ? `g${id}` : String(id);
+    ws.send("fire_event", {selector, identity, elements, lead_ms: Number(installation.event_lead_ms ?? 500)});
   },
   // A drawer-authored generator takes the same targeting but carries a §3.2
   // argument list, so it needs its own verb; the server records the automation
@@ -72,11 +76,13 @@ function liveSchema() {
   return {patch: schema.patch, declarations};
 }
 
-function liveCueSchema() {
-  const schema = installation.live_cues;
-  if (!schema || typeof schema.patch !== "string" || !Array.isArray(schema.cues)) return null;
-  const cues = schema.cues.filter(cue => cue && typeof cue.id === "string" && cue.id.length > 0);
-  return {patch: schema.patch, cues};
+function liveEventSchema() {
+  const schema = installation.live_controls;
+  if (!schema || typeof schema.patch !== "string" || !Array.isArray(schema.events)) return null;
+  const events = schema.events.filter(declaration =>
+    declaration && typeof declaration.identity === "string" && declaration.identity.length > 0 &&
+    (embedded || declaration.dashboard === true));
+  return {patch: schema.patch, events};
 }
 
 function seats() {
@@ -140,7 +146,7 @@ ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
   surface.refreshAnchors(data);
   presetNames = Object.keys(data.presets || {}).sort();
-  if (!cueLeadModified) $("#cue-lead").value = Number(data.event_lead_ms ?? 500);
+  if (!eventLeadModified) $("#event-lead").value = Number(data.event_lead_ms ?? 500);
   render();
   const loading = $("#initial-loading");
   if (loading) loading.hidden = true;
@@ -155,14 +161,19 @@ ws.on("device_offline", data => { if (installation.devices[data.uid]) { installa
 ws.on("mute_all", data => { muted = !!data.value; renderControls(); });
 ws.on("master", data => { master = Number(data.value); renderControls(); });
 ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
-ws.on("cue_scheduled", data => {
-  const cue = (liveCueSchema()?.cues || []).find(item => item.id === data.cue_id);
-  const status = $("#cue-status");
-  if (status) status.value = `${cue?.label || data.cue_id} scheduled · ${data.lead_ms} ms`;
+ws.on("event_scheduled", data => {
+  const declaration = (liveEventSchema()?.events || []).find(item => item.identity === data.identity);
+  const status = $("#event-status");
+  if (status) status.value = `${declaration?.name || data.identity} scheduled · ${data.lead_ms} ms`;
 });
 
 let interacting = false;
-$("#cue-lead").addEventListener("input", () => { cueLeadModified = true; });
+$("#event-lead").addEventListener("input", () => { eventLeadModified = true; });
+$("#event-lead").addEventListener("change", event => {
+  const ms = Math.min(10000, Math.max(0, Math.trunc(Number(event.target.value) || 0)));
+  event.target.value = ms;
+  ws.send("set_event_lead", {ms});
+});
 document.addEventListener("pointerdown", event => {
   if (event.target.matches('input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]')) interacting = true;
 });
@@ -177,42 +188,47 @@ document.addEventListener("pointerup", () => {
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
   targetFilter.render();
-  renderCues(); renderCards(); renderControls(); renderCommands(); renderPresets();
+  renderEvents(); renderCards(); renderControls(); renderCommands(); renderPresets();
 }
 
-function cueButton(cue) {
-  const label = cue.label || cue.id;
-  return `<button data-live-cue="${esc(cue.id)}" data-cue-label="${esc(label)}" aria-label="Fire ${esc(label)} cue">${esc(label)}</button>`;
+function eventButton(declaration) {
+  return `<button data-live-event="${esc(declaration.identity)}" aria-label="Fire ${esc(declaration.name)} event">${esc(declaration.name)}</button>`;
 }
 
-function renderCues() {
-  const cues = liveCueSchema()?.cues || [];
-  const panel = $("#cue-panel");
-  panel.hidden = cues.length === 0;
-  const signature = JSON.stringify(cues);
-  if (!cues.length) {
-    renderedCueSignature = signature;
-    $("#declared-cues").innerHTML = "";
-    $("#cue-status").value = "";
+function renderEvents() {
+  const events = liveEventSchema()?.events || [];
+  const panel = $("#event-panel");
+  panel.hidden = events.length === 0;
+  const signature = JSON.stringify(events);
+  if (!events.length) {
+    renderedEventSignature = signature;
+    $("#declared-events").innerHTML = "";
+    $("#event-status").value = "";
     return;
   }
-  if (signature === renderedCueSignature) return;
-  renderedCueSignature = signature;
-  $("#declared-cues").innerHTML = cues.map(cueButton).join("");
-  document.querySelectorAll("[data-live-cue]").forEach(button => button.onclick = () => {
-    const lead = $("#cue-lead");
+  if (signature === renderedEventSignature) return;
+  renderedEventSignature = signature;
+  $("#declared-events").innerHTML = events.map(eventButton).join("");
+  document.querySelectorAll("[data-live-event]").forEach(button => button.onclick = () => {
+    const declaration = events.find(item => item.identity === button.dataset.liveEvent);
+    const chosen = targetFilter.target();
+    const selector = chosen.mode === "seat" && chosen.seat ? String(chosen.seat.id) : "all";
+    const arity = Math.min(3, Math.max(0, Number(declaration?.arity) || 0));
+    const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
+    const elements = Array.from({length: arity}, (_unused, index) => Number(defaults[index]) || 0);
+    const lead = $("#event-lead");
     const leadMs = Math.min(10000, Math.max(0, Number(lead.value) || 0));
     lead.value = leadMs;
-    ws.send("fire_cue", {cue_id: button.dataset.liveCue, lead_ms: leadMs});
+    ws.send("fire_event", {selector, identity: button.dataset.liveEvent, elements, lead_ms: leadMs});
     button.disabled = true;
-    button.style.setProperty("--cue-lead-duration", `${leadMs}ms`);
+    button.style.setProperty("--event-lead-duration", `${leadMs}ms`);
     button.classList.add("scheduling");
     button.setAttribute("aria-busy", "true");
     setTimeout(() => button.classList.add("triggered"), leadMs);
     setTimeout(() => {
       button.disabled = false;
       button.classList.remove("scheduling", "triggered");
-      button.style.removeProperty("--cue-lead-duration");
+      button.style.removeProperty("--event-lead-duration");
       button.removeAttribute("aria-busy");
       button.focus({preventScroll: true});
     }, leadMs + 300);

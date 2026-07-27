@@ -173,7 +173,7 @@ class InstallationState:
                     self.data["room"] = room
                 self.data["master"] = self.clean_master(loaded.get("master"))
                 self.data["event_lead_ms"] = self.clean_event_lead_ms(
-                    loaded.get("event_lead_ms", loaded.get("cue_lead_ms")))
+                    loaded.get("event_lead_ms"))
                 if isinstance(loaded.get("presets"), dict):
                     self.data["presets"] = loaded["presets"]
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
@@ -1030,7 +1030,7 @@ class InstallationState:
             self.data["room"] = room
         self.data["master"] = self.clean_master(loaded.get("master"))
         self.data["event_lead_ms"] = self.clean_event_lead_ms(
-            loaded.get("event_lead_ms", loaded.get("cue_lead_ms")))
+            loaded.get("event_lead_ms"))
         self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))

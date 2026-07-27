@@ -417,3 +417,15 @@ must remain in Python and must never enter Pure Data. Keep `/cue` working
 until thread 44 child 4 retires that plane.
 
 No `.pd` file was changed for the event-plane wire implementation.
+
+## Event-plane receiver adoption after legacy-plane retirement (thread 44 child 5)
+
+The `/cue` receiver is now dead. Update `pd/bopos~.pd` and
+`pd/bop/bop/babs/babs.blineseq.pd` to receive selector-free, time-free
+`/e/<identity> [<e0> [<e1> [<e2>]]]` messages, preserving nested identity
+segments and arity 0–3, and remove the dead receiver.
+
+The two in-repo Pure Data patches that are broken until this adoption lands
+are `patches/bonks-pd` (`/e/bonk`) and `patches/demo-pd` (`/e/snap`).
+Absolute shared nanosecond time must remain in Python; event elements are
+32-bit OSC floats.

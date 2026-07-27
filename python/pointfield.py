@@ -4,7 +4,7 @@ Shared by python/bopos.py (the real node) and tools/simfleet.py (the fake
 fleet) so both compute identical proximity values; verify scripts import it
 to recompute expectations from sniffed wire frames.
 
-Wire forms (LAN 6660 broadcast, selector-less like /cue):
+Wire forms (LAN 6660 broadcast, selector-less like /sync/ping):
 
     frame:  /pt <n> <id x y r f>*n     full state, atomic, silence = hold
     sparse: /pt <id> <x> <y> <r> <f>   authoring upsert of one point

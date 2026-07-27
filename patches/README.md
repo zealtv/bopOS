@@ -48,18 +48,19 @@ least the engine and entry point, so the entry point is not required to be
   "engine": "pd",
   "entrypoint": "main.pd",
   "params": [],
-  "cues": [],
+  "events": [],
   "caps": [],
   "slots": []
 }
 ```
 
 `params` declares the controls the dashboard can render. Each parameter uses
-an explicit `kind`: `float`, `int`, `toggle`, `enum`, or `text`. Optional `cues`
-documents named actions the patch handles; each item requires a string `id`
-and may include string `label` and `description` fields. The ID is delivered
-unchanged as `/cue <id>`. Declarations do not filter cue traffic, so composers
-can still try undeclared IDs; duplicate declared IDs are invalid.
+an explicit `kind`: `float`, `int`, `toggle`, `enum`, or `text`. Optional
+`events` documents actions the patch handles. Each event has a `name`, optional
+structural `path`, an `arity` from 0–3, and optional per-element `labels` and
+`defaults`. Events are delivered as `/e/<identity>` with zero to three floats.
+Declarations do not filter event traffic, so well-formed undeclared identities
+are still delivered.
 
 Missing or invalid manifests fail launch loudly. Patch-level `bopos.config`
 and its `SAMPLEPACKSURL` workflow are retired.

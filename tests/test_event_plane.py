@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Living tests for the v1.14 targetable event plane."""
 
+import asyncio
 import json
 import sys
 import tempfile
@@ -48,6 +49,8 @@ sys.argv = ["bopos.py", "unknown"]
 import bopos  # noqa: E402
 import simfleet  # noqa: E402
 from osc_bridge import OSCBridge  # noqa: E402
+from server import Dashboard  # noqa: E402
+from show_engine import ShowEngine  # noqa: E402
 from state import InstallationState  # noqa: E402
 from sync_node import EventScheduler, SyncState  # noqa: E402
 
@@ -67,6 +70,104 @@ class Sender:
 
 
 class EventPlaneTests(unittest.TestCase):
+    def test_show_messages_route_events_to_each_target(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock(), event_lead_ms=lambda: 25)
+        engine._send_message({
+            "address": "/e/notes/on",
+            "args": [{"type": "f", "value": 60.0},
+                     {"type": "f", "value": 0.75}],
+            "target": ["all", "g2"],
+        })
+        self.assertEqual(
+            bridge.fire_event.call_args_list,
+            [
+                mock.call("all", "notes/on", [60.0, 0.75], lead_ms=25),
+                mock.call("g2", "notes/on", [60.0, 0.75], lead_ms=25),
+            ],
+        )
+
+    def test_websocket_event_commands_use_the_exact_event_contract(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(
+            data={"supervisor": {"mode": "off"}, "event_lead_ms": 500},
+            save_debounced=mock.Mock(),
+        )
+        dashboard.osc = mock.Mock()
+        dashboard.osc.fire_event.side_effect = [(1234, 25), (0, 0)]
+        broadcasts = []
+
+        async def broadcast(kind, data):
+            broadcasts.append((kind, data))
+
+        async def public_state():
+            return {"event_lead_ms": dashboard.state.data["event_lead_ms"]}
+
+        dashboard.broadcast = broadcast
+        dashboard.public_state = public_state
+
+        async def exercise():
+            await dashboard.handle_ws({
+                "type": "set_event_lead", "data": {"ms": 12000}})
+            await dashboard.handle_ws({
+                "type": "fire_event",
+                "data": {
+                    "selector": "g2", "identity": "notes/on",
+                    "elements": [60, 0.75], "lead_ms": 25,
+                },
+            })
+            dashboard.state.data["supervisor"]["mode"] = "edit"
+            await dashboard.handle_ws({
+                "type": "fire_editor_event",
+                "data": {
+                    "selector": "0", "identity": "snap", "elements": [],
+                    "lead_ms": 999,
+                },
+            })
+
+        asyncio.run(exercise())
+
+        self.assertEqual(dashboard.state.data["event_lead_ms"], 10000)
+        self.assertEqual(
+            dashboard.osc.fire_event.call_args_list,
+            [
+                mock.call("g2", "notes/on", [60.0, 0.75], 25),
+                mock.call("0", "snap", [], 0),
+            ],
+        )
+        self.assertIn(("event_scheduled", {
+            "selector": "g2", "identity": "notes/on",
+            "elements": [60.0, 0.75], "shared_time_ns": "1234",
+            "lead_ms": 25,
+        }), broadcasts)
+        self.assertIn(("editor_event_fired", {
+            "identity": "snap", "shared_time_ns": "0",
+        }), broadcasts)
+
+    def test_websocket_event_validation_sends_the_usual_error_frame(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(
+            data={"supervisor": {"mode": "off"}})
+        dashboard.osc = mock.Mock()
+
+        class WebSocket:
+            def __init__(self):
+                self.frames = []
+
+            async def send_json(self, frame):
+                self.frames.append(frame)
+
+        ws = WebSocket()
+        asyncio.run(dashboard.handle_ws({
+            "type": "fire_event",
+            "data": {
+                "selector": "all", "identity": "bad identity",
+                "elements": [1.0, 2.0, 3.0, 4.0], "lead_ms": 25,
+            },
+        }, ws))
+        self.assertEqual(ws.frames[0]["type"], "error")
+        dashboard.osc.fire_event.assert_not_called()
+
     def test_scheduler_fires_identity_and_elements_at_deadline(self):
         fired = []
         ready = threading.Event()
@@ -138,44 +239,24 @@ class EventPlaneTests(unittest.TestCase):
         self.assertTrue(all(identity == "drums/hit"
                             for identity, _elements in fired))
 
-    def test_normal_event_and_cue_still_schedule(self):
+    def test_normal_event_schedules_and_retired_plane_is_unhandled(self):
         state = types.SimpleNamespace(id=4, groups=())
         event = pyOSC3.OSCMessage("/4/e/go")
         event.append("1234567890", "s")
         event.append(0.5, "f")
-        cue = pyOSC3.OSCMessage("/cue")
-        cue.append("legacy-go", "s")
-        cue.append("1234567890", "s")
+        retired = pyOSC3.OSCMessage("/cue")
+        retired.append("legacy-go", "s")
+        retired.append("1234567890", "s")
         reply = types.SimpleNamespace(sendto=lambda *_args: None)
 
-        with (
-            mock.patch.object(bopos.event_scheduler, "schedule") as schedule_event,
-            mock.patch.object(bopos.cue_scheduler, "schedule") as schedule_cue,
-        ):
+        with mock.patch.object(
+                bopos.event_scheduler, "schedule") as schedule_event:
             self.assertTrue(bopos.handle_lan_datagram(
                 event.getBinary(), ("192.0.2.1", 4000), reply, state))
-            self.assertTrue(bopos.handle_lan_datagram(
-                cue.getBinary(), ("192.0.2.1", 4000), reply, state))
+            self.assertFalse(bopos.handle_lan_datagram(
+                retired.getBinary(), ("192.0.2.1", 4000), reply, state))
 
         schedule_event.assert_called_once_with(1234567890, "go", [0.5])
-        schedule_cue.assert_called_once_with(
-            1234567890, "legacy-go", [])
-
-    def test_cue_fire_callback_accepts_the_generalized_payload(self):
-        # The scheduler is shared, so it calls `fire(identity, elements)` for
-        # a cue too. Mocking `schedule` (as the test above must) cannot see an
-        # arity mismatch here -- it would only surface as a TypeError inside
-        # the scheduler thread at the deadline, i.e. as a cue that silently
-        # never fires. Exercise the real callback instead. Child 4 deletes it.
-        frames = []
-        with mock.patch.object(
-                bopos, "send_to_engine",
-                side_effect=lambda message: frames.append(
-                    pyOSC3.decodeOSC(message.getBinary()))):
-            bopos.fire_cue_to_engine("legacy-go", [])
-
-        self.assertEqual(frames[0][0], "/cue")
-        self.assertIn("legacy-go", frames[0])
 
     def test_engine_fire_is_selector_free_time_free_and_arity_zero_to_three(self):
         frames = []
@@ -244,7 +325,7 @@ class EventPlaneTests(unittest.TestCase):
         callback(*values)
         self.assertIn("event nested/go fired", logs[0][1])
 
-    def test_event_lead_loads_old_key_but_saves_only_new_key(self):
+    def test_event_lead_does_not_load_the_retired_key(self):
         with tempfile.TemporaryDirectory(prefix="bopos-event-lead-") as root:
             path = Path(root) / "installation.json"
             path.write_text(json.dumps({
@@ -255,8 +336,8 @@ class EventPlaneTests(unittest.TestCase):
             }))
             state = InstallationState(str(path))
 
-        self.assertEqual(state.data["event_lead_ms"], 0)
-        self.assertEqual(state.durable()["event_lead_ms"], 0)
+        self.assertEqual(state.data["event_lead_ms"], 500)
+        self.assertEqual(state.durable()["event_lead_ms"], 500)
         self.assertNotIn("cue_lead_ms", state.durable())
 
 

@@ -118,7 +118,7 @@ def write_patch(patches, name, params):
     with open(os.path.join(path, "bopos.patch.json"), "w",
               encoding="utf-8") as target:
         json.dump({"engine": "test", "entrypoint": "main.bin",
-                   "params": params, "cues": [], "caps": [], "slots": []},
+                   "params": params, "caps": [], "slots": []},
                   target)
 
 

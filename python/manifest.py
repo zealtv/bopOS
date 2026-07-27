@@ -24,7 +24,6 @@ PARAM_KINDS = {
     "enum": "i",
     "text": "s",
 }
-CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
 MAX_PARAM_SEGMENTS = 8
 MAX_PARAM_IDENTITY_BYTES = 255
 # An enum is an integer parameter that names its indices; the wire stays
@@ -32,10 +31,8 @@ MAX_PARAM_IDENTITY_BYTES = 255
 # protocol one: a select longer than that wants a different control.
 MAX_PARAM_OPTIONS = 64
 OPTION_LABEL = re.compile(r"[^\x00\r\n]{1,32}")
-# Events are declared but not yet wired: the `<target>/e/*` plane is thread
-# 44's ratification question. This block validates the surface the control
-# panel renders (disabled) so 44 designs against a known shape; it is
-# deliberately additive and may be reshaped by that amendment.
+# Events use the targetable `<target>/e/*` plane. Zero-element events are
+# momentary named fires; one to three elements carry patch-defined floats.
 MAX_EVENT_ARITY = 3
 _MISSING = object()
 
@@ -225,29 +222,11 @@ def validate(candidate, patch_path, require_entrypoint=True):
         normalized_params.append(param)
     manifest["params"] = normalized_params
 
-    cues = manifest.get("cues", [])
-    if not isinstance(cues, list):
-        return None, "cues must be a list"
-    cue_ids = set()
-    for cue in cues:
-        if not isinstance(cue, dict):
-            return None, f"cue {cue!r} must be an object"
-        cue_id = cue.get("id")
-        if not isinstance(cue_id, str):
-            return None, f"cue id {cue_id!r} must be a string"
-        if CUE_ID.fullmatch(cue_id) is None:
-            return None, f"cue id {cue_id!r}: use 1–64 characters without newlines"
-        if cue_id in cue_ids:
-            return None, f"duplicate cue id {cue_id!r}"
-        cue_ids.add(cue_id)
-        for field in ("label", "description"):
-            if field in cue and not isinstance(cue[field], str):
-                return None, f"cue {cue_id!r}: {field} must be a string"
-
     events = manifest.get("events", [])
     if not isinstance(events, list):
         return None, "events must be a list"
     normalized_events = []
+    event_identities = set()
     for original in events:
         if not isinstance(original, dict):
             return None, f"event {original!r} must be an object"
@@ -257,13 +236,13 @@ def validate(candidate, patch_path, require_entrypoint=True):
         except ValueError as error:
             return None, str(error)
         name = event["name"]
-        if identity in param_identities:
-            return None, f"event {identity!r} collides with a param identity"
-        param_identities.add(identity)
+        if identity in event_identities:
+            return None, f"duplicate event identity {identity!r}"
+        event_identities.add(identity)
         arity = event.get("arity", 1)
         if (not isinstance(arity, int) or isinstance(arity, bool)
-                or not 1 <= arity <= MAX_EVENT_ARITY):
-            return None, f"event {name}: arity must be 1, 2 or {MAX_EVENT_ARITY}"
+                or not 0 <= arity <= MAX_EVENT_ARITY):
+            return None, f"event {name}: arity must be 0, 1, 2 or {MAX_EVENT_ARITY}"
         event["arity"] = arity
         labels = event.get("labels")
         if labels is not None:

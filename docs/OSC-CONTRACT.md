@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.14** — base ratified 2026-07-07; latest revision 2026-07-28. The
+**Version 1.15** — base ratified 2026-07-07; latest revision 2026-07-28. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -29,7 +29,7 @@ what it can do, and that it has converged to the intended revision** — always 
 
 The framework owns: identity/liveness, the OSC transport and namespace,
 convergence (update/checkout/fetch), the offboard peripheral-bus IO layer, event
-scheduling, the sync/cue plane, and the machinery that produces provided terms (clock offset
+scheduling, the sync/event plane, and the machinery that produces provided terms (clock offset
 estimation, point-proximity math). Everything that comes out of the speakers,
 LEDs, printer, or monitor is the **patch's**; engine launch is
 **patch-declared**; media IO (MIDI/HID/audio-in) is the **engine's**;
@@ -143,7 +143,6 @@ failure changes nothing and emits no success receipt.
 | `/os/*` | framework | identity, liveness, admin, discovery, persistence, distribution (absorbs `/helper/*` and `/system/*`) |
 | `/io/*` | framework | offboard bus peripherals (I2C today; verbs are bus-agnostic) |
 | `/sync/*` | framework (Python) | forward clock sync — shape pinned in §3.1 (clock-sync thread) |
-| `/cue` | framework (Python) | discrete scheduled fires; engines only ever see relative ms (§3.1) |
 | `/e/*` | **patch identities / framework scheduling** | targetable, patch-declared events with 0–3 free-form float elements (§3.2); well-formed undeclared identities are still scheduled |
 | `/pt` (canonical `/point`) | framework/dashboard | point geometry broadcast — moving sound sources, arbitrary count; each device decomposes locally (§4.1) |
 | `/p/*` | **patch** | patch-declared parameters — the only place output semantics live; numeric params also accept the framework-owned automation grammar (§3.3) |
@@ -167,18 +166,17 @@ Shorthands are minted **only** where measured traffic justifies them (this table
 the registry; additions require a contract revision). Patch parameter names under
 `/p/*` are the patch's own to keep short.
 
-### 3.1 Sync and cue plane (clock-sync)
+### 3.1 Sync plane (clock-sync)
 
-Forward clock sync so cues fire sample-tight(ish) over WiFi, engine-agnostically.
+Forward clock sync so events fire sample-tight(ish) over WiFi, engine-agnostically.
 The mechanism (HB-style) and design reasoning live in the `clock-sync` thread;
-this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
+this is the pinned wire shape for `/sync/*`.
 
 | address | direction | transport | args |
 |---|---|---|---|
 | `/sync/ping` | leader → fleet | broadcast, 6660 | `<seq:int32> <leaderTimeNs:string>` |
 | `/sync/pong` | node → leader | unicast, 5550 | `<seq:int32> <leaderTimeNs:string> <uid:string> <deviceTimeNs:string>` |
 | `/<id>/sync/offset` | leader → node | unicast | `<offsetNs:string>` |
-| `/cue` | leader → fleet | broadcast, 6660 | `<cueId:string> <sharedTimeNs:string>` |
 
 - **The dashboard backend is the clock leader** (resolved 2026-07-05). It
   broadcasts `/sync/ping` every ~500±100 ms (jittered to avoid lockstep
@@ -193,16 +191,12 @@ this is the pinned wire shape (additive to the reserved `/sync/*` and `/cue`).
 - **`/<id>/sync/offset` is full-state and idempotent** (§4 law): an absolute
   value, never a delta. The node **slews** its working offset toward it while
   audio runs (never steps); slew is node-internal, not wire state.
-- **`/cue` carries one leader-clock instant for the whole fleet.** Each node
-  converts locally, `deadlineNs = sharedTimeNs + offsetNs`, waits on its own
-  `monotonic_ns()`, then fires the bare `/cue <cueId>` to its engine on
-  localhost. The engine never sees absolute time (§12).
 - **Encoding:** every time-valued arg is the decimal string of an integer
   nanosecond count from `time.monotonic_ns()` — never a single 32-bit OSC float
   (§12), exact across the two Python endpoints, human-readable in a log, and
-  full-resolution. `seq` is a plain int32; `cueId` is a string label (named cues
-  allowed). Monotonic, not wall clock: NTP steps must never glitch a cue.
-- **Grammar:** `/sync/ping` and `/cue` are the two framework addresses that omit
+  full-resolution. `seq` is a plain int32. Monotonic, not wall clock: NTP
+  steps must never glitch an event.
+- **Grammar:** `/sync/ping` is the one framework address that omits
   the selector — broadcast-only and always fleet-wide. `/sync/pong` is a 2-part
   node→controller reply like `/hb`; `/<id>/sync/offset` is the normal 3-part
   `/<selector>/<plane>/<member>` (selector always a concrete `<id>`).
@@ -346,7 +340,7 @@ the topology is identical, only the port number moves.
 **Transport discipline:**
 
 - **Broadcast** only for low-rate, idempotent, genuinely one-to-many messages:
-  `/hb`, `/os/assign`, `/all/*` admin and membership, `/cue`, targetable `/e/*`,
+  `/hb`, `/os/assign`, `/all/*` admin and membership, targetable `/e/*`,
   `/pt`, `/os/mute`,
   `/os/master`.
 - **Unicast to the requester** for all request/reply traffic: `/os/pong`,
@@ -392,8 +386,6 @@ both first-class) are the reference consumers.
   and numeric Seat matching. Thus `/g1/p/gain` reaches an engine as `/p/gain`,
   and `/g1/p/track1/fx/distortion` reaches it as
   `/p/track1/fx/distortion`; group identity never reaches the engine.
-- `/cue` (§3.1) is a provided term avant la lettre: bopos.py owns the clock
-  math, the engine receives the bare relative fire.
 - `/e/*` (§3.2) has split ownership: the patch declares identities and meanings,
   while bopos.py matches targets and performs the clock math before delivering
   a selector-free, time-free fire.
@@ -411,7 +403,6 @@ selector-stripped:
 /p/<segment>[/<segment>...] <values…>
                                patch-declared parameters (§8)
 /pt <point> <element> <value>  shaped point scalars (§4.1)
-/cue <id>                      scheduled relative fire (§3.1)
 /e/<segment>[/<segment>...] [<e0> [<e1> [<e2>]]]
                                scheduled relative event fire (§3.2)
 /notify <event>                framework notifications (identify, update, …)
@@ -465,7 +456,7 @@ same handful of node-lifecycle actions the dashboard can already trigger:
 
 In PD this surface is owned by the `[bopos]` abstraction (`pd/bopos.pd`),
 which exposes the buses `bopos-context`, `bopos-master`, `bopos-param`,
-`bopos-point`, `bopos-cue`, `bopos-notify`, `bopos-io` and consumes
+`bopos-point`, `bopos-notify`, `bopos-io` and consumes
 `to-bopos-io`, `to-bopos-report`. Other engines speak the wire directly
 (`patches/demo-sc` is the reference). The PD-side bus plumbing for `/admin`
 (e.g. a `to-bopos-admin` bus consumed by `[bopos]`) is not yet wired in
@@ -521,7 +512,7 @@ because the clear is durably committed before the new identity becomes
 routable.
 
 **Civil time (amended 2026-07-12):** absolute wall-clock timestamps must not
-be sent as OSC floats or used by engines for synchronized cue timing; bopOS
+be sent as OSC floats or used by engines for synchronized event timing; bopOS
 MAY provide civil date/time to an engine, safely encoded, for patch-level
 calendar behaviour. The request/event interface for that is deliberately
 deferred and unratified.
@@ -749,8 +740,8 @@ A patch ships **`bopos.patch.json`** in its patch root:
     {"path":["instrument","marimba"], "name":"gain", "kind":"float", "min":0, "max":1, "default":0.75, "dashboard":true},
     {"name":"backing", "kind":"float", "min":0, "max":1, "default":0.8},
     {"name":"echo",    "kind":"toggle", "default":0} ],
-  "cues": [
-    {"id":"snap", "label":"Snap", "description":"Fire the snap gesture"} ],
+  "events": [
+    {"name":"snap", "arity":0, "description":"Fire the snap gesture"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
 ```
 
@@ -811,14 +802,6 @@ A patch ships **`bopos.patch.json`** in its patch root:
   verbs. Loaders accept the legacy `facilitator` spelling and normalize it to
   `dashboard`; saves emit only `dashboard`. If both spellings are present with
   conflicting values, the manifest is invalid.
-- **`cues` (optional; additive, v1.4):** a list of cue declarations the patch
-  responds to: `{"id": <string>, "label": <string, optional>,
-  "description": <string, optional>}`. `id` is the exact string delivered as
-  the bare relative fire `/cue <id>` (§3.1 unchanged: engines never see
-  absolute time). Declarations are documentation and UI surface only — the
-  framework neither filters undeclared cue IDs nor schedules anything from
-  the manifest. Duplicate IDs are invalid. An absent `cues` key is valid.
-
 - **`options` (required on `kind: "enum"`; revised 2026-07-28):** a
   list of 2–64 unique labels (1–32 characters, no newlines) naming its
   indices — an *enum*. **The wire does not change:** the value is the integer
@@ -828,15 +811,15 @@ A patch ships **`bopos.patch.json`** in its patch root:
   disagrees is invalid, so a saved manifest round-trips. Only the control
   surface reads the labels.
 - **`events` (optional; wired in v1.14):** a top-level
-  list beside `params`, each `{"name": …, "path": […], "arity": 1|2|3,
+  list beside `params`, each `{"name": …, "path": […], "arity": 0|1|2|3,
   "labels": […], "defaults": […], "dashboard": bool}`. `name`/`path` qualify
-  exactly like a param and may not collide with a param identity. Elements
+  exactly like a param; `/p/*` and `/e/*` are distinct planes, so the same
+  qualified identity may be declared once in each. Elements
   are free-form labeled floats — note/velocity/duration is the common case,
   not an enforced framework meaning (Bob, 2026-07-27). Fires use `/e/*`
   (§3.2), always forward-synchronized unless the installation-wide
-  `event_lead_ms` is `0`. A cue is a zero-element event; `/cue` remains
-  temporarily alongside `/e/*` in v1.14 and is retired by the next
-  `44-event-plane` stitch. Presets do not capture events.
+  `event_lead_ms` is `0`. A zero-element event is a momentary named fire.
+  Presets do not capture events.
 
 ## 9. Distribution and landing
 
@@ -908,11 +891,10 @@ Unchanged verbs, sharpened boundary:
 - **PD OSC floats are 32-bit** (~6–7 significant figures). Any value needing more
   crosses the wire as a **string** (uids, versions, epoch/shared times). Absolute
   wall-clock timestamps are never sent as OSC floats and never used by engines
-  for synchronized cue/event timing: the synced clock lives in Python; engines
-  only ever receive a bare relative fire. `/cue <cueId>
-  <sharedTime-as-string>` and `/<selector>/e/<identity>
-  <sharedTime-as-string> [elements…]` are converted by bopos.py before the
-  engine sees them. Civil
+  for synchronized event timing: the synced clock lives in Python; engines
+  only ever receive a bare relative fire. `/<selector>/e/<identity>
+  <sharedTime-as-string> [elements…]` is converted by bopos.py before the
+  engine sees it. Civil
   date/time MAY reach an engine, safely encoded, for calendar behaviour — the
   interface is deferred (§4.2).
 - Pi Zero 2 W is the constrained reference target; PD is single-threaded — no
@@ -950,7 +932,7 @@ Unchanged verbs, sharpened boundary:
 Port consolidation and renumbering; a capability broadcast/registry (pull via
 `/os/report` + manifest instead); runtime parameter introspection or
 params-announce protocols; telemetry/log streaming (heartbeat absence is the
-alarm); envelope-carrying cues (crossfades are dashboard param automation);
+alarm); envelope-carrying events (crossfades are dashboard param automation);
 a separate hello/handshake family (the fast heartbeat is discovery); per-device
 spatial gain broadcast at fleet scale; per-host branching in message semantics
 (differences are declared facts, never special cases); dashboard-side
@@ -997,3 +979,4 @@ reasoning.
 | 1.13 | 2026-07-24 | Log-destination configuration (§6): additive exact-device `/all/os/to <uid> log-config <json>` → `/os/log-config <uid> <ok\|err> <json>`, a bounded `{"destination": "internal"\|"usb"}` choice persisted as `LOG_DESTINATION` in `bopos.config` — no engine restart, no rollback. `/os/report` gains a `log` object (`destination`, `effective`, `usb_present`); `usb` falls back to `internal` when the stick is absent, resolved per entry. Purely additive. | thread `42-node-logging` |
 | 1.13 am. | 2026-07-27 | Patch-manifest presentation clarification (§8): all declared params appear on desktop Control and Device control surfaces; the existing `dashboard: true` field now gates only the simplified standalone facilitator/iPad surface. No manifest or wire shape changes. | stitch `1-full-manifest-visibility` |
 | 1.14 | 2026-07-28 | Additive targetable `/e/*` event plane (§3.2): patch-declared identities with 0–3 floats, framework-owned forward scheduling, selector-free/time-free engine fires, and exact `"0"` fire-on-arrival sentinel. Installation setting `cue_lead_ms` becomes `event_lead_ms` with load-only fallback. `/cue` remains unchanged for its separate retirement stitch. | thread `44-event-plane` |
+| 1.15 | 2026-07-28 | Hard-break retirement of the `/cue` plane and the manifest `cues` key. Zero-element `/e/*` events replace named fires in full; no compatibility alias, deprecation path, or show-document migration. | thread `44-event-plane` |

@@ -3,7 +3,7 @@ fire events at their local monotonic deadline.
 
 Pure timing logic, deliberately free of import-time side effects (no ports, no
 pyOSC3) so it can be unit-tested on its own -- bopos.py imports it and wires the
-OSC (pong reply, offset push, /e and /cue -> engine). All times are integer nanoseconds
+OSC (pong reply, offset push, /e -> engine). All times are integer nanoseconds
 from time.monotonic(); offset === deviceClock - leaderClock, so a leader-clock
 sharedTime converts to a local deadline as `sharedTime + offset`.
 """
@@ -14,10 +14,12 @@ import time
 # already scheduled doesn't glitch (HB gen-2 adjustScheduleTime). Slew is
 # node-internal; the wire only ever carries the absolute target (contract sec 4).
 SLEW_DURATION_NS = 1_000_000_000
-# Late-cue policy (implementer's call, recorded in the stitch): a cue whose
+# Late-fire policy (implementer's call, recorded in the stitch): an event whose
 # deadline has just passed is still fired if it is within this grace window --
-# a small network hiccup shouldn't drop a downbeat -- but a cue later than this
+# a small network hiccup shouldn't drop a downbeat -- but a fire later than this
 # is stale and dropped rather than fired wrong. Both cases are logged.
+# The name predates the `/cue` retirement (thread 44 child 4) and is kept
+# because contract sec 3.1 cites it; it now governs scheduled `/e/*` fires.
 CUE_LATE_GRACE_NS = 50_000_000
 
 
@@ -93,7 +95,7 @@ class EventScheduler:
         if self._thread is not None:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._loop, name="cue-scheduler",
+        self._thread = threading.Thread(target=self._loop, name="event-scheduler",
                                         daemon=True)
         self._thread.start()
 
@@ -133,14 +135,9 @@ class EventScheduler:
                     self._log("{} {} DROPPED (late {:.1f}ms > grace)".format(
                         self._label, identity, late / 1e6))
             # sleep until the next deadline, capped so a slewing offset is
-            # re-evaluated; wake early when a new cue is scheduled
+            # re-evaluated; wake early when a new event is scheduled
             if nearest is None:
                 self._wake.wait()
             else:
                 self._wake.wait(timeout=max(0.0, min((nearest - self._now()) / 1e9, 0.02)))
             self._wake.clear()
-
-
-# `/cue` remains live until thread 44 child 4. Keeping the old import name lets
-# that call site use the generalized scheduler without a second clock path.
-CueScheduler = EventScheduler

@@ -124,7 +124,7 @@ def make_fixture(root):
             "engine": "test", "entrypoint": "main.bin",
             "params": [{"name": "density", "kind": "float", "min": 0, "max": 1,
                         "default": .2, "dashboard": True}],
-            "cues": [{"id": "go", "label": "Go"}],
+            "events": [{"name": "go", "arity": 0, "dashboard": True}],
             "caps": [], "slots": [],
         }, target)
 
@@ -237,13 +237,16 @@ def main():
                       [item.strip() for item in modes]
                       == ["All", "Groups", "Seat"], repr(modes))
 
-                # --- cues sit above the surface ---
-                check("cues sit above the control surface",
+                # --- events sit above the surface ---
+                # `/cue` is retired (thread 44 child 4); the standalone
+                # facilitator's panel is now the events panel, and the
+                # ordering assertion this journey owns is unchanged.
+                check("events sit above the control surface",
                       page.frames[-1].evaluate(
-                          "() => { const cues ="
-                          " document.querySelector('#cue-panel');"
+                          "() => { const events ="
+                          " document.querySelector('#event-panel');"
                           " const cards = document.querySelector('#cards');"
-                          " return !!(cues && cards && (cues.compareDocumentPosition(cards)"
+                          " return !!(events && cards && (events.compareDocumentPosition(cards)"
                           " & Node.DOCUMENT_POSITION_FOLLOWING)); }"))
 
                 # --- the filter scopes the surface ---

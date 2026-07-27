@@ -78,10 +78,7 @@
     const alias = message?.alias;
     if (alias && alias.trim()) return alias.trim();
     const address = String(message?.address || "");
-    if (address === "/cue") {
-      const cue = message.args?.[0]?.value;
-      return cue ? `/cue ${cue}` : "/cue";
-    }
+    if (address.startsWith("/e/")) return address;
     const parts = address.split("/").filter(Boolean);
     return parts.length ? parts[parts.length - 1] : (address || "message");
   }
@@ -120,7 +117,7 @@
   }
 
   const PILL_CATEGORIES = {
-    cue: {code: "CUE", label: "cue"},
+    event: {code: "EV", label: "event"},
     point: {code: "PT", label: "point"},
     raw: {code: "RAW", label: "raw OSC"},
     "param-value": {code: "VAL", label: "parameter value"},
@@ -186,20 +183,25 @@
     return [path, name].filter(Boolean).join("/") || name;
   }
 
+  function eventIdentity(declaration) {
+    return String(declaration?.identity || declaration?.name || "");
+  }
+
   function manifestFromStagedPatch() {
     const state = currentInstallation();
-    const patch = state.live_controls?.patch || state.live_cues?.patch || state.params_patch || state.fleet_patch?.name;
+    const patch = state.live_controls?.patch || state.params_patch || state.fleet_patch?.name;
     const catalog = currentDistribution();
     const item = (catalog.patches || []).find(candidate => candidate.name === patch);
     const manifest = item?.manifest && typeof item.manifest === "object" ? item.manifest : null;
     const params = Array.isArray(manifest?.params) ? manifest.params
       : Array.isArray(state.live_controls?.declarations) ? state.live_controls.declarations : [];
-    const cues = Array.isArray(manifest?.cues) ? manifest.cues
-      : Array.isArray(state.live_cues?.cues) ? state.live_cues.cues : [];
+    const events = Array.isArray(manifest?.events) ? manifest.events
+      : Array.isArray(state.live_controls?.events) ? state.live_controls.events : [];
     return {
       patch,
       params: params.map(param => ({...param, identity: paramIdentity(param)})).filter(param => param.identity),
-      cues: cues.filter(cue => cue && typeof cue.id === "string" && cue.id),
+      events: events.map(declaration => ({...declaration, identity: eventIdentity(declaration)}))
+        .filter(declaration => declaration.identity),
     };
   }
 
@@ -275,7 +277,7 @@
   }
 
   function inferMessageMode(message) {
-    if (message.address === "/cue") return "cue";
+    if (message.address?.startsWith("/e/")) return "event";
     if (message.address === "/pt") return "point";
     if (message.address?.startsWith("/p/")) return "param";
     return "raw";
@@ -434,7 +436,7 @@
     const playLabel = activeState === "playing" ? `Pause ${stepLabel(activeStep)}`
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
-    const cueLead = currentInstallation().event_lead_ms ?? 500;
+    const eventLead = currentInstallation().event_lead_ms ?? 500;
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
       <div class="show-manage">
@@ -446,7 +448,7 @@
         <button id="show-manage-delete" class="danger" type="button">Delete</button>
       </div>
       <div class="show-transport-actions">
-        <label class="show-cue-lead">cue lead · ms <input id="show-cue-lead" type="number" min="0" max="10000" step="50" value="${escapeHtml(cueLead)}"></label>
+        <label class="show-event-lead">event lead · ms <input id="show-event-lead" type="number" min="0" max="10000" step="50" value="${escapeHtml(eventLead)}"></label>
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
         ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
@@ -614,7 +616,7 @@
 
   function renderMessageInspector(step, message) {
     const mode = inferMessageMode(message);
-    const targetDisabled = mode === "cue" || mode === "point";
+    const targetDisabled = mode === "point";
     const aliasSet = message.alias && message.alias.trim();
     const nameBlock = nameTitleBlock("message", message.uid, {
       display: aliasSet ? message.alias.trim() : messageLabel(message),
@@ -629,7 +631,7 @@
         <label>payload mode
           <select id="show-message-mode">
             <option value="param" ${mode === "param" ? "selected" : ""}>parameter</option>
-            <option value="cue" ${mode === "cue" ? "selected" : ""}>cue</option>
+            <option value="event" ${mode === "event" ? "selected" : ""}>event</option>
             <option value="point" ${mode === "point" ? "selected" : ""}>point</option>
             <option value="raw" ${mode === "raw" ? "selected" : ""}>raw</option>
           </select>
@@ -642,7 +644,7 @@
 
   function renderPayloadBuilder(message, mode) {
     if (mode === "param") return renderParamBuilder(message);
-    if (mode === "cue") return renderCueBuilder(message);
+    if (mode === "event") return renderEventBuilder(message);
     if (mode === "point") return renderPointBuilder(message);
     return renderRawBuilder(message);
   }
@@ -697,12 +699,19 @@
     </div>`;
   }
 
-  function renderCueBuilder(message) {
+  function renderEventBuilder(message) {
     const manifest = manifestFromStagedPatch();
-    const cueId = message.address === "/cue" ? String(argValue(message.args?.[0]) || "") : manifest.cues[0]?.id || "";
-    const options = manifest.cues.map(cue => `<option value="${escapeHtml(cue.id)}" ${cue.id === cueId ? "selected" : ""}>${escapeHtml(cue.label || cue.id)}</option>`).join("");
-    return `<section class="show-inspector-section" data-payload-builder="cue">
-      <label>cue <select id="show-cue-picker">${options || '<option value="">No staged cues</option>'}</select></label>
+    const identity = message.address?.startsWith("/e/") ? message.address.slice(3) : manifest.events[0]?.identity || "";
+    const declaration = manifest.events.find(item => item.identity === identity) || manifest.events[0];
+    const options = manifest.events.map(item => `<option value="${escapeHtml(item.identity)}" ${item.identity === identity ? "selected" : ""}>${escapeHtml(item.name || item.identity)}</option>`).join("");
+    const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
+    const labels = Array.isArray(declaration?.labels) ? declaration.labels : [];
+    const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
+    const elements = Array.from({length: arity}, (_unused, index) =>
+      `<label>${escapeHtml(labels[index] || `element ${index}`)} <input data-event-element="${index}" type="number" step="any" value="${escapeHtml(numberAttr(message.args?.[index]?.value, defaults[index] ?? 0))}"></label>`).join("");
+    return `<section class="show-inspector-section" data-payload-builder="event">
+      <label>event <select id="show-event-picker">${options || '<option value="">No staged events</option>'}</select></label>
+      ${elements}
     </section>`;
   }
 
@@ -750,10 +759,10 @@
     const oldPicker = root.querySelector("#show-switch-select");
     const renderedShow = oldPicker?.querySelector("option[selected]")?.value;
     const pickedShow = oldPicker && oldPicker.value !== renderedShow ? oldPicker.value : null;
-    const oldCueLead = root.querySelector("#show-cue-lead");
-    const cueLeadDraft = oldCueLead && document.activeElement === oldCueLead
-      ? oldCueLead.value : null;
-    // Same rationale as cueLeadDraft: an unrelated broadcast mid-rename must
+    const oldEventLead = root.querySelector("#show-event-lead");
+    const eventLeadDraft = oldEventLead && document.activeElement === oldEventLead
+      ? oldEventLead.value : null;
+    // Same rationale as eventLeadDraft: an unrelated broadcast mid-rename must
     // not wipe an uncommitted inline name edit (step/divider/message; no
     // per-keystroke saves).
     const oldNameInput = root.querySelector("[data-show-name-input]");
@@ -776,11 +785,11 @@
         picker.value = pickedShow;
       }
     }
-    if (cueLeadDraft != null) {
-      const cueLead = root.querySelector("#show-cue-lead");
-      if (cueLead) {
-        cueLead.value = cueLeadDraft;
-        cueLead.focus({preventScroll: true});
+    if (eventLeadDraft != null) {
+      const eventLead = root.querySelector("#show-event-lead");
+      if (eventLead) {
+        eventLead.value = eventLeadDraft;
+        eventLead.focus({preventScroll: true});
       }
     }
     if (nameEdit.kind) {
@@ -1166,8 +1175,15 @@
       const type = declarationWireType(declaration);
       const value = declaration?.default ?? (type === "s" ? "" : 0);
       updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
-    } else if (mode === "cue") {
-      updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: manifest.cues[0]?.id || ""}], target: targetList(message)});
+    } else if (mode === "event") {
+      const declaration = manifest.events[0];
+      const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
+      const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
+      updateMessage(message.uid, {
+        address: `/e/${declaration?.identity || ""}`,
+        args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
+        target: targetList(message),
+      });
     } else if (mode === "point") {
       updateMessage(message.uid, {address: "/pt", args: [
         {type: "i", value: 0}, {type: "f", value: 0}, {type: "f", value: 0},
@@ -1246,10 +1262,10 @@
   });
 
   root.addEventListener("change", event => {
-    if (event.target.id === "show-cue-lead") {
+    if (event.target.id === "show-event-lead") {
       const ms = Math.min(10000, Math.max(0, Math.trunc(Number(event.target.value) || 0)));
       event.target.value = ms;
-      ws.send("set_cue_lead", {ms});
+      ws.send("set_event_lead", {ms});
       return;
     }
     const stepEditor = event.target.closest("[data-show-step-editor]");
@@ -1299,7 +1315,20 @@
         const args = compileParamEditor(message, messageEditor);
         if (args) updateMessage(message.uid, {args});
       }
-      if (event.target.id === "show-cue-picker") updateMessage(message.uid, {address: "/cue", args: [{type: "s", value: event.target.value}]});
+      if (event.target.id === "show-event-picker") {
+        const declaration = manifestFromStagedPatch().events.find(item => item.identity === event.target.value);
+        const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
+        const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
+        updateMessage(message.uid, {
+          address: `/e/${event.target.value}`,
+          args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
+        });
+      }
+      if (event.target.matches("[data-event-element]")) {
+        const args = [...messageEditor.querySelectorAll("[data-event-element]")]
+          .map(input => typedArg("f", input.value));
+        updateMessage(message.uid, {args});
+      }
       if (event.target.matches("[data-point-field]")) {
         const values = {};
         messageEditor.querySelectorAll("[data-point-field]").forEach(input => values[input.dataset.pointField] = input.value);

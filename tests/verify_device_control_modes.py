@@ -154,7 +154,7 @@ class PhysicalPeer:
             "patch": "alpha",
             "git_rev": "physical-test",
             "update_model": "persistent",
-            "contract_version": "1.14",
+            "contract_version": "1.15",
             "groups": [],
             "device_enabled": self.device_enabled,
             "mute_all": False,

@@ -525,19 +525,6 @@ class OSCBridge:
         self.send("/all/os/mute", [
             int(bool(self.state.data.get("muted", False)))])
 
-    def fire_cue(self, cue_id, lead_ms=500):
-        """Schedule one named fleet cue in leader monotonic time."""
-        lead_ms = min(max(int(lead_ms), 100), 10000)
-        shared_time_ns = time.monotonic_ns() + lead_ms * 1_000_000
-        self.send("/cue", [str(cue_id), str(shared_time_ns)])
-        return shared_time_ns, lead_ms
-
-    def fire_cue_now(self, cue_id):
-        """Fire through the normal cue scheduler at its earliest deadline."""
-        shared_time_ns = time.monotonic_ns()
-        self.send("/cue", [str(cue_id), str(shared_time_ns)])
-        return shared_time_ns
-
     def fire_event(self, selector, identity, elements, lead_ms=500):
         """Schedule a targetable event, or fire on arrival when lead is zero."""
         identity = str(identity)

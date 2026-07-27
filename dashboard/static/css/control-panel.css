@@ -662,8 +662,8 @@
 /* ---- 15. Non-float kinds (control-panel-design §2) ----------------------
    `6-non-float-kinds`. Integers already ride the numeric row (step 1, a
    right-aligned box); what lands here is the toggle box that replaced the
-   checkbox, the enum select, the string row, the event row rendered inert
-   pending `44-event-plane`, and the pulse that stands in for a value no
+   checkbox, the enum select, the string row, the event row, and the pulse
+   that stands in for a value no
    control can honestly show (`8-kind-feedback-pass`).
 
    They all keep the numeric row's column rhythm — first the control, then
@@ -797,12 +797,11 @@
   color:var(--mod);
 }
 
-/* --- the event row: rendered, inert (44-event-plane owns the wire) --- */
+/* --- the event row --- */
 .live-card .live-param-event,
 .device-control .live-param-event {
-  /* send · elements · name, packed left in that order, and `sync` alone at
-     the right edge — the column the other kinds give their generator toggle.
-     Flex, not a grid: the name hugs whichever box is last (Bob, 2026-07-27),
+  /* fire · elements · name, packed left in that order. Flex, not a grid:
+     the name hugs whichever box is last (Bob, 2026-07-27),
      so the row must not hold empty element columns open. */
   display:flex;
   gap:4px;
@@ -823,9 +822,10 @@
   border-radius:var(--radius-small);
   background:var(--input);
   color:var(--text);
+  font:inherit;
   font-variant-numeric:tabular-nums;
 }
-/* The name takes the slack, so `sync` lands against the row's right edge. */
+/* The name takes the remaining width after the event's elements. */
 .live-card .live-param-event > .live-param-name,
 .device-control .live-param-event > .live-param-name {
   flex:1 1 auto;
@@ -847,10 +847,24 @@
   font:inherit;
   font-size:11px;
 }
-.live-card .live-param-event button:disabled,
-.device-control .live-param-event button:disabled {
-  opacity:.55;
-  cursor:not-allowed;
+.live-card .live-control-section,
+.device-control .live-control-section {
+  display:grid;
+  gap:var(--gap);
+}
+.live-card .live-control-section + .live-control-section,
+.device-control .live-control-section + .live-control-section {
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid var(--group-line);
+}
+.live-card .live-control-section > h3,
+.device-control .live-control-section > h3 {
+  margin:0;
+  color:var(--dim);
+  font-size:10px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
 }
 
 /* --- the string row: a text box at row height, name to its left --- */
@@ -1165,7 +1179,7 @@
   pointer-events:none;
 }
 /* Latching, so it wears §5's latching face — the same ink as a pressed kind
-   tab or a `sync` box, not a third treatment of its own. */
+   tab, not a third treatment of its own. */
 .live-card .live-gen-pill:has(input:checked),
 .device-control .live-gen-pill:has(input:checked) {
   background:var(--mod-fill);

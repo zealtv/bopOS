@@ -169,13 +169,13 @@ ws.on("manifest_saved", data => {
   const patch=data?.patch||editorPatchChoice;
   const declarations=data?.declarations||data?.params||[];
   if (patch && patch===editorPatchChoice) {
-    manifestDraft={patch,params:structuredClone(declarations),cues:structuredClone(data.cues||[])};
+    manifestDraft={patch,params:structuredClone(declarations),events:structuredClone(data.events||[])};
     manifestBaseline=structuredClone(manifestDraft);
     manifestDirty=false;
   }
   if (installation.editor && installation.editor.patch===patch) {
     installation.editor.declarations=structuredClone(declarations);
-    installation.editor.cues=structuredClone(data.cues||[]);
+    installation.editor.events=structuredClone(data.events||[]);
   }
   const warnings=(data?.warnings||[data?.pd_receive_warning]).filter(Boolean);
   manifestFeedback=warnings.length?`Saved with warning: ${warnings.join(" ")}`:"Manifest saved. Live controls refreshed; the engine was not restarted.";
@@ -217,9 +217,9 @@ ws.on("editor_point_element", data => {
   Spatial.renderEditor(installation.editor,ws);
 });
 ws.on("point_frame", data => Spatial.frame(data.points || {}));
-ws.on("editor_cue_fired", data => {
-  const status = $("#editor-cue-status"); if (!status) return;
-  status.value = `${data.cue_id} fired`;
+ws.on("editor_event_fired", data => {
+  const status = $("#editor-event-status"); if (!status) return;
+  status.value = `${data.identity} fired`;
 });
 ws.on("error", data => {
   if (manifestFeedback.endsWith("…")) {
@@ -636,20 +636,20 @@ function manifestSource(editor, patches, patch) {
   const embedded=item.manifest && typeof item.manifest==="object" ? item.manifest : {};
   const current=editor.patch===patch ? editor : {};
   const params=current.declarations||embedded.params||item.params||item.declarations;
-  const cues=current.cues||embedded.cues||item.cues;
+  const events=current.events||embedded.events||item.events;
   return {
     engine:current.engine??embedded.engine??item.engine,
     entrypoint:current.entrypoint??embedded.entrypoint??item.entrypoint,
     caps:current.caps??embedded.caps??item.caps??[],
     slots:current.slots??embedded.slots??item.slots??[],
     params:Array.isArray(params)?params:[],
-    cues:Array.isArray(cues)?cues:[],
-    available:Array.isArray(params)||Array.isArray(cues)||Boolean(current.engine||embedded.engine||item.engine),
+    events:Array.isArray(events)?events:[],
+    available:Array.isArray(params)||Array.isArray(events)||Boolean(current.engine||embedded.engine||item.engine),
     editable:Boolean(editor.active&&editor.patch===patch),
   };
 }
 function resetManifestDraft(patch, source) {
-  manifestDraft={patch,params:structuredClone(source.params),cues:structuredClone(source.cues)};
+  manifestDraft={patch,params:structuredClone(source.params),events:structuredClone(source.events)};
   manifestBaseline=structuredClone(manifestDraft);
   manifestDirty=false;
 }
@@ -671,6 +671,20 @@ function manifestParamsForSave(params) {
     delete param.group;
     delete param.facilitator;
     return param;
+  });
+}
+function manifestEventsForSave(events) {
+  return events.map(declaration=>{
+    const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
+    const labels=Array.isArray(declaration.labels)?declaration.labels:[];
+    const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
+    return {
+      name:String(declaration.name||""),
+      arity,
+      labels:Array.from({length:arity},(_unused,index)=>String(labels[index]||"")),
+      defaults:Array.from({length:arity},(_unused,index)=>Number(defaults[index])||0),
+      dashboard:declaration.dashboard===true,
+    };
   });
 }
 function setManifestParamKind(param, kind) {
@@ -711,12 +725,19 @@ function paramManifestRow(param, index) {
     <button data-remove-param="${index}" class="danger">Remove</button>
   </div>`;
 }
-function cueManifestRow(cue, index) {
-  return `<div class="manifest-row manifest-cue" data-cue-index="${index}">
-    <label>ID<input data-manifest-field="id" type="text" value="${esc(cue.id||"")}" autocomplete="off"></label>
-    <label>label<input data-manifest-field="label" type="text" value="${esc(cue.label||"")}" autocomplete="off"></label>
-    <label>description<input data-manifest-field="description" type="text" value="${esc(cue.description||"")}" autocomplete="off"></label>
-    <button data-remove-cue="${index}" class="danger">Remove</button>
+function eventManifestRow(declaration, index) {
+  const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
+  const labels=Array.isArray(declaration.labels)?declaration.labels:[];
+  const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
+  const elements=Array.from({length:arity},(_unused,element)=>`
+    <label>element ${element} label<input data-event-label="${element}" type="text" value="${esc(labels[element]||"")}" autocomplete="off"></label>
+    <label>element ${element} default<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element]??0)}"></label>`).join("");
+  return `<div class="manifest-row manifest-event" data-event-index="${index}">
+    <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name||"")}" autocomplete="off"></label>
+    <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
+    ${elements}
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard===true?"checked":""}> Facilitator</label>
+    <button data-remove-event="${index}" class="danger">Remove</button>
   </div>`;
 }
 function bindManifestEditor(source) {
@@ -748,10 +769,36 @@ function bindManifestEditor(source) {
       input.onchange=update;
     });
   });
-  document.querySelectorAll(".manifest-cue").forEach(row=>{
-    const index=Number(row.dataset.cueIndex);
-    row.querySelectorAll("[data-manifest-field]").forEach(input=>input.oninput=input.onchange=()=>{
-      manifestDraft.cues[index][input.dataset.manifestField]=input.value; manifestDirty=true;
+  document.querySelectorAll(".manifest-event").forEach(row=>{
+    const index=Number(row.dataset.eventIndex);
+    manifestDraft.events[index].labels=Array.isArray(manifestDraft.events[index].labels)?manifestDraft.events[index].labels:[];
+    manifestDraft.events[index].defaults=Array.isArray(manifestDraft.events[index].defaults)?manifestDraft.events[index].defaults:[];
+    row.querySelectorAll("[data-manifest-field]").forEach(input=>{
+      const update=()=>{
+        const declaration=manifestDraft.events[index];
+        const field=input.dataset.manifestField;
+        if(field==="arity"){
+          const arity=Math.min(3,Math.max(0,Math.trunc(Number(input.value)||0)));
+          declaration.arity=arity;
+          declaration.labels=Array.from({length:arity},(_unused,element)=>declaration.labels?.[element]||"");
+          declaration.defaults=Array.from({length:arity},(_unused,element)=>Number(declaration.defaults?.[element])||0);
+          manifestDirty=true;
+          renderManifestEditor(source);
+          return;
+        }
+        declaration[field]=input.type==="checkbox"?input.checked:input.value;
+        manifestDirty=true;
+      };
+      input.oninput=update;
+      input.onchange=update;
+    });
+    row.querySelectorAll("[data-event-label]").forEach(input=>input.oninput=()=>{
+      manifestDraft.events[index].labels[Number(input.dataset.eventLabel)]=input.value;
+      manifestDirty=true;
+    });
+    row.querySelectorAll("[data-event-default]").forEach(input=>input.oninput=()=>{
+      manifestDraft.events[index].defaults[Number(input.dataset.eventDefault)]=Number(input.value)||0;
+      manifestDirty=true;
     });
   });
   document.querySelectorAll("[data-remove-param]").forEach(button=>button.onclick=()=>{
@@ -759,8 +806,8 @@ function bindManifestEditor(source) {
     if (!confirm(`Remove parameter "${paramIdentity(param)||"unnamed"}"? Engine routes do not change automatically; update the corresponding route in the patch.`)) return;
     manifestDraft.params.splice(Number(button.dataset.removeParam),1); manifestDirty=true; renderManifestEditor(source);
   });
-  document.querySelectorAll("[data-remove-cue]").forEach(button=>button.onclick=()=>{
-    manifestDraft.cues.splice(Number(button.dataset.removeCue),1); manifestDirty=true; renderManifestEditor(source);
+  document.querySelectorAll("[data-remove-event]").forEach(button=>button.onclick=()=>{
+    manifestDraft.events.splice(Number(button.dataset.removeEvent),1); manifestDirty=true; renderManifestEditor(source);
   });
 }
 function renderManifestEditor(source) {
@@ -768,19 +815,19 @@ function renderManifestEditor(source) {
   const patch=editorPatchChoice;
   panel.hidden=!patch;
   if (!patch) return;
-  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,cues:source.cues})!==JSON.stringify({params:manifestDraft.params,cues:manifestDraft.cues}))) {
+  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,events:source.events})!==JSON.stringify({params:manifestDraft.params,events:manifestDraft.events}))) {
     resetManifestDraft(patch,source);
   }
   $("#manifest-readonly").innerHTML=`<dl><dt>Engine</dt><dd>${esc(manifestValue(source.engine))}</dd><dt>Entrypoint</dt><dd>${esc(manifestValue(source.entrypoint))}</dd><dt>Capabilities</dt><dd>${esc(manifestValue(source.caps))}</dd><dt>Asset slots</dt><dd>${esc(manifestValue(source.slots))}</dd></dl>`;
   $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
-  $("#manifest-cues").innerHTML=manifestDraft.cues.map(cueManifestRow).join("")||'<p class="dim">No cues declared.</p>';
+  $("#manifest-events").innerHTML=manifestDraft.events.map(eventManifestRow).join("")||'<p class="dim">No events declared.</p>';
   $("#manifest-feedback").textContent=manifestFeedback||(source.editable
     ? "Path/name changes create a new OSC identity; engine routes never change automatically."
     : "Launch this patch in edit mode to change its manifest.");
-  const addParam=$("#manifest-add-param"), addCue=$("#manifest-add-cue");
-  addParam.disabled=!source.editable; addCue.disabled=!source.editable;
+  const addParam=$("#manifest-add-param"), addEvent=$("#manifest-add-event");
+  addParam.disabled=!source.editable; addEvent.disabled=!source.editable;
   addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",kind:"float",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
-  addCue.onclick=()=>{manifestDraft.cues.push({id:"",label:"",description:""});manifestDirty=true;renderManifestEditor(source);};
+  addEvent.onclick=()=>{manifestDraft.events.push({name:"",arity:0,labels:[],defaults:[],dashboard:false});manifestDirty=true;renderManifestEditor(source);};
   const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
   save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
   save.onclick=()=>{
@@ -789,12 +836,12 @@ function renderManifestEditor(source) {
     const changed=before.filter(identity=>identity&&!after.includes(identity));
     if (changed.length && !confirm(`Save parameter move/rename/removal (${changed.map(item=>`/p/${item}`).join(", ")})? Engine routes do not follow manifest changes.`)) return;
     manifestFeedback="Saving manifest…";
-    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),cues:structuredClone(manifestDraft.cues)});
+    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),events:manifestEventsForSave(manifestDraft.events)});
     save.blur();
     $("#manifest-feedback").textContent=manifestFeedback;
   };
   bindManifestEditor(source);
-  if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-cues input, #manifest-cues button").forEach(control=>{control.disabled=true;});
+  if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-events input, #manifest-events button").forEach(control=>{control.disabled=true;});
 }
 
 function editorControl(declaration, value) {
@@ -829,19 +876,25 @@ function editorParamTree(declarations, values) {
 }
 function renderEditorPreview(editor) {
   Spatial.renderEditor(editor,ws);
-  const cues=$("#editor-declared-cues"), free=$("#editor-cue-id"), fire=$("#editor-cue-fire");
-  if (!cues || !free || !fire || !editor.active) return;
-  cues.innerHTML=(editor.cues||[]).map(cue=>{
-    const label=cue.label||cue.id;
-    const description=cue.description?`<small>${esc(cue.description)}</small>`:"";
-    return `<button data-editor-cue="${esc(cue.id)}" title="Fire ${esc(cue.id)}">${esc(label)}${description}</button>`;
+  const events=$("#editor-declared-events"), free=$("#editor-event-identity"), fire=$("#editor-event-fire");
+  if (!events || !free || !fire || !editor.active) return;
+  events.innerHTML=(editor.events||[]).map(declaration=>{
+    const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
+    const labels=Array.isArray(declaration.labels)?declaration.labels:[];
+    const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
+    const elements=Array.from({length:arity},(_unused,index)=>
+      `<input data-editor-event-element="${index}" type="number" step="any" value="${esc(defaults[index]??0)}" aria-label="${esc(`${declaration.name} ${labels[index]||`element ${index}`}`)}">`).join("");
+    return `<div class="editor-event-row" data-editor-event="${esc(declaration.name)}"><button title="Fire ${esc(declaration.name)}">${esc(declaration.name)}</button>${elements}</div>`;
   }).join("");
-  const send=cueId=>{
-    if (!cueId) return;
-    ws.send("fire_editor_cue",{cue_id:cueId});
-    $("#editor-cue-status").value=`Firing ${cueId}…`;
+  const send=(identity,elements=[])=>{
+    if (!identity) return;
+    ws.send("fire_editor_event",{identity,elements});
+    $("#editor-event-status").value=`Firing ${identity}…`;
   };
-  cues.querySelectorAll("[data-editor-cue]").forEach(button=>button.onclick=()=>send(button.dataset.editorCue));
+  events.querySelectorAll("[data-editor-event]").forEach(row=>row.querySelector("button").onclick=()=>{
+    const elements=[...row.querySelectorAll("[data-editor-event-element]")].map(input=>Number(input.value));
+    send(row.dataset.editorEvent,elements);
+  });
   fire.onclick=()=>send(free.value.trim());
   free.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();fire.click();}};
 }
@@ -1214,6 +1267,10 @@ const deviceSurface=window.ControlSurface.create({
   deviceForSeat:seat=>seat?.bound?installation.devices?.[seat.bound]:null,
   deviceForScope:uid=>installation.devices?.[uid],
   send:({scope,id,name,value})=>ws.send("set_live_param",{scope,id,name,value}),
+  sendEvent:({scope,id,identity,elements})=>{
+    const selector=scope==="all"?"all":scope==="group"?`g${id}`:String(id);
+    ws.send("fire_event",{selector,identity,elements,lead_ms:Number(installation.event_lead_ms??500)});
+  },
   sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
   setInteracting:editing=>{deviceControlInteracting=editing;},
   requestRender:()=>renderDeviceDetail(),

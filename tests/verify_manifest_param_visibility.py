@@ -102,7 +102,7 @@ def write_fixture(temp):
     manifest = os.path.join(patch, "bopos.patch.json")
     with open(manifest, "w", encoding="utf-8") as target:
         json.dump({"engine": "test", "entrypoint": "main.bin",
-                   "params": PARAMS, "cues": [], "caps": [], "slots": []},
+                   "params": PARAMS, "caps": [], "slots": []},
                   target)
     state_path = os.path.join(temp, "installation.json")
     with open(state_path, "w", encoding="utf-8") as target:

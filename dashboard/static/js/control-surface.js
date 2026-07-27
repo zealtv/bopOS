@@ -44,7 +44,7 @@
   }
 
   function create(context) {
-    // context: {getState, deviceForSeat, send, sendAutomation, setInteracting, requestRender}
+    // context: {getState, deviceForSeat, send, sendEvent, sendAutomation, setInteracting, requestRender}
     const automationAnchors = new Map();
     const takeoverAnnouncements = new Map();
     // Which generator drawers are open, and the argument list each one is
@@ -292,35 +292,38 @@
       return `data-live-param data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"`;
     }
 
-    // An event declaration renders its ratified row — 1–3 value boxes, `sync`,
-    // `send` — and nothing else: the `<target>/e/*` wire is `44-event-plane`'s
-    // contract question, so every control here is inert and says so. The row
-    // exists now because the panel's layout had to be designed against it.
-    function eventRow(declaration) {
-      const arity = Math.min(3, Math.max(1, Number(declaration.arity) || 1));
+    // An event declaration renders its ratified row: fire, 0–3 editable float
+    // elements, then the name. Every event uses the global forward-sync lead;
+    // there is deliberately no per-row synchronization choice.
+    function eventRow(scope, id, declaration, disabled) {
+      const arity = Math.min(3, Math.max(0, Number(declaration.arity) || 0));
+      const off = disabled ? " disabled" : "";
       const labels = Array.isArray(declaration.labels) ? declaration.labels : [];
       const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
       // Exactly `arity` boxes, no held-open slots: the name hugs the last box
       // (Bob, 2026-07-27), so a one-element event's name sits where its one
       // box ends rather than where a triplet's third box would have.
       const boxes = Array.from({length: arity}, (_unused, index) => {
-        const shown = defaults[index] == null ? "—" : defaults[index];
+        const shown = Number.isFinite(Number(defaults[index])) ? Number(defaults[index]) : 0;
         const name = labels[index] || `element ${index}`;
-        return `<span class="live-event-box" aria-label="${esc(`${declaration.name} ${name}`)}">${esc(shown)}</span>`;
+        return `<input class="live-event-box" type="number" step="any" value="${esc(shown)}" aria-label="${esc(`${declaration.name} ${name}`)}"${off}>`;
       }).join("");
-      const title = "Events are not wired yet (44-event-plane)";
       // Reading order is the sending order (Bob, 2026-07-27): the trigger, the
-      // elements it will send, then the name. `sync` sits last and right, in
-      // the column a numeric row gives its generator toggle.
-      return `<div class="live-param live-param-event" data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}" title="${esc(title)}">
-        <button type="button" class="live-event-send" aria-label="${esc(`send ${declaration.name}`)}" disabled>send</button>
+      // elements it will send, then the name.
+      return `<div class="live-param live-param-event" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}">
+        <button type="button" class="live-event-send" aria-label="${esc(`fire ${declaration.name}`)}"${off}>fire</button>
         ${boxes}<span class="live-param-name">${esc(declaration.name)}</span>
-        <button type="button" class="live-event-sync" aria-pressed="false" aria-label="${esc(`${declaration.name} forward synchronization`)}" disabled>sync</button>
       </div>`;
     }
 
     function paramControl(scope, id, members, declaration, disabled) {
-      if (paramKind(declaration) === "event") return eventRow(declaration);
+      if (paramKind(declaration) === "event") {
+        const eventId = scope === "device" ? members[0]?.id : id;
+        // An event row honours the same disabled gate as a param row: an
+        // offline or unbound target must not offer a fire button that would
+        // put a datagram on the wire for nobody.
+        return eventRow(scope, eventId, declaration, disabled);
+      }
       const state = aggregateValue(members, declaration);
       const mixed = state.mixed || state.automationMixed;
       const value = state.value;
@@ -339,7 +342,7 @@
       // animator, and a marker-bearing LFO/loop paints its exact position on
       // the slider. Everything else — toggles, enums, and the shapes whose
       // value the runtime cannot know (sample+hold, drift) — would have to
-      // invent a cue, so those pulse instead (design-language §6/§10; the
+      // invent a value, so those pulse instead (design-language §6/§10; the
       // 50%-duty toggle flash from stitch 6 is retired).
       // Only the numeric row has a channel for a live generator value at all:
       // the rAF-sampled fade, or the CSS marker that paints an LFO's/loop's
@@ -449,7 +452,7 @@
       return `<${tag} class="${classes}" data-param-path="${esc(declaration.identity)}"${pulseAnchor}>${input}${modButton}</${tag}>${drawer}`;
     }
 
-    function paramTree(scope, id, members, declarations, disabled) {
+    function declarationTree(scope, id, members, declarations, disabled) {
       const roots = {branches: new Map(), leaves: []};
       for (const declaration of declarations) {
         let node = roots;
@@ -475,6 +478,15 @@
         return leaves + branches;
       };
       return renderNode(roots);
+    }
+
+    function paramTree(scope, id, members, declarations, disabled) {
+      const parameters = declarations.filter(declaration => paramKind(declaration) !== "event");
+      const events = declarations.filter(declaration => paramKind(declaration) === "event");
+      const section = (kind, label, items) => items.length
+        ? `<section class="live-control-section live-control-section-${kind}"><h3>${label}</h3>${declarationTree(scope, id, members, items, disabled)}</section>`
+        : "";
+      return section("parameters", "Parameters", parameters) + section("events", "Events", events);
     }
 
     // The slider's fill and marker are painted by the wrapper from `--v`, so
@@ -561,6 +573,20 @@
     }
 
     function bindParams(root = document) {
+      root.querySelectorAll(".live-param-event").forEach(row => {
+        const button = row.querySelector(".live-event-send");
+        if (!button) return;
+        row.querySelectorAll(".live-event-box").forEach(input => {
+          input.onfocus = () => context.setInteracting?.(true);
+          input.onblur = () => context.setInteracting?.(false);
+        });
+        button.onclick = () => {
+          const elements = [...row.querySelectorAll(".live-event-box")].map(input => Number(input.value));
+          const scope = row.dataset.liveScope;
+          const id = row.dataset.liveId == null ? null : row.dataset.liveId;
+          context.sendEvent?.({scope, id, identity: row.dataset.paramPath, elements});
+        };
+      });
       root.querySelectorAll("[data-live-param]").forEach(input => {
         const toggle = input.tagName === "BUTTON";
         const select = input.tagName === "SELECT";

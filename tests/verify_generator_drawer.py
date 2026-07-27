@@ -159,7 +159,7 @@ def make_fixture(root, mixed):
             # the option INDEX, quantized on the same integer path.
             {"name": "mode", "kind": "enum", "options": ["dry", "hall", "plate"],
              "default": 0, "dashboard": True},
-        ], "cues": [], "caps": [], "slots": [],
+        ], "caps": [], "slots": [],
     }
     with open(os.path.join(patch, "bopos.patch.json"), "w",
               encoding="utf-8") as target:

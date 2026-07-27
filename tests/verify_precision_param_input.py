@@ -104,7 +104,7 @@ def make_fixture(root):
              "min": 0, "max": 1, "default": .2, "dashboard": True},
             {"name": "steps", "kind": "int", "min": 0, "max": 10,
              "default": 2, "dashboard": True},
-        ], "cues": [], "caps": [], "slots": [],
+        ], "caps": [], "slots": [],
     }
     manifest_path = os.path.join(patch, "bopos.patch.json")
     with open(manifest_path, "w", encoding="utf-8") as target:

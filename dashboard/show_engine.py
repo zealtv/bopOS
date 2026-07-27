@@ -10,7 +10,8 @@ a socket of its own and never re-derives `OSCBridge`'s send logic.
 
 Message emission always goes through existing `OSCBridge` methods, keyed by
 address kind:
-  - `/cue`      -> `fire_cue` with the current installation-wide cue lead.
+  - `/e/<identity>` -> `fire_event` for each target with the current
+                       installation-wide event lead.
   - `/p/<name>` -> `set_param(selector, name, value)` once per selector in
                    the message's `target` list -- each entry is already the
                    literal selector (design note sec 2 + 5c amendment),
@@ -140,9 +141,12 @@ class ShowEngine:
     def _send_message(self, message):
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
-        if address == "/cue":
-            cue_id = str(args[0]) if args else ""
-            self.bridge.fire_cue(cue_id, lead_ms=self.event_lead_ms())
+        if address.startswith("/e/") and len(address) > 3:
+            identity = address[len("/e/"):]
+            selectors = target if isinstance(target, list) else [target]
+            for selector in selectors:
+                self.bridge.fire_event(
+                    selector, identity, args, lead_ms=self.event_lead_ms())
         elif address.startswith("/p/") and len(address) > 3:
             name = address[len("/p/"):]
             # 5c: target is a selector list; fan one datagram out per

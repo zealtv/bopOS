@@ -143,7 +143,7 @@ class Dashboard:
         self.state.data["editor"] = {
             "active": False, "status": "off", "patch": None,
             "engine_alive": None, "generation": 0, "params": {},
-            "declarations": [], "cues": [], "points": {},
+            "declarations": [], "events": [], "points": {},
             "point_element": 0, "engine": None,
         }
         self.fleet_operation = None
@@ -749,45 +749,53 @@ class Dashboard:
             self.state.save_debounced()
             self.osc.send_master()
             await self.broadcast("master", {"value": master})
-        elif kind == "set_cue_lead":
+        elif kind == "set_event_lead":
             raw_ms = data.get("ms")
             if isinstance(raw_ms, bool):
-                await self.ws_error(ws, "Cue lead must be a whole number of milliseconds.")
+                await self.ws_error(ws, "Event lead must be a whole number of milliseconds.")
                 return
             try:
                 ms = int(raw_ms)
             except (TypeError, ValueError):
-                await self.ws_error(ws, "Cue lead must be a whole number of milliseconds.")
+                await self.ws_error(ws, "Event lead must be a whole number of milliseconds.")
                 return
             ms = min(max(ms, 0), 10000)
             self.state.data["event_lead_ms"] = ms
             self.state.save_debounced()
             await self.broadcast("state", await self.public_state())
-        elif kind == "fire_cue":
-            cue_id = data.get("cue_id") if isinstance(data.get("cue_id"), str) else ""
-            if patch_manifest.CUE_ID.fullmatch(cue_id) is None:
-                if ws is not None:
-                    await ws.send_json({"type": "error", "data": {
-                        "message": "cue name: use 1–64 characters without newlines"}})
+        elif kind == "fire_event":
+            event, error = self.validate_event_command(data)
+            if error is not None:
+                await self.ws_error(ws, error)
                 return
+            selector, event_identity, elements = event
             try:
                 lead_ms = int(data.get("lead_ms", 500))
             except (TypeError, ValueError):
                 lead_ms = 500
-            shared_time_ns, lead_ms = self.osc.fire_cue(cue_id, lead_ms)
-            await self.broadcast("cue_scheduled", {"cue_id": cue_id,
-                                                    "shared_time_ns": str(shared_time_ns),
-                                                    "lead_ms": lead_ms})
-        elif kind == "fire_editor_cue":
+            shared_time_ns, lead_ms = self.osc.fire_event(
+                selector, event_identity, elements, lead_ms)
+            await self.broadcast("event_scheduled", {
+                "selector": selector,
+                "identity": event_identity,
+                "elements": elements,
+                "shared_time_ns": str(shared_time_ns),
+                "lead_ms": lead_ms,
+            })
+        elif kind == "fire_editor_event":
             if self.supervisor_mode != "edit":
                 return
-            cue_id = data.get("cue_id") if isinstance(data.get("cue_id"), str) else ""
-            if patch_manifest.CUE_ID.fullmatch(cue_id) is None:
-                await self.ws_error(ws, "cue name: use 1–64 characters without newlines")
+            event, error = self.validate_event_command(data)
+            if error is not None:
+                await self.ws_error(ws, error)
                 return
-            shared_time_ns = self.osc.fire_cue_now(cue_id)
-            await self.broadcast("editor_cue_fired", {
-                "cue_id": cue_id, "shared_time_ns": str(shared_time_ns)})
+            selector, event_identity, elements = event
+            shared_time_ns, _lead_ms = self.osc.fire_event(
+                selector, event_identity, elements, 0)
+            await self.broadcast("editor_event_fired", {
+                "identity": event_identity,
+                "shared_time_ns": str(shared_time_ns),
+            })
         elif kind == "save_preset":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if not name:
@@ -1507,11 +1515,6 @@ class Dashboard:
                 self.osc.set_param(int(seat["id"]), identity,
                                    seat["params"][identity])
 
-    def live_cue_declarations(self):
-        """Validated cue actions for the staged fleet patch."""
-        manifest = self.live_control_manifest()
-        return list(manifest.get("cues", ())) if manifest is not None else []
-
     def live_param_declaration(self, identity, patch_name=None):
         if not isinstance(identity, str):
             return None
@@ -1662,17 +1665,12 @@ class Dashboard:
         public["devices"] = {uid: await self.public_device(device, desired)
                              for uid, device in self.state.devices.items()}
         declarations = self.live_control_declarations()
-        cues = self.live_cue_declarations()
         events = self.live_event_declarations()
         public["live_controls"] = {
             "patch": (self.state.data.get("params_patch")
                       if declarations or events else None),
             "declarations": declarations,
             "events": events,
-        }
-        public["live_cues"] = {
-            "patch": self.state.data.get("params_patch") if cues else None,
-            "cues": cues,
         }
         editor = dict(self.state.data["editor"])
         editor_device = self.state.devices.get("audition-0001")
@@ -1684,6 +1682,34 @@ class Dashboard:
         public["supervisor"] = {"mode": self.supervisor_mode}
         public["host_version"] = self.host_version
         return public
+
+    @staticmethod
+    def validate_event_command(data):
+        selector = data.get("selector")
+        event_identity = data.get("identity")
+        elements = data.get("elements")
+        if not isinstance(selector, str):
+            return None, "Event selector must be a string."
+        if not isinstance(event_identity, str):
+            return None, "Event identity must be a string."
+        identity_parts = event_identity.split("/")
+        try:
+            identity_bytes = event_identity.encode("ascii")
+        except UnicodeEncodeError:
+            identity_bytes = b""
+        if (not 1 <= len(identity_parts) <= patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
+            return None, "Event identity does not match the /p/* segment grammar."
+        if (not isinstance(elements, list)
+                or len(elements) > patch_manifest.MAX_EVENT_ARITY
+                or any(not isinstance(value, (int, float))
+                       or isinstance(value, bool)
+                       or not math.isfinite(value)
+                       for value in elements)):
+            return None, "Event elements must be a list of 0–3 finite numbers."
+        return (selector, event_identity, [float(value) for value in elements]), None
 
     @staticmethod
     async def ws_error(ws, message):
@@ -1778,13 +1804,13 @@ class Dashboard:
             await self.ws_error(ws, f"Cannot edit patch {name!r}: {error}")
             return
 
-        params, cues = data.get("params"), data.get("cues")
-        if not isinstance(params, list) or not isinstance(cues, list):
-            await self.ws_error(ws, "Manifest params and cues must be lists.")
+        params, events = data.get("params"), data.get("events")
+        if not isinstance(params, list) or not isinstance(events, list):
+            await self.ws_error(ws, "Manifest params and events must be lists.")
             return
         candidate = dict(current)
         candidate["params"] = params
-        candidate["cues"] = cues
+        candidate["events"] = events
         saved, error = await asyncio.to_thread(
             patch_manifest.write_atomic, patch_path, candidate)
         if saved is None:
@@ -1811,7 +1837,7 @@ class Dashboard:
         previous_values = editor.get("params", {})
         declarations = list(saved.get("params", ()))
         editor["declarations"] = declarations
-        editor["cues"] = list(saved.get("cues", ()))
+        editor["events"] = list(saved.get("events", ()))
         editor["params"] = {
             patch_manifest.qualify_param(declaration): previous_values.get(
                 patch_manifest.qualify_param(declaration), declaration.get("default", ""))
@@ -1820,7 +1846,7 @@ class Dashboard:
         response = {
             "patch": name,
             "params": declarations,
-            "cues": editor["cues"],
+            "events": editor["events"],
             "removed_params": removed,
             "added_params": added,
             "rename_candidates": rename_candidates,
@@ -1854,7 +1880,7 @@ class Dashboard:
             if template_copied:
                 await asyncio.to_thread(shutil.copyfile, template, entrypoint)
             minimal = {"engine": "pd", "entrypoint": "main.pd", "params": [],
-                       "cues": [], "caps": [], "slots": []}
+                       "events": [], "caps": [], "slots": []}
             saved, error = await asyncio.to_thread(
                 patch_manifest.write_atomic, patch_path, minimal, template_copied)
             if saved is None:
@@ -2411,7 +2437,7 @@ class Dashboard:
                       params={patch_manifest.qualify_param(item): item.get("default", "")
                               for item in declarations},
                       declarations=declarations,
-                      cues=list(manifest.get("cues", ())),
+                      events=list(manifest.get("events", ())),
                       points={},
                       point_element=0,
                       engine=manifest.get("engine"))

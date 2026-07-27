@@ -181,7 +181,7 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
                 self.bridge.send_master()
                 self.bridge.send_mute_all()
                 self.bridge.set_param("all", "gain", 0.5)
-                self.bridge.fire_cue_now("go")
+                self.bridge.fire_event("all", "go", [], 0)
                 self.bridge.send_points_frame()
                 self.assert_destinations((target, 6660))
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Living tests for sync leader estimation and node cue scheduling."""
+"""Living tests for sync leader estimation and node event scheduling."""
 
 import sys
 import threading
@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(REPO / "python"), str(REPO / "dashboard")]
 
 import osc_bridge  # noqa: E402
-from sync_node import CueScheduler, SyncState  # noqa: E402
+from sync_node import EventScheduler, SyncState  # noqa: E402
 
 
 class SyncProtocolTests(unittest.TestCase):
@@ -106,18 +106,18 @@ class SyncProtocolTests(unittest.TestCase):
         bridge.send.assert_not_called()
         bridge.broadcast.assert_not_called()
 
-    def test_cue_scheduler_fires_due_and_grace_cues_but_drops_stale(self):
+    def test_event_scheduler_fires_due_and_grace_events_but_drops_stale(self):
         fired, logs = [], []
         on_time = threading.Event()
         sync = SyncState(slew_ns=0)
         sync.push(0)
 
-        def fire(cue_id, elements):
-            fired.append((cue_id, elements))
-            if cue_id == "future":
+        def fire(event_id, elements):
+            fired.append((event_id, elements))
+            if event_id == "future":
                 on_time.set()
 
-        scheduler = CueScheduler(sync, fire=fire, log=logs.append)
+        scheduler = EventScheduler(sync, fire=fire, log=logs.append)
         scheduler.start()
         try:
             now = time.monotonic_ns()
@@ -128,14 +128,14 @@ class SyncProtocolTests(unittest.TestCase):
         finally:
             scheduler.stop()
 
-        self.assertEqual(set(cue_id for cue_id, _elements in fired),
+        self.assertEqual(set(event_id for event_id, _elements in fired),
                          {"grace", "future"})
-        self.assertNotIn("stale", [cue_id for cue_id, _elements in fired])
+        self.assertNotIn("stale", [event_id for event_id, _elements in fired])
         self.assertTrue(
             any("stale" in entry and "DROPPED" in entry for entry in logs)
         )
 
-    def test_offset_change_is_continuous_while_cues_are_pending(self):
+    def test_offset_change_is_continuous_while_events_are_pending(self):
         now = [0]
         sync = SyncState(slew_ns=100, now=lambda: now[0])
         sync.push(100)

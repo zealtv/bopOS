@@ -718,7 +718,7 @@ def send_groups_to_engine(state=None):
 # --- engine-ready replay boundary -------------------------------------------
 # Durable authoritative state the node owns and must (re)deliver once the engine
 # opens its port: the Seat id, Seat-group memberships, and the latest *static*
-# value of each live parameter. Transient traffic (cues, points) and running
+# value of each live parameter. Transient traffic (events, points) and running
 # automation generators (fade/loop/lfo -- forgotten by design across restarts,
 # per the parameter-automation ratification) are never buffered or replayed.
 param_replay_lock = threading.Lock()
@@ -871,8 +871,8 @@ def apply_groups(args, reply_socket, requester, state=None):
 
 
 def apply_points(parts, args, state=None):
-    # /pt plane (contract sec 4.1): selector-less broadcast geometry, like
-    # /cue. Helper owns the proximity math; the engine sees only shaped
+    # /pt plane (contract sec 4.1): selector-less broadcast geometry. Helper
+    # owns the proximity math; the engine sees only shaped
     # scalars as /pt <pointId> <element> <v> on 6661 (element 0-based, pair
     # order from the assignment). A removed point releases with one v=0.
     state = state or node_state
@@ -1308,7 +1308,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.14",
+        "contract_version": "1.15",
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),
@@ -1436,11 +1436,11 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                     record_static_param(param_identity, spec, declaration)
                     return param_generator.apply(param_identity, spec, declaration)
             return relay_provided_term(*shaped)
-    # clock-sync plane (contract sec 3.1): ping/cue omit the selector (always
-    # fleet-wide), offset is per-device. Handled before the /os gate below.
+    # Clock-sync ping omits the selector (always fleet-wide); offset is
+    # per-device. Handled before the /os gate below.
     if parts == ["sync", "ping"] and len(args) >= 2:
         # pong unicast to the leader, echoing seq+leaderTime; deviceTime is our
-        # own monotonic clock -- never wall clock (NTP steps must not glitch cues)
+        # own monotonic clock -- never wall clock (NTP steps must not glitch events)
         msg = OSCMessage("/sync/pong")
         msg.append(int(args[0]), 'i')
         msg.append(str(args[1]), 's')
@@ -1472,12 +1472,6 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             return True
         try:
             event_scheduler.schedule(int(shared_time), event_identity, elements)
-        except (TypeError, ValueError):
-            pass
-        return True
-    if parts == ["cue"] and len(args) >= 2:
-        try:
-            cue_scheduler.schedule(int(str(args[1])), str(args[0]), [])
         except (TypeError, ValueError):
             pass
         return True
@@ -2116,19 +2110,6 @@ def admin_callback(path='', tags='', args='', source=''):
                      daemon=True).start()
 
 
-def fire_cue_to_engine(cue_id, elements=()):
-    # at the local deadline, the engine sees only the bare cue -- absolute time
-    # never enters PD (contract sec 12). PD's patch owns the /cue receiver.
-    # `elements` is the generalized scheduler's payload; a cue has none, and
-    # child 4 deletes this path outright.
-    msg = OSCMessage("/cue")
-    typed_append(msg, cue_id)
-    try:
-        send_to_engine(msg)
-    except Exception as error:
-        print(f"cue: could not fire to engine: {error}")
-
-
 def fire_event_to_engine(identity, elements):
     # Absolute shared time stays in Python. The engine sees only the relative,
     # selector-free event fire and its 0–3 float elements.
@@ -2143,10 +2124,6 @@ def fire_event_to_engine(identity, elements):
 
 sync_state = SyncState()
 event_scheduler = EventScheduler(sync_state, fire_event_to_engine)
-# Child 4 retires `/cue`; until then the compatibility alias gives it the
-# generalized payload shape while both schedulers share the one SyncState.
-cue_scheduler = EventScheduler(
-    sync_state, fire_cue_to_engine, log_label="cue")
 param_generator = paramgen.GeneratorEngine(
     lambda identity, args: relay_provided_term("/p/" + identity, args), sync_state)
 
@@ -2154,7 +2131,6 @@ param_generator = paramgen.GeneratorEngine(
 def exit_handler():
     print("exiting.  closing server...")
     event_scheduler.stop()
-    cue_scheduler.stop()
     param_generator.close()
     nodelog.close()
     server.close()
@@ -2172,7 +2148,6 @@ atexit.register(exit_handler)
 if __name__ == "__main__":
     server.timeout = 1.0
     event_scheduler.start()
-    cue_scheduler.start()
     initialise_asset_cache()
     initialise_patch_cache()
     # Persistent Device enabled is enforced as the helper comes up, before or

@@ -19,9 +19,10 @@
       "dashboard": true
     }
   ],
-  "cues": [
+  "events": [
     {
-      "id": "snap",
+      "name": "snap",
+      "arity": 0,
       "label": "Snap",
       "description": "Trigger a short noise snap"
     }
