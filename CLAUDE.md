@@ -66,10 +66,17 @@ remain the authority for a particular piece of work.
 > or after the UI work: `1-system-map` (as-is entity/storage/coupling map for
 > devices, seats, groups, patches, presets, shows) then
 > `2-workflows-and-simplification` (workflow walkthroughs + a
-> simplicity-first proposal, Bob reviews). This thread **gates
-> `41-preset-primitive/1`** — no preset design until the review is done.
-> Standing constraint: the system works today and must keep working; prefer
-> small ordered changes over rewrites.
+> simplicity-first proposal, Bob reviews). **Done same day — the whole
+> review thread is TIED (2026-07-27, live session with Bob).** The as-is map
+> is `.notes/entity-map-2026-07.md`; the ratified model and forks are in
+> `.loom/tied/2-workflows-and-simplification/` (proposal.md + decisions.md):
+> four layers (hardware → site → content → composition), fingerprinted
+> content references with derived non-blocking drift warnings, portable
+> shows target groups **by name**, venue presets retire when 41 lands,
+> collections start as show steps, one application path with hard takeover.
+> `41-preset-primitive/1` is un-gated (waiting only on UI-first queue
+> order). Standing constraint: the system works today and must keep working;
+> prefer small ordered changes over rewrites.
 >
 > **Update 2026-07-26 (loom tidy):** Bob dropped the old
 > `18-show-chrome-density` goal and replaced its remaining intent with

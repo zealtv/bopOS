@@ -20,10 +20,16 @@ asked for an architectural evaluation, not a straight port.
 Child `1-preset-architecture-design` is the Bob-gated design stitch;
 implementation stitches follow ratification.
 
-**Gated 2026-07-27 on `entity-architecture-review`** (lore
-`2026-07-27-control-panel-ui-and-architecture-braindump`): Bob wants the
-holistic entity/coupling review (devices, seats, patches, presets, shows)
-done before the preset design is written, so the preset primitive lands on a
-reviewed model instead of adding to the complexity smell. The mockup's
-provisional preset row (dropdown + new/save/del at the control-panel top) is
-UI input for the design stitch.
+**Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
+tied. The preset design proceeds on the ratified four-layer model — see
+`.notes/entity-map-2026-07.md` (as-is map) and the tied
+`2-workflows-and-simplification` proposal.md/decisions.md. Bob ratified
+in-session: venue presets **retire** when this thread lands (store is empty,
+no migration — settles Q8); collections start as **show steps / step
+templates**, not a new store (reshapes Q5); shows will reference groups **by
+name** and content by `{name, fingerprint}` with derived non-blocking drift
+warnings (the drift policy of Q1/W5); one application path with hard
+takeover is the global rule. The mockup's provisional preset row (dropdown +
+new/save/del at the control-panel top) is UI input for the design stitch.
+The design stitch stays `.waiting` only for queue order (UI-first per Bob's
+2026-07-27 ruling) — claimable whenever Bob wants presets next.
