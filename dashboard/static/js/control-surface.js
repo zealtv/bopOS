@@ -15,6 +15,32 @@
 
   const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
+  // Which hierarchy accordions the operator has pruned. localStorage rather
+  // than module state because the Control tab is an iframe and the Device-tab
+  // panel is the parent document: storage is the only channel the two share
+  // (CLAUDE.md gotcha 15), and it is also what makes pruning survive a reload.
+  //
+  // Keyed by scope + branch path, not by target id: collapsing `reverb` on one
+  // Seat card prunes it on every Seat card, which is the point — the operator
+  // is pruning the manifest, not one card. Absent means open, so a fresh
+  // browser and an unreadable store both land on today's always-open panel.
+  const BRANCH_STORAGE_KEY = "bopos.control.collapsed-branches";
+  const branchKey = (scope, path) => `${scope}:${path.join("/")}`;
+
+  function collapsedBranches() {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(BRANCH_STORAGE_KEY) || "[]");
+      return new Set(Array.isArray(stored) ? stored.map(String) : []);
+    } catch (_error) { return new Set(); }
+  }
+
+  function storeBranchCollapsed(key, collapsed) {
+    const branches = collapsedBranches();
+    if (collapsed) branches.add(key); else branches.delete(key);
+    try { window.localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify([...branches])); }
+    catch (_error) { /* storage denied: the accordion still works, it just forgets */ }
+  }
+
   function create(context) {
     // context: {getState, deviceForSeat, send, sendAutomation, setInteracting, requestRender}
     const automationAnchors = new Map();
@@ -302,11 +328,18 @@
         }
         node.leaves.push(declaration);
       }
+      // Collapsed state is read once per render: a branch is open unless the
+      // operator has pruned it (design-language §9). `<details>` does the
+      // showing and hiding natively, so a toggle needs no re-render — only a
+      // write to the store, which is what makes it survive the heartbeat.
+      const collapsed = collapsedBranches();
       const renderNode = (node, trail = []) => {
         const leaves = node.leaves.map(declaration => paramControl(scope, id, members, declaration, disabled)).join("");
         const branches = [...node.branches.entries()].map(([name, child]) => {
           const path = [...trail, name];
-          return `<section class="live-param-branch" data-param-branch="${esc(path.join("/"))}"><h3>${esc(name)}</h3>${renderNode(child, path)}</section>`;
+          const key = branchKey(scope, path);
+          const open = collapsed.has(key) ? "" : " open";
+          return `<details class="live-param-branch" data-param-branch="${esc(path.join("/"))}" data-branch-key="${esc(key)}"${open}><summary>${esc(name)}</summary><div class="live-param-branch-kids">${renderNode(child, path)}</div></details>`;
         }).join("");
         return leaves + branches;
       };
@@ -463,8 +496,17 @@
              });
         } else input.onchange = () => send();
       });
+      bindBranches(root);
       bindGenerators(root);
       startFadeAnimator();
+    }
+
+    // `<details>` opens and closes itself; all we do is record the outcome, so
+    // the next heartbeat re-render (and the next page load) reproduces it.
+    function bindBranches(root = document) {
+      root.querySelectorAll("[data-branch-key]").forEach(branch => {
+        branch.ontoggle = () => storeBranchCollapsed(branch.dataset.branchKey, !branch.open);
+      });
     }
 
     function bindGenerators(root = document) {

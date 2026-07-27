@@ -561,3 +561,59 @@
   color:var(--mod);
   box-shadow:none;
 }
+
+/* ---- 14. Hierarchy accordions (design-language §9) -----------------------
+   `5-hierarchy-and-persistence`. A nested address is a `<details>` whose
+   `<summary>` is the `▸ name` / `▾ name` disclosure row; children indent
+   12px, the same indent the generator drawer uses. The disclosure marker is
+   drawn by the summary's own `::before` so the two hosts get one glyph
+   whatever the user agent's default triangle looks like.
+
+   The shipping chrome (style.css / facilitator.css) drew branches as a
+   left-ruled `<section>` with an `<h3>` heading; both files now target
+   `> summary`, and the rule is retired here in favour of the indent. */
+
+.live-card details.live-param-branch,
+.device-control details.live-param-branch {
+  display:grid;
+  gap:var(--gap);
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.live-card details.live-param-branch > summary,
+.device-control details.live-param-branch > summary {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-height:20px;
+  color:var(--text);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:normal;
+  text-transform:none;
+  cursor:pointer;
+  list-style:none;
+}
+/* Safari draws its own triangle unless the webkit marker is suppressed. */
+.live-card details.live-param-branch > summary::-webkit-details-marker,
+.device-control details.live-param-branch > summary::-webkit-details-marker {
+  display:none;
+}
+.live-card details.live-param-branch > summary::before,
+.device-control details.live-param-branch > summary::before {
+  content:"▸";
+  color:var(--dim);
+  font-size:10px;
+}
+.live-card details.live-param-branch[open] > summary::before,
+.device-control details.live-param-branch[open] > summary::before {
+  content:"▾";
+}
+.live-card .live-param-branch-kids,
+.device-control .live-param-branch-kids {
+  display:grid;
+  gap:var(--gap);
+  margin-left:12px;       /* the drawer indent, reused (design-language §4) */
+}

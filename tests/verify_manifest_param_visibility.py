@@ -174,7 +174,7 @@ def main():
                 check("Control tab shows every manifest parameter",
                       identities(controls) == expected, repr(identities(controls)))
                 check("Control preserves the nested texture branch",
-                      frame.locator(".live-param-branch h3",
+                      frame.locator("details.live-param-branch > summary",
                                     has_text="texture").count() >= 1)
                 check("unflagged numeric params retain generator authoring",
                       frame.locator(

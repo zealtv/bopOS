@@ -16,7 +16,10 @@ different send". These checks pin that seam:
       is what "one code path" means concretely;
   (d) binding a device-scoped row calls the HOST's send with the device scope
       and uid, proving the send is the host's business and not a second
-      renderer inside the component.
+      renderer inside the component;
+  (e) the ratified row grammar and mixed/takeover presentation;
+  (f) hierarchy accordions and the persistence of a collapsed branch across a
+      heartbeat re-render and a reload.
 
 Owned by code surface (dashboard/static/js/control-surface.js), not by a
 stitch -- per the thread-27 durable-tests policy.
@@ -190,6 +193,8 @@ PARITY_JS = """
     // The generator drawer key is scope:id:identity, so it varies for the
     // same reason the scope attributes do.
     .replace(/data-gen-key="[^"]*"/g, 'data-gen-key="X"')
+    // Likewise the accordion's collapse key, which is scope:branch-path.
+    .replace(/data-branch-key="[^"]*"/g, 'data-branch-key="X"')
     // Sequential renders can cross a millisecond boundary; elapsed phase is
     // presentation bookkeeping, not a seat/device scope difference.
     .replace(/--auto-elapsed:[^;"]+/g, '--auto-elapsed:X');
@@ -303,6 +308,28 @@ MIXED_TAKEOVER_JS = """
         .style.getPropertyValue("--v"),
     },
     sent: window.__mixedSent || [],
+  };
+}
+"""
+
+# The hierarchy accordion (design-language §9): a `<details>` whose `<summary>`
+# is the `▸ name` / `▾ name` disclosure row, children indented 12px. The
+# disclosure glyph is a `::before`, so it is invisible to textContent and has
+# to be read off the computed style.
+ACCORDION_SHAPE_JS = """
+selector => {
+  const branch = document.querySelector(selector);
+  const summary = branch.querySelector(":scope > summary");
+  const kids = branch.querySelector(":scope > .live-param-branch-kids");
+  return {
+    tag: branch.tagName,
+    open: branch.open === true,
+    summary: summary ? summary.textContent.trim() : null,
+    marker: summary
+      ? getComputedStyle(summary, "::before").content.replace(/"/g, "") : null,
+    kids: !!(kids
+      && kids.querySelector('[data-param-path="filter/cutoff"]')),
+    indent: kids ? getComputedStyle(kids).marginLeft : null,
   };
 }
 """
@@ -490,6 +517,81 @@ def main():
                       and takeover["sent"][-1].get("scope") == "all"
                       and takeover["sent"][-1].get("value") == .6,
                       repr(takeover["sent"]))
+
+                # --- (f) hierarchy accordions (01-control-panel/5) ---
+                # The seat card is the one on screen at this point; its manifest
+                # carries the nested `filter/cutoff`, so `filter` is a branch.
+                # Scoped through `.promoted-controls` because the probe hosts
+                # appended above render their own `filter` branch inside the
+                # same card.
+                branch = ('.live-card[data-live-scope="seat"] '
+                          '.promoted-controls '
+                          '.live-param-branch[data-param-branch="filter"]')
+                child = branch + ' input[data-param-path="filter/cutoff"]'
+                shape = page.evaluate(ACCORDION_SHAPE_JS, branch)
+                check("a nested branch is a disclosure accordion, open by "
+                      "default",
+                      shape["tag"] == "DETAILS" and shape["open"]
+                      and shape["summary"] == "filter"
+                      and shape["kids"], repr(shape))
+                check("the accordion's children indent 12px",
+                      shape["indent"] == "12px", repr(shape["indent"]))
+                check("an open branch shows the ▾ disclosure glyph",
+                      shape["marker"] == "▾", repr(shape["marker"]))
+
+                # Collapse it, then prove the pruning survives both a heartbeat
+                # re-render (which replaces the node) and a reload.
+                page.eval_on_selector(branch,
+                                      "node => node.dataset.renderProbe = '1'")
+                page.click(branch + " > summary")
+                collapsed = page.evaluate(ACCORDION_SHAPE_JS, branch)
+                check("clicking the summary collapses the branch",
+                      not collapsed["open"]
+                      and not page.locator(child).is_visible(),
+                      repr(collapsed))
+                check("a collapsed branch shows the ▸ disclosure glyph",
+                      collapsed["marker"] == "▸", repr(collapsed["marker"]))
+                page.wait_for_function(
+                    "selector => document.querySelector(selector)"
+                    " && !document.querySelector(selector).dataset.renderProbe",
+                    arg=branch)
+                check("the collapse survives the heartbeat re-render",
+                      page.locator(branch).get_attribute("open") is None
+                      and not page.locator(child).is_visible())
+
+                page.reload()
+                # The target filter persists its own mode, so the reload comes
+                # back on Seats; click it anyway rather than assume either way.
+                page.wait_for_selector('.live-card')
+                page.click('[data-target-mode="seat"]')
+                page.wait_for_selector('.live-card[data-live-scope="seat"]')
+                check("the collapse survives a reload",
+                      page.locator(branch).get_attribute("open") is None
+                      and not page.locator(child).is_visible())
+                check("the collapse is keyed by scope and branch path",
+                      page.evaluate(
+                          "() => JSON.parse(localStorage.getItem("
+                          "'bopos.control.collapsed-branches') || '[]')")
+                      == ["seat:filter"])
+
+                # Re-opening clears the pruning again, so the store never
+                # accumulates state for branches the operator has restored.
+                page.click(branch + " > summary")
+                # `toggle` is dispatched asynchronously, so wait for the store
+                # to settle rather than reading it in the same tick.
+                cleared = True
+                try:
+                    page.wait_for_function(
+                        "() => JSON.parse(localStorage.getItem("
+                        "'bopos.control.collapsed-branches') || '[]')"
+                        ".length === 0")
+                except Exception:
+                    cleared = False
+                check("re-opening the branch restores its children and clears "
+                      "the stored collapse",
+                      page.locator(branch).get_attribute("open") is not None
+                      and page.locator(child).is_visible()
+                      and cleared)
 
                 check("facilitator emitted no page errors",
                       not page_errors, repr(page_errors))
