@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bopOS control panel — design prototype (2-control-panel-design)</title>
+<style>
+/* Token layer: names and values from dashboard/static/css/style.css so the
+   prototype speaks the shipping design system. Cyan = modulation/selection,
+   per the 2026-07-27 mockup; the grayscale base is the dashboard's own. */
+:root{
+  color-scheme:dark;
+  --bg:#101316; --panel:#191e23; --subpanel:#12191e; --input:#10161b;
+  --control:#273039; --hover:#252d34;
+  --line:#5e6a75; --control-line:#74818c; --group-line:#3e4952;
+  --text:#e8edf1; --dim:#8f9ba5; --muted-strong:#cbd5dc;
+  --accent:#8A82D8;
+  --mod:#4DEEE3;                     /* electric cyan */
+  --mod-fill:rgba(77,238,227,.26);
+  --mod-hatch:rgba(77,238,227,.45);
+  --mod-soft:rgba(77,238,227,.12);
+  --value-fill:rgba(255,255,255,.10);
+  --hatch:rgba(255,255,255,.16);
+  --radius-panel:6px; --radius-control:4px; --radius-small:3px;
+  /* PD heritage: bang is a circle, toggle is a square box —
+     momentary actions are rounded, latching state is sharp */
+  --radius-momentary:7px; --radius-toggle:1px;
+  --row-h:24px; --gap:6px;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    color-scheme:light;
+    /* Foundational BG is a pink/purple pastel (Bob, 2026-07-27 review) —
+       the bop-PD lavender family rather than the neutral dashboard light. */
+    --bg:#f4d7eb; --panel:#fdf6fb; --subpanel:#f6e4f0; --input:#fefcfe;
+    --control:#eed7e8; --hover:#e5c6dd;
+    --line:#9a8298; --control-line:#84788a; --group-line:#a586a0;
+    --text:#2b2130; --dim:#655a6b; --muted-strong:#514758;
+    --accent:#7A4FC8;
+    --mod:#0798BC;
+    --mod-fill:rgba(7,152,188,.20);
+    --mod-hatch:rgba(7,152,188,.42);
+    --mod-soft:rgba(7,152,188,.09);
+    --value-fill:rgba(90,60,120,.13);
+    --hatch:rgba(60,40,80,.20);
+  }
+}
+*{box-sizing:border-box}
+/* focus stays on-book: pink/purple + cyan are the whole palette */
+:root{accent-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+body{
+  margin:0; padding:20px; background:var(--bg); color:var(--text);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12px; line-height:1.35;
+}
+main{display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start}
+figure{margin:0}
+figcaption{color:var(--dim); font-size:11px; margin-bottom:6px}
+
+.panel{
+  width:340px; background:var(--panel);
+  border:1px solid var(--group-line); border-radius:var(--radius-panel);
+  padding:10px; display:grid; gap:var(--gap);
+}
+.panel-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px}
+.panel-head h2{margin:0; font-size:14px; font-weight:700; letter-spacing:.02em}
+.panel-rule{border:0; border-top:1px solid var(--group-line); margin:2px 0 4px; width:100%}
+
+button,select,input[type=text]{
+  font:inherit; color:var(--text); background:var(--input);
+  border:1px solid var(--control-line); border-radius:var(--radius-control);
+  padding:2px 7px; min-height:20px;
+}
+/* buttons default to momentary (rounded, PD-bang); latching controls opt
+   into the sharp toggle radius */
+button{cursor:pointer; background:var(--control); border-radius:var(--radius-momentary)}
+button:hover{background:var(--hover)}
+button[aria-pressed]{border-radius:var(--radius-toggle)}
+select{padding:1px 4px}
+
+/* patch + provisional preset row */
+.patch-row{display:flex; align-items:center; gap:6px}
+.patch-row .patch-name{font-weight:700; margin-right:auto}
+.patch-row select{max-width:110px}
+.patch-row button{padding:2px 6px}
+
+/* ---- the parameter row: [value box][name-in-slider][~] ------------------ */
+.param{display:grid; grid-template-columns:58px minmax(0,1fr) 20px; gap:var(--gap); align-items:center; min-height:var(--row-h)}
+.param .vbox{
+  height:var(--row-h); background:var(--input);
+  border:1px solid var(--control-line); border-radius:var(--radius-small);
+  display:flex; align-items:center; padding:0 5px;
+  font-variant-numeric:tabular-nums; cursor:text; overflow:hidden;
+}
+.param.gen .vbox{color:var(--mod)}
+.param .slider{
+  position:relative; height:var(--row-h); background:var(--input);
+  border:1px solid var(--control-line); border-radius:var(--radius-small);
+  overflow:hidden; cursor:ew-resize;
+}
+.param .slider .fill{
+  position:absolute; inset:0; width:calc(var(--v,0)*100%);
+  background:var(--value-fill);
+}
+.param.gen .slider .fill{background:var(--mod-fill)}
+.param .slider .name{
+  position:absolute; inset:0; display:flex; align-items:center;
+  padding:0 6px; color:var(--text); pointer-events:none;
+}
+/* every slider carries a precise-position marker line at the current value;
+   gray on manual rows, cyan on generator-driven rows */
+.param .slider .marker{
+  position:absolute; top:0; bottom:0; left:calc(var(--v,0)*100%);
+  width:1.5px; background:var(--control-line);
+}
+.param.gen .slider .marker{background:var(--mod)}
+/* mixed aggregates: diagonal slashes; the same slashes turn cyan when a
+   generator is involved (one pattern, two inks — not a different pattern) */
+.param.mixed .slider .fill{
+  width:100%;
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--hatch) 4px 5.5px);
+}
+.param.mixed .vbox{
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+}
+.param.mixed.gen .slider .fill{
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--mod-hatch) 4px 5.5px);
+}
+.param.mixed.gen .vbox{
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+}
+/* the ~ generator icon */
+/* the ∿ modulation icon is its own element class (disclosure + state
+   indicator), always circular — exempt from the momentary/toggle radii */
+button.gen-icon{
+  width:18px; height:18px; border-radius:50%;
+  border:1px solid var(--control-line); background:var(--input);
+  color:var(--dim); display:flex; align-items:center; justify-content:center;
+  font-size:12px; line-height:1; cursor:pointer; padding:0;
+}
+.gen-icon:hover{background:var(--hover)}
+.gen-icon.active{color:var(--mod); border-color:var(--mod); background:var(--mod-soft)}
+
+/* ---- generator drawer ---------------------------------------------------- */
+.drawer{
+  grid-column:1 / -1; position:relative;
+  background:var(--subpanel); border:1px solid var(--group-line);
+  border-radius:var(--radius-control); padding:8px; display:grid; gap:8px;
+  margin:2px 0 4px 12px;
+}
+.drawer::before{ /* the little pointer up to the row's ~ icon */
+  content:""; position:absolute; top:-5px; right:9px; width:8px; height:8px;
+  background:var(--subpanel); border-left:1px solid var(--group-line);
+  border-top:1px solid var(--group-line); transform:rotate(45deg);
+}
+.gen-tabs{display:flex; gap:5px}
+.gen-tabs button{flex:1; padding:3px 0; font-weight:700}
+.gen-tabs button[aria-pressed=true]{
+  background:var(--mod-soft); border-color:var(--mod); color:var(--mod);
+}
+.gen-body{display:grid; grid-template-columns:minmax(0,1fr) 112px; gap:8px}
+.wave{
+  position:relative; background:var(--input);
+  border:1px solid var(--control-line); border-radius:var(--radius-small);
+  height:74px;
+}
+.wave svg{position:absolute; inset:0; width:100%; height:100%}
+.wave .playhead{
+  position:absolute; top:0; bottom:0; left:calc(var(--ph,0)*100%);
+  width:1px; background:var(--mod); opacity:.85;
+}
+.wave .shape-pick{position:absolute; right:4px; bottom:4px}
+.wave .shape-pick select{font-size:11px}
+.gen-side{display:grid; gap:6px; align-content:start}
+/* mini-sliders keep the PD idiom: the label lives inside the slider */
+.mini{position:relative; display:block; height:16px; background:var(--input); border:1px solid var(--control-line); border-radius:var(--radius-small); overflow:hidden}
+.mini .fill{position:absolute; inset:0; width:calc(var(--v,0)*100%); background:var(--value-fill)}
+.mini .name{position:absolute; inset:0; display:flex; align-items:center; padding:0 5px; color:var(--dim); font-size:11px; pointer-events:none}
+.gen-args{display:flex; gap:5px; align-items:end; flex-wrap:wrap}
+.gen-args .field{display:grid; gap:2px; color:var(--dim)}
+.gen-args .field .vbox{
+  width:58px; height:20px; background:var(--input);
+  border:1px solid var(--control-line); border-radius:var(--radius-small);
+  display:flex; align-items:center; padding:0 5px; color:var(--text);
+  font-variant-numeric:tabular-nums; cursor:text;
+}
+.gen-args .time-controls{display:flex; gap:5px; align-items:center}
+.gen-args .time-controls select{height:20px; padding:1px 2px}
+.gen-args .time-controls .pill{padding:2px 6px}
+.pill{
+  padding:2px 8px; min-height:20px; border-radius:var(--radius-control);
+  border:1px solid var(--control-line); background:var(--input); color:var(--dim);
+}
+.pill[aria-pressed=true]{background:var(--mod-soft); border-color:var(--mod); color:var(--mod)}
+
+/* fade drawer */
+.fade-from{display:flex; gap:6px; align-items:center; color:var(--dim)}
+.fade-from .vbox{width:58px; height:20px; background:var(--input); border:1px solid var(--control-line); border-radius:var(--radius-small); display:flex; align-items:center; padding:0 5px; color:var(--text)}
+.seg{display:grid; grid-template-columns:16px 58px 16px 58px 48px auto; gap:5px; align-items:center; color:var(--dim)}
+.seg .vbox{height:20px; background:var(--input); border:1px solid var(--control-line); border-radius:var(--radius-small); display:flex; align-items:center; padding:0 5px; color:var(--text); font-variant-numeric:tabular-nums}
+.seg select{height:20px}
+.seg button{padding:1px 5px; font-size:11px}
+.add-seg{justify-self:end; font-size:11px}
+
+/* ---- hierarchy accordion -------------------------------------------------- */
+.branch{display:grid; gap:var(--gap)}
+.branch > summary{
+  list-style:none; cursor:pointer; color:var(--muted-strong);
+  display:flex; align-items:center; gap:6px; min-height:20px; font-weight:700;
+}
+.branch > summary::before{content:"▸"; color:var(--dim); font-size:10px}
+.branch[open] > summary::before{content:"▾"}
+.branch > .kids{display:grid; gap:var(--gap); margin-left:12px}
+
+/* ---- non-float kinds ------------------------------------------------------ */
+.kind-label{color:var(--dim)}
+.toggle-row{display:grid; grid-template-columns:96px minmax(0,1fr) 20px; gap:var(--gap); align-items:center; min-height:var(--row-h)}
+.toggle{
+  height:var(--row-h); border-radius:var(--radius-toggle);
+  border:1px solid var(--control-line); background:var(--input);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  color:var(--text); padding:0 6px; font:inherit;
+}
+.toggle.on{background:var(--mod-fill); border-color:var(--mod)}
+.toggle.gen{border-color:var(--mod); box-shadow:0 0 0 1px var(--mod)}
+.toggle.gen.flash-on{background:var(--mod-fill)}
+.event-row{display:grid; grid-template-columns:repeat(3,58px) minmax(60px,1fr) auto auto; gap:4px; align-items:center; min-height:var(--row-h); color:var(--dim)}
+.event-row .vbox{height:var(--row-h); background:var(--input); border:1px solid var(--control-line); border-radius:var(--radius-small); display:flex; align-items:center; padding:0 6px; color:var(--text); font-variant-numeric:tabular-nums; cursor:text}
+.event-row .vbox.empty{visibility:hidden}
+.event-row .flash{animation:evflash .5s steps(1) }
+.event-row button{padding:1px 3px; font-size:10px}
+.event-row button.sync[aria-pressed=true]{background:var(--mod-soft); border-color:var(--mod); color:var(--mod)}
+@keyframes evflash{0%{background:var(--mod-fill)} 100%{background:var(--input)}}
+.int-row,.enum-row{display:grid; grid-template-columns:96px minmax(0,1fr) 20px; gap:var(--gap); align-items:center; min-height:var(--row-h); color:var(--dim)}
+/* integers right-align; floats left-align — the alignment says the kind */
+.int-row .vbox{height:var(--row-h); width:58px; background:var(--input); border:1px solid var(--control-line); border-radius:var(--radius-small); display:flex; align-items:center; justify-content:flex-end; padding:0 5px; color:var(--text); font-variant-numeric:tabular-nums; cursor:text}
+.enum-row select{height:var(--row-h); width:96px}
+
+/* ---- legend --------------------------------------------------------------- */
+.legend{width:340px}
+.legend .param{pointer-events:none}
+.legend p{margin:2px 0 8px; color:var(--dim); font-size:11px}
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============ Panel 1: All Seats ============ -->
+<figure>
+<figcaption>Panel 1 — All Seats control panel (filter drawer open, LFO running)</figcaption>
+<section class="panel" aria-label="All Seats">
+  <div class="panel-head">
+    <h2>All Seats</h2>
+    <button type="button">send all</button>
+  </div>
+  <hr class="panel-rule">
+  <div class="patch-row">
+    <span class="patch-name">bonks-pd</span>
+    <select aria-label="preset"><option>preset 1</option><option>preset 2</option></select>
+    <button type="button">new</button><button type="button">save</button><button type="button">del</button>
+  </div>
+
+  <div class="param" style="--v:.82">
+    <span class="vbox">0.8234</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">gain</span></span>
+    <button class="gen-icon" type="button" aria-label="gain generator">∿</button>
+  </div>
+
+  <div class="param gen" id="p-filter" style="--v:.34">
+    <span class="vbox" data-live>0.3400</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">filter</span></span>
+    <button class="gen-icon active" type="button" aria-pressed="true" aria-label="filter generator (open)">∿</button>
+  </div>
+  <div class="drawer" role="group" aria-label="filter generator">
+    <div class="gen-tabs">
+      <button type="button" aria-pressed="true">LFO</button>
+      <button type="button" aria-pressed="false">loop</button>
+      <button type="button" aria-pressed="false">fade</button>
+    </div>
+    <div class="gen-body">
+      <div class="wave" id="wave-filter">
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points="0,36 25,4 75,36 100,20" fill="none" stroke="var(--mod)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <span class="playhead"></span>
+        <span class="shape-pick"><select aria-label="shape"><option>tri</option><option>sine</option><option>square</option><option>saw</option><option>s+h</option><option>drift</option></select></span>
+      </div>
+      <div class="gen-side">
+        <span class="mini" style="--v:.5" role="slider" aria-label="phase"><span class="fill"></span><span class="name">phase</span></span>
+        <span class="mini" style="--v:.5" role="slider" aria-label="curve"><span class="fill"></span><span class="name">curve</span></span>
+        <!-- free sits below curve, above the duration unit: grouped with time -->
+        <button class="pill" type="button" aria-pressed="true">free</button>
+      </div>
+    </div>
+    <div class="gen-args">
+      <label class="field">min<span class="vbox">0.1000</span></label>
+      <label class="field">max<span class="vbox">0.6000</span></label>
+      <label class="field">period<span class="vbox">3.000</span></label>
+      <label class="field unit">&nbsp;<select aria-label="period unit"><option>s</option><option>ms</option><option>beats</option></select></label>
+    </div>
+  </div>
+
+  <div class="param gen" id="p-cutoff" style="--v:.55">
+    <span class="vbox" data-live>0.5500</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">cutoff</span></span>
+    <button class="gen-icon active" type="button" aria-label="cutoff generator">∿</button>
+  </div>
+
+  <details class="branch">
+    <summary>reverb</summary>
+    <div class="kids">
+      <div class="param" style="--v:.4">
+        <span class="vbox">0.4000</span>
+        <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">size</span></span>
+        <button class="gen-icon" type="button">∿</button>
+      </div>
+    </div>
+  </details>
+
+  <details class="branch" open>
+    <summary>delay</summary>
+    <div class="kids">
+      <div class="param mixed gen">
+        <span class="vbox">·····</span>
+        <span class="slider"><span class="fill"></span><span class="name">time</span></span>
+        <button class="gen-icon active" type="button" aria-label="time generator (mixed)">∿</button>
+      </div>
+      <div class="param mixed">
+        <span class="vbox">·····</span>
+        <span class="slider"><span class="fill"></span><span class="name">wet</span></span>
+        <button class="gen-icon" type="button">∿</button>
+      </div>
+    </div>
+  </details>
+</section>
+</figure>
+
+<!-- ============ Panel 2: fade drawer ============ -->
+<figure>
+<figcaption>Panel 2 — fade generator drawer (multi-segment)</figcaption>
+<section class="panel" aria-label="fade drawer">
+  <div class="param gen" style="--v:.72">
+    <span class="vbox">0.7200</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">filter</span></span>
+    <button class="gen-icon active" type="button" aria-pressed="true">∿</button>
+  </div>
+  <div class="drawer">
+    <div class="gen-tabs">
+      <button type="button" aria-pressed="false">LFO</button>
+      <button type="button" aria-pressed="false">loop</button>
+      <button type="button" aria-pressed="true">fade</button>
+    </div>
+    <div class="gen-body">
+      <div class="wave">
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0,34 C20,6 26,4 33,4 L33,4 C55,4 70,18 100,22" fill="none" stroke="var(--mod)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          <circle cx="33" cy="4" r="1.6" fill="var(--mod)"/>
+          <circle cx="100" cy="22" r="1.6" fill="var(--mod)"/>
+        </svg>
+      </div>
+      <div class="gen-side">
+        <div class="fade-from">from<span class="vbox">0.0</span></div>
+        <span class="mini" style="--v:.55" role="slider" aria-label="curve"><span class="fill"></span><span class="name">curve</span></span>
+      </div>
+    </div>
+    <div class="seg">to<span class="vbox">1</span>in<span class="vbox">5</span><select><option>s</option><option>ms</option></select><button type="button">remove</button></div>
+    <div class="seg">to<span class="vbox">0.5</span>in<span class="vbox">10</span><select><option>s</option><option>ms</option></select><button type="button">remove</button></div>
+    <button class="add-seg" type="button">add segment</button>
+  </div>
+</section>
+</figure>
+
+<!-- ============ Panel 3: non-float kinds ============ -->
+<figure>
+<figcaption>Panel 3 — toggles, events, integer, enum</figcaption>
+<section class="panel" aria-label="non-float controls">
+  <div class="toggle-row">
+    <button class="toggle gen" id="t-gen" type="button" aria-pressed="true">enable-fx</button>
+    <span class="kind-label">toggle (generator)</span>
+    <button class="gen-icon active" type="button">∿</button>
+  </div>
+  <div class="toggle-row">
+    <button class="toggle on" type="button" aria-pressed="true">enable-fx</button>
+    <span class="kind-label">toggle (value)</span>
+    <button class="gen-icon" type="button">∿</button>
+  </div>
+  <hr class="panel-rule">
+  <div class="event-row">
+    <span class="vbox">64.0</span><span class="vbox empty"></span><span class="vbox empty"></span>
+    <span class="kind-label">event[1]</span>
+    <button class="sync" type="button" aria-pressed="true">sync</button><button type="button" data-send>send</button>
+  </div>
+  <div class="event-row">
+    <span class="vbox">64.0</span><span class="vbox">127.0</span><span class="vbox empty"></span>
+    <span class="kind-label">event[2]</span>
+    <button class="sync" type="button" aria-pressed="true">sync</button><button type="button" data-send>send</button>
+  </div>
+  <div class="event-row">
+    <span class="vbox">64.0</span><span class="vbox">127.0</span><span class="vbox">2000.0</span>
+    <span class="kind-label">event[3]</span>
+    <button class="sync" type="button" aria-pressed="false">sync</button><button type="button" data-send>send</button>
+  </div>
+  <hr class="panel-rule">
+  <div class="int-row">
+    <span class="vbox">127</span>
+    <span class="kind-label">integer</span>
+    <button class="gen-icon" type="button">∿</button>
+  </div>
+  <div class="enum-row">
+    <select aria-label="enum value"><option>mode-1</option><option>mode-2</option></select>
+    <span class="kind-label">enum</span>
+    <button class="gen-icon" type="button">∿</button>
+  </div>
+</section>
+</figure>
+
+<!-- ============ Legend ============ -->
+<figure class="legend">
+<figcaption>State legend — the extrapolable row grammar</figcaption>
+<section class="panel">
+  <div class="param" style="--v:.6">
+    <span class="vbox">0.6000</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">solid value</span></span>
+    <span class="gen-icon">∿</span>
+  </div>
+  <p>unified manual value — gray fill with marker line, precise box, idle ∿</p>
+  <div class="param gen" style="--v:.35">
+    <span class="vbox">0.3500</span>
+    <span class="slider"><span class="fill"></span><span class="marker"></span><span class="name">generator-driven</span></span>
+    <span class="gen-icon active">∿</span>
+  </div>
+  <p>generator running — cyan fill follows the modulated value, marker at the precise position, cyan ∿</p>
+  <div class="param mixed">
+    <span class="vbox">·····</span>
+    <span class="slider"><span class="fill"></span><span class="name">mixed values</span></span>
+    <span class="gen-icon">∿</span>
+  </div>
+  <p>aggregate disagrees — gray cross-hatch; editing unifies to solid</p>
+  <div class="param mixed gen">
+    <span class="vbox">·····</span>
+    <span class="slider"><span class="fill"></span><span class="name">mixed + generator</span></span>
+    <span class="gen-icon active">∿</span>
+  </div>
+  <p>a generator is involved somewhere in the aggregate — cyan cross-hatch</p>
+  <div style="display:flex; gap:6px; align-items:center">
+    <button type="button">trigger</button>
+    <button type="button" aria-pressed="true">hold</button>
+  </div>
+  <p>momentary acts once — rounded, like a PD bang; a toggle latches state — sharp, like a PD toggle box</p>
+</section>
+</figure>
+
+</main>
+<script>
+// Prototype liveliness only: a shared clock drives the filter/cutoff LFOs,
+// the drawer playhead, and the flashing generator toggle, so the "generator
+// state is always visible on the control" rule can be judged, not imagined.
+(function () {
+  const tri = phase => phase < .5 ? phase * 2 : 2 - phase * 2;
+  const filter = document.getElementById("p-filter");
+  const cutoff = document.getElementById("p-cutoff");
+  const wave = document.getElementById("wave-filter");
+  const toggle = document.getElementById("t-gen");
+  function frame(now) {
+    const p1 = (now / 3000) % 1;                       // filter tri, 3 s
+    const v1 = .1 + .5 * tri(p1);
+    filter.style.setProperty("--v", v1);
+    filter.querySelector("[data-live]").textContent = v1.toFixed(4);
+    wave.style.setProperty("--ph", p1);
+    const p2 = (now / 7000) % 1;                       // cutoff sine, 7 s
+    const v2 = .55 + .3 * Math.sin(p2 * Math.PI * 2);
+    cutoff.style.setProperty("--v", v2);
+    cutoff.querySelector("[data-live]").textContent = v2.toFixed(4);
+    toggle.classList.toggle("flash-on", (now / 800) % 2 < 1);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  document.querySelectorAll("[data-send]").forEach(button => {
+    button.onclick = () => {
+      const row = button.closest(".event-row");
+      row.querySelectorAll(".vbox:not(.empty)").forEach(box => {
+        box.classList.remove("flash"); void box.offsetWidth; box.classList.add("flash");
+      });
+    };
+  });
+})();
+</script>
+</body>
+</html>
