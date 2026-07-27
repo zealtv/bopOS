@@ -6,7 +6,11 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (v1.11: 2026-07-07 base +
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (**now v1.15**; the
+   version list below is historical through v1.11 — read §15 Revision history
+   in the contract itself for the authoritative record, including the v1.14
+   additive `/e/*` event plane and the v1.15 hard-break `/cue` retirement.
+   v1.11: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
    fleet-patch fingerprint/cues amendments, the 2026-07-15 UID-admin and
@@ -108,12 +112,19 @@ remain the authority for a particular piece of work.
 > implementation slices, and **`44-event-plane/1` (design, ratified & tied)**
 > are all complete. The live order is:
 >
-> 1. `44-event-plane/2-kind-grammar` — declaration break, zero wire change;
->    everything downstream waits on it.
-> 2. `44-event-plane/3-event-plane-wire` — `/e/*`, the `"0"` lead sentinel,
->    contract v1.14; settles the `cue_lead_ms` → `event_lead_ms` rename.
-> 3. `44-event-plane/4-cue-retirement` — the 263-reference `/cue` deletion.
-> 4. `desktop-ui-overhaul/03-global-controls-monitor` — **must follow 3**: it
+> **Steps 1–3 are COMPLETE and tied (2026-07-28).** `2-kind-grammar` shipped
+> the explicit `kind` field; `3-event-plane-wire` shipped `/e/*` and the `"0"`
+> fire-on-arrival sentinel as **contract v1.14** (commit `cbac939`); and
+> `4-cue-retirement` deleted `/cue` and the manifest `cues` key outright as
+> **contract v1.15** (commit `e8e998b`). The contract is now at **v1.15** —
+> `/cue` no longer exists anywhere in `python/`, `dashboard/`, `tools/` or the
+> patch manifests, and cue firing lives on the control panel's events section,
+> targetable at all / a group / one seat. **The live next step is 4.**
+>
+> 1. ~~`44-event-plane/2-kind-grammar`~~ — done.
+> 2. ~~`44-event-plane/3-event-plane-wire`~~ — done, contract v1.14.
+> 3. ~~`44-event-plane/4-cue-retirement`~~ — done, contract v1.15.
+> 4. `desktop-ui-overhaul/03-global-controls-monitor` — **next.** It
 >    relocates the cue-lead control, so going earlier means moving it and then
 >    renaming it. Also the natural filler while 6 waits on Bob.
 > 5. `desktop-ui-overhaul/01-control-panel/8-manifest-reorder` — **must follow
@@ -573,7 +584,13 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   longer than that; (15) the Control surface is an **iframe**
   (`#dashboard-live-view`) — reach its filter and cards through
   `page.frame_locator("#dashboard-live-view")`, and note that `localStorage` is
-  the only state the two documents share.
+  the only state the two documents share. (16) waiting for an *element*
+  is not waiting for its *handler*: `bindParams` reassigns `onchange`/`onclick`
+  after every heartbeat re-render, so a dispatch aimed at a freshly rendered
+  control lands on an unbound node and silently sends nothing. Wait on the
+  binding (`page.wait_for_function("() => !!document.querySelector(…)?.onchange")`)
+  before dispatching, and match a recorded send by param name rather than by
+  position in the log.
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use
