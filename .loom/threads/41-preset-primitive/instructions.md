@@ -31,13 +31,18 @@ name** and content by `{name, fingerprint}` with derived non-blocking drift
 warnings (the drift policy of Q1/W5); one application path with hard
 takeover is the global rule. The mockup's provisional preset row (dropdown +
 new/save/del at the control-panel top) is UI input for the design stitch.
-**Re-sequenced same day (Bob, 2026-07-27): `44-event-plane` comes first.**
-The mockup braindump's event parameters (single/pair/triplet MIDI-style
-events with forward synchronization, likely a `<target>/e/*` plane) and the
-toggle/integer/enum kinds may need to exist before the preset design, since
-a preset must know what it captures for each kind. The design stitch here
-stays `.waiting` behind `desktop-ui-overhaul/01-control-panel` and
+**Re-sequenced same day (Bob, 2026-07-27): `44-event-plane` comes first**,
+because a preset must know what it captures for each kind. The design stitch
+here stays `.waiting` behind `desktop-ui-overhaul/01-control-panel` and
 `44-event-plane/1-event-plane-design`.
+
+**What 44 already settles for this thread (Bob, 2026-07-27 — don't re-ask):**
+toggles, integers, and enums all exist today and are captured as ordinary
+values (a toggle is `type: "i"` 0–1; an enum is an integer index with
+`options` labels). **Presets do not capture events** — events are momentary,
+and the question is closed for the moment. The one thing still coming out of
+44 is the explicit `kind` grammar (a ratified hard break replacing
+`type` + `options`), which this thread should express presets in terms of.
 
 **Additional design input (Bob, 2026-07-27): capture-as-step.** From the
 Control tab, once presets are set up targeting different groups/seats, one

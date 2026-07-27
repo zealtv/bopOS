@@ -74,12 +74,20 @@ remain the authority for a particular piece of work.
 > content references with derived non-blocking drift warnings, portable
 > shows target groups **by name**, venue presets retire when 41 lands,
 > collections start as show steps, one application path with hard takeover.
-> **Same-day resequencing (Bob):** the mockup's new parameter kinds —
-> toggles/integers/enums and **events** (single/pair/triplet MIDI-style
-> floats with forward synchronization, likely a new `<target>/e/*` plane) —
-> may need to exist before the preset design, so **`44-event-plane`**
-> (Bob-gated contract design, `.waiting` on queue order) now sits **between
-> the control-panel work and `41-preset-primitive`**. Bob also added the
+> **Same-day resequencing (Bob):** the mockup's new parameter kinds may need
+> to exist before the preset design, so **`44-event-plane`** (Bob-gated
+> contract design, `.waiting` on queue order) now sits **between the
+> control-panel work and `41-preset-primitive`**. **Scope narrowed
+> 2026-07-27 (Bob):** toggles and integers already exist (a toggle is
+> `type: "i"`, `min: 0`, `max: 1`) and enums shipped as `options` on an
+> integer param, so **events are the only missing kind and the only wire
+> work.** Further rulings the same session: **every event forward-syncs**
+> (the mockup's per-row `sync` button is dropped; global lead time `0` *is*
+> sync-off), the manifest moves to an explicit **`kind`** field as a hard
+> break, event elements are **free-form labeled floats** (arity 1–3;
+> note/velocity/duration is convention, not enforced), **presets do not
+> capture events**, and **no event automation is designed** (door named
+> only). Events are already declared-but-inert in the manifest today. Bob also added the
 > **capture-as-step** workflow (Control tab → one click stores the current
 > target→preset arrangement as a show step) as design input for 41's Q6.
 > **Second 2026-07-27 braindump** (lore

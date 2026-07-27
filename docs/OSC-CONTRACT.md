@@ -775,18 +775,26 @@ A patch ships **`bopos.patch.json`** in its patch root:
   (§3.2 generators emit indices, quantized by the same path). `min`/`max` are
   **derived** from the option count (`0`…`n-1`); an authored pair that
   disagrees is invalid, so a saved manifest round-trips. Only the control
-  surface reads the labels. Pending the `44-event-plane` ratification of the
-  full kind grammar (toggle/integer/enum/event), which may re-express this as
-  an explicit `kind` field.
+  surface reads the labels. **`44-event-plane` will re-express this as an
+  explicit `kind` field** (toggle/integer/enum/event) — ruled by Bob
+  2026-07-27 as a hard break, since nothing is in production; the wire
+  behaviour above is what survives that revision.
 - **`events` (optional; declared but NOT wired, 2026-07-27):** a top-level
   list beside `params`, each `{"name": …, "path": […], "arity": 1|2|3,
   "labels": […], "defaults": […], "dashboard": bool}`. `name`/`path` qualify
-  exactly like a param and may not collide with a param identity. **No plane
-  carries these yet:** whether events live on a new `<target>/e/*` plane or
-  extend `/p/*`, how forward synchronization is expressed, and what a preset
-  stores for one are all `44-event-plane`'s ratification questions. The
-  validator accepts the declaration and the control panel renders its row
-  inert so that design has a known surface; nothing is sent.
+  exactly like a param and may not collide with a param identity. Elements
+  are free-form labeled floats — note/velocity/duration is the common case,
+  not an enforced framework meaning (Bob, 2026-07-27). **No plane carries
+  these yet:** the plane address (`<target>/e/*` is the working guess), the
+  wire shape for arity 0–3, and how the inherited §3.1 forward-sync machinery
+  is expressed remain `44-event-plane`'s ratification questions. Already
+  ruled by Bob 2026-07-27 and *not* open: **every event forward-syncs**
+  (there is no per-event or per-fire sync choice; a global cue lead time of
+  `0` is the only sync-off), **a cue is a zero-element event** and the `/cue`
+  plane is deleted in the same revision as a hard break with no compatibility
+  shim, and **presets do not capture events**. The validator accepts the
+  declaration and the control panel renders its row inert so that design has
+  a known surface; nothing is sent.
 
 ## 9. Distribution and landing
 

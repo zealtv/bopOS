@@ -1,63 +1,71 @@
 # 1-event-plane-design
 
-Design the event parameter kind and its wire plane. Written proposal, **Bob
-ratifies** (contract amendment), tie with `decisions.md`; implementation
-children follow. Source: the 2026-07-27 braindump (lore
-`2026-07-27-control-panel-ui-and-architecture-braindump`) — mockup panel 3
-shows the intended UI: event rows `64.0 event[1]`, `64.0 127.0 event[2]`,
-`64.0 127.0 2000.0 event[3]`, each with `sync` and `send` buttons — plus the
-same-day widening (lore
-`2026-07-27-events-cues-and-global-controls-braindump`): **a cue is an event
-with zero elements**, and cues may be absorbed into the event plane
-entirely.
+Design the **event** wire plane and the explicit `kind` grammar. Written
+proposal, **Bob ratifies** (contract amendment), tie with `decisions.md`;
+implementation children follow.
+
+Read the parent `instructions.md` first — it carries six rulings Bob made on
+2026-07-27 that close most of what this stitch originally had to ask. In
+particular: every event forward-syncs (no per-row `sync` button; global lead
+time `0` *is* sync-off), cues are zero-element events and `/cue` is deleted
+outright, the manifest moves to an explicit `kind` field as a hard break,
+event elements are free-form labeled floats, presets don't capture events,
+and no automation is designed. **Do not re-open any of those.**
+
+Sources: mockup panel 3 shows the intended rows — `64.0 event[1]`,
+`64.0 127.0 event[2]`, `64.0 127.0 2000.0 event[3]` (drop the `sync` button
+the mockup draws beside each; keep the fire button).
 
 ## What the proposal must answer
 
-1. **Kinds and declaration.** Manifest shape for toggles, integers, enums,
-   and events (arity 1/2/3, per-element ranges/semantics — typically MIDI
-   note/velocity/duration-ms). How enums declare their symbol set. What of
-   this is new manifest `type` values vs a new `kind` field; migration for
-   the existing `i/f/s` scalar grammar and validator.
-2. **The plane — cue absorption is RULED.** Bob (2026-07-27): **cues are
-   absorbed into the event plane as a hard break.** A cue is a zero-element
-   event; the `/cue` plane goes away in the same contract revision, with no
-   compatibility shim or legacy path — no production shows rely on cues, so
-   keep the code clean. What remains to design: the plane address
-   (`<target>/e/*` is Bob's guess) and its place in the §3 planes table
-   (events are *patch-declared* like `/p/*` but *framework-synchronized*
-   like the old `/cue`); the wire shape for arity 0–3; and the migration
-   sweep — manifest-declared cues, Show-tab cue steps and pill taxonomy,
-   Control-tab cue triggers, engine/simfleet/audition/relay — all move to
-   zero-element events, old `/cue` handling deleted, not deprecated.
-   Engines must only ever see relative time (PD float discipline: no
-   absolute epochs, §3.1).
-3. **Forward synchronization.** Wire shape for a synchronized event: lead
-   time, shared-time reference, per-node local firing — the §3.1 cue
-   machinery (`cue_lead_ms`, shared_time) is *inherited by* the event plane
-   (cues are now events), not duplicated as a second clock path. What
-   "sync" vs "send" (immediate) means per the mockup buttons.
-4. **Automation interaction.** Bob: integers/enums "we'd need to consider
-   what, if any, automation is applicable". Events presumably don't take
-   §3.2 generators — but a *pattern/repeat* affordance may be wanted later;
-   name the door, don't design it.
-5. **Preset capture.** What a preset stores for a toggle/int/enum (a value)
-   and for an event param (probably its last-sent tuple? or nothing —
-   events are momentary). This feeds 41 directly; recommend, and flag the
-   choice to Bob.
-6. **Show/pill integration.** Message kinds for the Show tab and how the
-   ratified flat eight-category pill set extends (coordinate with the tied
-   `25-message-pill-encoding` taxonomy).
-7. **Parity.** Engine (`bopos~`/template — Bob owns `.pd` edits, note them
-   in `.notes/pd-edits-for-bob.md`), simfleet, audition, relay, and the
-   editor surface.
+1. **The `kind` grammar.** The declaration shape for `toggle`, `integer`,
+   `enum`, and `event`, replacing today's `type: i|f|s` plus `options`. What
+   `kind` values exist, what fields each one carries, and what happens to
+   `type` (gone, or retained as the wire encoding beneath `kind`?). String
+   params (`s`) exist in the current grammar — say where they land. Because
+   this is a hard break, spell out the sweep: `python/manifest.py`
+   (`PARAM_TYPES`, the `options` validation, the `events` block),
+   `dashboard/show_model.py` (which reuses `PARAM_TYPES` verbatim), the patch
+   editor's declaration UI, saves/round-tripping, and every fixture manifest
+   in `tests/`.
+2. **The plane.** Address (`<target>/e/*` is Bob's guess) and its row in the
+   §3 planes table. Events are *patch-declared* like `/p/*` but
+   *framework-synchronized* like the old `/cue`, which is the interesting
+   part: the framework has to intercept and schedule a patch-declared address.
+   Say how that reads in the planes table and how an undeclared event address
+   is handled (the `/p/*` precedent is "a badge, not a guess").
+3. **Wire shape for arity 0–3.** How a fired event serializes, all the way
+   from a surface through `bopos.py` to the engine, including the zero-element
+   (cue) case. Engines must only ever see **relative** time (§3.1, PD float
+   discipline — no absolute epochs, no >6-significant-figure floats).
+4. **Forward synchronization.** How the event fire inherits §3.1's
+   `cue_lead_ms` / shared-time machinery instead of opening a second clock
+   path. Specify the lead-time-`0` degenerate case explicitly — it is the only
+   sync-off switch, so it has to be exactly equivalent to firing immediately.
+5. **The `/cue` deletion sweep.** Enumerate what gets removed and what each
+   call site becomes: contract §3.1 and §8 (`cues` manifest key), `bopos.py`
+   cue scheduling, the engine receiver, simfleet, audition, relay, Show-tab
+   cue steps and their persistence (existing `dashboard/shows/*.json` need a
+   migration answer), Control-tab cue triggers. Old handling is **deleted, not
+   deprecated**.
+6. **Show / pill integration.** Message kinds for the Show tab, and how the
+   ratified flat eight-category pill set (tied `25-message-pill-encoding`)
+   changes when the `cue` category's subject becomes a zero-element event —
+   does `cue` survive as a pill name, or does an `event` category replace it?
+7. **Parity.** Engine (`bopos~`/template — **Bob owns `.pd` edits**; write the
+   needed receiver changes into `.notes/pd-edits-for-bob.md`, don't edit
+   `.pd`), simfleet, audition, relay, and the editor surface. Name which of
+   these can be verified headlessly and which need the rig.
 
-UI ruling already made (don't re-litigate): the control panel gets a
-**parameters section and an events section**, not intermingled; cues (as
-zero-element events) live in the events section with all/group/seat
-targeting. Panel order follows manifest order (drag-reorder is
-`desktop-ui-overhaul/01-control-panel/8-manifest-reorder`).
+One sentence, no more, naming the future door: event-specific automation is
+expected eventually but its shape is unknown and out of scope.
 
-Keep the scalar kinds (toggle/int/enum) cheap — they may be pure
-manifest/UI work on the existing `/p/*` plane — and let events carry the
-design weight. Mark `.waiting` for Bob's ratification when the proposal is
-written.
+## Not in scope
+
+Toggles, integers, and enums — they already ship. Preset capture of events —
+ruled out. Automation of events — not designed. The control panel's UI shape
+for event rows — that is
+`desktop-ui-overhaul/01-control-panel/2-control-panel-design`; this stitch only
+tells it that there is one fire button, not two.
+
+Mark `.waiting` for Bob's ratification when the proposal is written.
