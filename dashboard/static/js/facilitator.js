@@ -1,6 +1,7 @@
 // Seat-owned live controls. /facilitator remains the standalone entry; the
 // Dashboard tab embeds the same surface.
-if (new URLSearchParams(location.search).get("embedded") === "1") document.body.classList.add("embedded");
+const embedded = new URLSearchParams(location.search).get("embedded") === "1";
+if (embedded) document.body.classList.add("embedded");
 const ws = new BopSocket("/ws");
 let installation = {devices: {}, seats: {}, groups: {}};
 let cueLeadModified = false;
@@ -50,13 +51,19 @@ const targetFilter = window.SeatFilter.create({
 function liveSchema() {
   const schema = installation.live_controls;
   if (!schema || typeof schema.patch !== "string" || !Array.isArray(schema.declarations)) return null;
-  const valid = schema.declarations.every(declaration =>
-    declaration && declaration.dashboard === true &&
+  // The embedded page is the desktop Control tab and exposes the complete
+  // manifest. The standalone facilitator/iPad surface remains deliberately
+  // curated by the manifest's `dashboard: true` compatibility field.
+  const visible = embedded
+    ? schema.declarations
+    : schema.declarations.filter(declaration => declaration?.dashboard === true);
+  const valid = visible.every(declaration =>
+    declaration &&
     typeof declaration.identity === "string" && declaration.identity.length > 0 &&
     typeof declaration.name === "string" &&
     (declaration.path == null || Array.isArray(declaration.path)));
   if (!valid) return null;
-  const declarations = schema.declarations.map(declaration => ({...declaration, path: declaration.path || []}));
+  const declarations = visible.map(declaration => ({...declaration, path: declaration.path || []}));
   return {patch: schema.patch, declarations};
 }
 

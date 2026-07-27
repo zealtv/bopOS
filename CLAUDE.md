@@ -265,7 +265,8 @@ review, the audition preview stack (Stage 0 + preview-0..3), and
 parameter-address foundation are **all tied**. `bopos.py`
 (ex-helper.py) alone owns LAN 6660/5550; engines consume the localhost 6661
 surface; run context is launch-delivered; `role`/meter are dead;
-Dashboard live controls come only from `dashboard: true`.
+Desktop Control and Device control panels show every manifest parameter;
+`dashboard: true` gates only the standalone facilitator/iPad surface.
 
 The dashboard review sweep is complete through Devices and Patches (01, 02,
 03, 05, 06, 08, 07, 09, and 10). Bob expanded the accepted implementation

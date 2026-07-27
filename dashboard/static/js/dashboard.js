@@ -679,7 +679,7 @@ function paramManifestRow(param, index) {
     <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}" ${disabled}></label>
     <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}" ${disabled}></label>
     <label>default<input data-manifest-field="default" type="number" step="any" value="${esc(param.default??"")}" ${disabled}></label>
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""} ${disabled}> Dashboard</label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""} ${disabled}> Facilitator</label>
     <button data-remove-param="${index}" class="danger" title="${legacy?'Legacy string declarations are read-only':'Remove parameter'}" ${disabled}>${legacy?'Read-only':'Remove'}</button>
   </div>`;
 }
@@ -1189,7 +1189,7 @@ function setDeviceControlOpen(open) {
 }
 
 // A pinned device runs its own patch, so the server publishes that patch's
-// promoted schema on the device; everything else uses the fleet-wide one.
+// full parameter schema on the device; everything else uses the fleet-wide one.
 function deviceLiveSchema(d) {
   const schema=d?.live_controls?.declarations?.length?d.live_controls:installation.live_controls;
   if(!schema||!Array.isArray(schema.declarations))return null;
@@ -1207,7 +1207,7 @@ function deviceControlSection(d) {
   const why=!seat?'Unbound device — showing patch defaults. Live control targets content by Seat, so bind this device to a Seat first.'
     :!live?'Offline — showing the last known values.':'';
   const body=!declarations.length
-    ? '<p class="dim">This patch promotes no Dashboard controls.</p>'
+    ? '<p class="dim">This patch declares no parameters.</p>'
     : `<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
   const source=schema?.patch?`<p class="dim">${esc(schema.patch)}${d.patch_pinned?' · pinned to this device':' · fleet patch'}</p>`:"";
   return `<section id="device-control" class="device-control${disabled?' disabled':''}">

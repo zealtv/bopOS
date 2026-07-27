@@ -745,10 +745,11 @@ A patch ships **`bopos.patch.json`** in its patch root:
   `gain`-name fallback. Gain staging is purely the patch's business; the
   framework only provides the `master` term (§4.1). Per-element volumes are
   just N promoted params. Validation rejects any `role` key, loudly.
-- **`dashboard` (optional; renamed 2026-07-19):** a param declaration may
-  carry `"dashboard": true` to promote it onto the
-  `/facilitator` surface as a control (rendered as a labelled control on the
-  device card; values flow as ordinary
+- **`dashboard` (optional; renamed 2026-07-19; semantics narrowed
+  2026-07-27):** every param declaration appears on the desktop Control tab
+  and Device-tab control panel. A declaration may carry `"dashboard": true`
+  to additionally promote it onto the simplified standalone `/facilitator`
+  surface (rendered as a labelled control on the device card; values flow as ordinary
   `/<sel>/p/<segment>[/<segment>...]`; a card with no
   promoted params is status-only). Promotion of **framework
   verbs** is *never* a manifest concern: an install-level allowlist in
@@ -922,3 +923,4 @@ reasoning.
 | 1.11 | 2026-07-23 | Exact physical-device audio configuration: detected ALSA cards only, complete validated JACK settings, transactional engine restart with rollback, and attributable audio state/receipts. | `.loom/tied/1-audio-config-design/` |
 | 1.12 | 2026-07-24 | Node logging facility (§4.2): additive engine-sent `/log <stream> <values…>` on 7770 — a patch appends one node-stamped, tab-separated line to a per-stream daily append-only file, fire-and-forget like `/store`, invalid stream names dropped with a warning. Purely additive; no existing term changes shape. Destination selection (internal/usb) and the Device-tab surface follow as a later revision. | thread `42-node-logging` |
 | 1.13 | 2026-07-24 | Log-destination configuration (§6): additive exact-device `/all/os/to <uid> log-config <json>` → `/os/log-config <uid> <ok\|err> <json>`, a bounded `{"destination": "internal"\|"usb"}` choice persisted as `LOG_DESTINATION` in `bopos.config` — no engine restart, no rollback. `/os/report` gains a `log` object (`destination`, `effective`, `usb_present`); `usb` falls back to `internal` when the stick is absent, resolved per entry. Purely additive. | thread `42-node-logging` |
+| 1.13 am. | 2026-07-27 | Patch-manifest presentation clarification (§8): all declared params appear on desktop Control and Device control surfaces; the existing `dashboard: true` field now gates only the simplified standalone facilitator/iPad surface. No manifest or wire shape changes. | stitch `1-full-manifest-visibility` |

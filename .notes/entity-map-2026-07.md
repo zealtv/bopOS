@@ -150,13 +150,11 @@ Three distinct things share the word "params":
    named by `installation.json → params_patch`.
 2. **The values** — durable per seat (`seat.params`, keyed by qualified
    identity like `delay/feedback`), mirrored at runtime onto bound devices.
-3. **The promoted subset** — `live_control_declarations()`
-   ([server.py:1465](../dashboard/server.py)) filters the schema to
-   `dashboard: true`. Today this one filter feeds **both** the facilitator
-   page and the Control tab (which embeds the same surface,
-   `control-surface.js`, via iframe). *(The 2026-07-27 ruling changes this:
-   Control will show the full schema; the flag will gate the facilitator
-   only — `desktop-ui-overhaul/01-control-panel/1`.)*
+3. **The presentation surfaces** — `live_control_declarations()`
+   ([server.py:1465](../dashboard/server.py)) publishes the full schema to the
+   shared `control-surface.js`. The desktop Control tab (embedded iframe) and
+   Device control panel show every declaration; the standalone facilitator
+   page filters that schema to `dashboard: true`.
 
 Schema transitions are explicit: a **patch-name change fully resets** every
 seat's values to declared defaults (`reset_fleet_params`); a **same-patch

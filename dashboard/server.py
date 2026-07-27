@@ -1448,10 +1448,10 @@ class Dashboard:
                 for item in manifest.get("params", ())}
 
     def live_control_manifest(self, patch_name=None):
-        """Return the validated manifest that owns live controls.
+        """Return the validated manifest that owns operator controls.
 
         Defaults to the staged fleet patch. A device pinned to another patch
-        (thread 37) runs a different set of promoted params, so its panel asks
+        (thread 37) runs a different parameter schema, so its panel asks
         for that patch's manifest by name.
         """
         patch_name = patch_name or self.state.data.get("params_patch")
@@ -1463,20 +1463,24 @@ class Dashboard:
         return manifest
 
     def live_control_declarations(self, patch_name=None):
-        """Validated promoted schema for Seat-owned live controls."""
+        """Validated full parameter schema for Seat-owned operator controls.
+
+        `dashboard: true` is presentation metadata for the standalone
+        facilitator view. The desktop Control and Device surfaces expose every
+        declared parameter.
+        """
         manifest = self.live_control_manifest(patch_name)
         if manifest is None:
             return []
         declarations = []
         for item in manifest.get("params", ()):
-            if item.get("dashboard") is True:
-                projected = dict(item)
-                projected["identity"] = patch_manifest.qualify_param(item)
-                declarations.append(projected)
+            projected = dict(item)
+            projected["identity"] = patch_manifest.qualify_param(item)
+            declarations.append(projected)
         return declarations
 
     def replay_live_params_for_seat(self, seat):
-        """Replay one Seat snapshot through the staged promoted schema."""
+        """Replay one Seat snapshot through the staged parameter schema."""
         for declaration in self.live_control_declarations():
             identity = declaration["identity"]
             if identity in seat.get("params", {}):
@@ -1512,7 +1516,7 @@ class Dashboard:
         return every
 
     def live_scope_patch(self, scope, target_id):
-        """The patch whose promoted schema owns this scope.
+        """The patch whose parameter schema owns this scope.
 
         Only a device scope can differ from the fleet: a pinned device runs its
         own patch, so its controls must be declared by that patch, not by the

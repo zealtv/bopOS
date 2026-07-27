@@ -198,10 +198,11 @@ through the same assignment path used by map dragging. Named snapshots live in
 `dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
 
-The Dashboard is fail-closed. Patch parameters appear there only when their
-manifest declaration has `"dashboard": true`. Framework commands default to
-none; a venue may opt in supported fleet-wide commands in its installation
-state, for example:
+The desktop Control tab and Device control panel show every parameter declared
+by the active patch. The standalone facilitator/iPad view is curated:
+parameters appear there only when their manifest declaration has
+`"dashboard": true`. Framework commands default to none; a venue may opt in
+supported fleet-wide commands in its installation state, for example:
 
 ```json
 {"facilitator_commands": ["restart-engine"]}

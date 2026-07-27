@@ -82,9 +82,10 @@ Line by line:
 - **`engine` / `entrypoint`** — what starts your patch. `"pd"` +
   `"main.pd"` for Pure Data; `"sc"` patches declare their own entry point.
 - **`params`** — every control the dashboard may offer. Each declared
-  parameter becomes a rendered control; the dashboard never invents
-  sliders. Add `"dashboard": true` to promote a parameter onto the live
-  **Dashboard** tab for performance-time control. An optional `"path"`
+  parameter becomes a rendered control on the desktop **Control** tab and
+  Device control panel; the dashboard never invents sliders. Add
+  `"dashboard": true` to also promote a parameter onto the simplified
+  standalone facilitator/iPad view. An optional `"path"`
   array nests parameters (`{"path": ["texture"], "name": "density"}`
   arrives as `/p/texture/density`).
 - **`cues`** — named actions your patch responds to. Declared cues appear
@@ -186,11 +187,12 @@ place, and safe side-by-side revisions.
 
 ## Step 7 — perform
 
-The **Control** tab (or **Open standalone dashboard** on a tablet) is the
-show surface: master, MUTE ALL, presets, your promoted parameters, and your
-declared cue triggers. A target filter at the top scopes the surface to All,
-Groups, or one Seat, and presets follow that target. Any numeric row can switch
-from `value` to `gen` to author a generator inline.
+The **Control** tab is the full show surface: master, MUTE ALL, presets, every
+declared parameter, and declared cue triggers. **Open standalone dashboard**
+provides the simplified tablet view with only parameters marked
+`"dashboard": true`. A target filter at the top scopes either surface to All,
+Groups, or one Seat, and presets follow that target. Any visible numeric row
+can switch from `value` to `gen` to author a generator inline.
 
 ![Dashboard tab with per-Seat live controls](images/tab-dashboard-seats.png)
 
