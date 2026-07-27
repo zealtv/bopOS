@@ -145,6 +145,15 @@ Rules behind the table:
   (double-outlined). Deterministic generators (LFO shapes, loop, fade —
   and sample+hold/drift where the runtime can know the value) also show the
   precise current value in the value box.
+
+  > **Superseded in part, Bob 2026-07-27** (live review of the shipped
+  > kinds; implemented in `8-kind-feedback-pass`). A control that cannot
+  > show its generator's value must not animate a *substitute* for it: the
+  > toggle flash and the value box's number are both retired wherever they
+  > would be invented. Those controls **pulse the modulation ink** and the
+  > box shows the mixed dots. What survives unchanged: the marker-bearing
+  > slider (it does show the exact value) and the rAF-sampled fade (so does
+  > its number).
 - **Editing unifies.** Any manual interaction with a mixed or
   generator-driven control sets all targeted members to the entered value
   and the control renders solid — the §3.2 hard-takeover semantics made

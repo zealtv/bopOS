@@ -339,18 +339,29 @@ KIND_SHAPE_JS = """
   const mode = row("mode");
   const select = mode.querySelector("select.live-enum");
   const event = row("strike");
+  const string = row("label");
   const boxes = [...event.querySelectorAll(".live-event-box")];
   return {
     toggleIsButton: toggle.tagName === "BUTTON",
     togglePressed: toggle.getAttribute("aria-pressed"),
-    toggleName: toggle.textContent.trim(),
+    // The box carries the state; the name is a sibling label, not its text.
+    toggleMark: toggle.textContent.trim(),
+    toggleName: gate.querySelector(":scope > .live-param-name").textContent,
+    toggleSquare: (() => { const r = toggle.getBoundingClientRect();
+                           return Math.round(r.width) === Math.round(r.height); })(),
     // A latching control is sharp, a momentary one is rounded (§8).
     toggleRadius: getComputedStyle(toggle).borderTopLeftRadius,
     toggleNoCheckbox: !gate.querySelector('input[type="checkbox"]'),
     toggleHasMod: !!gate.querySelector("button.live-param-mod"),
     enumOptions: [...select.options].map(option => option.textContent),
     enumValue: select.value,
+    enumName: mode.querySelector(":scope > .live-param-name").textContent,
     enumHasMod: !!mode.querySelector("button.live-param-mod"),
+    // The string row is one row tall like every other kind.
+    stringHeight: Math.round(string.getBoundingClientRect().height),
+    stringFieldHeight: Math.round(
+      string.querySelector('input[type="text"]').getBoundingClientRect().height),
+    rowHeight: Math.round(row("steps").getBoundingClientRect().height),
     eventArity: event.dataset.eventArity,
     eventBoxes: boxes.map(box => box.textContent),
     eventHidden: boxes.map(box => getComputedStyle(box).visibility),
@@ -358,6 +369,65 @@ KIND_SHAPE_JS = """
       button => [button.textContent.trim(), button.disabled]),
     eventNoLiveParam: !event.querySelector("[data-live-param]"),
   };
+}
+"""
+
+
+# What a control does when its generator's value is NOT knowable (Bob,
+# 2026-07-27). An LFO's and a loop's position are painted by a CSS animation,
+# so no JavaScript holds the value between heartbeats: a marker-bearing slider
+# still shows it exactly, but the number box, a toggle and an enum cannot. Those
+# show the mixed dots and pulse the modulation ink rather than animate something
+# that reads as a value. A fade is the control case — the rAF animator samples
+# it every frame, so it keeps its number and does not pulse.
+PULSE_JS = """
+() => {
+  const seat = Object.values(installation.seats)[0];
+  const now = Date.now() / 1000;
+  const entry = (args, kind, shape) => ({args, kind, shape, free: false,
+                                         phase_at_send_ms: 0, sent_at: now});
+  installation.automation = {
+    [String(seat.id)]: {
+      density: entry(["lfo", "sine", 0.1, 0.9, "4s"], "lfo", "sine"),
+      // A fade is bare positional args — from, to, duration (§3.2); a
+      // leading "fade" keyword is not the grammar.
+      steps: entry([0, 8, "600s"], "fade"),
+      gate: entry(["lfo", "square", 0, 1, "2s"], "lfo", "square"),
+      mode: entry(["lfo", "tri", 0, 2, "4s"], "lfo", "tri"),
+    },
+  };
+  const declarations = [...installation.live_controls.declarations,
+                        ...(installation.live_controls.events || [])]
+    .map(d => ({...d, path: d.path || []}));
+  const probe = window.ControlSurface.create({
+    getState: () => installation,
+    deviceForSeat: () => ({online: true, engine_alive: 1,
+                           device_enabled: true, output_enabled: true}),
+    send: () => {},
+  });
+  probe.refreshAnchors(installation);
+  const host = document.createElement("div");
+  host.id = "pulse-probe";
+  host.innerHTML = probe.tree("seat", seat.id, [seat], declarations, false);
+  document.querySelector(".live-card").appendChild(host);
+  probe.bind(host);
+  const read = path => {
+    const row = host.querySelector(`.live-param[data-param-path="${path}"]`);
+    const box = row.querySelector("output.live-param-value");
+    const control = row.querySelector(
+      ".live-toggle, .live-enum, .live-param-range-wrap");
+    return {
+      automated: row.classList.contains("automated"),
+      pulsing: row.classList.contains("auto-pulse"),
+      animation: getComputedStyle(control).animationName,
+      dots: box ? box.dataset.dots === "true" : null,
+      text: box ? box.textContent : null,
+      ink: box ? getComputedStyle(box).color : null,
+    };
+  };
+  return {lfo: read("density"), fade: read("steps"),
+          toggle: read("gate"), enumeration: read("mode"),
+          manual: read("filter/cutoff")};
 }
 """
 
@@ -565,12 +635,22 @@ def main():
 
                 # --- the non-float kinds (01-control-panel/6) ---
                 kinds = page.evaluate(KIND_SHAPE_JS)
-                check("a 0/1 int is a latching button, not a checkbox",
+                check("a 0/1 int is a square latching box, not a checkbox",
                       kinds["toggleIsButton"] and kinds["toggleNoCheckbox"]
                       and kinds["togglePressed"] == "true"
-                      and kinds["toggleName"] == "gate"
+                      and kinds["toggleMark"] == "✕"
+                      and kinds["toggleSquare"]
                       and kinds["toggleRadius"] == "1px",
                       repr(kinds))
+                check("the toggle and enum label their box from beside it",
+                      kinds["toggleName"] == "gate"
+                      and kinds["enumName"] == "mode",
+                      repr([kinds["toggleName"], kinds["enumName"]]))
+                check("the string row is one row tall, like every other kind",
+                      kinds["stringHeight"] == kinds["rowHeight"]
+                      and kinds["stringFieldHeight"] == kinds["rowHeight"],
+                      repr([kinds["stringHeight"], kinds["stringFieldHeight"],
+                            kinds["rowHeight"]]))
                 check("a toggle carries the ∿ icon like any numeric row",
                       kinds["toggleHasMod"] and kinds["enumHasMod"],
                       repr([kinds["toggleHasMod"], kinds["enumHasMod"]]))
@@ -592,6 +672,38 @@ def main():
                       and kinds["eventButtons"] == [["sync", True],
                                                     ["send", True]],
                       repr(kinds["eventButtons"]))
+
+                # --- no misleading automation cue (8-kind-feedback-pass) ---
+                pulse = page.evaluate(PULSE_JS)
+                check("a periodic generator shows dots, not a stale number",
+                      pulse["lfo"]["dots"]
+                      and pulse["lfo"]["text"] == "·····"
+                      # the modulation ink, kept: cyan says who owns the value
+                      and pulse["lfo"]["ink"] != pulse["manual"]["ink"],
+                      repr([pulse["lfo"], pulse["manual"]]))
+                check("a marker-bearing slider does not pulse — it shows the "
+                      "value exactly",
+                      pulse["lfo"]["automated"]
+                      and not pulse["lfo"]["pulsing"]
+                      and pulse["lfo"]["animation"] == "none",
+                      repr(pulse["lfo"]))
+                check("a fade keeps its number: the rAF animator samples it",
+                      pulse["fade"]["automated"]
+                      and not pulse["fade"]["dots"]
+                      and not pulse["fade"]["pulsing"],
+                      repr(pulse["fade"]))
+                check("a generator-driven toggle pulses instead of flashing "
+                      "a value",
+                      pulse["toggle"]["automated"]
+                      and pulse["toggle"]["pulsing"]
+                      and pulse["toggle"]["animation"] == "live-param-pulse",
+                      repr(pulse["toggle"]))
+                check("a generator-driven enum pulses too",
+                      pulse["enumeration"]["automated"]
+                      and pulse["enumeration"]["pulsing"]
+                      and pulse["enumeration"]["animation"]
+                      == "live-param-pulse",
+                      repr(pulse["enumeration"]))
 
                 takeover = page.evaluate(MIXED_TAKEOVER_JS)
                 check("a disagreeing aggregate hatches its slider",

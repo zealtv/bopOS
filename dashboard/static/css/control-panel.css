@@ -304,6 +304,12 @@
   justify-content:flex-end;
   text-align:right;
 }
+/* Dots are a legend, not a number: they get the mixed row's tracking whether
+   they stand for disagreement or for a value the surface cannot sample. */
+.live-card .live-param > output.live-param-value[data-dots],
+.device-control .live-param > output.live-param-value[data-dots] {
+  letter-spacing:.12em;
+}
 /* The precision field swaps the box for a number input in the same 58px slot. */
 .live-card .live-param > .precise-input,
 .device-control .live-param > .precise-input {
@@ -618,13 +624,14 @@
 
 /* ---- 15. Non-float kinds (control-panel-design §2) ----------------------
    `6-non-float-kinds`. Integers already ride the numeric row (step 1, a
-   right-aligned box); what lands here is the toggle button that replaced the
-   checkbox, the enum select, and the event row rendered inert pending
-   `44-event-plane`.
+   right-aligned box); what lands here is the toggle box that replaced the
+   checkbox, the enum select, the string row, the event row rendered inert
+   pending `44-event-plane`, and the pulse that stands in for a value no
+   control can honestly show (`8-kind-feedback-pass`).
 
-   All three keep the numeric row's column rhythm — the ∿ icon stays in the
-   same 18px column down the whole panel — which is why they are grids rather
-   than the shipping flex row. */
+   They all keep the numeric row's column rhythm — first the control, then
+   the name, then the ∿ icon in the same 18px column down the whole panel —
+   which is why they are grids rather than the shipping flex row. */
 
 .live-card .live-param-toggle,
 .device-control .live-param-toggle,
@@ -636,36 +643,49 @@
   min-height:var(--row-h);
   font-size:12px;
 }
-/* The toggle's button spans the value and slider columns: with the name
-   inside the control there is nothing to put beside it, and an empty 58px
-   column is exactly the wasted space this overhaul is removing. */
+/* A box you click, with its label beside it (Bob, 2026-07-27) — the
+   full-width bar read as a banner, not a control. The box sits in the
+   value-box column, so a toggle row and a numeric row start their names at
+   the same x. The enum's select needs room for its widest option label, so
+   its first column is the mockup's 96px. */
 .live-card .live-param-toggle,
 .device-control .live-param-toggle {
-  grid-template-columns:minmax(0,1fr) 18px;
+  grid-template-columns:58px minmax(0,1fr) 18px;
 }
 .live-card .live-param-enum,
 .device-control .live-param-enum {
-  grid-template-columns:auto minmax(0,1fr) 18px;
+  grid-template-columns:96px minmax(0,1fr) 18px;
+}
+.live-card .live-param-toggle > .live-param-name,
+.device-control .live-param-toggle > .live-param-name,
+.live-card .live-param-enum > .live-param-name,
+.device-control .live-param-enum > .live-param-name {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 
-/* --- the toggle: a latching button, sharp like a PD toggle box --- */
+/* --- the toggle: a PD toggle box, square and marked ✕ when on --- */
 .live-card .live-toggle,
 .device-control .live-toggle {
   box-sizing:border-box;
-  display:flex;
-  align-items:center;
-  min-width:0;
+  display:grid;
+  place-items:center;
+  width:var(--row-h);
   height:var(--row-h);
-  padding:0 6px;
+  padding:0;
   border:1px solid var(--control-line);
   border-radius:var(--radius-toggle);
   background:var(--input);
   color:var(--text);
   font:inherit;
-  font-size:12px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+  font-size:13px;
+  line-height:1;
   cursor:pointer;
 }
 /* §5's generic `button[aria-pressed=true]` face is a 1px inset ring; a toggle
@@ -685,28 +705,11 @@
 .device-control .live-param.automated .live-toggle[aria-pressed=true] {
   background:var(--mod-fill);
 }
-/* A generator crosses the 0/1 threshold faster than the heartbeat re-renders,
-   so the pressed state alone would under-report it. Under an LFO the face
-   flashes at the generator's own period, phase-anchored by `--auto-elapsed`
-   like the slider marker — the crossing rate is exact for any shape, the duty
-   is the 50% a symmetric shape actually has. Fades and loops are not periodic,
-   so they keep the value the heartbeat reports. */
-.live-card .live-toggle.auto-flash,
-.device-control .live-toggle.auto-flash {
-  animation:live-toggle-flash var(--auto-period,1000ms) steps(1) infinite;
-  animation-delay:calc(-1 * var(--auto-elapsed,0ms));
-}
-@keyframes live-toggle-flash {
-  0%   {background:var(--mod-fill)}
-  50%  {background:var(--input)}
-  100% {background:var(--mod-fill)}
-}
 /* Mixed: the same 45° slash, the same two inks as every other control. */
 .live-card .live-param.mixed .live-toggle,
 .device-control .live-param.mixed .live-toggle {
   background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
   color:var(--dim);
-  animation:none;
 }
 .live-card .live-param.mixed.mixed-mod .live-toggle,
 .device-control .live-param.mixed.mixed-mod .live-toggle {
@@ -718,8 +721,8 @@
 .live-card .live-enum,
 .device-control .live-enum {
   box-sizing:border-box;
-  min-width:58px;             /* the standardized number-box width, as a floor */
-  max-width:140px;
+  width:100%;
+  min-width:0;
   height:var(--row-h);
   padding:0 4px;
   border:1px solid var(--control-line);
@@ -728,17 +731,6 @@
   color:var(--text);
   font:inherit;
   font-size:12px;
-}
-.live-card .live-param-enum > .live-param-name,
-.device-control .live-param-enum > .live-param-name {
-  display:flex;
-  align-items:center;
-  gap:5px;
-  min-width:0;
-  color:var(--text);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
 }
 .live-card .live-param.automated .live-enum,
 .device-control .live-param.automated .live-enum {
@@ -808,9 +800,65 @@
   cursor:not-allowed;
 }
 
+/* --- the string row: a text box at row height, name to its left --- */
+.live-card .live-param-string,
+.device-control .live-param-string {
+  display:grid;
+  grid-template-columns:minmax(58px,auto) minmax(0,1fr);
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+}
+.live-card .live-param-string > .live-param-name,
+.device-control .live-param-string > .live-param-name {
+  color:var(--text);
+  white-space:nowrap;
+}
+/* The hosts size this field for their own chrome (44px on the tablet-first
+   facilitator); inside the panel every row is one height. */
+.live-card .live-param-string input[type=text],
+.device-control .live-param-string input[type=text] {
+  box-sizing:border-box;
+  height:var(--row-h);
+  min-height:0;
+  padding:0 6px;
+  font-size:12px;
+}
+
+/* --- the pulse: "modulated, value not shown" (Bob, 2026-07-27) -----------
+   A control whose generator value the surface cannot track — a toggle, an
+   enum, an LFO shape the runtime cannot sample — must not animate anything
+   that reads as a value. It pulses the modulation ink instead: the row says
+   "a generator owns this" without claiming to say what it is producing. The
+   number box beside it shows the mixed dots for the same reason. */
+.live-card .live-param.auto-pulse .live-toggle,
+.device-control .live-param.auto-pulse .live-toggle,
+.live-card .live-param.auto-pulse .live-enum,
+.device-control .live-param.auto-pulse .live-enum,
+.live-card .live-param.auto-pulse .live-param-range-wrap,
+.device-control .live-param.auto-pulse .live-param-range-wrap {
+  border-color:var(--mod);
+  animation:live-param-pulse var(--pulse-period,1400ms) ease-in-out infinite;
+  /* The row carries a shared wall-clock anchor; the negative delay makes the
+     pulse survive the heartbeat re-render in phase (§10's mechanism) and keeps
+     every pulsing row on the panel in step with the others. */
+  animation-delay:calc(-1 * var(--pulse-elapsed,0ms));
+}
+@keyframes live-param-pulse {
+  0%, 100% { box-shadow:0 0 0 0 var(--mod-soft) }
+  50%      { box-shadow:0 0 0 2px var(--mod) }
+}
+
 @media (prefers-reduced-motion:reduce) {
-  .live-card .live-toggle.auto-flash,
-  .device-control .live-toggle.auto-flash {
+  /* A steady ring says the same thing without the motion. */
+  .live-card .live-param.auto-pulse .live-toggle,
+  .device-control .live-param.auto-pulse .live-toggle,
+  .live-card .live-param.auto-pulse .live-enum,
+  .device-control .live-param.auto-pulse .live-enum,
+  .live-card .live-param.auto-pulse .live-param-range-wrap,
+  .device-control .live-param.auto-pulse .live-param-range-wrap {
     animation:none;
+    box-shadow:0 0 0 1px var(--mod);
   }
 }

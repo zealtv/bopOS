@@ -175,6 +175,9 @@
     // drawer-open state rather than a separate two-button switch (the ratified
     // row grammar). Whether a generator is *running* stays a separate axis,
     // which is why stop is a control inside the drawer and not an icon state.
+    // How long one breath of the modulation pulse takes. Emitted onto the row
+    // so the stylesheet and this module cannot disagree about it.
+    const PULSE_MS = 1400;
     const GEN_KINDS = ["fade", "loop", "lfo"];
     // Tab order is the ratified reading order; GEN_KINDS stays the wire/parse
     // order so nothing downstream has to care about presentation.
@@ -284,19 +287,30 @@
       const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
       const nameSpan = `<span class="live-param-name">${esc(declaration.name)}${glyph}</span>`;
       const kind = paramKind(declaration);
+      // Which controls can actually show the value their generator is
+      // producing (Bob, 2026-07-27). A fade is sampled per frame by the rAF
+      // animator, and a marker-bearing LFO/loop paints its exact position on
+      // the slider. Everything else — toggles, enums, and the shapes whose
+      // value the runtime cannot know (sample+hold, drift) — would have to
+      // invent a cue, so those pulse instead (design-language §6/§10; the
+      // 50%-duty toggle flash from stitch 6 is retired).
+      // Only the numeric row has a channel for a live generator value at all:
+      // the rAF-sampled fade, or the CSS marker that paints an LFO's/loop's
+      // exact position. A toggle box and an enum select have neither, whatever
+      // the shape.
+      const tracksValue = kind === "numeric" && !!model &&
+        (model.parsed.mode === "fade" || !!model.marker);
+      const pulsing = !!model && !tracksValue &&
+        (kind === "toggle" || kind === "enum" || kind === "numeric");
       let input;
       if (kind === "string") {
-        input = `<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
+        input = `${nameSpan}<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
       } else if (kind === "toggle") {
-        // A latching button, not a checkbox: PD heritage says a toggle is a
-        // square box, and the name belongs inside the control. Under a
-        // generator the button keeps reporting the live value; the flash class
-        // is what makes a sub-heartbeat LFO legible (see the CSS).
+        // A PD toggle box with its label beside it: a latching `aria-pressed`
+        // button in the value-box column, marked ✕ when on, so it reads as a
+        // box you click rather than a full-width bar (Bob, 2026-07-27).
         const on = !mixed && !!Number(value);
-        const flashing = !!model && model.parsed.mode === "lfo";
-        const flashStyle = flashing
-          ? ` style="--auto-period:${model.periodMs}ms;--auto-elapsed:${model.elapsedMs}ms"` : "";
-        input = `<button type="button" class="live-toggle${flashing ? " auto-flash" : ""}" ${common} aria-pressed="${on}" ${mixed ? 'data-mixed="true"' : ""}${flashStyle}>${esc(declaration.name)}</button>`;
+        input = `<button type="button" class="live-toggle" ${common} aria-pressed="${on}" ${mixed ? 'data-mixed="true"' : ""}><span aria-hidden="true">${on ? "✕" : ""}</span></button>${nameSpan}`;
       } else if (kind === "enum") {
         // Enums automate like ints (Q2): the value on the wire is the index,
         // so the select is a labelled view of the same integer a generator
@@ -306,12 +320,18 @@
         const mixedOption = mixed ? '<option value="" selected disabled>·····</option>' : "";
         input = `<select class="live-enum" ${common} ${mixed ? 'data-mixed="true"' : ""}>${mixedOption}${options}</select>${nameSpan}`;
       } else {
-        // The value box is a number box, not a state legend: mixed states show
-        // the ratified dots and carry the words in the accessible name, which
-        // leaves room for the value itself at full width. A running generator
-        // shows the live value alone — the ∿ icon and the cyan ink already say
-        // "modulated", so the kind no longer has to fit in 58px.
-        const display = mixed ? "·····"
+        // The value box is a number box, not a state legend: states it cannot
+        // state numerically show the ratified dots and carry the words in the
+        // accessible name.
+        //
+        // Under a periodic generator that is *architectural*, not a gap: an
+        // LFO's and a loop's position are painted by a CSS animation (the
+        // ratified mechanism, design-language §10), so no JavaScript knows the
+        // value between heartbeats and the box would otherwise show a stale
+        // number beside a moving marker. It shows dots in the modulation ink
+        // instead (Bob, 2026-07-27). A fade is different — the rAF animator
+        // samples it every frame and writes the box — so it keeps its number.
+        const display = mixed || (model && model.parsed.mode !== "fade") ? "·····"
           : model?.parsed.mode === "fade" ? model.target
           : value;
         const boxLabel = state.automationMixed ? `${declaration.name}, mixed automation`
@@ -347,7 +367,7 @@
         // instead (it is the only thing that knows where the value is between
         // heartbeats), and the CSS hides the static fill behind it.
         const fillPosition = mixed ? 1 : window.ParamSpec.position(rangeValue, declaration);
-        input = `<output${preciseReadout ? ' data-precise="true"' : ""} class="live-param-value" aria-label="${esc(boxLabel)}"${declaration.type === "i" ? ' data-integer="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap" style="--v:${fillPosition}"><span class="live-param-fill" aria-hidden="true"></span>${motion}${nameSpan}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
+        input = `<output${preciseReadout ? ' data-precise="true"' : ""} class="live-param-value" aria-label="${esc(boxLabel)}"${declaration.type === "i" ? ' data-integer="true"' : ""}${display === "·····" ? ' data-dots="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap" style="--v:${fillPosition}"><span class="live-param-fill" aria-hidden="true"></span>${motion}${nameSpan}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
       }
       const device = scope === "device" ? context.deviceForScope?.(id) : deviceForSeat(sourceSeat);
       const seatScoped = scope === "seat" || scope === "device";
@@ -365,16 +385,21 @@
       // A mixed row hatches in the modulation ink as soon as a generator is
       // anywhere in the aggregate — one pattern, two inks (design §6).
       const mixedMod = mixed && (state.automationMixed || !!state.automation);
-      // Every kind but the string row now carries its name inside (toggle) or
-      // beside (enum) its own control; only the text box still needs a leading
-      // name span.
-      const nameOutside = kind === "string";
       // The toggle's control is a <button>, and a <label> whose labelled
       // control is a button forwards its own clicks to it — so that row is a
       // plain container instead.
       const tag = kind === "toggle" ? "div" : "label";
-      const classes = `live-param live-param-${kind}${mixed ? " mixed" : ""}${mixedMod ? " mixed-mod" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}`;
-      return `<${tag} class="${classes}" data-param-path="${esc(declaration.identity)}">${nameOutside ? nameSpan : ""}${input}${modButton}</${tag}>${drawer}`;
+      const classes = `live-param live-param-${kind}${mixed ? " mixed" : ""}${mixedMod ? " mixed-mod" : ""}${automation ? " automated" : ""}${pulsing ? " auto-pulse" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}`;
+      // The pulse is a CSS animation on a node the heartbeat re-render
+      // replaces, so it would restart — and never reach its own peak — a few
+      // times a second. A negative delay anchors it, the same mechanism the
+      // slider marker uses. The anchor is the wall clock rather than each
+      // generator's elapsed time, so every pulsing row on the panel breathes
+      // together instead of beating against its neighbours; the pulse says
+      // "a generator owns this", not "here is its phase".
+      const pulseAnchor = pulsing
+        ? ` style="--pulse-period:${PULSE_MS}ms;--pulse-elapsed:${Date.now() % PULSE_MS}ms"` : "";
+      return `<${tag} class="${classes}" data-param-path="${esc(declaration.identity)}"${pulseAnchor}>${input}${modButton}</${tag}>${drawer}`;
     }
 
     function paramTree(scope, id, members, declarations, disabled) {
@@ -537,9 +562,11 @@
           // slider follows.
           input.onclick = () => {
             const wasMixed = input.dataset.mixed === "true";
-            input.setAttribute("aria-pressed",
-              String(wasMixed || input.getAttribute("aria-pressed") !== "true"));
-            input.classList.remove("auto-flash");
+            const on = wasMixed || input.getAttribute("aria-pressed") !== "true";
+            input.setAttribute("aria-pressed", String(on));
+            input.firstElementChild.textContent = on ? "✕" : "";
+            // Takeover stops the generator, so the pulse stops with it.
+            input.closest(".live-param")?.classList.remove("auto-pulse");
             send();
           };
         } else if (select) {

@@ -272,8 +272,11 @@ def main():
                 slider = ('.live-card[data-live-scope="all"] '
                           'input[type="range"][data-live-param]'
                           '[data-param-path="density"]')
-                page.locator(slider).focus()
-                page.keyboard.press("ArrowRight")  # fires input AND change
+                # fires input AND change. `press` re-checks actionability, so a
+                # heartbeat re-render between focusing and typing cannot
+                # swallow the keystroke — focus() + keyboard.press() did, and
+                # that was this file's one intermittent failure.
+                page.locator(slider).press("ArrowRight")
                 check("slider change-commit reaches the wire numerically",
                       wait_log(fleet_log_path, r"p/density=0\.21(\b|0)"),
                       "fleet log missing p/density=0.21")
@@ -282,8 +285,9 @@ def main():
                 steps = ('.live-card[data-live-scope="all"] '
                          'input[type="range"][data-live-param]'
                          '[data-param-path="steps"]')
-                page.locator(steps).focus()
-                page.keyboard.press("ArrowRight")
+                # `press` re-checks actionability, so a heartbeat re-render
+                # between focusing and typing cannot swallow the keystroke.
+                page.locator(steps).press("ArrowRight")
                 check("an integer row steps by one to the wire",
                       wait_log(fleet_log_path, r"p/steps=3(\b|\.)"),
                       "fleet log missing p/steps=3")
