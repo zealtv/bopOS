@@ -114,6 +114,12 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
             self.state, lambda *_args: None, 5550, 6660, "192.0.2.255")
         self.sender = Sender()
         self.bridge.sender = self.sender
+        # macOS OSC routing (54ff063) may bind a dedicated LAN sender when a
+        # physical heartbeat arrives. Keep that real selection path inside the
+        # recording fake so this suite does not depend on the host's route to
+        # the documentation address used below.
+        self.bridge._new_sender = lambda _source=None: self.sender
+        self.bridge._source_for_peer = lambda _peer: "192.0.2.1"
 
     async def asyncTearDown(self):
         for timeout in self.bridge.pending_timeouts.values():
