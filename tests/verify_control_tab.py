@@ -122,7 +122,7 @@ def make_fixture(root):
               encoding="utf-8") as target:
         json.dump({
             "engine": "test", "entrypoint": "main.bin",
-            "params": [{"name": "density", "type": "f", "min": 0, "max": 1,
+            "params": [{"name": "density", "kind": "float", "min": 0, "max": 1,
                         "default": .2, "dashboard": True}],
             "cues": [{"id": "go", "label": "Go"}],
             "caps": [], "slots": [],

@@ -26,10 +26,10 @@ from python.paramgen import ParamGrammarError, parse_message
 
 
 LEGACY_DECLARATIONS = [
-    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.75},
-    {"name": "gain2", "type": "f", "min": 0, "max": 1, "default": 0.3},
-    {"name": "backing", "type": "f", "min": 0, "max": 1, "default": 0.8},
-    {"name": "echo", "type": "i", "min": 0, "max": 1, "default": 0},
+    {"name": "gain", "kind": "float", "min": 0, "max": 1, "default": 0.75},
+    {"name": "gain2", "kind": "float", "min": 0, "max": 1, "default": 0.3},
+    {"name": "backing", "kind": "float", "min": 0, "max": 1, "default": 0.8},
+    {"name": "echo", "kind": "toggle", "default": 0},
 ]
 log = logging.getLogger("bopos.osc")
 

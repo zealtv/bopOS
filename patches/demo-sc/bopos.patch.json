@@ -2,8 +2,8 @@
   "engine": "sclang",
   "entrypoint": "main.scd",
   "params": [
-    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": 0.7, "dashboard": true},
-    {"name": "frequency", "type": "f", "min": 80, "max": 2000, "default": 220, "dashboard": true}
+    {"name": "gain", "kind": "float", "min": 0, "max": 1, "default": 0.7, "dashboard": true},
+    {"name": "frequency", "kind": "float", "min": 80, "max": 2000, "default": 220, "dashboard": true}
   ],
   "caps": [],
   "slots": []

@@ -544,9 +544,9 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   *stability*, and CSS-animated controls (automation markers) plus
   heartbeat re-renders keep nodes perpetually unstable or detach them
   mid-wait — use a one-shot `page.evaluate` `scrollIntoView` and a fresh
-  `bounding_box()` instead; (7) fixture manifests: the validator only
-  allows *numeric* `min`/`max`/`default`, so a string param declaration
-  must omit `default` or the whole manifest silently fails to load;
+  `bounding_box()` instead; (7) fixture manifests use explicit `kind`; a
+  `text` default, when present, must be a string, and invalid defaults fail
+  with a named manifest error;
   (8) any element inside a non-active tab panel resolves but never goes
   *visible* — wait with `state="attached"`, like `#ws-status`; (9)
   compare bounding rects only from ONE scroll state — per-element

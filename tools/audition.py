@@ -640,9 +640,10 @@ class AuditionRig:
             if address.startswith("/p/"):
                 identity = address[3:]
                 declaration = self.param_declarations.get(identity)
-                if declaration is not None and declaration.get("type") in ("f", "i"):
+                param_type = patch_manifest.param_wire_type(declaration)
+                if param_type in ("f", "i"):
                     try:
-                        spec = paramgen.parse_message(args, declaration["type"])
+                        spec = paramgen.parse_message(args, param_type)
                     except paramgen.ParamGrammarError as error:
                         print(f"WARNING: {address} parameter grammar: {error}",
                               flush=True)

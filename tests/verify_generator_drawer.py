@@ -152,12 +152,12 @@ def make_fixture(root, mixed):
     manifest = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [
-            {"name": "density", "type": "f", "min": 0, "max": 1,
+            {"name": "density", "kind": "float", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
-            {"name": "label", "type": "s", "dashboard": True},
+            {"name": "label", "kind": "text", "dashboard": True},
             # Enums automate like ints (Q2, 2026-07-27): the generator drives
             # the option INDEX, quantized on the same integer path.
-            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+            {"name": "mode", "kind": "enum", "options": ["dry", "hall", "plate"],
              "default": 0, "dashboard": True},
         ], "cues": [], "caps": [], "slots": [],
     }

@@ -126,11 +126,11 @@ def write_patch(patches, name, params):
 # deliberately promotes a differently-named param so "whose schema is this?" has
 # an unambiguous answer.
 ALPHA_PARAMS = [
-    {"name": "density", "type": "f", "min": 0, "max": 1, "default": .2,
+    {"name": "density", "kind": "float", "min": 0, "max": 1, "default": .2,
      "dashboard": True},
 ]
 BETA_PARAMS = [
-    {"name": "shimmer", "type": "f", "min": 0, "max": 1, "default": .4,
+    {"name": "shimmer", "kind": "float", "min": 0, "max": 1, "default": .4,
      "dashboard": True},
 ]
 

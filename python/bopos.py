@@ -1426,9 +1426,10 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             if address.startswith("/p/"):
                 declaration = declared_param(address[3:])
                 param_identity = address[3:]
-                if declaration is not None and declaration.get("type") in ("f", "i"):
+                param_type = manifest.param_wire_type(declaration)
+                if param_type in ("f", "i"):
                     try:
-                        spec = paramgen.parse_message(shaped_args, declaration["type"])
+                        spec = paramgen.parse_message(shaped_args, param_type)
                     except paramgen.ParamGrammarError as error:
                         print(f"WARNING: {address} parameter grammar: {error}")
                         return True

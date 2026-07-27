@@ -1009,9 +1009,10 @@ class SimFleet:
                     self.log(device, f"p/{member} undeclared, dropped")
                     continue
                 declaration = getattr(self, "param_declarations", {}).get(member)
-                if declaration is not None and declaration.get("type") in ("f", "i"):
+                param_type = patch_manifest.param_wire_type(declaration)
+                if param_type in ("f", "i"):
                     try:
-                        spec = paramgen.parse_message(args, declaration["type"])
+                        spec = paramgen.parse_message(args, param_type)
                     except paramgen.ParamGrammarError as error:
                         self.log(device, f"p/{member} grammar error: {error}")
                         continue

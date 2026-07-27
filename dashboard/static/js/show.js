@@ -41,6 +41,8 @@
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => (
     {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]
   ));
+  const declarationWireType = declaration => !declaration?.kind || declaration.kind === "float" ? "f"
+    : declaration?.kind === "text" ? "s" : "i";
 
   function stepByUid(uid) {
     return (show.items || []).find(item => item.kind === "step" && item.uid === uid) || null;
@@ -648,15 +650,15 @@
   function renderParamBuilder(message) {
     const manifest = manifestFromStagedPatch();
     const identity = message.address?.startsWith("/p/") ? message.address.slice(3) : manifest.params[0]?.identity || "";
-    const declaration = manifest.params.find(param => param.identity === identity) || manifest.params[0] || {type: "f", min: 0, max: 1, default: 0, name: "value", identity};
+    const declaration = manifest.params.find(param => param.identity === identity) || manifest.params[0] || {kind: "float", min: 0, max: 1, default: 0, name: "value", identity};
     const options = manifest.params.map(param => {
       const label = `${param.path?.length ? `${param.path.join("/")} / ` : ""}${param.name || param.identity}`;
       return `<option value="${escapeHtml(param.identity)}" ${param.identity === identity ? "selected" : ""}>${escapeHtml(label)}</option>`;
     }).join("");
-    const numeric = declaration.type === "f" || declaration.type === "i";
+    const numeric = declaration.kind !== "text";
     let parsed = null;
     if (numeric) {
-      try { parsed = parseParamArgs(message.args || [], declaration.type); }
+      try { parsed = parseParamArgs(message.args || [], declarationWireType(declaration)); }
       catch (_error) { parsed = null; }
     }
     const rawFallback = numeric && !parsed;
@@ -675,7 +677,7 @@
       ${generator}
       ${fields}
       ${preview}
-      <small class="dim">${escapeHtml(declaration.type || "f")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
+      <small class="dim">${escapeHtml(declaration.kind || "float")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
     </section>`;
   }
 
@@ -1127,7 +1129,7 @@
   }, true);
 
   function paramModeDefaultArgs(declaration, mode) {
-    const type = declaration?.type || "f";
+    const type = declarationWireType(declaration);
     const value = declaration?.default ?? (type === "s" ? "" : 0);
     if (type === "s" || mode === "value") return [typedArg(type, value)];
     if (mode === "fade") return [typedArg(type, value), typedArg("s", "1s")];
@@ -1147,7 +1149,7 @@
     const manifest = manifestFromStagedPatch();
     const selected = identity ?? (message.address?.startsWith("/p/") ? message.address.slice(3) : "");
     return manifest.params.find(param => param.identity === selected)
-      || manifest.params[0] || {identity: selected, type: "f", default: 0};
+      || manifest.params[0] || {identity: selected, kind: "float", default: 0};
   }
 
   function compileParamEditor(message, editor) {
@@ -1161,7 +1163,7 @@
     if (mode === "param") {
       const declaration = manifest.params[0];
       const identity = declaration?.identity || "gain";
-      const type = declaration?.type || "f";
+      const type = declarationWireType(declaration);
       const value = declaration?.default ?? (type === "s" ? "" : 0);
       updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
     } else if (mode === "cue") {
@@ -1279,10 +1281,10 @@
       if (event.target.id === "show-param-picker") {
         const oldDeclaration = currentParamDeclaration(message);
         let mode = "value";
-        try { mode = parseParamArgs(message.args || [], oldDeclaration.type).mode; }
+        try { mode = parseParamArgs(message.args || [], declarationWireType(oldDeclaration)).mode; }
         catch (_error) { mode = "value"; }
         const declaration = currentParamDeclaration(message, event.target.value);
-        if (declaration.type === "s") mode = "value";
+        if (declaration.kind === "text") mode = "value";
         updateMessage(message.uid, {address: `/p/${event.target.value}`, args: paramModeDefaultArgs(declaration, mode)});
       }
       if (event.target.id === "show-param-generator") {
@@ -1291,7 +1293,7 @@
       }
       if (event.target.id === "show-param-value") {
         const declaration = currentParamDeclaration(message);
-        updateMessage(message.uid, {args: [typedArg(declaration.type || "f", event.target.value)]});
+        updateMessage(message.uid, {args: [typedArg(declarationWireType(declaration), event.target.value)]});
       }
       if (event.target.matches("[data-param-segment-value], [data-param-segment-duration], [data-param-segment-unit], [data-param-from], [data-param-curve], [data-param-lfo]")) {
         const args = compileParamEditor(message, messageEditor);

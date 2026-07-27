@@ -17,7 +17,13 @@ import tempfile
 
 MANIFEST_NAME = "bopos.patch.json"
 PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+")
-PARAM_TYPES = ("i", "f", "s")
+PARAM_KINDS = {
+    "float": "f",
+    "int": "i",
+    "toggle": "i",
+    "enum": "i",
+    "text": "s",
+}
 CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
 MAX_PARAM_SEGMENTS = 8
 MAX_PARAM_IDENTITY_BYTES = 255
@@ -32,6 +38,13 @@ OPTION_LABEL = re.compile(r"[^\x00\r\n]{1,32}")
 # deliberately additive and may be reshaped by that amendment.
 MAX_EVENT_ARITY = 3
 _MISSING = object()
+
+
+def param_wire_type(declaration):
+    """Return the unchanged OSC scalar tag for a validated control kind."""
+    if not isinstance(declaration, dict):
+        return None
+    return PARAM_KINDS.get(declaration.get("kind"))
 
 
 def qualify_param(declaration):
@@ -145,12 +158,14 @@ def validate(candidate, patch_path, require_entrypoint=True):
         if identity in param_identities:
             return None, f"duplicate param identity {identity!r}"
         param_identities.add(identity)
-        if param.get("type") not in PARAM_TYPES:
-            return None, f"param {name}: type must be one of {'/'.join(PARAM_TYPES)}"
+        if "type" in param:
+            return None, (f"param {name}: type was removed (2026-07-28); "
+                          f"use kind ({'/'.join(PARAM_KINDS)})")
+        kind = param.get("kind")
+        if kind not in PARAM_KINDS:
+            return None, f"param {name}: kind must be one of {'/'.join(PARAM_KINDS)}"
         options = param.get("options")
-        if options is not None:
-            if param["type"] != "i":
-                return None, f"param {name}: options only apply to an integer param"
+        if kind == "enum":
             if (not isinstance(options, list)
                     or not 2 <= len(options) <= MAX_PARAM_OPTIONS):
                 return None, (f"param {name}: options must be a list of 2–"
@@ -170,13 +185,29 @@ def validate(candidate, patch_path, require_entrypoint=True):
                 elif param[key] != derived:
                     return None, (f"param {name}: {key} is derived from options "
                                   f"({derived}), not authored")
+        elif options is not None:
+            return None, f"param {name}: options only apply to kind enum"
+        if kind == "toggle":
+            authored_bounds = [key for key in ("min", "max") if key in param]
+            if authored_bounds:
+                return None, (f"param {name}: {'/'.join(authored_bounds)} "
+                              "is derived for kind toggle, not authored")
+            param["min"], param["max"] = 0, 1
         low, high, default = param.get("min"), param.get("max"), param.get("default")
-        numbers = [v for v in (low, high, default) if v is not None]
-        if any(not isinstance(v, (int, float)) or isinstance(v, bool)
-               or not math.isfinite(v) for v in numbers):
-            return None, f"param {name}: min/max/default must be numbers"
-        if options is not None and default is not None and default != int(default):
+        if kind == "text":
+            if "min" in param or "max" in param:
+                return None, f"param {name}: min/max do not apply to kind text"
+            if default is not None and not isinstance(default, str):
+                return None, f"param {name}: text default must be a string"
+        else:
+            numbers = [v for v in (low, high, default) if v is not None]
+            if any(not isinstance(v, (int, float)) or isinstance(v, bool)
+                   or not math.isfinite(v) for v in numbers):
+                return None, f"param {name}: min/max/default must be numbers"
+        if kind == "enum" and default is not None and default != int(default):
             return None, f"param {name}: default {default} is not an option index"
+        if kind == "toggle" and default is not None and default not in (0, 1):
+            return None, f"param {name}: toggle default must be 0 or 1"
         if low is not None and high is not None and low > high:
             return None, f"param {name}: min {low} > max {high}"
         if default is not None:

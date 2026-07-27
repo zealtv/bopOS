@@ -262,7 +262,7 @@ def write_fixture(root):
     manifest = {
         "engine": "test", "entrypoint": "main.bin", "caps": [], "slots": [],
         "params": [{
-            "name": "gain", "type": "f", "min": 0, "max": 1,
+            "name": "gain", "kind": "float", "min": 0, "max": 1,
             "default": .5, "dashboard": True,
         }],
     }

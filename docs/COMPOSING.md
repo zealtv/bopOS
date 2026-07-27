@@ -64,7 +64,7 @@ when done), or edit the JSON directly:
   "engine": "pd",
   "entrypoint": "main.pd",
   "params": [
-    { "name": "density", "type": "f", "min": 0, "max": 1,
+    { "name": "density", "kind": "float", "min": 0, "max": 1,
       "default": 0.5, "dashboard": true }
   ],
   "cues": [
@@ -87,7 +87,8 @@ Line by line:
   `"dashboard": true` to also promote a parameter onto the simplified
   standalone facilitator/iPad view. An optional `"path"`
   array nests parameters (`{"path": ["texture"], "name": "density"}`
-  arrives as `/p/texture/density`).
+  arrives as `/p/texture/density`). Declare each control explicitly as
+  `float`, `int`, `toggle`, `enum`, or `text` with its `kind` field.
 - **`cues`** — named actions your patch responds to. Declared cues appear
   as synchronized trigger buttons in the dashboard and fire tightly across
   the whole fleet.

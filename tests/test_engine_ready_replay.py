@@ -132,7 +132,7 @@ class EngineReadyReplayTests(unittest.TestCase):
     def test_static_param_recorded_and_replayed(self):
         state = types.SimpleNamespace(id=3, groups=())
         spec = paramgen.ParamSpec("set", value=0.5)
-        bopos.record_static_param("gain", spec, {"type": "f"})
+        bopos.record_static_param("gain", spec, {"kind": "float"})
         with bopos.param_replay_lock:
             self.assertIn("gain", bopos.latest_static_params)
         bopos.deliver_engine_context(state)
@@ -142,8 +142,8 @@ class EngineReadyReplayTests(unittest.TestCase):
         # Automation (lfo/loop/fade/stop) is forgotten by design across restarts;
         # it must not be replayed, and it clears any stale static value.
         bopos.record_static_param("gain", paramgen.ParamSpec("set", value=0.5),
-                                  {"type": "f"})
-        bopos.record_static_param("gain", paramgen.ParamSpec("stop"), {"type": "f"})
+                                  {"kind": "float"})
+        bopos.record_static_param("gain", paramgen.ParamSpec("stop"), {"kind": "float"})
         with bopos.param_replay_lock:
             self.assertNotIn("gain", bopos.latest_static_params)
 

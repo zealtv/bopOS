@@ -418,7 +418,7 @@ class Dashboard:
                 cleaned_args = [show_model.clean_arg(item) for item in raw]
                 if all(item is not None for item in cleaned_args):
                     args = [item["value"] for item in cleaned_args]
-            declared_type = (declaration or {}).get("type")
+            declared_type = patch_manifest.param_wire_type(declaration)
             if (declaration is None or seats is None or args is None
                     or declared_type not in {"f", "i"}):
                 await self.ws_error(
@@ -1733,10 +1733,10 @@ class Dashboard:
     def clean_editor_value(declaration, value):
         if not isinstance(declaration, dict):
             return None
-        kind = declaration.get("type")
-        if kind == "s":
+        kind = declaration.get("kind")
+        if kind == "text":
             return value if isinstance(value, str) else None
-        if kind not in {"f", "i"} or isinstance(value, bool):
+        if kind not in {"float", "int", "toggle", "enum"} or isinstance(value, bool):
             return None
         try:
             cleaned = float(value)
@@ -1744,7 +1744,7 @@ class Dashboard:
             return None
         if not math.isfinite(cleaned):
             return None
-        if kind == "i":
+        if kind in {"int", "toggle", "enum"}:
             if not cleaned.is_integer():
                 return None
             cleaned = int(cleaned)

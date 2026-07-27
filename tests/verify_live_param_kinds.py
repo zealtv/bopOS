@@ -144,14 +144,14 @@ def make_fixture(root):
     manifest = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [
-            # i with min 0 / max 1 renders as the latching toggle button.
-            {"name": "gate", "type": "i", "min": 0, "max": 1,
+            # Explicit toggle renders as the latching toggle button.
+            {"name": "gate", "kind": "toggle",
              "default": 0, "dashboard": True},
-            {"name": "density", "type": "f", "min": 0, "max": 1,
+            {"name": "density", "kind": "float", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
-            {"name": "steps", "type": "i", "min": 0, "max": 8,
+            {"name": "steps", "kind": "int", "min": 0, "max": 8,
              "default": 2, "dashboard": True},
-            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+            {"name": "mode", "kind": "enum", "options": ["dry", "hall", "plate"],
              "default": 0, "dashboard": True},
         ], "cues": [], "caps": [], "slots": [],
     }

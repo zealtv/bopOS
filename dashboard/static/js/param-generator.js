@@ -15,6 +15,8 @@
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const typedArg = (kind, value) => window.OscMessage.typedArg(kind, value);
+  const wireType = declaration => declaration?.kind === "float" ? "f"
+    : declaration?.kind === "text" ? "s" : "i";
 
   function inputNumber(root, selector) {
     const value = Number(root.querySelector(selector)?.value);
@@ -33,7 +35,7 @@
   }
 
   function valueAttrs(declaration) {
-    return `step="${declaration.type === "i" ? "1" : "any"}" ${declaration.min != null ? `min="${esc(declaration.min)}"` : ""} ${declaration.max != null ? `max="${esc(declaration.max)}"` : ""}`;
+    return `step="${["int", "toggle", "enum"].includes(declaration.kind) ? "1" : "any"}" ${declaration.min != null ? `min="${esc(declaration.min)}"` : ""} ${declaration.max != null ? `max="${esc(declaration.max)}"` : ""}`;
   }
 
   function segmentRow(segment, index, declaration, count) {
@@ -45,7 +47,7 @@
   }
 
   function fields(declaration, parsed) {
-    if (declaration.type === "s") {
+    if (declaration.kind === "text") {
       return `<label>value <input id="show-param-value" type="text" value="${esc(parsed.value ?? declaration.default ?? "")}"></label>`;
     }
     if (parsed.mode === "value") {
@@ -232,7 +234,7 @@
   // the column beside the display (2026-07-27), which is what lets the drawer
   // stop stretching to the panel's full width.
   function panelFields(declaration, parsed, motion, actions = "") {
-    if (declaration.type === "s" || parsed.mode === "value") return actions + fields(declaration, parsed);
+    if (declaration.kind === "text" || parsed.mode === "value") return actions + fields(declaration, parsed);
     if (parsed.mode === "stop") return actions + fields(declaration, parsed);
     if (parsed.mode === "lfo") {
       // The shape select lives INSIDE the display, bottom-right: it names what
@@ -288,7 +290,7 @@
   // rather than scraped from a fixed element id, because the Show inspector and
   // the control-surface drawer keep their own mode control.
   function compile(root, declaration, mode) {
-    const type = declaration.type || "f";
+    const type = wireType(declaration);
     if (mode === "value") {
       const input = root.querySelector("#show-param-value");
       return input ? [typedArg(type, input.value)] : null;

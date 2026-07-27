@@ -82,11 +82,11 @@ def wait_http(url, process):
 
 
 PARAMS = [
-    {"name": "gain", "type": "f", "min": 0, "max": 1, "default": .5,
+    {"name": "gain", "kind": "float", "min": 0, "max": 1, "default": .5,
      "dashboard": True},
-    {"path": ["texture"], "name": "density", "type": "f",
+    {"path": ["texture"], "name": "density", "kind": "float",
      "min": 0, "max": 1, "default": .2, "dashboard": False},
-    {"path": ["texture"], "name": "rate", "type": "i",
+    {"path": ["texture"], "name": "rate", "kind": "int",
      "min": 1, "max": 8, "default": 3},
 ]
 
@@ -210,6 +210,31 @@ def main():
 
                 page.click("#tab-button-patches")
                 page.wait_for_selector("#manifest-params .manifest-check")
+                kind_options = page.locator(
+                    '#manifest-params select[data-manifest-field="kind"]'
+                ).first.locator("option").all_text_contents()
+                check("Patch-tab declaration editor uses the explicit kind grammar",
+                      kind_options == ["float", "int", "toggle", "enum", "text"])
+                check("Patch-tab declaration editor has no legacy type selector",
+                      page.locator(
+                          '#manifest-params [data-manifest-field="type"]'
+                      ).count() == 0)
+                kind_change = page.evaluate("""() => {
+                  const enumParam = {kind:"int", min:0, max:8, default:2};
+                  setManifestParamKind(enumParam, "enum");
+                  const toggleParam = {kind:"int", min:0, max:1, default:1};
+                  setManifestParamKind(toggleParam, "toggle");
+                  return {enumParam, toggleParam};
+                }""")
+                check("kind changes replace inferred enum and toggle fields",
+                      kind_change == {
+                          "enumParam": {
+                              "kind": "enum",
+                              "default": 0,
+                              "options": ["option 0", "option 1"],
+                          },
+                          "toggleParam": {"kind": "toggle", "default": 1},
+                      }, repr(kind_change))
                 check("Patch-tab checkbox is labelled Facilitator",
                       page.locator(
                           "#manifest-params .manifest-check").first.inner_text(

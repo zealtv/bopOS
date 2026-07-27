@@ -664,23 +664,51 @@ function paramIdentity(param) {
 function manifestParamsForSave(params) {
   return structuredClone(params).map(param=>{
     if (!Array.isArray(param.path) || !param.path.length) delete param.path;
+    if (param.kind==="toggle" || param.kind==="enum") {
+      delete param.min;
+      delete param.max;
+    }
     delete param.group;
     delete param.facilitator;
     return param;
   });
 }
+function setManifestParamKind(param, kind) {
+  param.kind=kind;
+  if (kind==="float" || kind==="int") {
+    delete param.options;
+    if (typeof param.min!=="number") param.min=0;
+    if (typeof param.max!=="number") param.max=1;
+    if (typeof param.default!=="number") param.default=0;
+  } else if (kind==="toggle") {
+    delete param.options; delete param.min; delete param.max;
+    param.default=Number(param.default)===1?1:0;
+  } else if (kind==="enum") {
+    delete param.min; delete param.max;
+    if (!Array.isArray(param.options) || param.options.length<2) param.options=["option 0","option 1"];
+    if (!Number.isInteger(param.default) || param.default<0 || param.default>=param.options.length) param.default=0;
+  } else {
+    delete param.options; delete param.min; delete param.max;
+    if (typeof param.default!=="string") param.default="";
+  }
+}
 function paramManifestRow(param, index) {
-  const legacy=param.type==="s", disabled=legacy?"disabled":"";
+  const kind=param.kind||"float";
   const path=Array.isArray(param.path)?param.path.join("/"):"";
+  const bounds=(kind==="float" || kind==="int")?`
+    <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}"></label>
+    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}"></label>`:"";
+  const options=kind==="enum"
+    ? `<label>options · one per line<textarea data-manifest-field="options" rows="2">${esc((param.options||[]).join("\n"))}</textarea></label>`:"";
+  const defaultType=kind==="text"?"text":"number";
   return `<div class="manifest-row manifest-param" data-param-index="${index}">
-    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off" ${disabled}></label>
-    <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off" ${disabled}></label>
-    <label>type<select data-manifest-field="type" ${disabled}><option value="f" ${param.type==="f"?"selected":""}>float</option><option value="i" ${param.type==="i"?"selected":""}>integer</option>${legacy?'<option value="s" selected>string (legacy, read-only)</option>':''}</select></label>
-    <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}" ${disabled}></label>
-    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}" ${disabled}></label>
-    <label>default<input data-manifest-field="default" type="number" step="any" value="${esc(param.default??"")}" ${disabled}></label>
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""} ${disabled}> Facilitator</label>
-    <button data-remove-param="${index}" class="danger" title="${legacy?'Legacy string declarations are read-only':'Remove parameter'}" ${disabled}>${legacy?'Read-only':'Remove'}</button>
+    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off"></label>
+    <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off"></label>
+    <label>kind<select data-manifest-field="kind">${["float","int","toggle","enum","text"].map(value=>`<option value="${value}" ${kind===value?"selected":""}>${value}</option>`).join("")}</select></label>
+    ${bounds}${options}
+    <label>default<input data-manifest-field="default" type="${defaultType}" ${defaultType==="number"?'step="any"':""} value="${esc(param.default??"")}"></label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""}> Facilitator</label>
+    <button data-remove-param="${index}" class="danger">Remove</button>
   </div>`;
 }
 function cueManifestRow(cue, index) {
@@ -697,9 +725,23 @@ function bindManifestEditor(source) {
     row.querySelectorAll("[data-manifest-field]").forEach(input=>{
       const update=()=>{
         const field=input.dataset.manifestField;
-        manifestDraft.params[index][field]=field==="path"
-          ? (input.value===""?[]:input.value.split("/"))
-          : (input.type==="checkbox"?input.checked:(input.type==="number"?(input.value===""?"":Number(input.value)):input.value));
+        if (field==="kind") {
+          setManifestParamKind(manifestDraft.params[index],input.value);
+          manifestDirty=true;
+          renderManifestEditor(source);
+          return;
+        }
+        if (field==="path") {
+          manifestDraft.params[index][field]=input.value===""?[]:input.value.split("/");
+        } else if (field==="options") {
+          manifestDraft.params[index][field]=input.value.split("\n");
+        } else if (input.type==="checkbox") {
+          manifestDraft.params[index][field]=input.checked;
+        } else if (input.type==="number") {
+          manifestDraft.params[index][field]=input.value===""?"":Number(input.value);
+        } else {
+          manifestDraft.params[index][field]=input.value;
+        }
         manifestDirty=true;
       };
       input.oninput=update;
@@ -737,7 +779,7 @@ function renderManifestEditor(source) {
     : "Launch this patch in edit mode to change its manifest.");
   const addParam=$("#manifest-add-param"), addCue=$("#manifest-add-cue");
   addParam.disabled=!source.editable; addCue.disabled=!source.editable;
-  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",type:"f",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
+  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",kind:"float",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
   addCue.onclick=()=>{manifestDraft.cues.push({id:"",label:"",description:""});manifestDirty=true;renderManifestEditor(source);};
   const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
   save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
@@ -759,9 +801,9 @@ function editorControl(declaration, value) {
   const badge=declaration.dashboard?'<b class="badge dashboard-badge">Dashboard</b>':'';
   const name=`${esc(declaration.name)} ${badge}`;
   const identity=paramIdentity(declaration);
-  if (declaration.type === "s") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
-  if (declaration.type === "i" && declaration.min===0 && declaration.max===1) return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(identity)}" type="checkbox" ${value?'checked':''}></label>`;
-  return `<label><span>${name}</span><output data-precise="true">${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.type==='i'?1:0.01}" value="${esc(value)}"></label>`;
+  if (declaration.kind === "text") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
+  if (declaration.kind === "toggle") return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(identity)}" type="checkbox" ${value?'checked':''}></label>`;
+  return `<label><span>${name}</span><output data-precise="true">${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.kind==='int'||declaration.kind==='enum'?1:0.01}" value="${esc(value)}"></label>`;
 }
 function editorParamTree(declarations, values) {
   const roots=[];

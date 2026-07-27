@@ -100,9 +100,9 @@ def make_fixture(root):
     manifest = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [
-            {"path": ["synth", "voice"], "name": "density", "type": "f",
+            {"path": ["synth", "voice"], "name": "density", "kind": "float",
              "min": 0, "max": 1, "default": .2, "dashboard": True},
-            {"name": "steps", "type": "i", "min": 0, "max": 10,
+            {"name": "steps", "kind": "int", "min": 0, "max": 10,
              "default": 2, "dashboard": True},
         ], "cues": [], "caps": [], "slots": [],
     }
@@ -339,10 +339,10 @@ def phase_b(temp, uids):
             # commit; Escape -> nothing) directly on the dashboard page.
             markup = page.evaluate(
                 "() => ({"
-                " float: editorControl({name:'d',type:'f',min:0,max:1,path:['synth','voice']}, 0.2),"
-                " intRange: editorControl({name:'steps',type:'i',min:0,max:10,path:[]}, 2),"
-                " toggle: editorControl({name:'gate',type:'i',min:0,max:1,path:[]}, 0),"
-                " text: editorControl({name:'word',type:'s',path:[]}, 'hi')})")
+                " float: editorControl({name:'d',kind:'float',min:0,max:1,path:['synth','voice']}, 0.2),"
+                " intRange: editorControl({name:'steps',kind:'int',min:0,max:10,path:[]}, 2),"
+                " toggle: editorControl({name:'gate',kind:'toggle',min:0,max:1,path:[]}, 0),"
+                " text: editorControl({name:'word',kind:'text',path:[]}, 'hi')})")
             check("editor numeric readouts are precise, but toggles/strings are not",
                   'data-precise="true"' in markup["float"]
                   and 'type="range"' in markup["float"]

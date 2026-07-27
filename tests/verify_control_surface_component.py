@@ -115,24 +115,23 @@ def make_fixture(root):
     manifest = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [
-            {"name": "gate", "type": "i", "min": 0, "max": 1,
+            {"name": "gate", "kind": "toggle",
              "default": 0, "dashboard": True},
-            {"name": "density", "type": "f", "min": 0, "max": 1,
+            {"name": "density", "kind": "float", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
             # A non-boolean integer: its value box right-aligns, which is how
             # the ratified row grammar says "this parameter is an integer".
-            {"name": "steps", "type": "i", "min": 0, "max": 8,
+            {"name": "steps", "kind": "int", "min": 0, "max": 8,
              "default": 2, "dashboard": True},
             # An enum names its integer indices; the range is derived from the
             # options, and it automates like any other integer (Q2 ruling).
-            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+            {"name": "mode", "kind": "enum", "options": ["dry", "hall", "plate"],
              "default": 1, "dashboard": True},
             # A nested path exercises the branch renderer.
-            {"name": "cutoff", "type": "f", "min": 0, "max": 1,
+            {"name": "cutoff", "kind": "float", "min": 0, "max": 1,
              "default": .5, "path": ["filter"], "dashboard": True},
-            # A string declaration must omit `default` -- the validator only
-            # allows numeric min/max/default (CLAUDE.md testing gotcha 7).
-            {"name": "label", "type": "s", "dashboard": True},
+            # Text defaults are strings; omitting one still yields an empty control.
+            {"name": "label", "kind": "text", "dashboard": True},
         ],
         # Declared, rendered, and inert: the `<target>/e/*` wire is
         # `44-event-plane`'s question, so this row must render without

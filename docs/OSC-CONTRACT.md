@@ -702,9 +702,9 @@ A patch ships **`bopos.patch.json`** in its patch root:
 ```json
 { "engine": "pd", "entrypoint": "main.pd",
   "params": [
-    {"path":["instrument","marimba"], "name":"gain", "type":"f", "min":0, "max":1, "default":0.75, "dashboard":true},
-    {"name":"backing", "type":"f", "min":0, "max":1, "default":0.8},
-    {"name":"echo",    "type":"i", "min":0, "max":1, "default":0} ],
+    {"path":["instrument","marimba"], "name":"gain", "kind":"float", "min":0, "max":1, "default":0.75, "dashboard":true},
+    {"name":"backing", "kind":"float", "min":0, "max":1, "default":0.8},
+    {"name":"echo",    "kind":"toggle", "default":0} ],
   "cues": [
     {"id":"snap", "label":"Snap", "description":"Fire the snap gesture"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
@@ -738,6 +738,13 @@ A patch ships **`bopos.patch.json`** in its patch root:
   guess. The
   launcher validates declared params before start so the manifest cannot
   silently drift.
+- **`kind` (required; hard break 2026-07-28):** one of `float`, `int`,
+  `toggle`, `enum`, or `text`. `float` and `int` carry numeric
+  `min`/`max`/`default`; `toggle` carries a `0`/`1` default and derives its
+  range (authoring `min`/`max` is invalid); `enum` carries `options` plus an
+  integer-index default and derives `0`…`n-1`; `text` may carry a string
+  default. Their unchanged OSC tags are respectively `f`, `i`, `i`, `i`,
+  and `s`. The old `type: "f"|"i"|"s"` declaration key is rejected loudly.
 - **`role` — removed (Bob, 2026-07-12):** the param `role` concept is gone
   entirely. `role: "meter"` fell with the 2026-07-12 engine-boundary
   ratification; `role: "volume"` (ratified 2026-07-08) is superseded by
@@ -768,17 +775,14 @@ A patch ships **`bopos.patch.json`** in its patch root:
   framework neither filters undeclared cue IDs nor schedules anything from
   the manifest. Duplicate IDs are invalid. An absent `cues` key is valid.
 
-- **`options` (optional; additive, 2026-07-27):** on a `type: "i"` param, a
+- **`options` (required on `kind: "enum"`; revised 2026-07-28):** a
   list of 2–64 unique labels (1–32 characters, no newlines) naming its
   indices — an *enum*. **The wire does not change:** the value is the integer
   index, sent, replayed, persisted and automated exactly as any other integer
   (§3.2 generators emit indices, quantized by the same path). `min`/`max` are
   **derived** from the option count (`0`…`n-1`); an authored pair that
   disagrees is invalid, so a saved manifest round-trips. Only the control
-  surface reads the labels. **`44-event-plane` will re-express this as an
-  explicit `kind` field** (toggle/integer/enum/event) — ruled by Bob
-  2026-07-27 as a hard break, since nothing is in production; the wire
-  behaviour above is what survives that revision.
+  surface reads the labels.
 - **`events` (optional; declared but NOT wired, 2026-07-27):** a top-level
   list beside `params`, each `{"name": …, "path": […], "arity": 1|2|3,
   "labels": […], "defaults": […], "dashboard": bool}`. `name`/`path` qualify

@@ -33,14 +33,14 @@ THEN_ACTION_TYPES = frozenset((
     "next_section", "previous_section",
 ))
 
-# Reuse python/manifest.py's PARAM_TYPES verbatim (design note sec 2, message
-# args) rather than inventing a second type-tag set that could drift from it.
+# Show arguments are OSC wire tags, not manifest declaration kinds. Keep this
+# grammar local so a declaration-language change cannot alter stored messages.
 _REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if _REPO_DIR not in sys.path:
     sys.path.insert(0, _REPO_DIR)
 from python import manifest as patch_manifest  # noqa: E402
 
-PARAM_TYPES = patch_manifest.PARAM_TYPES
+ARG_TYPES = ("i", "f", "s")
 
 
 # --------------------------------------------------------------------------
@@ -79,7 +79,7 @@ def clean_arg(value):
     if not isinstance(value, dict):
         return None
     kind = value.get("type")
-    if kind not in PARAM_TYPES:
+    if kind not in ARG_TYPES:
         return None
     raw = value.get("value")
     if kind == "s":

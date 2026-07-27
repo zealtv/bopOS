@@ -14,6 +14,8 @@
   "use strict";
 
   const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  const wireType = declaration => declaration?.kind === "float" ? "f"
+    : declaration?.kind === "text" ? "s" : "i";
 
   // Which hierarchy accordions the operator has pruned. localStorage rather
   // than module state because the Control tab is an iframe and the Device-tab
@@ -61,7 +63,7 @@
     }
 
     function automationForSeat(seat, declaration) {
-      if (!seat || declaration.type === "s") return null;
+      if (!seat || declaration.kind === "text") return null;
       const entry = state().automation?.[String(seat.id)]?.[declaration.identity];
       return entry && ["fade", "loop", "lfo"].includes(entry.kind) ? entry : null;
     }
@@ -98,9 +100,9 @@
       for (const [seatId, entries] of Object.entries(nextState.automation || {})) {
         for (const [identity, entry] of Object.entries(entries || {})) {
           const declaration = declarations.get(identity);
-          if (!declaration || declaration.type === "s") continue;
+          if (!declaration || declaration.kind === "text") continue;
           let parsed;
-          try { parsed = window.ParamSpec.parse(entry.args || [], declaration.type); }
+          try { parsed = window.ParamSpec.parse(entry.args || [], wireType(declaration)); }
           catch (_error) { continue; }
           const key = `${seatId}:${identity}`;
           const commandSignature = JSON.stringify(entry.args || []);
@@ -129,7 +131,7 @@
     function automationModel(entry, declaration, seat, catchupValue) {
       if (!entry) return null;
       let parsed;
-      try { parsed = window.ParamSpec.parse(entry.args || [], declaration.type); }
+      try { parsed = window.ParamSpec.parse(entry.args || [], wireType(declaration)); }
       catch (_error) { return null; }
       const anchor = automationAnchors.get(automationKey(seat, declaration)) ||
         {...window.ParamSpec.phaseAnchor(entry, parsed), atMs: Date.now()};
@@ -183,7 +185,8 @@
     // order so nothing downstream has to care about presentation.
     const GEN_TAB_ORDER = ["lfo", "loop", "fade"];
     const GEN_TAB_LABELS = {lfo: "LFO", loop: "loop", fade: "fade"};
-    const numericDeclaration = declaration => declaration.type === "f" || declaration.type === "i";
+    const numericDeclaration = declaration =>
+      ["float", "int", "toggle", "enum"].includes(declaration.kind);
     const drawerKey = (scope, id, declaration) => `${scope}:${id ?? "all"}:${declaration.identity}`;
 
     function generatorAvailable(declaration) {
@@ -193,11 +196,11 @@
     function draftSpec(key, declaration, running) {
       const args = drafts.get(key);
       if (args) {
-        try { return window.ParamSpec.parse(args, declaration.type); }
+        try { return window.ParamSpec.parse(args, wireType(declaration)); }
         catch (_error) { /* fall through to the running/blank default */ }
       }
       if (running?.args) {
-        try { return window.ParamSpec.parse(running.args, declaration.type); }
+        try { return window.ParamSpec.parse(running.args, wireType(declaration)); }
         catch (_error) { /* not authorable — start blank */ }
       }
       return window.ParamGenerator.blank(declaration, "lfo");
@@ -279,10 +282,9 @@
     // not the range — that says "this integer names its values".
     function paramKind(declaration) {
       if (declaration.kind === "event") return "event";
-      if (declaration.type === "s") return "string";
-      if (Array.isArray(declaration.options) && declaration.options.length) return "enum";
-      if (declaration.type === "i" && Number(declaration.min) === 0 &&
-          Number(declaration.max) === 1) return "toggle";
+      if (declaration.kind === "text") return "string";
+      if (declaration.kind === "enum") return "enum";
+      if (declaration.kind === "toggle") return "toggle";
       return "numeric";
     }
 
@@ -412,7 +414,7 @@
         // instead (it is the only thing that knows where the value is between
         // heartbeats), and the CSS hides the static fill behind it.
         const fillPosition = mixed ? 1 : window.ParamSpec.position(rangeValue, declaration);
-        input = `<output${preciseReadout ? ' data-precise="true"' : ""} class="live-param-value" aria-label="${esc(boxLabel)}"${declaration.type === "i" ? ' data-integer="true"' : ""}${display === "·····" ? ' data-dots="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap" style="--v:${fillPosition}"><span class="live-param-fill" aria-hidden="true"></span>${motion}${nameSpan}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.type === "i" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
+        input = `<output${preciseReadout ? ' data-precise="true"' : ""} class="live-param-value" aria-label="${esc(boxLabel)}"${declaration.kind === "int" ? ' data-integer="true"' : ""}${display === "·····" ? ' data-dots="true"' : ""}>${esc(display)}</output><span class="live-param-range-wrap" style="--v:${fillPosition}"><span class="live-param-fill" aria-hidden="true"></span>${motion}${nameSpan}<input ${common} type="range" min="${esc(declaration.min ?? 0)}" max="${esc(declaration.max ?? 1)}" step="${declaration.kind === "int" ? 1 : 0.01}" value="${esc(rangeValue)}" ${mixed ? 'data-mixed="true"' : ""} ${fadeAttrs}></span>`;
       }
       const device = scope === "device" ? context.deviceForScope?.(id) : deviceForSeat(sourceSeat);
       const seatScoped = scope === "seat" || scope === "device";
@@ -678,7 +680,7 @@
         const scope = drawer.dataset.liveScope;
         const id = drawer.dataset.liveId ?? null;
         const declaration = (state().live_controls?.declarations || [])
-          .find(item => item.identity === identity) || {type: "f", identity};
+          .find(item => item.identity === identity) || {kind: "float", identity};
         const error = drawer.querySelector(".live-param-gen-error");
         // The kind used to live in a <select>; it is now the drawer's own
         // dataset, written by the tab row, so the compile path has one source
@@ -707,7 +709,7 @@
             const trace = wave.querySelector("svg, .live-gen-wave-empty");
             try {
               const drawn = window.ParamGenerator.waveTrace(
-                window.ParamSpec.parse(args, declaration.type), declaration);
+                window.ParamSpec.parse(args, wireType(declaration)), declaration);
               if (trace) trace.outerHTML = drawn;
               else wave.insertAdjacentHTML("afterbegin", drawn);
             } catch (_error) { /* keep the last good trace */ }

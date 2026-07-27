@@ -54,7 +54,8 @@ least the engine and entry point, so the entry point is not required to be
 }
 ```
 
-`params` declares the controls the dashboard can render. Optional `cues`
+`params` declares the controls the dashboard can render. Each parameter uses
+an explicit `kind`: `float`, `int`, `toggle`, `enum`, or `text`. Optional `cues`
 documents named actions the patch handles; each item requires a string `id`
 and may include string `label` and `description` fields. The ID is delivered
 unchanged as `/cue <id>`. Declarations do not filter cue traffic, so composers

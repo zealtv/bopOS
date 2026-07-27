@@ -25,8 +25,8 @@ class ManifestTests(unittest.TestCase):
         self.temp.cleanup()
 
     @staticmethod
-    def declaration(name="gain", param_type="f", path=None, **extra):
-        result = {"name": name, "type": param_type, **extra}
+    def declaration(name="gain", kind="float", path=None, **extra):
+        result = {"name": name, "kind": kind, **extra}
         if path is not None:
             result["path"] = path
         return result
@@ -130,14 +130,25 @@ class ManifestTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(loaded["params"][0]["default"], 0.5)
 
-    def test_param_type_promotion_and_legacy_normalization(self):
-        for param_type in manifest.PARAM_TYPES:
-            with self.subTest(param_type=param_type):
+    def test_param_kinds_and_legacy_normalization(self):
+        declarations = {
+            "float": self.declaration(kind="float"),
+            "int": self.declaration(kind="int"),
+            "toggle": self.declaration(kind="toggle"),
+            "enum": self.declaration(kind="enum", options=["dry", "wet"]),
+            "text": self.declaration(kind="text"),
+        }
+        for kind, declaration in declarations.items():
+            with self.subTest(kind=kind):
                 loaded, error = self.validate([
-                    self.declaration(param_type=param_type)
+                    declaration
                 ])
                 self.assertIsNone(error)
-                self.assertEqual(loaded["params"][0]["type"], param_type)
+                self.assertEqual(loaded["params"][0]["kind"], kind)
+                self.assertEqual(
+                    manifest.param_wire_type(loaded["params"][0]),
+                    manifest.PARAM_KINDS[kind],
+                )
 
         loaded, error = self.validate([
             self.declaration(facilitator=True, group="legacy-layout")
@@ -152,7 +163,31 @@ class ManifestTests(unittest.TestCase):
         ])
         self.assert_invalid([self.declaration(role="volume")])
         self.assert_invalid([self.declaration(dashboard="yes")])
-        self.assert_invalid([self.declaration(param_type="x")])
+        self.assert_invalid([self.declaration(kind="x")])
+
+    def test_removed_type_and_kind_specific_fields_fail_loudly(self):
+        loaded, error = self.validate([{"name": "gain", "type": "f"}])
+        self.assertIsNone(loaded)
+        self.assertIn("type was removed", error)
+
+        for bound in ({"min": 0}, {"max": 1}, {"min": 0, "max": 1}):
+            loaded, error = self.validate([
+                self.declaration("gate", "toggle", default=0, **bound)
+            ])
+            self.assertIsNone(loaded)
+            self.assertIn("derived for kind toggle", error)
+
+        loaded, error = self.validate([
+            self.declaration("label", "text", default=7)
+        ])
+        self.assertIsNone(loaded)
+        self.assertEqual(error, "param label: text default must be a string")
+
+        loaded, error = self.validate([
+            self.declaration("gate", "toggle", default=.5)
+        ])
+        self.assertIsNone(loaded)
+        self.assertEqual(error, "param gate: toggle default must be 0 or 1")
 
     def test_cues_caps_and_slots_use_the_declared_schema(self):
         loaded, error = self.validate(
@@ -171,7 +206,7 @@ class ManifestTests(unittest.TestCase):
 
     def test_enum_options_derive_the_index_range(self):
         loaded, error = self.validate([
-            self.declaration("mode", "i", options=["dry", "hall", "plate"],
+            self.declaration("mode", "enum", options=["dry", "hall", "plate"],
                              default=1),
         ])
         self.assertIsNone(error)
@@ -182,19 +217,19 @@ class ManifestTests(unittest.TestCase):
 
         # An authored range that agrees survives a save/load round trip.
         agreed, error = self.validate([
-            self.declaration("mode", "i", options=["a", "b"], min=0, max=1),
+            self.declaration("mode", "enum", options=["a", "b"], min=0, max=1),
         ])
         self.assertIsNone(error)
         self.assertEqual(agreed["params"][0]["max"], 1)
 
-        self.assert_invalid([self.declaration("mode", "f", options=["a", "b"])])
-        self.assert_invalid([self.declaration("mode", "i", options=["only"])])
-        self.assert_invalid([self.declaration("mode", "i", options=["a", "a"])])
-        self.assert_invalid([self.declaration("mode", "i", options=["a", "b\n"])])
+        self.assert_invalid([self.declaration("mode", "float", options=["a", "b"])])
+        self.assert_invalid([self.declaration("mode", "enum", options=["only"])])
+        self.assert_invalid([self.declaration("mode", "enum", options=["a", "a"])])
+        self.assert_invalid([self.declaration("mode", "enum", options=["a", "b\n"])])
         self.assert_invalid([
-            self.declaration("mode", "i", options=["a", "b"], max=7)])
+            self.declaration("mode", "enum", options=["a", "b"], max=7)])
         self.assert_invalid([
-            self.declaration("mode", "i", options=["a", "b"], default=.5)])
+            self.declaration("mode", "enum", options=["a", "b"], default=.5)])
 
     def test_event_declarations_are_validated_beside_the_params(self):
         loaded, error = self.validate(
@@ -218,7 +253,7 @@ class ManifestTests(unittest.TestCase):
         self.assert_invalid(events=[{"name": "bad name"}])
         self.assert_invalid(events="note")
         # An event and a param cannot claim the same address.
-        self.assert_invalid([self.declaration("note", "i", min=0, max=1)],
+        self.assert_invalid([self.declaration("note", "int", min=0, max=1)],
                             events=[{"name": "note"}])
 
     def test_atomic_write_normalizes_without_mutating_the_candidate(self):

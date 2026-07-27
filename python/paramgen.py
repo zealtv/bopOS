@@ -193,7 +193,9 @@ class GeneratorEngine:
             if current is None:
                 default = declaration.get("default", 0.0)
                 current = float(default) if isinstance(default, (int, float)) else 0.0
-            param_type = declaration.get("type")
+            kind = declaration.get("kind")
+            param_type = "f" if kind == "float" else (
+                "i" if kind in ("int", "toggle", "enum") else None)
             if param_type not in ("f", "i"):
                 raise ValueError("generator declaration must be numeric")
             if spec.kind == "stop":
