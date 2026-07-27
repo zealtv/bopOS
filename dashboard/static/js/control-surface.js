@@ -265,10 +265,13 @@
         return `<span class="live-event-box" aria-label="${esc(`${declaration.name} ${name}`)}">${esc(shown)}</span>`;
       }).join("");
       const title = "Events are not wired yet (44-event-plane)";
+      // Reading order is the sending order (Bob, 2026-07-27): the trigger, the
+      // elements it will send, then the name. `sync` sits last and right, in
+      // the column a numeric row gives its generator toggle.
       return `<div class="live-param live-param-event" data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}" title="${esc(title)}">
+        <button type="button" class="live-event-send" aria-label="${esc(`send ${declaration.name}`)}" disabled>send</button>
         ${boxes}<span class="live-param-name">${esc(declaration.name)}</span>
         <button type="button" class="live-event-sync" aria-pressed="false" aria-label="${esc(`${declaration.name} forward synchronization`)}" disabled>sync</button>
-        <button type="button" class="live-event-send" aria-label="${esc(`send ${declaration.name}`)}" disabled>send</button>
       </div>`;
     }
 

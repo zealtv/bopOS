@@ -753,7 +753,9 @@
 .live-card .live-param-event,
 .device-control .live-param-event {
   display:grid;
-  grid-template-columns:repeat(3,58px) minmax(60px,1fr) auto auto;
+  /* send · elements · name (all left) · sync, pushed right by the name's 1fr
+     into the column the other kinds give their generator toggle. */
+  grid-template-columns:auto repeat(3,58px) minmax(60px,1fr) auto;
   gap:4px;
   align-items:center;
   min-height:var(--row-h);

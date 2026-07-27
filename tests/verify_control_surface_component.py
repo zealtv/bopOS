@@ -368,6 +368,19 @@ KIND_SHAPE_JS = """
     eventButtons: [...event.querySelectorAll("button")].map(
       button => [button.textContent.trim(), button.disabled]),
     eventNoLiveParam: !event.querySelector("[data-live-param]"),
+    // Left to right: send, the element boxes, the name — then sync, alone
+    // against the row's right edge.
+    eventLayout: (() => {
+      const x = node => node.getBoundingClientRect().left;
+      const right = node => node.getBoundingClientRect().right;
+      const send = event.querySelector(".live-event-send");
+      const sync = event.querySelector(".live-event-sync");
+      const name = event.querySelector(":scope > .live-param-name");
+      return {
+        ordered: x(send) < x(boxes[0]) && x(boxes[0]) < x(name) && x(name) < x(sync),
+        syncFlush: Math.round(event.getBoundingClientRect().right - right(sync)),
+      };
+    })(),
   };
 }
 """
@@ -669,9 +682,13 @@ def main():
                       repr(kinds))
                 check("the event row sends nothing until 44-event-plane lands",
                       kinds["eventNoLiveParam"]
-                      and kinds["eventButtons"] == [["sync", True],
-                                                    ["send", True]],
+                      and kinds["eventButtons"] == [["send", True],
+                                                    ["sync", True]],
                       repr(kinds["eventButtons"]))
+                check("the event row reads send · elements · name, sync right",
+                      kinds["eventLayout"]["ordered"]
+                      and kinds["eventLayout"]["syncFlush"] <= 1,
+                      repr(kinds["eventLayout"]))
 
                 # --- no misleading automation cue (8-kind-feedback-pass) ---
                 pulse = page.evaluate(PULSE_JS)
