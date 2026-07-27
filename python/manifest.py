@@ -21,6 +21,16 @@ PARAM_TYPES = ("i", "f", "s")
 CUE_ID = re.compile(r"[^\x00\r\n]{1,64}")
 MAX_PARAM_SEGMENTS = 8
 MAX_PARAM_IDENTITY_BYTES = 255
+# An enum is an integer parameter that names its indices; the wire stays
+# `/p/<identity> <int>` (contract §3.2, unchanged). 64 is a UI bound, not a
+# protocol one: a select longer than that wants a different control.
+MAX_PARAM_OPTIONS = 64
+OPTION_LABEL = re.compile(r"[^\x00\r\n]{1,32}")
+# Events are declared but not yet wired: the `<target>/e/*` plane is thread
+# 44's ratification question. This block validates the surface the control
+# panel renders (disabled) so 44 designs against a known shape; it is
+# deliberately additive and may be reshaped by that amendment.
+MAX_EVENT_ARITY = 3
 _MISSING = object()
 
 
@@ -137,11 +147,36 @@ def validate(candidate, patch_path, require_entrypoint=True):
         param_identities.add(identity)
         if param.get("type") not in PARAM_TYPES:
             return None, f"param {name}: type must be one of {'/'.join(PARAM_TYPES)}"
+        options = param.get("options")
+        if options is not None:
+            if param["type"] != "i":
+                return None, f"param {name}: options only apply to an integer param"
+            if (not isinstance(options, list)
+                    or not 2 <= len(options) <= MAX_PARAM_OPTIONS):
+                return None, (f"param {name}: options must be a list of 2–"
+                              f"{MAX_PARAM_OPTIONS} labels")
+            if any(not isinstance(label, str)
+                   or OPTION_LABEL.fullmatch(label) is None for label in options):
+                return None, (f"param {name}: each option must be 1–32 characters "
+                              "without newlines")
+            if len(set(options)) != len(options):
+                return None, f"param {name}: option labels must be unique"
+            # The indices are the value range, so min/max are derived rather
+            # than authored. Accepting a matching pair keeps a round-tripped
+            # manifest (the editor saves what it loaded) valid.
+            for key, derived in (("min", 0), ("max", len(options) - 1)):
+                if param.get(key) is None:
+                    param[key] = derived
+                elif param[key] != derived:
+                    return None, (f"param {name}: {key} is derived from options "
+                                  f"({derived}), not authored")
         low, high, default = param.get("min"), param.get("max"), param.get("default")
         numbers = [v for v in (low, high, default) if v is not None]
         if any(not isinstance(v, (int, float)) or isinstance(v, bool)
                or not math.isfinite(v) for v in numbers):
             return None, f"param {name}: min/max/default must be numbers"
+        if options is not None and default is not None and default != int(default):
+            return None, f"param {name}: default {default} is not an option index"
         if low is not None and high is not None and low > high:
             return None, f"param {name}: min {low} > max {high}"
         if default is not None:
@@ -177,6 +212,49 @@ def validate(candidate, patch_path, require_entrypoint=True):
         for field in ("label", "description"):
             if field in cue and not isinstance(cue[field], str):
                 return None, f"cue {cue_id!r}: {field} must be a string"
+
+    events = manifest.get("events", [])
+    if not isinstance(events, list):
+        return None, "events must be a list"
+    normalized_events = []
+    for original in events:
+        if not isinstance(original, dict):
+            return None, f"event {original!r} must be an object"
+        event = dict(original)
+        try:
+            identity = qualify_param(event)
+        except ValueError as error:
+            return None, str(error)
+        name = event["name"]
+        if identity in param_identities:
+            return None, f"event {identity!r} collides with a param identity"
+        param_identities.add(identity)
+        arity = event.get("arity", 1)
+        if (not isinstance(arity, int) or isinstance(arity, bool)
+                or not 1 <= arity <= MAX_EVENT_ARITY):
+            return None, f"event {name}: arity must be 1, 2 or {MAX_EVENT_ARITY}"
+        event["arity"] = arity
+        labels = event.get("labels")
+        if labels is not None:
+            if (not isinstance(labels, list) or len(labels) != arity
+                    or any(not isinstance(label, str)
+                           or OPTION_LABEL.fullmatch(label) is None
+                           for label in labels)):
+                return None, (f"event {name}: labels must be {arity} names of "
+                              "1–32 characters")
+        defaults = event.get("defaults")
+        if defaults is not None:
+            if (not isinstance(defaults, list) or len(defaults) != arity
+                    or any(not isinstance(value, (int, float))
+                           or isinstance(value, bool) or not math.isfinite(value)
+                           for value in defaults)):
+                return None, f"event {name}: defaults must be {arity} numbers"
+        dashboard = event.get("dashboard")
+        if dashboard is not None and not isinstance(dashboard, bool):
+            return None, f"event {name}: dashboard must be true or false"
+        normalized_events.append(event)
+    if normalized_events or "events" in manifest:
+        manifest["events"] = normalized_events
 
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])

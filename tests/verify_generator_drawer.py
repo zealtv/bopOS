@@ -121,6 +121,10 @@ def density_ticks(path):
     return re.findall(r"p/density=([\d.eE+-]+)", read_log(path))
 
 
+def param_ticks(path, name):
+    return re.findall(r"p/%s=([\d.eE+-]+)" % name, read_log(path))
+
+
 def wait_ticking(path, distinct=3, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -151,6 +155,10 @@ def make_fixture(root, mixed):
             {"name": "density", "type": "f", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
             {"name": "label", "type": "s", "dashboard": True},
+            # Enums automate like ints (Q2, 2026-07-27): the generator drives
+            # the option INDEX, quantized on the same integer path.
+            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+             "default": 0, "dashboard": True},
         ], "cues": [], "caps": [], "slots": [],
     }
     with open(os.path.join(patch, "bopos.patch.json"), "w",
@@ -160,7 +168,7 @@ def make_fixture(root, mixed):
     def seat(seat_id, name, uid, density):
         return {"id": seat_id, "name": name, "positions": [[seat_id, 1]],
                 "groups": [], "bound": uid, "patch": "alpha",
-                "params": {"density": density, "label": "hi"}}
+                "params": {"density": density, "label": "hi", "mode": 0}}
 
     state = {
         "schema": 1, "name": "Generator drawer verifier",
@@ -320,6 +328,34 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
     check(f"[{label}] the underlying control is still usable",
           page.locator(ALL_DENSITY).count() == 1
           and not page.locator(ALL_DENSITY).is_disabled())
+
+    # --- an enum takes the same drawer, and drives the option index ---
+    # Q2 (2026-07-27): enums automate like ints. The row is a select, but the
+    # generator path underneath it is the integer one, so the ticks the node
+    # emits have to be whole option indices inside the declared range.
+    enum_row = ('.live-card[data-live-scope="all"] '
+                '.live-param[data-param-path="mode"]')
+    check(f"[{label}] an enum row carries the ∿ icon",
+          page.locator(enum_row + " [data-gen-toggle]").count() == 1)
+    page.click(enum_row + " [data-gen-toggle]")
+    enum_drawer = '.live-card[data-live-scope="all"] [data-gen-drawer$=":mode"]'
+    page.wait_for_selector(enum_drawer)
+    page.fill(enum_drawer + ' [data-param-lfo="period"]', "1")
+    page.click(enum_drawer + " [data-gen-apply]")
+    ticking = False
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not ticking:
+        ticking = len(set(param_ticks(fleet_log_path, "mode"))) >= 2
+        time.sleep(.2)
+    ticks = param_ticks(fleet_log_path, "mode")
+    check(f"[{label}] a generator on an enum runs on the node", ticking,
+          repr(ticks[-6:]))
+    check(f"[{label}] enum generator ticks are whole indices in range",
+          ticks and all(float(tick) == int(float(tick))
+                        and 0 <= float(tick) <= 2 for tick in ticks),
+          repr(sorted(set(ticks))))
+    page.click(enum_drawer + " [data-gen-stop]")
+    page.click(enum_row + " [data-gen-toggle]")
 
 
 def main():

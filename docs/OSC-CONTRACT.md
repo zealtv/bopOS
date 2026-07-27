@@ -768,6 +768,26 @@ A patch ships **`bopos.patch.json`** in its patch root:
   framework neither filters undeclared cue IDs nor schedules anything from
   the manifest. Duplicate IDs are invalid. An absent `cues` key is valid.
 
+- **`options` (optional; additive, 2026-07-27):** on a `type: "i"` param, a
+  list of 2–64 unique labels (1–32 characters, no newlines) naming its
+  indices — an *enum*. **The wire does not change:** the value is the integer
+  index, sent, replayed, persisted and automated exactly as any other integer
+  (§3.2 generators emit indices, quantized by the same path). `min`/`max` are
+  **derived** from the option count (`0`…`n-1`); an authored pair that
+  disagrees is invalid, so a saved manifest round-trips. Only the control
+  surface reads the labels. Pending the `44-event-plane` ratification of the
+  full kind grammar (toggle/integer/enum/event), which may re-express this as
+  an explicit `kind` field.
+- **`events` (optional; declared but NOT wired, 2026-07-27):** a top-level
+  list beside `params`, each `{"name": …, "path": […], "arity": 1|2|3,
+  "labels": […], "defaults": […], "dashboard": bool}`. `name`/`path` qualify
+  exactly like a param and may not collide with a param identity. **No plane
+  carries these yet:** whether events live on a new `<target>/e/*` plane or
+  extend `/p/*`, how forward synchronization is expressed, and what a preset
+  stores for one are all `44-event-plane`'s ratification questions. The
+  validator accepts the declaration and the control panel renders its row
+  inert so that design has a known surface; nothing is sent.
+
 ## 9. Distribution and landing
 
 ```

@@ -123,13 +123,24 @@ def make_fixture(root):
             # the ratified row grammar says "this parameter is an integer".
             {"name": "steps", "type": "i", "min": 0, "max": 8,
              "default": 2, "dashboard": True},
+            # An enum names its integer indices; the range is derived from the
+            # options, and it automates like any other integer (Q2 ruling).
+            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+             "default": 1, "dashboard": True},
             # A nested path exercises the branch renderer.
             {"name": "cutoff", "type": "f", "min": 0, "max": 1,
              "default": .5, "path": ["filter"], "dashboard": True},
             # A string declaration must omit `default` -- the validator only
             # allows numeric min/max/default (CLAUDE.md testing gotcha 7).
             {"name": "label", "type": "s", "dashboard": True},
-        ], "cues": [], "caps": [], "slots": [],
+        ],
+        # Declared, rendered, and inert: the `<target>/e/*` wire is
+        # `44-event-plane`'s question, so this row must render without
+        # sending anything.
+        "events": [{"name": "strike", "arity": 2,
+                    "labels": ["note", "velocity"], "defaults": [64, 127],
+                    "dashboard": True}],
+        "cues": [], "caps": [], "slots": [],
     }
     with open(os.path.join(patch, "bopos.patch.json"), "w",
               encoding="utf-8") as target:
@@ -141,7 +152,8 @@ def make_fixture(root):
         return {"id": seat_id, "name": name, "positions": [[seat_id, 1]],
                 "groups": [0], "bound": uid, "patch": "alpha",
                 "params": {"gate": 0, "density": .2, "steps": 2,
-                           "filter/cutoff": .5, "label": "hello"}}
+                           "filter/cutoff": .5, "label": "hello",
+                           "mode": 1}}
 
     state = {
         "schema": 1, "name": "Control surface verifier",
@@ -176,7 +188,8 @@ PARITY_JS = """
       },
     },
   };
-  const declarations = installation.live_controls.declarations
+  const declarations = [...installation.live_controls.declarations,
+                        ...(installation.live_controls.events || [])]
     .map(d => ({...d, path: d.path || []}));
   const device = {online: true, engine_alive: 1, device_enabled: true,
                   output_enabled: true, uid: seat.bound};
@@ -312,6 +325,56 @@ MIXED_TAKEOVER_JS = """
 }
 """
 
+# The non-float kinds (control-panel-design §2), measured on the probe host
+# inside a real `.live-card` so the panel stylesheet applies. `gate` was
+# clicked on before this runs, so it reads as pressed; `mode` is an enum over
+# three option labels; `strike` is a declared event, which must render its
+# ratified row and stay inert.
+KIND_SHAPE_JS = """
+() => {
+  const host = document.getElementById("surface-probe");
+  const row = path => host.querySelector(`.live-param[data-param-path="${path}"]`);
+  const gate = row("gate");
+  const toggle = gate.querySelector("button.live-toggle");
+  const mode = row("mode");
+  const select = mode.querySelector("select.live-enum");
+  const event = row("strike");
+  const boxes = [...event.querySelectorAll(".live-event-box")];
+  return {
+    toggleIsButton: toggle.tagName === "BUTTON",
+    togglePressed: toggle.getAttribute("aria-pressed"),
+    toggleName: toggle.textContent.trim(),
+    // A latching control is sharp, a momentary one is rounded (§8).
+    toggleRadius: getComputedStyle(toggle).borderTopLeftRadius,
+    toggleNoCheckbox: !gate.querySelector('input[type="checkbox"]'),
+    toggleHasMod: !!gate.querySelector("button.live-param-mod"),
+    enumOptions: [...select.options].map(option => option.textContent),
+    enumValue: select.value,
+    enumHasMod: !!mode.querySelector("button.live-param-mod"),
+    eventArity: event.dataset.eventArity,
+    eventBoxes: boxes.map(box => box.textContent),
+    eventHidden: boxes.map(box => getComputedStyle(box).visibility),
+    eventButtons: [...event.querySelectorAll("button")].map(
+      button => [button.textContent.trim(), button.disabled]),
+    eventNoLiveParam: !event.querySelector("[data-live-param]"),
+  };
+}
+"""
+
+
+# Changing an enum puts the option INDEX on the wire, not its label: the enum
+# is a labelled view of the same integer a generator drives (Q2).
+ENUM_SEND_JS = """
+() => {
+  const select = document.querySelector(
+    '#surface-probe select.live-enum[data-param-path="mode"]');
+  select.value = "2";
+  select.dispatchEvent(new Event("change", {bubbles: true}));
+  return (window.__probeSent || []).at(-1);
+}
+"""
+
+
 # The hierarchy accordion (design-language §9): a `<details>` whose `<summary>`
 # is the `▸ name` / `▾ name` disclosure row, children indented 12px. The
 # disclosure glyph is a `::before`, so it is invisible to textContent and has
@@ -408,14 +471,14 @@ def main():
                           '.live-param-branch[data-param-branch="filter"] '
                           'input[data-live-param]'
                           '[data-param-path="filter/cutoff"]').count() == 1)
-                check("string and boolean declarations render their own kinds",
+                check("string and toggle declarations render their own kinds",
                       page.locator(
                           '.live-card[data-live-scope="all"] '
                           'input[type="text"][data-param-path="label"]'
                       ).count() == 1
                       and page.locator(
                           '.live-card[data-live-scope="all"] '
-                          'input[type="checkbox"][data-param-path="gate"]'
+                          'button.live-toggle[data-param-path="gate"]'
                       ).count() == 1)
 
                 page.click('[data-target-mode="groups"]')
@@ -445,7 +508,7 @@ def main():
 
                 # --- (d) the send is the host's, carrying scope + uid ---
                 page.click(
-                    '#surface-probe input[type="checkbox"]'
+                    '#surface-probe button.live-toggle'
                     '[data-param-path="gate"]')
                 sent = page.evaluate("() => window.__probeSent || []")
                 check("device-scoped row calls the host send with scope+uid",
@@ -499,6 +562,36 @@ def main():
                       and grammar["manualMarkerLine"] != "none",
                       repr([grammar["manualStaticFill"],
                             grammar["manualMarkerLine"]]))
+
+                # --- the non-float kinds (01-control-panel/6) ---
+                kinds = page.evaluate(KIND_SHAPE_JS)
+                check("a 0/1 int is a latching button, not a checkbox",
+                      kinds["toggleIsButton"] and kinds["toggleNoCheckbox"]
+                      and kinds["togglePressed"] == "true"
+                      and kinds["toggleName"] == "gate"
+                      and kinds["toggleRadius"] == "1px",
+                      repr(kinds))
+                check("a toggle carries the ∿ icon like any numeric row",
+                      kinds["toggleHasMod"] and kinds["enumHasMod"],
+                      repr([kinds["toggleHasMod"], kinds["enumHasMod"]]))
+                check("an enum renders its manifest option labels",
+                      kinds["enumOptions"] == ["dry", "hall", "plate"]
+                      and kinds["enumValue"] == "1", repr(kinds))
+                enum_sent = page.evaluate(ENUM_SEND_JS)
+                check("choosing an enum option sends its integer index",
+                      enum_sent
+                      and enum_sent.get("name") == "mode"
+                      and enum_sent.get("value") == 2, repr(enum_sent))
+                check("an event declaration renders arity boxes plus sync/send",
+                      kinds["eventArity"] == "2"
+                      and kinds["eventBoxes"] == ["64", "127", ""]
+                      and kinds["eventHidden"][2] == "hidden",
+                      repr(kinds))
+                check("the event row sends nothing until 44-event-plane lands",
+                      kinds["eventNoLiveParam"]
+                      and kinds["eventButtons"] == [["sync", True],
+                                                    ["send", True]],
+                      repr(kinds["eventButtons"]))
 
                 takeover = page.evaluate(MIXED_TAKEOVER_JS)
                 check("a disagreeing aggregate hatches its slider",

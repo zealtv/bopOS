@@ -228,11 +228,49 @@
       </div>`;
     }
 
+    // ---- parameter kinds (01-control-panel/6) ------------------------------
+    // One dispatch for the whole surface. Enum is checked before toggle
+    // because a two-option enum also spans 0..1, and it is the `options` list —
+    // not the range — that says "this integer names its values".
+    function paramKind(declaration) {
+      if (declaration.kind === "event") return "event";
+      if (declaration.type === "s") return "string";
+      if (Array.isArray(declaration.options) && declaration.options.length) return "enum";
+      if (declaration.type === "i" && Number(declaration.min) === 0 &&
+          Number(declaration.max) === 1) return "toggle";
+      return "numeric";
+    }
+
     function scopeAttrs(scope, id, declaration) {
       return `data-live-param data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"`;
     }
 
+    // An event declaration renders its ratified row — 1–3 value boxes, `sync`,
+    // `send` — and nothing else: the `<target>/e/*` wire is `44-event-plane`'s
+    // contract question, so every control here is inert and says so. The row
+    // exists now because the panel's layout had to be designed against it.
+    function eventRow(declaration) {
+      const arity = Math.min(3, Math.max(1, Number(declaration.arity) || 1));
+      const labels = Array.isArray(declaration.labels) ? declaration.labels : [];
+      const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
+      const boxes = [0, 1, 2].map(index => {
+        // `blank`, not `empty`: the facilitator page owns a global `.empty`
+        // utility (the "no seats" message) that would push the box down 8vh.
+        if (index >= arity) return '<span class="live-event-box blank" aria-hidden="true"></span>';
+        const shown = defaults[index] == null ? "—" : defaults[index];
+        const name = labels[index] || `element ${index}`;
+        return `<span class="live-event-box" aria-label="${esc(`${declaration.name} ${name}`)}">${esc(shown)}</span>`;
+      }).join("");
+      const title = "Events are not wired yet (44-event-plane)";
+      return `<div class="live-param live-param-event" data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}" title="${esc(title)}">
+        ${boxes}<span class="live-param-name">${esc(declaration.name)}</span>
+        <button type="button" class="live-event-sync" aria-pressed="false" aria-label="${esc(`${declaration.name} forward synchronization`)}" disabled>sync</button>
+        <button type="button" class="live-event-send" aria-label="${esc(`send ${declaration.name}`)}" disabled>send</button>
+      </div>`;
+    }
+
     function paramControl(scope, id, members, declaration, disabled) {
+      if (paramKind(declaration) === "event") return eventRow(declaration);
       const state = aggregateValue(members, declaration);
       const mixed = state.mixed || state.automationMixed;
       const value = state.value;
@@ -243,14 +281,30 @@
       const valueLabel = state.mixed ? `${declaration.name}, mixed values` : declaration.name;
       const label = automation ? `${valueLabel}, automated, ${automation.label}` : valueLabel;
       const common = `${attrs} data-param-name="${esc(declaration.name)}" aria-label="${esc(label)}" ${automation ? 'data-automated="true"' : ""} ${disabled ? "disabled" : ""}`;
-      const mixedText = state.automationMixed ? '<span class="live-param-auto-mixed">auto·mixed</span>' : "";
       const glyph = automation ? `<span class="live-param-glyph" aria-hidden="true">${automation.glyph}</span>` : "";
       const nameSpan = `<span class="live-param-name">${esc(declaration.name)}${glyph}</span>`;
+      const kind = paramKind(declaration);
       let input;
-      if (declaration.type === "s") {
+      if (kind === "string") {
         input = `<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
-      } else if (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1) {
-        input = `<input ${common} type="checkbox" ${!mixed && Number(value) ? "checked" : ""} ${mixed ? 'data-mixed="true"' : ""}>`;
+      } else if (kind === "toggle") {
+        // A latching button, not a checkbox: PD heritage says a toggle is a
+        // square box, and the name belongs inside the control. Under a
+        // generator the button keeps reporting the live value; the flash class
+        // is what makes a sub-heartbeat LFO legible (see the CSS).
+        const on = !mixed && !!Number(value);
+        const flashing = !!model && model.parsed.mode === "lfo";
+        const flashStyle = flashing
+          ? ` style="--auto-period:${model.periodMs}ms;--auto-elapsed:${model.elapsedMs}ms"` : "";
+        input = `<button type="button" class="live-toggle${flashing ? " auto-flash" : ""}" ${common} aria-pressed="${on}" ${mixed ? 'data-mixed="true"' : ""}${flashStyle}>${esc(declaration.name)}</button>`;
+      } else if (kind === "enum") {
+        // Enums automate like ints (Q2): the value on the wire is the index,
+        // so the select is a labelled view of the same integer a generator
+        // drives. `mixed` has no option to select, hence the dotted placeholder.
+        const options = declaration.options.map((label, index) =>
+          `<option value="${index}"${!mixed && Number(value) === index ? " selected" : ""}>${esc(label)}</option>`).join("");
+        const mixedOption = mixed ? '<option value="" selected disabled>·····</option>' : "";
+        input = `<select class="live-enum" ${common} ${mixed ? 'data-mixed="true"' : ""}>${mixedOption}${options}</select>${nameSpan}`;
       } else {
         // The value box is a number box, not a state legend: mixed states show
         // the ratified dots and carry the words in the accessible name, which
@@ -311,11 +365,16 @@
       // A mixed row hatches in the modulation ink as soon as a generator is
       // anywhere in the aggregate — one pattern, two inks (design §6).
       const mixedMod = mixed && (state.automationMixed || !!state.automation);
-      // Numeric rows put the name inside the slider; the other kinds keep the
-      // leading name span until `6-non-float-kinds` regrinds them.
-      const nameOutside = declaration.type === "s" ||
-        (declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1);
-      return `<label class="live-param${mixed ? " mixed" : ""}${mixedMod ? " mixed-mod" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}" data-param-path="${esc(declaration.identity)}">${nameOutside ? nameSpan : ""}${declaration.type === "i" && Number(declaration.min) === 0 && Number(declaration.max) === 1 ? mixedText : ""}${input}${modButton}</label>${drawer}`;
+      // Every kind but the string row now carries its name inside (toggle) or
+      // beside (enum) its own control; only the text box still needs a leading
+      // name span.
+      const nameOutside = kind === "string";
+      // The toggle's control is a <button>, and a <label> whose labelled
+      // control is a button forwards its own clicks to it — so that row is a
+      // plain container instead.
+      const tag = kind === "toggle" ? "div" : "label";
+      const classes = `live-param live-param-${kind}${mixed ? " mixed" : ""}${mixedMod ? " mixed-mod" : ""}${automation ? " automated" : ""}${!online ? " automation-offline" : ""}${deviceOutputDisabled ? " automation-muted" : ""}${open ? " gen-open" : ""}`;
+      return `<${tag} class="${classes}" data-param-path="${esc(declaration.identity)}">${nameOutside ? nameSpan : ""}${input}${modButton}</${tag}>${drawer}`;
     }
 
     function paramTree(scope, id, members, declarations, disabled) {
@@ -431,7 +490,8 @@
 
     function bindParams(root = document) {
       root.querySelectorAll("[data-live-param]").forEach(input => {
-        if (input.type === "checkbox" && input.dataset.mixed === "true") input.indeterminate = true;
+        const toggle = input.tagName === "BUTTON";
+        const select = input.tagName === "SELECT";
         let last = 0, timer = null, takingOver = false, takeoverSent = false;
         const beginTakeover = () => {
           if (input.dataset.automated !== "true") return;
@@ -451,13 +511,16 @@
         };
         const send = (override) => {
           if (takingOver && takeoverSent) return;
-          input.indeterminate = false;
           input.dataset.mixed = "false";
-          input.closest(".live-param")?.classList.remove("mixed");
+          input.closest(".live-param")?.classList.remove("mixed", "mixed-mod");
           // `override` carries the exact typed value from the precision field, which
           // bypasses the range's coarse step so full precision reaches the wire.
+          // A toggle and an enum both put an integer on the same `/p/*` wire —
+          // the toggle its pressed state, the enum its option index.
           const value = override !== undefined ? override
-            : input.type === "checkbox" ? (input.checked ? 1 : 0) : input.type === "range" ? Number(input.value) : input.value;
+            : toggle ? (input.getAttribute("aria-pressed") === "true" ? 1 : 0)
+            : select ? Number(input.value)
+            : input.type === "range" ? Number(input.value) : input.value;
           const scope = input.dataset.liveScope;
           const id = input.dataset.liveId == null ? null : input.dataset.liveId;
           context.send({scope, id, name: input.dataset.paramPath, value});
@@ -467,7 +530,21 @@
           }
         };
         input.onpointerdown = beginTakeover;
-        if (input.type === "range") {
+        if (toggle) {
+          // The button IS the state: flip `aria-pressed` first, then send what
+          // it now reads, so semantics and the wire cannot disagree. A mixed
+          // aggregate resolves to "on" — the same "editing unifies" rule the
+          // slider follows.
+          input.onclick = () => {
+            const wasMixed = input.dataset.mixed === "true";
+            input.setAttribute("aria-pressed",
+              String(wasMixed || input.getAttribute("aria-pressed") !== "true"));
+            input.classList.remove("auto-flash");
+            send();
+          };
+        } else if (select) {
+          input.onchange = () => send();
+        } else if (input.type === "range") {
           input.oninput = () => {
             syncFill(input);
             const output = input.closest(".live-param")?.querySelector("output");

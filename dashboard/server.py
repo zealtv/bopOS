@@ -1479,6 +1479,26 @@ class Dashboard:
             declarations.append(projected)
         return declarations
 
+    def live_event_declarations(self, patch_name=None):
+        """Declared event params for the staged patch.
+
+        Events are carried beside the parameter schema rather than inside it:
+        they are not `/p/*` values, so nothing that consumes `declarations`
+        (replay, presets, the Show message builder) should see them. The
+        control panel renders them disabled until `44-event-plane` ratifies the
+        `<target>/e/*` wire.
+        """
+        manifest = self.live_control_manifest(patch_name)
+        if manifest is None:
+            return []
+        declarations = []
+        for item in manifest.get("events", ()):
+            projected = dict(item)
+            projected["kind"] = "event"
+            projected["identity"] = patch_manifest.qualify_param(item)
+            declarations.append(projected)
+        return declarations
+
     def replay_live_params_for_seat(self, seat):
         """Replay one Seat snapshot through the staged parameter schema."""
         for declaration in self.live_control_declarations():
@@ -1626,6 +1646,7 @@ class Dashboard:
                 "patch": override["name"],
                 "declarations": self.live_control_declarations(
                     override["name"]),
+                "events": self.live_event_declarations(override["name"]),
             }
         public["desired_patch"] = effective_desired
         return public
@@ -1642,9 +1663,12 @@ class Dashboard:
                              for uid, device in self.state.devices.items()}
         declarations = self.live_control_declarations()
         cues = self.live_cue_declarations()
+        events = self.live_event_declarations()
         public["live_controls"] = {
-            "patch": self.state.data.get("params_patch") if declarations else None,
+            "patch": (self.state.data.get("params_patch")
+                      if declarations or events else None),
             "declarations": declarations,
+            "events": events,
         }
         public["live_cues"] = {
             "patch": self.state.data.get("params_patch") if cues else None,

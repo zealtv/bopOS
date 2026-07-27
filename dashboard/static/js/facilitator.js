@@ -54,9 +54,14 @@ function liveSchema() {
   // The embedded page is the desktop Control tab and exposes the complete
   // manifest. The standalone facilitator/iPad surface remains deliberately
   // curated by the manifest's `dashboard: true` compatibility field.
+  // Event declarations travel beside the params (they are not `/p/*` values);
+  // the surface that renders rows folds them back in, so nothing else that
+  // reads `declarations` ever sees them.
+  const items = [...schema.declarations,
+                 ...(Array.isArray(schema.events) ? schema.events : [])];
   const visible = embedded
-    ? schema.declarations
-    : schema.declarations.filter(declaration => declaration?.dashboard === true);
+    ? items
+    : items.filter(declaration => declaration?.dashboard === true);
   const valid = visible.every(declaration =>
     declaration &&
     typeof declaration.identity === "string" && declaration.identity.length > 0 &&
@@ -154,13 +159,13 @@ ws.on("cue_scheduled", data => {
 let interacting = false;
 $("#cue-lead").addEventListener("input", () => { cueLeadModified = true; });
 document.addEventListener("pointerdown", event => {
-  if (event.target.matches('input[type="range"], input[type="checkbox"][data-live-param]')) interacting = true;
+  if (event.target.matches('input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]')) interacting = true;
 });
 document.addEventListener("pointerup", () => {
   if (!interacting) return;
-  // Checkbox change/click follows pointerup; keep the render guard through that
-  // event so a live-param checkbox (automated or plain) survives a heartbeat
-  // re-render long enough to fire onchange and send its value (thread 43).
+  // Click/change follows pointerup; keep the render guard through that event so
+  // a live-param toggle or enum (automated or plain) survives a heartbeat
+  // re-render long enough to fire its handler and send its value (thread 43).
   setTimeout(() => { interacting = false; render(); }, 0);
 });
 

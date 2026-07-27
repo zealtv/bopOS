@@ -1193,7 +1193,11 @@ function setDeviceControlOpen(open) {
 function deviceLiveSchema(d) {
   const schema=d?.live_controls?.declarations?.length?d.live_controls:installation.live_controls;
   if(!schema||!Array.isArray(schema.declarations))return null;
-  return {patch:schema.patch,declarations:schema.declarations.map(item=>({...item,path:item.path||[]}))};
+  // Event declarations travel beside the params (they are not `/p/*` values)
+  // and are folded back in here, at the surface that renders rows — so nothing
+  // else that reads `declarations` ever sees them.
+  const items=[...schema.declarations,...(Array.isArray(schema.events)?schema.events:[])];
+  return {patch:schema.patch,declarations:items.map(item=>({...item,path:item.path||[]}))};
 }
 
 function deviceControlSection(d) {

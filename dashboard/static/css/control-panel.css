@@ -210,18 +210,16 @@
 }
 
 /* ---- 7b. Native widget inks ---------------------------------------------
-   The shipping surface painted the facilitator's 0/1 checkbox warm amber,
-   which is off-book under the ratified palette: cyan is reserved for
-   modulation and there is no third hue. Manual controls take the structural
-   accent. (The numeric range track no longer paints itself at all — §12
-   replaces it with the `--value-fill` fill + marker line.) The facilitator's
-   text param reads `--bg` for its field, which is now the saturated page
-   pink — a value box is `--input`. */
+   Manual controls take the structural accent; cyan is reserved for
+   modulation and there is no third hue. (The numeric range track no longer
+   paints itself at all — §12 replaces it with the `--value-fill` fill +
+   marker line, and the 0/1 checkbox that used to be painted warm amber here
+   became the §15 latching button.) The facilitator's text param reads `--bg`
+   for its field, which is now the saturated page pink — a value box is
+   `--input`. */
 
 .live-card .live-param input[type=range],
-.device-control .live-param input[type=range],
-.live-card .live-param input[type=checkbox],
-.device-control .live-param input[type=checkbox] {
+.device-control .live-param input[type=range] {
   accent-color:var(--accent);
 }
 .live-card .live-param input[type=text],
@@ -616,4 +614,203 @@
   display:grid;
   gap:var(--gap);
   margin-left:12px;       /* the drawer indent, reused (design-language §4) */
+}
+
+/* ---- 15. Non-float kinds (control-panel-design §2) ----------------------
+   `6-non-float-kinds`. Integers already ride the numeric row (step 1, a
+   right-aligned box); what lands here is the toggle button that replaced the
+   checkbox, the enum select, and the event row rendered inert pending
+   `44-event-plane`.
+
+   All three keep the numeric row's column rhythm — the ∿ icon stays in the
+   same 18px column down the whole panel — which is why they are grids rather
+   than the shipping flex row. */
+
+.live-card .live-param-toggle,
+.device-control .live-param-toggle,
+.live-card .live-param-enum,
+.device-control .live-param-enum {
+  display:grid;
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+}
+/* The toggle's button spans the value and slider columns: with the name
+   inside the control there is nothing to put beside it, and an empty 58px
+   column is exactly the wasted space this overhaul is removing. */
+.live-card .live-param-toggle,
+.device-control .live-param-toggle {
+  grid-template-columns:minmax(0,1fr) 18px;
+}
+.live-card .live-param-enum,
+.device-control .live-param-enum {
+  grid-template-columns:auto minmax(0,1fr) 18px;
+}
+
+/* --- the toggle: a latching button, sharp like a PD toggle box --- */
+.live-card .live-toggle,
+.device-control .live-toggle {
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  min-width:0;
+  height:var(--row-h);
+  padding:0 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  cursor:pointer;
+}
+/* §5's generic `button[aria-pressed=true]` face is a 1px inset ring; a toggle
+   is a value display, so it takes the fill flat. */
+.live-card .live-toggle[aria-pressed=true],
+.device-control .live-toggle[aria-pressed=true] {
+  background:var(--value-fill);
+  box-shadow:none;
+}
+.live-card .live-param.automated .live-toggle,
+.device-control .live-param.automated .live-toggle {
+  border-color:var(--mod);
+  box-shadow:0 0 0 1px var(--mod);   /* double-outlined: driven, not idle */
+  color:var(--mod);
+}
+.live-card .live-param.automated .live-toggle[aria-pressed=true],
+.device-control .live-param.automated .live-toggle[aria-pressed=true] {
+  background:var(--mod-fill);
+}
+/* A generator crosses the 0/1 threshold faster than the heartbeat re-renders,
+   so the pressed state alone would under-report it. Under an LFO the face
+   flashes at the generator's own period, phase-anchored by `--auto-elapsed`
+   like the slider marker — the crossing rate is exact for any shape, the duty
+   is the 50% a symmetric shape actually has. Fades and loops are not periodic,
+   so they keep the value the heartbeat reports. */
+.live-card .live-toggle.auto-flash,
+.device-control .live-toggle.auto-flash {
+  animation:live-toggle-flash var(--auto-period,1000ms) steps(1) infinite;
+  animation-delay:calc(-1 * var(--auto-elapsed,0ms));
+}
+@keyframes live-toggle-flash {
+  0%   {background:var(--mod-fill)}
+  50%  {background:var(--input)}
+  100% {background:var(--mod-fill)}
+}
+/* Mixed: the same 45° slash, the same two inks as every other control. */
+.live-card .live-param.mixed .live-toggle,
+.device-control .live-param.mixed .live-toggle {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+  animation:none;
+}
+.live-card .live-param.mixed.mixed-mod .live-toggle,
+.device-control .live-param.mixed.mixed-mod .live-toggle {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+
+/* --- the enum: a select over the integer index --- */
+.live-card .live-enum,
+.device-control .live-enum {
+  box-sizing:border-box;
+  min-width:58px;             /* the standardized number-box width, as a floor */
+  max-width:140px;
+  height:var(--row-h);
+  padding:0 4px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+}
+.live-card .live-param-enum > .live-param-name,
+.device-control .live-param-enum > .live-param-name {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.live-card .live-param.automated .live-enum,
+.device-control .live-param.automated .live-enum {
+  border-color:var(--mod);
+  color:var(--mod);
+  background:var(--mod-soft);
+}
+.live-card .live-param.mixed .live-enum,
+.device-control .live-param.mixed .live-enum {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+}
+.live-card .live-param.mixed.mixed-mod .live-enum,
+.device-control .live-param.mixed.mixed-mod .live-enum {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+
+/* --- the event row: rendered, inert (44-event-plane owns the wire) --- */
+.live-card .live-param-event,
+.device-control .live-param-event {
+  display:grid;
+  grid-template-columns:repeat(3,58px) minmax(60px,1fr) auto auto;
+  gap:4px;
+  align-items:center;
+  min-height:var(--row-h);
+  font-size:12px;
+}
+.live-card .live-event-box,
+.device-control .live-event-box {
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  height:var(--row-h);
+  padding:0 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  background:var(--input);
+  color:var(--text);
+  font-variant-numeric:tabular-nums;
+}
+.live-card .live-event-box.blank,
+.device-control .live-event-box.blank {
+  visibility:hidden;          /* the slot holds the column, arity holds the box */
+}
+.live-card .live-param-event > .live-param-name,
+.device-control .live-param-event > .live-param-name {
+  min-width:0;
+  color:var(--dim);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.live-card .live-param-event button,
+.device-control .live-param-event button {
+  min-height:20px;
+  padding:1px 6px;
+  border:1px solid var(--control-line);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:11px;
+}
+.live-card .live-param-event button:disabled,
+.device-control .live-param-event button:disabled {
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-toggle.auto-flash,
+  .device-control .live-toggle.auto-flash {
+    animation:none;
+  }
 }

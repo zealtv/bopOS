@@ -169,6 +169,58 @@ class ManifestTests(unittest.TestCase):
         self.assert_invalid(caps="screen")
         self.assert_invalid(slots=[1])
 
+    def test_enum_options_derive_the_index_range(self):
+        loaded, error = self.validate([
+            self.declaration("mode", "i", options=["dry", "hall", "plate"],
+                             default=1),
+        ])
+        self.assertIsNone(error)
+        # The wire stays an integer index, so the range is the option indices
+        # and is derived rather than authored.
+        self.assertEqual(loaded["params"][0]["min"], 0)
+        self.assertEqual(loaded["params"][0]["max"], 2)
+
+        # An authored range that agrees survives a save/load round trip.
+        agreed, error = self.validate([
+            self.declaration("mode", "i", options=["a", "b"], min=0, max=1),
+        ])
+        self.assertIsNone(error)
+        self.assertEqual(agreed["params"][0]["max"], 1)
+
+        self.assert_invalid([self.declaration("mode", "f", options=["a", "b"])])
+        self.assert_invalid([self.declaration("mode", "i", options=["only"])])
+        self.assert_invalid([self.declaration("mode", "i", options=["a", "a"])])
+        self.assert_invalid([self.declaration("mode", "i", options=["a", "b\n"])])
+        self.assert_invalid([
+            self.declaration("mode", "i", options=["a", "b"], max=7)])
+        self.assert_invalid([
+            self.declaration("mode", "i", options=["a", "b"], default=.5)])
+
+    def test_event_declarations_are_validated_beside_the_params(self):
+        loaded, error = self.validate(
+            [self.declaration("gain")],
+            events=[{"name": "note", "arity": 2,
+                     "labels": ["pitch", "velocity"], "defaults": [64, 127]},
+                    {"name": "hit", "path": ["drum"]}],
+        )
+        self.assertIsNone(error)
+        self.assertEqual(loaded["events"][0]["arity"], 2)
+        # Arity defaults to a single element, the mockup's `event[1]`.
+        self.assertEqual(loaded["events"][1]["arity"], 1)
+        self.assertEqual(
+            manifest.qualify_param(loaded["events"][1]), "drum/hit")
+
+        self.assert_invalid(events=[{"name": "note", "arity": 4}])
+        self.assert_invalid(events=[{"name": "note", "arity": 2,
+                                     "labels": ["only"]}])
+        self.assert_invalid(events=[{"name": "note", "defaults": ["loud"]}])
+        self.assert_invalid(events=[{"name": "note"}, {"name": "note"}])
+        self.assert_invalid(events=[{"name": "bad name"}])
+        self.assert_invalid(events="note")
+        # An event and a param cannot claim the same address.
+        self.assert_invalid([self.declaration("note", "i", min=0, max=1)],
+                            events=[{"name": "note"}])
+
     def test_atomic_write_normalizes_without_mutating_the_candidate(self):
         candidate = self.candidate([
             self.declaration(facilitator=True, group="legacy-layout")

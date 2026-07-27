@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Real-dashboard + simfleet verification for facilitator live-param checkbox
-toggles (43-live-param-checkbox-nosend).
+"""Real-dashboard + simfleet verification for the live-param control kinds
+reaching the wire (43-live-param-checkbox-nosend, kinds per
+01-control-panel/6-non-float-kinds).
 
 The regression: DOM event handlers were bound as `input.onchange = send`, so
 the Event object landed in send()'s `override` parameter and went to the wire
@@ -9,13 +10,21 @@ as the JSON-serialized event (`{"isTrusted":true}`), which the server rejects
 throttled oninput path, so they were fully broken; slider onchange/onpointerup
 sends were silently rejected too but masked by oninput.
 
+The 0/1 control is no longer a checkbox: the ratified design makes it a
+latching button (`aria-pressed`), and enums join it as a select over the
+option index. The regression above is a property of the *binding*, so it is
+re-pinned here for every kind that binds.
+
 Under real heartbeat cadence (the re-render race is part of the repro) this
-clicks an All-card live checkbox and asserts:
+clicks an All-card live toggle and asserts:
   (a) the numeric value reaches the wire (`p/<name>=<value>` in the fleet log),
   (b) the seat params persist into installation.json on disk,
-  (c) the checkbox state survives heartbeat re-renders (no revert),
+  (c) the toggle state survives heartbeat re-renders (no revert),
   (d) no server error alert fires,
-and repeats the wire assertion for the slider's change-commit path.
+and repeats the wire assertion for the slider's change-commit path, the
+integer row, and the enum select.
+
+Owned by code surface (control-surface.js), not by a stitch.
 """
 
 import json
@@ -131,15 +140,19 @@ def make_fixture(root):
     os.makedirs(assets)
     os.makedirs(state_dir)
     with open(os.path.join(patch, "main.bin"), "wb") as target:
-        target.write(b"checkbox-verifier")
+        target.write(b"param-kinds-verifier")
     manifest = {
         "engine": "test", "entrypoint": "main.bin",
         "params": [
-            # i with min 0 / max 1 renders as the live checkbox under test.
+            # i with min 0 / max 1 renders as the latching toggle button.
             {"name": "gate", "type": "i", "min": 0, "max": 1,
              "default": 0, "dashboard": True},
             {"name": "density", "type": "f", "min": 0, "max": 1,
              "default": .2, "dashboard": True},
+            {"name": "steps", "type": "i", "min": 0, "max": 8,
+             "default": 2, "dashboard": True},
+            {"name": "mode", "type": "i", "options": ["dry", "hall", "plate"],
+             "default": 0, "dashboard": True},
         ], "cues": [], "caps": [], "slots": [],
     }
     with open(os.path.join(patch, "bopos.patch.json"), "w",
@@ -151,10 +164,10 @@ def make_fixture(root):
         # Identical values keep the All aggregate non-mixed.
         return {"id": seat_id, "name": name, "positions": [[seat_id, 1]],
                 "groups": [], "bound": uid, "patch": "alpha",
-                "params": {"gate": 0, "density": .2}}
+                "params": {"gate": 0, "density": .2, "steps": 2, "mode": 0}}
 
     state = {
-        "schema": 1, "name": "Checkbox verifier",
+        "schema": 1, "name": "Param kinds verifier",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "staged_at": time.time(), "previous": None},
         "params_patch": "alpha",
@@ -168,7 +181,7 @@ def make_fixture(root):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="bopos-live-checkbox-") as temp:
+    with tempfile.TemporaryDirectory(prefix="bopos-live-param-kinds-") as temp:
         state_path = make_fixture(temp)
         assets = os.path.join(temp, "assets")
         patches = os.path.join(temp, "patches")
@@ -221,33 +234,36 @@ def main():
                     "() => Object.keys(installation.devices||{}).length === 2")
 
                 gate = ('.live-card[data-live-scope="all"] '
-                        'input[type="checkbox"][data-live-param]'
+                        'button.live-toggle[data-live-param]'
                         '[data-param-path="gate"]')
-                check("All card renders the 0/1 int param as a live checkbox",
-                      page.locator(gate).count() == 1)
+                check("All card renders the 0/1 int param as a latching button",
+                      page.locator(gate).count() == 1
+                      and page.locator(gate).get_attribute("aria-pressed")
+                      == "false")
 
                 # --- toggle on: numeric wire value, disk persistence ---
                 page.locator(gate).click()
-                check("checking sends the numeric value to the wire",
+                check("latching the toggle sends the numeric value to the wire",
                       wait_log(fleet_log_path, r"p/gate=1(\b|\.)"),
                       "fleet log missing p/gate=1")
-                check("checked value persists into installation.json seats",
+                check("the latched value persists into installation.json seats",
                       wait_state(state_path, lambda state: all(
                           seat.get("params", {}).get("gate") == 1
                           for seat in state.get("seats", {}).values())))
 
                 # --- survives heartbeat re-renders: no revert, no alert ---
                 page.wait_for_timeout(1500)
-                check("checkbox stays checked across heartbeat re-renders",
-                      page.locator(gate).is_checked())
+                check("the toggle stays latched across heartbeat re-renders",
+                      page.locator(gate).get_attribute("aria-pressed")
+                      == "true")
                 check("no server rejection alert fired", not alerts, repr(alerts))
 
                 # --- toggle off round-trips too ---
                 page.locator(gate).click()
-                check("unchecking sends 0 to the wire",
+                check("unlatching sends 0 to the wire",
                       wait_log(fleet_log_path, r"p/gate=0(\b|\.)"),
                       "fleet log missing p/gate=0")
-                check("unchecked value persists into installation.json seats",
+                check("the unlatched value persists into installation.json",
                       wait_state(state_path, lambda state: all(
                           seat.get("params", {}).get("gate") == 0
                           for seat in state.get("seats", {}).values())))
@@ -261,6 +277,34 @@ def main():
                 check("slider change-commit reaches the wire numerically",
                       wait_log(fleet_log_path, r"p/density=0\.21(\b|0)"),
                       "fleet log missing p/density=0.21")
+
+                # --- the integer row steps by 1 on the same numeric path ---
+                steps = ('.live-card[data-live-scope="all"] '
+                         'input[type="range"][data-live-param]'
+                         '[data-param-path="steps"]')
+                page.locator(steps).focus()
+                page.keyboard.press("ArrowRight")
+                check("an integer row steps by one to the wire",
+                      wait_log(fleet_log_path, r"p/steps=3(\b|\.)"),
+                      "fleet log missing p/steps=3")
+
+                # --- the enum select sends the option index, not the label ---
+                enum = ('.live-card[data-live-scope="all"] '
+                        'select.live-enum[data-live-param]'
+                        '[data-param-path="mode"]')
+                check("All card renders the enum param as a select",
+                      page.locator(enum).count() == 1)
+                page.select_option(enum, "2")
+                check("choosing an option sends its index to the wire",
+                      wait_log(fleet_log_path, r"p/mode=2(\b|\.)"),
+                      "fleet log missing p/mode=2")
+                check("the enum index persists into installation.json seats",
+                      wait_state(state_path, lambda state: all(
+                          seat.get("params", {}).get("mode") == 2
+                          for seat in state.get("seats", {}).values())))
+                page.wait_for_timeout(1500)
+                check("the enum selection survives heartbeat re-renders",
+                      page.locator(enum).input_value() == "2")
 
                 page.wait_for_timeout(400)
                 check("no rejection alert across the whole run", not alerts,
@@ -284,7 +328,7 @@ def main():
     if FAILURES:
         print("FAILED:", ", ".join(FAILURES))
         return 1
-    print("Live-param checkbox browser checks passed")
+    print("Live-param kind browser checks passed")
     return 0
 
 
