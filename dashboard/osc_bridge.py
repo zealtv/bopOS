@@ -538,6 +538,34 @@ class OSCBridge:
         self.send("/cue", [str(cue_id), str(shared_time_ns)])
         return shared_time_ns
 
+    def fire_event(self, selector, identity, elements, lead_ms=500):
+        """Schedule a targetable event, or fire on arrival when lead is zero."""
+        identity = str(identity)
+        identity_parts = identity.split("/")
+        try:
+            identity_bytes = identity.encode("ascii")
+        except UnicodeEncodeError as error:
+            raise ValueError(f"bad event identity {identity!r}") from error
+        if (not 1 <= len(identity_parts) <= patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
+            raise ValueError(f"bad event identity {identity!r}")
+        elements = list(elements)
+        if len(elements) > patch_manifest.MAX_EVENT_ARITY:
+            raise ValueError("event elements must have arity 0–3")
+        # PD consumes OSC float32. Keep authored values within the repository's
+        # six-significant-figure wire discipline before serialization.
+        elements = [float(f"{float(element):.6g}") for element in elements]
+        lead_ms = min(max(int(lead_ms), 0), 10000)
+        shared_time_ns = (
+            0 if lead_ms == 0
+            else time.monotonic_ns() + lead_ms * 1_000_000)
+        self.send(
+            f"/{selector}/e/{identity}",
+            [str(shared_time_ns), *elements])
+        return shared_time_ns, lead_ms
+
     def _points_elapsed(self):
         return time.monotonic() - self._points_started
 

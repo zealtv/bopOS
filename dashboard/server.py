@@ -163,7 +163,7 @@ class Dashboard:
                     if current_show else show_model.empty_show(""))
         self.show_engine = ShowEngine(
             self.osc, self.broadcast,
-            cue_lead_ms=lambda: self.state.data.get("cue_lead_ms", 500))
+            event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500))
         self.show_engine.show = self.show
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
@@ -759,8 +759,8 @@ class Dashboard:
             except (TypeError, ValueError):
                 await self.ws_error(ws, "Cue lead must be a whole number of milliseconds.")
                 return
-            ms = min(max(ms, 100), 10000)
-            self.state.data["cue_lead_ms"] = ms
+            ms = min(max(ms, 0), 10000)
+            self.state.data["event_lead_ms"] = ms
             self.state.save_debounced()
             await self.broadcast("state", await self.public_state())
         elif kind == "fire_cue":

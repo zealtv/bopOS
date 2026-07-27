@@ -405,3 +405,15 @@ slots directly:
 - `pd/bop/bop.sampler~.pd`: make the same two replacements.
 
 No `.pd` file was changed by the Assets cache/compatibility repair.
+
+## Event-plane receiver adoption (thread 44 child 5)
+
+Python now delivers scheduled events to the engine as selector-free,
+time-free `/e/<identity> [<e0> [<e1> [<e2>]]]` messages. Update
+`pd/bopos~.pd` and `pd/babs.blineseq.pd` to route `/e/<identity>` alongside
+the existing `/cue` receiver. Preserve nested identity segments and arity
+0–3; event elements are 32-bit OSC floats. Absolute shared nanosecond time
+must remain in Python and must never enter Pure Data. Keep `/cue` working
+until thread 44 child 4 retires that plane.
+
+No `.pd` file was changed for the event-plane wire implementation.

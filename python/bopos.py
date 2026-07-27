@@ -11,7 +11,7 @@ import os, sys
 from time import sleep, monotonic_ns
 from csv import reader
 from pyOSC3 import OSCServer, OSCClient, OSCMessage, OSCError, decodeOSC
-from sync_node import SyncState, CueScheduler
+from sync_node import SyncState, EventScheduler
 import atexit
 import glob
 import socket
@@ -1308,7 +1308,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.13",
+        "contract_version": "1.14",
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),
@@ -1450,9 +1450,34 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         return True
     if parts and parts[0] == "pt":
         return apply_points(parts, args, state)
+    if (len(parts) >= 3 and parts[1] == "e"
+            and selector_matches(parts[0], state.id, memberships)):
+        identity_parts = parts[2:]
+        event_identity = "/".join(identity_parts)
+        if (len(identity_parts) > manifest.MAX_PARAM_SEGMENTS
+                or any(manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(event_identity.encode("ascii")) > manifest.MAX_PARAM_IDENTITY_BYTES
+                or not 1 <= len(args) <= manifest.MAX_EVENT_ARITY + 1
+                or not isinstance(args[0], str)
+                or any(not isinstance(value, float) for value in args[1:])):
+            return True
+        try:
+            elements = [float(value) for value in args[1:]]
+        except (TypeError, ValueError):
+            return True
+        shared_time = str(args[0])
+        if shared_time == "0":
+            fire_event_to_engine(event_identity, elements)
+            return True
+        try:
+            event_scheduler.schedule(int(shared_time), event_identity, elements)
+        except (TypeError, ValueError):
+            pass
+        return True
     if parts == ["cue"] and len(args) >= 2:
         try:
-            cue_scheduler.schedule(int(str(args[1])), str(args[0]))
+            cue_scheduler.schedule(int(str(args[1])), str(args[0]), [])
         except (TypeError, ValueError):
             pass
         return True
@@ -2091,9 +2116,11 @@ def admin_callback(path='', tags='', args='', source=''):
                      daemon=True).start()
 
 
-def fire_cue_to_engine(cue_id):
+def fire_cue_to_engine(cue_id, elements=()):
     # at the local deadline, the engine sees only the bare cue -- absolute time
     # never enters PD (contract sec 12). PD's patch owns the /cue receiver.
+    # `elements` is the generalized scheduler's payload; a cue has none, and
+    # child 4 deletes this path outright.
     msg = OSCMessage("/cue")
     typed_append(msg, cue_id)
     try:
@@ -2102,14 +2129,32 @@ def fire_cue_to_engine(cue_id):
         print(f"cue: could not fire to engine: {error}")
 
 
+def fire_event_to_engine(identity, elements):
+    # Absolute shared time stays in Python. The engine sees only the relative,
+    # selector-free event fire and its 0–3 float elements.
+    msg = OSCMessage("/e/" + identity)
+    for element in elements:
+        msg.append(float(f"{float(element):.6g}"), 'f')
+    try:
+        send_to_engine(msg)
+    except Exception as error:
+        print(f"event: could not fire to engine: {error}")
+
+
 sync_state = SyncState()
-cue_scheduler = CueScheduler(sync_state, fire_cue_to_engine)
+event_scheduler = EventScheduler(sync_state, fire_event_to_engine)
+# Child 4 retires `/cue`; until then the compatibility alias gives it the
+# generalized payload shape while both schedulers share the one SyncState.
+cue_scheduler = EventScheduler(
+    sync_state, fire_cue_to_engine, log_label="cue")
 param_generator = paramgen.GeneratorEngine(
     lambda identity, args: relay_provided_term("/p/" + identity, args), sync_state)
 
 
 def exit_handler():
     print("exiting.  closing server...")
+    event_scheduler.stop()
+    cue_scheduler.stop()
     param_generator.close()
     nodelog.close()
     server.close()
@@ -2126,6 +2171,7 @@ atexit.register(exit_handler)
 
 if __name__ == "__main__":
     server.timeout = 1.0
+    event_scheduler.start()
     cue_scheduler.start()
     initialise_asset_cache()
     initialise_patch_cache()

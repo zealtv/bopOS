@@ -45,10 +45,10 @@ MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
 
 class ShowEngine:
-    def __init__(self, bridge, broadcast, seed=None, cue_lead_ms=None):
+    def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None):
         self.bridge = bridge
         self.broadcast = broadcast  # async callable(message_type, data)
-        self.cue_lead_ms = cue_lead_ms or (lambda: 500)
+        self.event_lead_ms = event_lead_ms or (lambda: 500)
         if seed is None:
             # No existing mechanism threads a run-context seed into the
             # dashboard process (python/runcontext.py's BOPOS_SEED is
@@ -142,7 +142,7 @@ class ShowEngine:
         args = [arg["value"] for arg in message["args"]]
         if address == "/cue":
             cue_id = str(args[0]) if args else ""
-            self.bridge.fire_cue(cue_id, lead_ms=self.cue_lead_ms())
+            self.bridge.fire_cue(cue_id, lead_ms=self.event_lead_ms())
         elif address.startswith("/p/") and len(address) > 3:
             name = address[len("/p/"):]
             # 5c: target is a selector list; fan one datagram out per

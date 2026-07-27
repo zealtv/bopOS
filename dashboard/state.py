@@ -108,7 +108,7 @@ class InstallationState:
                      "groups": {}, "next_group_id": 0,
                      "devices": {}, "device_registry": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
-                     "cue_lead_ms": 500,
+                     "event_lead_ms": 500,
                      "facilitator_commands": [],
                      "fleet_patch": None,
                      "params_patch": None,
@@ -172,8 +172,8 @@ class InstallationState:
                 if room is not None:
                     self.data["room"] = room
                 self.data["master"] = self.clean_master(loaded.get("master"))
-                self.data["cue_lead_ms"] = self.clean_cue_lead_ms(
-                    loaded.get("cue_lead_ms"))
+                self.data["event_lead_ms"] = self.clean_event_lead_ms(
+                    loaded.get("event_lead_ms", loaded.get("cue_lead_ms")))
                 if isinstance(loaded.get("presets"), dict):
                     self.data["presets"] = loaded["presets"]
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
@@ -395,8 +395,8 @@ class InstallationState:
         return {"schema": SCHEMA, "name": self.data.get("name", "bopOS"),
                 "room": self.data.get("room", dict(self.DEFAULT_ROOM)),
                 "master": self.data.get("master", 1.0),
-                "cue_lead_ms": self.clean_cue_lead_ms(
-                    self.data.get("cue_lead_ms")),
+                "event_lead_ms": self.clean_event_lead_ms(
+                    self.data.get("event_lead_ms")),
                 "presets": self.data.get("presets", {}),
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
@@ -887,14 +887,14 @@ class InstallationState:
             return 1.0
 
     @staticmethod
-    def clean_cue_lead_ms(value):
+    def clean_event_lead_ms(value):
         if isinstance(value, bool):
             return 500
         try:
             value = int(value)
         except (TypeError, ValueError):
             return 500
-        return min(max(value, 100), 10000)
+        return min(max(value, 0), 10000)
 
     @staticmethod
     def clean_room(value):
@@ -1019,7 +1019,7 @@ class InstallationState:
             elif uid:
                 rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
-        keys = ("name", "room", "master", "cue_lead_ms", "presets", "facilitator_commands", "groups",
+        keys = ("name", "room", "master", "event_lead_ms", "presets", "facilitator_commands", "groups",
                 "next_group_id",
                 "fleet_patch", "params_patch", "listener", "seats", "simulation")
         previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
@@ -1029,8 +1029,8 @@ class InstallationState:
         if room is not None:
             self.data["room"] = room
         self.data["master"] = self.clean_master(loaded.get("master"))
-        self.data["cue_lead_ms"] = self.clean_cue_lead_ms(
-            loaded.get("cue_lead_ms"))
+        self.data["event_lead_ms"] = self.clean_event_lead_ms(
+            loaded.get("event_lead_ms", loaded.get("cue_lead_ms")))
         self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))

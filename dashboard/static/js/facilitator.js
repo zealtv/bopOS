@@ -140,7 +140,7 @@ ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
   surface.refreshAnchors(data);
   presetNames = Object.keys(data.presets || {}).sort();
-  if (!cueLeadModified) $("#cue-lead").value = Number(data.cue_lead_ms ?? 500);
+  if (!cueLeadModified) $("#cue-lead").value = Number(data.event_lead_ms ?? 500);
   render();
   const loading = $("#initial-loading");
   if (loading) loading.hidden = true;
@@ -201,7 +201,7 @@ function renderCues() {
   $("#declared-cues").innerHTML = cues.map(cueButton).join("");
   document.querySelectorAll("[data-live-cue]").forEach(button => button.onclick = () => {
     const lead = $("#cue-lead");
-    const leadMs = Math.min(10000, Math.max(100, Number(lead.value) || 500));
+    const leadMs = Math.min(10000, Math.max(0, Number(lead.value) || 0));
     lead.value = leadMs;
     ws.send("fire_cue", {cue_id: button.dataset.liveCue, lead_ms: leadMs});
     button.disabled = true;

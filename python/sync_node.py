@@ -1,9 +1,9 @@
 """Node-side clock sync (contract sec 3.1): hold the leader-pushed offset and
-fire cues at their local monotonic deadline.
+fire events at their local monotonic deadline.
 
 Pure timing logic, deliberately free of import-time side effects (no ports, no
 pyOSC3) so it can be unit-tested on its own -- bopos.py imports it and wires the
-OSC (pong reply, offset push, /cue -> engine). All times are integer nanoseconds
+OSC (pong reply, offset push, /e and /cue -> engine). All times are integer nanoseconds
 from time.monotonic(); offset === deviceClock - leaderClock, so a leader-clock
 sharedTime converts to a local deadline as `sharedTime + offset`.
 """
@@ -61,30 +61,32 @@ class SyncState:
             return self._target is not None
 
 
-class CueScheduler:
-    """Fires cues at `sharedTime + offset` on the local monotonic clock.
+class EventScheduler:
+    """Fires events at `sharedTime + offset` on the local monotonic clock.
 
-    `fire(cue_id)` sends the bare cue to the engine; `log(text)` records
+    `fire(identity, elements)` sends the bare event to the engine; `log(text)` records
     fire/drop for observability. The offset is re-read every wakeup so a slewing
     correction is tracked right up to the deadline.
     """
 
     def __init__(self, sync_state, fire, log=print, now=_now_ns,
-                 late_grace_ns=CUE_LATE_GRACE_NS):
+                 late_grace_ns=CUE_LATE_GRACE_NS, log_label="event"):
         self._sync = sync_state
         self._fire = fire
         self._log = log
         self._now = now
         self._grace = late_grace_ns
+        self._label = str(log_label)
         self._lock = threading.Lock()
         self._wake = threading.Event()
-        self._pending = []   # [ [shared_ns, cue_id], ... ]
+        self._pending = []   # [ [shared_ns, identity, elements], ... ]
         self._thread = None
         self._running = False
 
-    def schedule(self, shared_ns, cue_id):
+    def schedule(self, shared_ns, identity, elements):
         with self._lock:
-            self._pending.append([int(shared_ns), str(cue_id)])
+            self._pending.append(
+                [int(shared_ns), str(identity), list(elements)])
         self._wake.set()
 
     def start(self):
@@ -109,24 +111,27 @@ class CueScheduler:
             due = []
             with self._lock:
                 remaining = []
-                for shared, cue_id in self._pending:
+                for shared, identity, elements in self._pending:
                     if now >= shared + offset:
-                        due.append((cue_id, now - (shared + offset)))
+                        due.append((identity, elements, now - (shared + offset)))
                     else:
-                        remaining.append([shared, cue_id])
+                        remaining.append([shared, identity, elements])
                 self._pending = remaining
-                nearest = min((s + offset for s, _ in self._pending), default=None)
+                nearest = min(
+                    (shared + offset for shared, _identity, _elements
+                     in self._pending),
+                    default=None)
             # fire outside the lock: fire()/log() may touch a socket
-            for cue_id, late in due:
+            for identity, elements, late in due:
                 if late <= self._grace:
-                    self._fire(cue_id)
+                    self._fire(identity, elements)
                     # fire_mono is machine-parseable for the sync-3 measure tool
                     # (same token as simfleet); late is human context
-                    self._log("cue {} fired fire_mono={} (late {:.1f}ms)".format(
-                        cue_id, now, late / 1e6))
+                    self._log("{} {} fired fire_mono={} (late {:.1f}ms)".format(
+                        self._label, identity, now, late / 1e6))
                 else:
-                    self._log("cue {} DROPPED (late {:.1f}ms > grace)".format(
-                        cue_id, late / 1e6))
+                    self._log("{} {} DROPPED (late {:.1f}ms > grace)".format(
+                        self._label, identity, late / 1e6))
             # sleep until the next deadline, capped so a slewing offset is
             # re-evaluated; wake early when a new cue is scheduled
             if nearest is None:
@@ -134,3 +139,8 @@ class CueScheduler:
             else:
                 self._wake.wait(timeout=max(0.0, min((nearest - self._now()) / 1e9, 0.02)))
             self._wake.clear()
+
+
+# `/cue` remains live until thread 44 child 4. Keeping the old import name lets
+# that call site use the generalized scheduler without a second clock path.
+CueScheduler = EventScheduler

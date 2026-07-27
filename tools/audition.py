@@ -4,6 +4,7 @@
 import argparse
 import heapq
 import ipaddress
+import itertools
 import json
 import math
 import os
@@ -115,6 +116,8 @@ class AuditionRig:
         self.listener = None
         self.editor_element = 0
         self.pending_cues = []
+        self.pending_events = []
+        self.event_sequence = itertools.count()
         for node in self.nodes:
             node.param_generator = paramgen.GeneratorEngine(
                 lambda identity, values, target=node: self.send_engine(
@@ -264,7 +267,7 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.13",
+            "contract_version": "1.14",
             "groups": list(getattr(node, "groups", ())),
             "device_enabled": bool(node.device_enabled),
             "mute_all": bool(node.mute_all),
@@ -505,6 +508,50 @@ class AuditionRig:
             for node in self.nodes:
                 self.send_engine(node, "/cue", (cue_id,))
 
+    def schedule_event(self, parts, params):
+        identity_parts = parts[2:]
+        identity = "/".join(identity_parts)
+        if (len(identity_parts) > patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity.encode("ascii")) > patch_manifest.MAX_PARAM_IDENTITY_BYTES
+                or not 1 <= len(params) <= patch_manifest.MAX_EVENT_ARITY + 1
+                or not isinstance(params[0], str)
+                or any(not isinstance(value, float) for value in params[1:])):
+            return
+        try:
+            deadline = int(params[0])
+            elements = tuple(float(value) for value in params[1:])
+        except (TypeError, ValueError):
+            return
+        matched = [
+            node for node in self.nodes
+            if matches(parts[0], node.device_id, getattr(node, "groups", ()))
+        ]
+        if params[0] == "0":
+            for node in matched:
+                self.fire_event(node, identity, elements)
+            return
+        for node in matched:
+            heapq.heappush(
+                self.pending_events,
+                (deadline, next(self.event_sequence), node, identity, elements))
+
+    def dispatch_due_events(self):
+        now = time.monotonic_ns()
+        while self.pending_events and self.pending_events[0][0] <= now:
+            _deadline, _sequence, node, identity, elements = heapq.heappop(
+                self.pending_events)
+            self.fire_event(node, identity, elements)
+
+    def fire_event(self, node, identity, elements):
+        normalized = tuple(float(f"{float(value):.6g}") for value in elements)
+        self.send_engine(node, "/e/" + identity, normalized)
+        values = " ".join(f"{value:g}" for value in normalized)
+        suffix = f" elements={values}" if values else ""
+        print(f"audition: id={node.device_id} event {identity} fired "
+              f"fire_mono={time.monotonic_ns()}{suffix}", flush=True)
+
     def send_ids(self):
         for node in self.nodes:
             self.send_id(node)
@@ -599,6 +646,9 @@ class AuditionRig:
             return
         if parts == ["cue"]:
             self.schedule_cue(message.params)
+            return
+        if len(parts) >= 3 and parts[1] == "e":
+            self.schedule_event(parts, message.params)
             return
         if parts and parts[0] == "pt":
             self.apply_points(parts, message.params)
@@ -793,6 +843,7 @@ class AuditionRig:
             while self.running:
                 now = time.monotonic()
                 self.dispatch_due_cues()
+                self.dispatch_due_events()
                 if now >= next_hb:
                     self.send_heartbeats()
                     next_hb = now + self.args.hb_interval
@@ -803,6 +854,10 @@ class AuditionRig:
                 if self.pending_cues:
                     until_cue = (self.pending_cues[0][0] - time.monotonic_ns()) / 1e9
                     timeout = max(0.001, min(timeout, until_cue))
+                if self.pending_events:
+                    until_event = (
+                        self.pending_events[0][0] - time.monotonic_ns()) / 1e9
+                    timeout = max(0.001, min(timeout, until_event))
                 self.sock.settimeout(timeout)
                 try:
                     datagram, source = self.sock.recvfrom(65535)
@@ -810,6 +865,7 @@ class AuditionRig:
                 except socket.timeout:
                     pass
                 self.dispatch_due_cues()
+                self.dispatch_due_events()
         finally:
             self.stop()
 

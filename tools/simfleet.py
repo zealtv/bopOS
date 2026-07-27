@@ -485,7 +485,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.13",
+            "contract_version": "1.14",
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),
@@ -882,6 +882,45 @@ class SimFleet:
         self.log(device, f"cue {cue_id} fired dev_deadline={deadline_dev} "
                          f"fire_mono={time.monotonic_ns()}" + (" LATE" if late else ""))
 
+    def handle_event(self, parts, args):
+        identity_parts = parts[2:]
+        identity = "/".join(identity_parts)
+        if (len(identity_parts) > patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity.encode("ascii")) > patch_manifest.MAX_PARAM_IDENTITY_BYTES
+                or not 1 <= len(args) <= patch_manifest.MAX_EVENT_ARITY + 1
+                or not isinstance(args[0], str)
+                or any(not isinstance(value, float) for value in args[1:])):
+            return
+        try:
+            elements = [float(value) for value in args[1:]]
+            shared = int(args[0])
+        except (TypeError, ValueError):
+            return
+        selector = parts[0]
+        for device in self.devices:
+            if (device.unresponsive or device.state not in ("booting", "running")
+                    or random.random() < self.args.drop
+                    or not self.protocol.matches(
+                        selector, device.device_id, device.groups)):
+                continue
+            if args[0] == "0":
+                self.fire_event(device, identity, elements, 0, False)
+                continue
+            deadline_dev = shared + device.sync_offset_ns
+            delay = (
+                deadline_dev - device.sync_skew_ns - time.monotonic_ns()) / 1e9
+            self.schedule(max(0.0, delay), self.fire_event, device, identity,
+                          elements, deadline_dev, delay < 0)
+
+    def fire_event(self, device, identity, elements, deadline_dev, late):
+        values = " ".join(format_token(value) for value in elements)
+        suffix = f" elements={values}" if values else ""
+        self.log(device, f"event {identity} fired dev_deadline={deadline_dev} "
+                         f"fire_mono={time.monotonic_ns()}{suffix}"
+                         + (" LATE" if late else ""))
+
     ADMIN_ACTIONS = ("update-patch", "update-bopos", "shutdown", "reboot")
 
     def admin_request(self, device, action):
@@ -934,12 +973,15 @@ class SimFleet:
             return
         parts = [part for part in address.split("/") if part]
         # clock-sync plane (contract sec 3.1): ping/cue omit the selector
-        # (always fleet-wide); offset is per-device 3-part /<id>/sync/offset
+        # (always fleet-wide); events are targetable and offsets are per-device.
         if parts == ["sync", "ping"]:
             self.handle_ping(args, source)
             return
         if parts == ["cue"]:
             self.handle_cue(args)
+            return
+        if len(parts) >= 3 and parts[1] == "e":
+            self.handle_event(parts, args)
             return
         if len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset":
             self.handle_offset(parts[0], args)

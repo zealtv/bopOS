@@ -112,8 +112,8 @@ class SyncProtocolTests(unittest.TestCase):
         sync = SyncState(slew_ns=0)
         sync.push(0)
 
-        def fire(cue_id):
-            fired.append(cue_id)
+        def fire(cue_id, elements):
+            fired.append((cue_id, elements))
             if cue_id == "future":
                 on_time.set()
 
@@ -121,15 +121,16 @@ class SyncProtocolTests(unittest.TestCase):
         scheduler.start()
         try:
             now = time.monotonic_ns()
-            scheduler.schedule(now - 5_000_000, "grace")
-            scheduler.schedule(now - 100_000_000, "stale")
-            scheduler.schedule(now + 30_000_000, "future")
+            scheduler.schedule(now - 5_000_000, "grace", [])
+            scheduler.schedule(now - 100_000_000, "stale", [])
+            scheduler.schedule(now + 30_000_000, "future", [])
             self.assertTrue(on_time.wait(0.5))
         finally:
             scheduler.stop()
 
-        self.assertEqual(set(fired), {"grace", "future"})
-        self.assertNotIn("stale", fired)
+        self.assertEqual(set(cue_id for cue_id, _elements in fired),
+                         {"grace", "future"})
+        self.assertNotIn("stale", [cue_id for cue_id, _elements in fired])
         self.assertTrue(
             any("stale" in entry and "DROPPED" in entry for entry in logs)
         )

@@ -216,7 +216,7 @@
   function showRelevantStateSignature() {
     const state = currentInstallation();
     return JSON.stringify({
-      cue_lead_ms: state.cue_lead_ms ?? 500,
+      event_lead_ms: state.event_lead_ms ?? 500,
       manifest: manifestFromStagedPatch(),
       seats: seats().map(seat => ({id: seat.id, name: seat.name, groups: seat.groups || []})),
       groups: groups().map(group => ({id: group.id, name: group.name})),
@@ -434,7 +434,7 @@
     const playLabel = activeState === "playing" ? `Pause ${stepLabel(activeStep)}`
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
-    const cueLead = currentInstallation().cue_lead_ms ?? 500;
+    const cueLead = currentInstallation().event_lead_ms ?? 500;
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
       <div class="show-manage">
@@ -446,7 +446,7 @@
         <button id="show-manage-delete" class="danger" type="button">Delete</button>
       </div>
       <div class="show-transport-actions">
-        <label class="show-cue-lead">cue lead · ms <input id="show-cue-lead" type="number" min="100" max="10000" step="50" value="${escapeHtml(cueLead)}"></label>
+        <label class="show-cue-lead">cue lead · ms <input id="show-cue-lead" type="number" min="0" max="10000" step="50" value="${escapeHtml(cueLead)}"></label>
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
         ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
@@ -1247,7 +1247,7 @@
 
   root.addEventListener("change", event => {
     if (event.target.id === "show-cue-lead") {
-      const ms = Math.min(10000, Math.max(100, Math.trunc(Number(event.target.value) || 500)));
+      const ms = Math.min(10000, Math.max(0, Math.trunc(Number(event.target.value) || 0)));
       event.target.value = ms;
       ws.send("set_cue_lead", {ms});
       return;

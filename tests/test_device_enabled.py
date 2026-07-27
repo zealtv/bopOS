@@ -135,7 +135,7 @@ class DeviceEnabledTests(unittest.TestCase):
             reply = ReplySocket()
             self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
             report = json.loads(reply.calls[0][0][2])
-            self.assertEqual(report["contract_version"], "1.13")
+            self.assertEqual(report["contract_version"], "1.14")
             self.assertEqual(
                 {key: report[key] for key in (
                     "device_enabled", "mute_all", "output_enabled")},
