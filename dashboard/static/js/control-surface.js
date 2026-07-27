@@ -231,9 +231,11 @@
       // Apply and Stop are rendered here but PLACED by the body's layout — they
       // sit in the column beside the display, under the tabs (Bob,
       // 2026-07-27), which is what lets the drawer stop stretching.
+      // Stop then Apply (Bob, 2026-07-27): the commit sits on the right, where
+      // the eye leaves the drawer.
       const actions = `<span class="live-param-gen-actions">
-            <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
             <button type="button" data-gen-stop ${off}>Stop</button>
+            <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
           </span>`;
       return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-gen-kind="${esc(kind)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
         <div class="live-param-gen-head">

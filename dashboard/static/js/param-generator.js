@@ -83,7 +83,13 @@
   // what says "periodic". The control panel's display draws ONE (Bob,
   // 2026-07-27): it is a live instrument face, where the shape has to be
   // legible at a glance and the playhead has to mean one period.
-  function previewGeometry(parsed, declaration, repeats = 2) {
+  //
+  // `normalise` frames a fade or loop by the values it actually visits rather
+  // than by the parameter's declared range (Bob, 2026-07-27). A fade from .34
+  // to 1 on a 0..1 param drew as a shallow line across the top third; the
+  // panel's display is there to show the SHAPE, so it fills the box. The Show
+  // inspector keeps declaration framing — there the range is the point.
+  function previewGeometry(parsed, declaration, repeats = 2, normalise = false) {
     if (!["fade", "loop", "lfo"].includes(parsed.mode)) return null;
     if (parsed.mode === "lfo" && ["sh", "drift"].includes(parsed.shape)) return null;
     const points = [];
@@ -120,11 +126,18 @@
     }
     if (!points.length) return null;
     const values = points.map(point => point[1]);
-    let low = parsed.mode === "lfo" ? 0 : Number(declaration.min ?? Math.min(...values));
-    let high = parsed.mode === "lfo" ? 1 : Number(declaration.max ?? Math.max(...values));
+    const framed = normalise && parsed.mode !== "lfo";
+    let low = parsed.mode === "lfo" ? 0
+      : framed ? Math.min(...values)
+      : Number(declaration.min ?? Math.min(...values));
+    let high = parsed.mode === "lfo" ? 1
+      : framed ? Math.max(...values)
+      : Number(declaration.max ?? Math.max(...values));
     if (!Number.isFinite(low)) low = Math.min(...values);
     if (!Number.isFinite(high)) high = Math.max(...values);
-    if (high === low) high = low + 1;
+    // A flat ramp has no span to normalise against; centre it rather than
+    // pinning it to the floor, which would read as "at minimum".
+    if (high === low) { low -= .5; high += .5; }
     const maxTime = Math.max(...points.map(point => point[0]), 1);
     const path = points.map(([time, value], index) => {
       const x = 8 + time / maxTime * 224;
@@ -189,13 +202,13 @@
   // The trace alone, so the live redraw on every keystroke can replace it
   // without touching the shape picker sitting inside the same display.
   function waveTrace(parsed, declaration) {
-    const geometry = previewGeometry(parsed, declaration, 1);
+    const geometry = previewGeometry(parsed, declaration, 1, true);
     if (!geometry) return '<span class="live-gen-wave-empty">random — not previewable</span>';
     return `<svg viewBox="0 0 240 72" preserveAspectRatio="none" role="img" aria-label="${esc(geometry.label)}"><path class="live-gen-wave-line" d="${geometry.path}" vector-effect="non-scaling-stroke"></path></svg>`;
   }
 
   function waveDisplay(parsed, declaration, inside, motion) {
-    const geometry = previewGeometry(parsed, declaration, 1);
+    const geometry = previewGeometry(parsed, declaration, 1, true);
     const trace = waveTrace(parsed, declaration);
     const playhead = motion && geometry
       ? `<span class="live-gen-playhead" aria-hidden="true" style="--gen-window:${motion.windowMs}ms;--gen-elapsed:${motion.elapsedMs}ms"></span>`
@@ -253,8 +266,8 @@
     const fromEnabled = parsed.mode === "fade" && parsed.from != null;
     const from = parsed.mode === "fade" && parsed.segments.length === 1
       ? `<div class="live-gen-from">
-          <input type="checkbox" class="live-gen-check" data-param-from-enabled ${fromEnabled ? "checked" : ""} aria-label="start from an explicit value">
           <label class="live-gen-field live-gen-field-inline">from<input data-param-from class="live-gen-num" type="number" ${valueAttrs(declaration)} value="${esc(parsed.from ?? "")}" ${fromEnabled ? "" : "disabled"}></label>
+          <input type="checkbox" class="live-gen-check" data-param-from-enabled ${fromEnabled ? "checked" : ""} aria-label="start from an explicit value">
         </div>` : "";
     return `<div class="live-gen-body">
       ${waveDisplay(parsed, declaration, "", motion)}

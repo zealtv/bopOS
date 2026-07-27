@@ -86,3 +86,57 @@ sine or square, and — at the wire — a fade applied with the box off carries 
 
 `tools/run-tests.sh all`: see the tie commit.
 Screenshots: LFO (sine + tri), fade, loop, dark and light, at 1440px.
+
+## Live review pass (Bob, same session, after the first tie)
+
+Reviewed against the Excalidraw and refined in place. All of these are Bob's
+calls, recorded here because they change the design language, not just this
+drawer:
+
+- **Loop and fade traces are normalised** — framed by the values the generator
+  actually visits, not the parameter's declared range. A fade .34→1 on a 0..1
+  param drew as a shallow line across the top third; the display exists to
+  show the SHAPE. The Show inspector keeps declaration framing, where the
+  range is the point. A flat ramp centres rather than pinning to the floor.
+- **The drawer is narrower again (320px), derived from the mockup's waveform
+  aspect** (~172×74, 2.3:1) rather than picked.
+- **Air under the display**: the args row and the segment lines are separate
+  statements from the display above them.
+- **`remove` right-aligned**, out of the `to … in …` phrase; **`add segment`
+  spaced** off the list it appends to.
+- **Stop then Apply** — the commit sits right, where the eye leaves the drawer.
+- **The `from` gate moved right of its box**, at the box's own height, hard
+  corners, the number box's face, and a hairline inset mark: it gates a value,
+  it does not act.
+- **No spinners on number boxes.** Every numeric entry on this surface is a
+  bop number box — click and type.
+
+### The cohesion pass (Bob: "one, coherent design language")
+
+The first cut of §17 restated paint that §12/§15 already defined — a second
+number box that was nearly the first one. That is the incoherence this panel
+exists to remove, so the drawer's controls were folded INTO the existing
+rules rather than kept beside them:
+
+| drawer element | now shares |
+|----------------|-----------|
+| `.live-gen-num` | the §12 number box (width, face, border, tabular nums); only height and the spinner reset are its own |
+| `.live-gen-unit`, `.live-gen-shape select` | the §15 select; only size is its own |
+| `.live-gen-mini*` | the §12 slider — trough, fill, marker line, name-inside, and the stripped native range including every vendor pseudo-element; only height and label ink are its own |
+| `.live-gen-check` | the §15 PD toggle box; only size, the checkbox reset and the lighter mark are its own |
+| `.live-gen-pill` (`free`) | §5's latching face (`--mod-fill` + inset `--mod` ring), not a third treatment |
+
+The rule going forward: anything numeric, selectable, sliding or latching that
+gets added to this surface joins the existing selector rather than restating
+the paint.
+
+**One real regression came out of that consolidation**, caught by
+`verify_control_surface_component.py`: the shared number-box rule carried
+`color:var(--text)`, and §7's "an automated readout is cyan" rule has equal
+specificity from further up the file — so every generator-driven value box
+went back to reading as a manual one. Ink belongs to §7; the shared rule owns
+the box and declares no colour. The drawer's `<input>` boxes state their own
+colour, because unlike an `<output>` they do not inherit the panel's.
+
+That is the hazard of folding rules together, and the reason the consolidation
+was worth running the whole browser tier over rather than eyeballing.
