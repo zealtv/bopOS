@@ -38,12 +38,12 @@ real-LAN, or iPad adoption checks.
 
 | Change area | Minimum local verification | Stronger / integration verification | Hardware boundary |
 |---|---|---|---|
-| Python module or helper logic | Run the focused `test_*.py` or `verify_*.py` associated with the feature; compile every touched Python file with `python -m py_compile <files>` | Run nearby tied regression verifies that exercise the same wire plane | Report hardware as unverified unless run on a real node |
+| Python module or helper logic | Run the focused living `test_*.py` or `verify_*.py` associated with the feature; compile every touched Python file with `python -m py_compile <files>` | Run `./tools/run-tests.sh fast`; add the durable property to the owning living module if no focused test exists | Report hardware as unverified unless run on a real node |
 | OSC contract or node protocol | Add or update a browser-free `test_*.py`; exercise the real helper where practical | Run the real dashboard and `tools/simfleet.py` on non-default ports; protocol changes must land in simfleet in the same stitch | Confirm broadcast, audio-engine delivery, or peripheral behavior on the rig when required |
 | Dashboard backend / WebSocket state | Browser-free verify against the real `dashboard/server.py` and simfleet | Run the relevant Playwright dashboard regression | Verify discovery and control on the installation LAN before calling rig adoption complete |
 | Dashboard or facilitator UI | Focused Playwright `verify_*.py` using the newest tied browser verify as the template | Run adjacent UI regressions, especially facilitator, spatial, patch-management, and meter surfaces affected by the change | Check iPad/touch interaction when the behavior is facilitator-facing |
-| Clock sync and cue timing | `.loom/tied/sync-3-jitter-harness/verify_sync_measure.py` or the narrower sync verify for the changed layer | `tools/sync_measure.py --devices 5 --sync-skew-ms 40` | `tools/sync_measure.py --mode hardware --cues 8`; software spread is only a floor |
-| Spatial terms / point decomposition | `.loom/tied/seam-3-points-node-side/verify_points_node_side.py` | Real dashboard + simfleet; recompute expected falloff from sniffed point frames | Audible confirmation awaits the documented PD receiver edits and a rig |
+| Clock sync and cue timing | `tests/test_sync_protocol.py` or a narrower living sync test for the changed layer | `tools/sync_measure.py --devices 5 --sync-skew-ms 40` | `tools/sync_measure.py --mode hardware --cues 8`; software spread is only a floor |
+| Spatial terms / point decomposition | `tests/test_pointfield.py` | Real dashboard + simfleet; recompute expected falloff from sniffed point frames | Audible confirmation awaits the documented PD receiver edits and a rig |
 | Pure Data integration | Do not edit `.pd`; update `.notes/pd-edits-for-bob.md` with exact live spellings and expected behavior | Verify the Python/dashboard/simfleet side independently | Bob performs the PD edit and audible rig verification |
 | Bash, boot, audio-board, or peripheral work | Static review plus the narrowest safe local check | Laptop rig where applicable (`bash/start-laptop.sh`) | Follow `docs/HARDWARE.md`; record board, OS, command, result, and limitations |
 | Documentation or contract-only change | Check links, commands, terminology, and consistency with `CLAUDE.md` | If normative, inspect affected implementation and stitch instructions for drift | None unless the documentation asserts hardware behavior |
@@ -61,9 +61,9 @@ real-LAN, or iPad adoption checks.
 ~/.venvs/bopos/bin/python dashboard/server.py
 ~/.venvs/bopos/bin/python tools/simfleet.py --devices 5
 
-# Current provided-term regression examples
-~/.venvs/bopos/bin/python .loom/tied/seam-2-master-term/verify_master_term.py
-~/.venvs/bopos/bin/python .loom/tied/seam-3-points-node-side/verify_points_node_side.py
+# Current protocol and point regressions
+~/.venvs/bopos/bin/python tests/test_protocol_primitives.py
+~/.venvs/bopos/bin/python tests/test_pointfield.py
 
 # Software clock-sync measurement
 ~/.venvs/bopos/bin/python tools/sync_measure.py --devices 5 --sync-skew-ms 40

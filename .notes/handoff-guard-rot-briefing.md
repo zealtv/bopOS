@@ -1,5 +1,11 @@
 # Briefing — the tied-guard rot session
 
+> **Closed 2026-07-27:** thread `27-tied-guard-rot` established the living
+> `tests/` workflow and retired the tied guard archive from maintenance. The
+> final disposition is in
+> `.loom/tied/08-archive-retirement-ledger/retirement-ledger.md`. Everything
+> below is retained as historical intake context, not current workflow.
+
 > **Bob's ruling, 2026-07-23 (supersedes the framing below):** "We want durable,
 > maintainable tests for appropriate surfaces. Running tests of tied stitches was
 > the wrong pattern." So this session is **not** "decide a sweep script + repair 39

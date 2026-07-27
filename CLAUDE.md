@@ -84,10 +84,9 @@ remain the authority for a particular piece of work.
 > target→preset arrangement as a show step) as design input for 41's Q6.
 > **Order (27 slotted in, 2026-07-27):**
 > `01-control-panel/1-full-manifest-visibility` (ship now) →
-> **`27-tied-guard-rot`** (Bob's triage session; the durable `tests/` suite
-> should exist before the implementation waves and contract amendments
-> below write their checks — pair it with the control-panel design
-> ratification session) alongside `01-control-panel/2-control-panel-design`
+> **Complete — `27-tied-guard-rot`** (the durable `tests/` suite and canonical
+> runner now exist; the tied guard archive is retired historical evidence)
+> alongside `01-control-panel/2-control-panel-design`
 > → control-panel implementation → `44-event-plane/1` → `41/1` →
 > `02-app-wide-rollout-design`. Standing constraint: the system works today
 > and must keep working; prefer small ordered changes over rewrites.
@@ -174,22 +173,13 @@ a real regression hides among the drift.)
 
 ### Tier 2 — failing-test cleanup, then desktop overhaul
 
-8. **`27-tied-guard-rot`** (`.waiting`) — **reframed by Bob 2026-07-23:** "we want
-   durable, maintainable tests for appropriate surfaces; running tests of tied
-   stitches was the wrong pattern." So this is **not** "repair the 39/71 reds + a
-   sweep script." It is a **two-tier split**: promote the guards that assert
-   *durable contracts* (OSC contract/wire, manifest schema, identity/fingerprint,
-   mute safety, fetch convergence) into a **living `tests/` suite organized by code
-   surface**, run in CI/pre-tie; **retire the rest** as authoring artifacts
-   (recorded, never silent-deleted, never maintained-in-place). Evidence: 6
-   diagnoses = 0 real defects — the tied archive catches nothing as a persisted
-   net, and its per-stitch (not per-code-surface) layout is *why* it rots. The
-   39/71 figure is now triage input, not a to-do list; no `tools/guard-sweep.sh`
-   over the archive. Full framing at the top of the thread's `instructions.md` and
-   `.notes/handoff-guard-rot-briefing.md`; still gated on Bob's fresh session, runs
-   after the node work. **Cheap thing to do now regardless (not gated):** a stitch
-   touching a genuinely shared surface writes its check into a `tests/` file, not a
-   new tied guard.
+8. **Complete — `27-tied-guard-rot` (2026-07-27).** Durable contracts now live
+   in the code-surface-organized `tests/` suite, with
+   `tools/run-tests.sh fast|browser|all` as the canonical local/pre-tie entry
+   point. The preserved `.loom/tied/` guards are historical evidence, not a
+   regression suite or maintenance backlog. The assertion-level disposition
+   and named hardware follow-ups are recorded in
+   `.loom/tied/08-archive-retirement-ledger/retirement-ledger.md`.
 9. **Complete — `20-console-dock`.** Monitor v1 shipped with
    Incoming, Outgoing, Send, Reports, System, persistence, and wide split/snap
    on 2026-07-23. Bob dropped the deferred Map placeholder on 2026-07-26, so
@@ -475,11 +465,11 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   sequence are documented in `kite-choir-brains/.claude/skills/bopos-dev/SKILL.md`.
   Hardware verification ultimately needs Bob or a live rig — say so in the stitch
   rather than claiming it verified.
-- **Dashboard browser tests:** every dashboard stitch ships a `verify_*.py` that
-  launches the real `dashboard/server.py` + `tools/simfleet.py` on non-default
-  ports and drives headless Chromium (Playwright). Copy the newest tied one
-  (`.loom/tied/*/verify_*.py`) as the template — repo-by-marker root, sim ports,
-  teardown. **Patch-edit / execution-mode flows verify headlessly:** launching
+- **Dashboard browser tests:** living `tests/verify_*.py` journeys launch the
+  real `dashboard/server.py` + `tools/simfleet.py` on non-default ports and
+  drive headless Chromium (Playwright). Extend the nearest living journey or
+  use it as the template — repo-by-marker root, sim ports, teardown.
+  **Patch-edit / execution-mode flows verify headlessly:** launching
   simfleet with `--sim-no-engine` (and `--sim-audio-backend none`) lets
   `set_edit`/`set_simulation` reach real `edit`/`simulate` `supervisor.mode`
   without spawning Pure Data — so the editor GUI and mode switch are testable in
@@ -538,29 +528,21 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   `page.frame_locator("#dashboard-live-view")`, and note that `localStorage` is
   the only state the two documents share.
 
-**Re-running a tied guard:** the harness declines to execute scripts living
-under `.loom/tied/`. Copy the guard into your own stitch directory and run
-the copy — the repo-by-marker root lookup survives the move, and it also
-spares the tied screenshots from being regenerated (no
-`git checkout -- .loom/tied/` needed afterwards). Two traps: **run it with
-the repo root as cwd** (some guards use cwd-relative paths, and running
-from the copy's directory silently changes the answer), and if it opens a
-sibling file from its own tied directory — a fixture, a word list — copy
-the **whole directory**, or the `FileNotFoundError` looks like a failure
-that is really the copy rule's fault. Delete the copy and its
-screenshots when done. A tied guard that pins something Bob has since ruled
-away is **superseded, not authoritative**: invert or repair the assertion in
-place with an inline comment naming the superseding stitch, and record the
-ruling in that stitch's `decisions.md` — don't leave a guard permanently red
-(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example;
-`.loom/tied/hb-identity/test_hb_identity.py` is another, superseded by
-`29-fleet-patch-sync-hang/2-fix`). This repair-in-place is the **interim** rule
-for a guard you break during other work. The **durable** direction (Bob,
-2026-07-23) is thread `27-tied-guard-rot`'s two-tier split: durable-contract
-assertions move into a living `tests/` suite organized by code surface; the rest
-retire as authoring artifacts. Running the tied archive as a regression suite was
-the wrong pattern — don't invest in maintaining it. New checks for genuinely
-shared surfaces go straight into `tests/`, not a new tied guard.
+**Historical tied guards:** `.loom/tied/` is preserved authoring and decision
+evidence, not a regression suite. Routine and pre-tie checks use
+`tools/run-tests.sh` and the living modules under `tests/`; do not sweep, copy,
+or repair archived guards merely to make the archive green. New durable checks
+go into the appropriate code-surface-owned `tests/` module.
+
+The narrow interim supersession rule remains for unrelated work that explicitly
+encounters and relies on a tied guard: if an assertion pins something Bob has
+since ruled away, it is **superseded, not authoritative**. Update only the
+encountered assertion, add an inline comment naming the superseding stitch, and
+record the ruling in the current stitch's `decisions.md`
+(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example).
+Do not expand that exception into neighbour or archive maintenance. The final
+archive disposition is
+`.loom/tied/08-archive-retirement-ledger/retirement-ledger.md`.
 
 ## Records
 
