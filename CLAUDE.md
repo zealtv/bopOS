@@ -188,6 +188,13 @@ a real regression hides among the drift.)
    pills use the ratified flat eight-category set (cue, point, raw,
    param-value, param-fade, param-loop, param-lfo, param-stop), with visible
    kind codes as a non-colour channel.
+11. **`45-device-enabled-replay-red`** — the one red test in
+   `tools/run-tests.sh fast`: a persistently disabled device that heartbeats
+   back in does not get its `enabled 0` replayed. Added already-failing by the
+   thread-27 promotion commit `cdff3a3`, so it has never passed; the stitch has
+   to settle whether the missing replay is a real output-safety defect or the
+   promoted fake is too thin. Workable now, Bob-independent up to the point
+   where the answer is "deliberately absent".
 
 ### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 
