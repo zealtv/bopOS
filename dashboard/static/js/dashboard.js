@@ -1210,10 +1210,13 @@ function deviceControlSection(d) {
   const disabled=!seat||!live;
   const why=!seat?'Unbound device — showing patch defaults. Live control targets content by Seat, so bind this device to a Seat first.'
     :!live?'Offline — showing the last known values.':'';
+  // The preset row now names the patch (panel anatomy item 2), so the head
+  // line keeps only what the row cannot say: where that patch came from.
+  const presets=declarations.length?deviceSurface.presetRow(schema?.patch,`device:${d.uid}`):"";
   const body=!declarations.length
     ? '<p class="dim">This patch declares no parameters.</p>'
-    : `<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
-  const source=schema?.patch?`<p class="dim">${esc(schema.patch)}${d.patch_pinned?' · pinned to this device':' · fleet patch'}</p>`:"";
+    : `${presets}<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
+  const source=schema?.patch?`<p class="dim">${d.patch_pinned?'pinned to this device':'fleet patch'}</p>`:"";
   return `<section id="device-control" class="device-control${disabled?' disabled':''}">
     <div class="section-head"><div><h2>Device control</h2>${source}</div><button id="device-control-toggle" aria-expanded="${open}" aria-controls="device-control-body">${open?'Hide':'Show'}</button></div>
     <div id="device-control-body" ${open?'':'hidden'}>${why?`<p class="dim">${esc(why)}</p>`:''}${body}</div>

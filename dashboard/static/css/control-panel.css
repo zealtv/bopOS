@@ -867,3 +867,87 @@
     box-shadow:0 0 0 1px var(--mod);
   }
 }
+
+/* ---- 16. The provisional preset row (control-panel-design §1.2) ----------
+   `7-preset-slot`. Patch name (live) + preset dropdown + new/save/del, all
+   inert: the preset system is `41-preset-primitive`. The slot is here so 41
+   lands into a designed panel rather than redesigning one.
+
+   It sits between the panel header and the parameter rows in both hosts, and
+   is separated from the rows by the panel rule the mockup draws there. */
+
+.live-card .live-preset-row,
+.device-control .live-preset-row {
+  display:flex;
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  margin-bottom:var(--gap);
+  padding-bottom:var(--gap);
+  border-bottom:1px solid var(--group-line);
+  font-size:12px;
+}
+/* The facilitator's card already rules off its parameter block; with the
+   preset row above it that rule would double. The row's own rule wins — it is
+   the one the mockup draws, in the place the mockup draws it. */
+.live-card .live-preset-row + .promoted-controls,
+.device-control .live-preset-row + .promoted-controls {
+  padding-top:0;
+  border-top:0;
+}
+.live-card .live-preset-patch,
+.device-control .live-preset-patch {
+  margin-right:auto;
+  min-width:0;
+  overflow:hidden;
+  color:var(--text);
+  font-weight:700;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.live-card .live-preset-select,
+.device-control .live-preset-select {
+  max-width:110px;
+  min-height:20px;
+  padding:1px 4px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+}
+/* new/save/del act once each — momentary, so PD-bang rounded (§8). */
+.live-card .live-preset-action,
+.device-control .live-preset-action {
+  min-height:20px;
+  padding:2px 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+/* Disabled reads as unavailable, not as broken chrome. */
+.live-card .live-preset-row :disabled,
+.device-control .live-preset-row :disabled {
+  opacity:.5;
+  cursor:not-allowed;
+}
+/* The explanation exists for assistive technology: a disabled control is not
+   focusable, so its `title` never surfaces, but `aria-describedby` does. */
+.live-card .live-preset-note,
+.device-control .live-preset-note {
+  position:absolute;
+  width:1px;
+  height:1px;
+  margin:-1px;
+  padding:0;
+  border:0;
+  overflow:hidden;
+  clip-path:inset(50%);
+  white-space:nowrap;
+}

@@ -231,6 +231,33 @@
       </div>`;
     }
 
+    // ---- the provisional preset row (01-control-panel/7) -------------------
+    // Panel anatomy item 2 (control-panel-design §1): patch name, preset
+    // dropdown, `new`/`save`/`del`. The slot is DESIGNED, not built — presets
+    // are `41-preset-primitive`, which is gated behind `44-event-plane`. It
+    // renders now so 41 lands into a designed home instead of redesigning the
+    // panel around itself.
+    //
+    // Everything but the patch name is inert. Disabled controls are not
+    // focusable, so `title` alone would never be announced: the row carries a
+    // visually-hidden note and every control points at it with
+    // `aria-describedby`, which IS announced for a disabled control.
+    const PRESET_NOTE = "Presets are not built yet — the preset system is 41-preset-primitive.";
+    const PRESET_ACTIONS = ["new", "save", "del"];
+
+    function presetRow(patch, key) {
+      const noteId = `live-preset-note-${String(key).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      const described = `aria-describedby="${noteId}" title="${esc(PRESET_NOTE)}"`;
+      const actions = PRESET_ACTIONS.map(action =>
+        `<button type="button" class="live-preset-action" data-preset-action="${action}" ${described} disabled>${action}</button>`).join("");
+      return `<div class="live-preset-row" data-preset-slot>
+        <span class="live-preset-patch">${esc(patch || "no patch")}</span>
+        <select class="live-preset-select" aria-label="preset" ${described} disabled><option>no presets</option></select>
+        ${actions}
+        <span id="${noteId}" class="live-preset-note">${esc(PRESET_NOTE)}</span>
+      </div>`;
+    }
+
     // ---- parameter kinds (01-control-panel/6) ------------------------------
     // One dispatch for the whole surface. Enum is checked before toggle
     // because a two-option enum also spans 0..1, and it is the `options` list —
@@ -729,6 +756,7 @@
     return {
       tree: paramTree,
       control: paramControl,
+      presetRow,
       bind: bindParams,
       refreshAnchors: refreshAutomationAnchors,
       announcement: key => takeoverAnnouncements.get(key) || "",

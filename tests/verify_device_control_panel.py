@@ -352,6 +352,30 @@ def main():
                       page.locator(slider).count() == 1
                       and page.get_attribute(slider, "data-live-scope")
                       == "device")
+                # The provisional preset slot (01-control-panel/7) is part of
+                # the shared panel, so the Device tab gets the same designed
+                # home for `41-preset-primitive` that the Control tab has.
+                preset = page.evaluate(
+                    """sel => {
+                      const body = document.querySelector(sel);
+                      const row = body.querySelector("[data-preset-slot]");
+                      if (!row) return {present: false};
+                      const rows = body.querySelector(".promoted-controls");
+                      return {
+                        present: true,
+                        patch: row.querySelector(".live-preset-patch")
+                          .textContent.trim(),
+                        aboveRows: !!(row.compareDocumentPosition(rows)
+                          & Node.DOCUMENT_POSITION_FOLLOWING),
+                        live: [...row.querySelectorAll("select,button")]
+                          .filter(control => !control.disabled).length,
+                      };
+                    }""", BODY)
+                check("the device panel carries the same preset slot",
+                      preset["present"] and preset.get("patch") == "alpha"
+                      and preset.get("aboveRows")
+                      and preset.get("live") == 0, repr(preset))
+
                 page.eval_on_selector(
                     slider,
                     "node => { node.value = '0.63';"

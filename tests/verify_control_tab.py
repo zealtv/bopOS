@@ -250,6 +250,54 @@ def main():
                 frame.locator('.live-card[data-live-scope="all"]').wait_for()
                 check("All shows the aggregate card only",
                       frame.locator(".live-card").count() == 1)
+
+                # --- the provisional preset slot (01-control-panel/7) ---
+                # The row is a DESIGNED SLOT, not behaviour: `41-preset-primitive`
+                # is still gated behind `44-event-plane`. What is verified here
+                # is that the slot exists in its ratified place, names the live
+                # patch, and cannot be mistaken for working presets.
+                slot = frame.locator(
+                    '.live-card[data-live-scope="all"] [data-preset-slot]')
+                check("the panel carries the provisional preset slot",
+                      slot.count() == 1)
+                check("the preset row names the live patch",
+                      slot.locator(".live-preset-patch").inner_text().strip()
+                      == "alpha")
+                check("it offers the ratified preset controls",
+                      slot.locator(".live-preset-select").count() == 1
+                      and [button.strip() for button in slot.locator(
+                          ".live-preset-action").all_text_contents()]
+                      == ["new", "save", "del"])
+                placement = page.frames[-1].evaluate(
+                    """() => {
+                      const card = document.querySelector(
+                        '.live-card[data-live-scope="all"]');
+                      const row = card.querySelector("[data-preset-slot]");
+                      const head = card.querySelector(".live-card-head");
+                      const rows = card.querySelector(".promoted-controls");
+                      const after = Node.DOCUMENT_POSITION_FOLLOWING;
+                      return {
+                        belowHead: !!(head.compareDocumentPosition(row) & after),
+                        aboveRows: !!(row.compareDocumentPosition(rows) & after),
+                        live: [...row.querySelectorAll("select,button")]
+                          .filter(control => !control.disabled).length,
+                        explained: [...row.querySelectorAll("select,button")]
+                          .every(control => {
+                            const note = document.getElementById(
+                              control.getAttribute("aria-describedby") || "");
+                            return !!note && /41-preset-primitive/
+                              .test(note.textContent);
+                          }),
+                      };
+                    }""")
+                check("the preset row sits between the header and the rows",
+                      placement["belowHead"] and placement["aboveRows"],
+                      repr(placement))
+                check("every preset control is inert",
+                      placement["live"] == 0, repr(placement))
+                check("each inert control explains that presets are future work",
+                      placement["explained"], repr(placement))
+
                 frame.locator('[data-target-mode="groups"]').click()
                 frame.locator('.live-card[data-live-scope="group"]').wait_for()
                 check("Groups shows the group cards",

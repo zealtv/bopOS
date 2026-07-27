@@ -109,7 +109,7 @@ function deviceCommands(device) {
   return `<details class="device-commands" data-command-uid="${esc(device.uid)}" ${openCommandDevices.has(device.uid) ? "open" : ""}><summary>Device setup</summary><div>${commands}</div></details>`;
 }
 
-function liveCard(scope, item, members, declarations, schemaAvailable) {
+function liveCard(scope, item, members, declarations, schemaAvailable, patch) {
   const id = scope === "all" ? null : Number(item.id);
   const empty = members.length === 0;
   const device = scope === "seat" ? deviceForSeat(item) : null;
@@ -120,9 +120,14 @@ function liveCard(scope, item, members, declarations, schemaAvailable) {
     : `Seat ${item.id} · ${device ? (device.online ? "online" : "offline") : (item.bound ? "offline" : "unbound")}`;
   const controls = declarations.length ? `<div class="promoted-controls">${surface.tree(scope, id, members, declarations, empty)}</div>` : "";
   const cardKey = `${scope}:${id ?? "all"}`;
+  // Panel anatomy: the preset row sits between the header and the parameter
+  // rows, on every card that has parameters — a preset is per target (the
+  // shipping venue-preset shelf already scopes by target), so the slot belongs
+  // to the panel, not to one privileged card.
+  const presets = declarations.length ? surface.presetRow(patch, cardKey) : "";
   return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${id}"`}>
     <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, id, !schemaAvailable) : ""}</div>
-    ${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status visually-hidden" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
+    ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status visually-hidden" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
   </article>`;
 }
 
@@ -222,14 +227,15 @@ function renderCards() {
   const available = declarations.length > 0;
   const chosen = targetFilter ? targetFilter.target() : {mode: "all"};
   let cards;
+  const patch = schema?.patch;
   if (chosen.mode === "seat") {
     // The filter always resolves to a real Seat when one exists, so an empty
     // list here means the venue has no Seats, not that none was chosen.
-    cards = chosen.seat ? [liveCard("seat", chosen.seat, [chosen.seat], declarations, available)] : [];
+    cards = chosen.seat ? [liveCard("seat", chosen.seat, [chosen.seat], declarations, available, patch)] : [];
   } else if (chosen.mode === "groups") {
-    cards = groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, available));
+    cards = groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, available, patch));
   } else {
-    cards = [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0)];
+    cards = [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0, patch)];
   }
   $("#cards").dataset.liveView = chosen.mode;
   $("#cards").innerHTML = cards.join("")
