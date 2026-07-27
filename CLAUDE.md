@@ -74,9 +74,17 @@ remain the authority for a particular piece of work.
 > content references with derived non-blocking drift warnings, portable
 > shows target groups **by name**, venue presets retire when 41 lands,
 > collections start as show steps, one application path with hard takeover.
-> `41-preset-primitive/1` is un-gated (waiting only on UI-first queue
-> order). Standing constraint: the system works today and must keep working;
-> prefer small ordered changes over rewrites.
+> **Same-day resequencing (Bob):** the mockup's new parameter kinds —
+> toggles/integers/enums and **events** (single/pair/triplet MIDI-style
+> floats with forward synchronization, likely a new `<target>/e/*` plane) —
+> may need to exist before the preset design, so **`44-event-plane`**
+> (Bob-gated contract design, `.waiting` on queue order) now sits **between
+> the control-panel work and `41-preset-primitive`**. Bob also added the
+> **capture-as-step** workflow (Control tab → one click stores the current
+> target→preset arrangement as a show step) as design input for 41's Q6.
+> Order: `01-control-panel` → `44-event-plane/1` → `41/1`. Standing
+> constraint: the system works today and must keep working; prefer small
+> ordered changes over rewrites.
 >
 > **Update 2026-07-26 (loom tidy):** Bob dropped the old
 > `18-show-chrome-density` goal and replaced its remaining intent with

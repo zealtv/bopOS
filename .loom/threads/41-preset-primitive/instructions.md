@@ -31,5 +31,19 @@ name** and content by `{name, fingerprint}` with derived non-blocking drift
 warnings (the drift policy of Q1/W5); one application path with hard
 takeover is the global rule. The mockup's provisional preset row (dropdown +
 new/save/del at the control-panel top) is UI input for the design stitch.
-The design stitch stays `.waiting` only for queue order (UI-first per Bob's
-2026-07-27 ruling) — claimable whenever Bob wants presets next.
+**Re-sequenced same day (Bob, 2026-07-27): `44-event-plane` comes first.**
+The mockup braindump's event parameters (single/pair/triplet MIDI-style
+events with forward synchronization, likely a `<target>/e/*` plane) and the
+toggle/integer/enum kinds may need to exist before the preset design, since
+a preset must know what it captures for each kind. The design stitch here
+stays `.waiting` behind `desktop-ui-overhaul/01-control-panel` and
+`44-event-plane/1-event-plane-design`.
+
+**Additional design input (Bob, 2026-07-27): capture-as-step.** From the
+Control tab, once presets are set up targeting different groups/seats, one
+click stores the current target→preset arrangement as a **show step** — the
+authoring path for "meta presets", closing the ratified "collections start
+as show steps" ruling. The design stitch's Q6 (show integration) must cover
+this capture flow: what exactly is snapshotted (the target→preset mapping;
+current values for targets without a preset applied?), and where the button
+lives (coordinate with the control-panel design's preset row).

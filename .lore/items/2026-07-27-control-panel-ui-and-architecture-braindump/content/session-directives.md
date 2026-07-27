@@ -26,6 +26,20 @@
      Prefer small changes that keep things clean, flexible, ordered — not a
      rewrite.
 
+3a. **Same-day addendum (after the architecture review tied).** Bob re-sent
+   the mockup and added two directives:
+   - **Events before presets.** The braindump's new parameter types —
+     toggles, integers, enums, and especially events (single/pair/triplet
+     floats, MIDI note/velocity/duration) with forward synchronization,
+     likely a new `<target>/e/*` plane — "might be something that needs to
+     be implemented before the preset design." → thread `44-event-plane`,
+     queued ahead of `41-preset-primitive`.
+   - **Capture-as-step.** From the Control tab, once presets are set up
+     targeting different groups/seats, clicking one button stores that
+     arrangement as a show step — "would ease the workflow considerably."
+     Design input for 41's show integration (Q6); it is the authoring path
+     for the ratified "collections start as show steps" model.
+
 3. **Ruling — Control tab shows the full manifest.** By default the Control
    tab must show *all* parameters in the manifest and allow value-setting and
    generator application on any of them. The manifest's `dashboard:` option
