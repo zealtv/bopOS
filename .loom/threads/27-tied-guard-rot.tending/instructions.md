@@ -1,5 +1,14 @@
 # 27-tied-guard-rot
 
+## Session authorisation (2026-07-27)
+
+Bob gave the green light to decompose and begin this thread. The numbered child
+stitches are the working plan. `01` establishes the inventory and runner
+contract before assertions are migrated; `02`–`05` promote the already-named
+durable surfaces; `06` catches any additional forever-contracts found during
+triage; `07` makes the resulting suite routine; and `08` records the disposition
+of the historical archive. Work one child at a time.
+
 ## Bob's ruling (2026-07-23) — the reframing. READ FIRST.
 
 > "We want durable, maintainable tests for appropriate surfaces. Running tests of
