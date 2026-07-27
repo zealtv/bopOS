@@ -1,0 +1,254 @@
+/* Control-panel token layer and chrome — desktop-ui-overhaul/01-control-panel,
+   stitch 3-tokens-and-chrome.
+
+   Authority: `design-language.md` + `control-panel-design.md` in the tied
+   `2-control-panel-design` stitch (ratified 2026-07-27).
+
+   This file is loaded by BOTH hosts of the shared ControlSurface — the
+   dashboard (Device tab panel) and the facilitator page (the Control tab
+   iframe, and the standalone tablet view). One file rather than the usual
+   copy-paste between style.css and facilitator.css, because the whole point
+   of the token layer is that the two hosts cannot drift.
+
+   Scope discipline: the light-theme repaint is deliberately confined to the
+   control surface (`.live-card`, `.device-control`). The app-wide repaint is
+   `02-app-wide-rollout-design`, not this stitch. In DARK theme the panel
+   token values are identical to the shipping ones, so dark is a no-op here
+   and only the chrome rules below change it. */
+
+/* ---- 1. Palette tokens (design-language §1) ------------------------------
+   `--mod*`, `--value-fill` and `--hatch` are new and global: they name inks,
+   not surfaces, so nothing outside the panel is repainted by declaring them.
+   The `--cp-*` values are the panel-scoped base tokens applied in §3. */
+
+:root, :root[data-theme=dark] {
+  --mod:#4DEEE3;
+  --mod-fill:rgba(77,238,227,.26);
+  --mod-hatch:rgba(77,238,227,.45);
+  --mod-soft:rgba(77,238,227,.12);
+  --value-fill:rgba(255,255,255,.10);
+  --hatch:rgba(255,255,255,.16);
+  /* Dark panel base = the shipping dark values; listed so the two themes
+     read as one table. */
+  --cp-bg:#101316;--cp-panel:#191e23;--cp-subpanel:#12191e;--cp-input:#10161b;
+  --cp-control:#273039;--cp-hover:#252d34;--cp-line:#5e6a75;
+  --cp-control-line:#74818c;--cp-group-line:#3e4952;--cp-text:#e8edf1;
+  --cp-dim:#8f9ba5;--cp-accent:#8A82D8;
+  --cp-panel-strong:#1c242a;--cp-panel-soft:#141a1f;--cp-row:#171f25;
+  --cp-selected:#26303a;--cp-strong-line:#74818c;
+}
+
+@media (prefers-color-scheme:light) {
+  :root {
+    --mod:#0798BC;
+    --mod-fill:rgba(7,152,188,.20);
+    --mod-hatch:rgba(7,152,188,.42);
+    --mod-soft:rgba(7,152,188,.09);
+    --value-fill:rgba(90,60,120,.13);
+    --hatch:rgba(60,40,80,.20);
+    --cp-bg:#f4d7eb;--cp-panel:#fdf6fb;--cp-subpanel:#f6e4f0;
+    --cp-input:#fefcfe;--cp-control:#eed7e8;--cp-hover:#e5c6dd;
+    --cp-line:#9a8298;--cp-control-line:#84788a;--cp-group-line:#a586a0;
+    --cp-text:#2b2130;--cp-dim:#655a6b;--cp-accent:#7A4FC8;
+    --cp-panel-strong:#f9ecf5;--cp-panel-soft:#f6e4f0;--cp-row:#fbf1f7;
+    --cp-selected:#e5c6dd;--cp-strong-line:#84788a;
+  }
+}
+
+:root[data-theme=light] {
+  --mod:#0798BC;
+  --mod-fill:rgba(7,152,188,.20);
+  --mod-hatch:rgba(7,152,188,.42);
+  --mod-soft:rgba(7,152,188,.09);
+  --value-fill:rgba(90,60,120,.13);
+  --hatch:rgba(60,40,80,.20);
+  --cp-bg:#f4d7eb;--cp-panel:#fdf6fb;--cp-subpanel:#f6e4f0;
+  --cp-input:#fefcfe;--cp-control:#eed7e8;--cp-hover:#e5c6dd;
+  --cp-line:#9a8298;--cp-control-line:#84788a;--cp-group-line:#a586a0;
+  --cp-text:#2b2130;--cp-dim:#655a6b;--cp-accent:#7A4FC8;
+  --cp-panel-strong:#f9ecf5;--cp-panel-soft:#f6e4f0;--cp-row:#fbf1f7;
+  --cp-selected:#e5c6dd;--cp-strong-line:#84788a;
+}
+
+/* ---- 2. Metric tokens (design-language §4) ------------------------------
+   Theme-independent. `--radius-panel/control/small` are the design's names
+   for the shipping `--chrome-radius-*` values; both spellings stay valid so
+   existing rules keep working. */
+
+:root {
+  --radius-panel:6px;
+  --radius-control:4px;
+  --radius-small:3px;
+  --radius-momentary:7px;   /* PD bang: momentary is round */
+  --radius-toggle:1px;      /* PD toggle: latching is square */
+}
+
+/* ---- 3. Panel scope ------------------------------------------------------
+   The two containers that hold a ControlSurface. Rebinding the base tokens
+   locally repaints the panel without touching the page around it. */
+
+.live-card, .device-control {
+  --bg:var(--cp-bg);
+  --panel:var(--cp-panel);
+  --subpanel:var(--cp-subpanel);
+  --input:var(--cp-input);
+  --control:var(--cp-control);
+  --hover:var(--cp-hover);
+  --line:var(--cp-line);
+  --control-line:var(--cp-control-line);
+  --group-line:var(--cp-group-line);
+  --panel-strong:var(--cp-panel-strong);
+  --panel-soft:var(--cp-panel-soft);
+  --row:var(--cp-row);
+  --selected:var(--cp-selected);
+  --strong-line:var(--cp-strong-line);
+  --text:var(--cp-text);
+  --dim:var(--cp-dim);
+  --accent:var(--cp-accent);
+  /* Modulation is cyan. `--auto` is the shipping automation ink (markers,
+     glyphs, generator trace); inside the panel it IS the modulation ink. */
+  --auto:var(--mod);
+  color:var(--text);
+  accent-color:var(--accent);
+}
+
+/* ---- 4. Focus (design-language §2) --------------------------------------
+   No user-agent focus colours inside the panel — purple, always. */
+
+.live-card :focus-visible,
+.device-control :focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+/* The precision readout shipped a cyan focus ring from 40-precision-param-input;
+   under the ratified palette cyan means modulation, so focus goes purple too. */
+.live-card output.precise-output:focus-visible,
+.device-control output.precise-output:focus-visible {
+  outline:2px solid var(--accent);
+}
+.live-card .precise-input,
+.device-control .precise-input {
+  border-color:var(--control-line);
+  border-radius:var(--radius-small);
+}
+
+/* ---- 5. Button shapes (design-language §8) ------------------------------
+   Momentary = rounded 7px, latching = near-square. The radius keys off
+   `aria-pressed`, so a button's semantics and its shape cannot drift apart. */
+
+.live-card button,
+.device-control button {
+  border-radius:var(--radius-momentary);
+}
+.live-card button[aria-pressed],
+.device-control button[aria-pressed] {
+  border-radius:var(--radius-toggle);
+}
+.live-card .live-param-mode,
+.device-control .live-param-mode {
+  border-radius:var(--radius-toggle);
+  border-color:var(--control-line);
+}
+/* A latching button that is ON wears the modulation ink. */
+.live-card .live-param-mode-button[aria-pressed=true],
+.device-control .live-param-mode-button[aria-pressed=true] {
+  background:var(--mod-fill);
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--mod);
+}
+
+/* ---- 6. The ∿ modulation icon (design-language §5) ----------------------
+   Always an 18px circle, exempt from the momentary/latching radii. The
+   markup that uses this class arrives with `4-row-regrind`, which replaces
+   the `value ▸ gen` switch above; the shape rule lands here with the rest of
+   the button vocabulary so that stitch only has to emit the element. */
+
+.live-card .live-param-mod,
+.device-control .live-param-mod {
+  flex:none;
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  height:18px;
+  padding:0;
+  border:1px solid var(--control-line);
+  border-radius:50%;
+  background:var(--input);
+  color:var(--dim);
+  font:inherit;
+  font-size:12px;
+  line-height:1;
+}
+.live-card .live-param-mod[aria-expanded=true],
+.device-control .live-param-mod[aria-expanded=true],
+.live-card .live-param.automated .live-param-mod,
+.device-control .live-param.automated .live-param-mod {
+  border-color:var(--mod);
+  background:var(--mod-soft);
+  color:var(--mod);
+}
+
+/* ---- 7. Value readout ink (design-panel Q1) -----------------------------
+   Cyan means modulation, so a value box is cyan ONLY under a generator. The
+   shipping surface painted every readout cyan. */
+
+.live-card .live-param output,
+.device-control .live-param output {
+  color:var(--text);
+}
+.live-card .live-param.automated output,
+.device-control .live-param.automated output {
+  color:var(--mod);
+}
+.live-card .live-param.mixed output,
+.device-control .live-param.mixed output {
+  color:var(--dim);
+}
+
+/* ---- 7b. Native widget inks ---------------------------------------------
+   The shipping surface painted the range track cyan and the facilitator's
+   0/1 checkbox warm amber. Both are off-book under the ratified palette:
+   cyan is reserved for modulation and there is no third hue. Manual controls
+   take the structural accent. (`4-row-regrind` replaces the native track
+   with the `--value-fill` fill + marker; until then the accent stands in.)
+   The facilitator's text param reads `--bg` for its field, which is now the
+   saturated page pink — a value box is `--input`. */
+
+.live-card .live-param input[type=range],
+.device-control .live-param input[type=range],
+.live-card .live-param input[type=checkbox],
+.device-control .live-param input[type=checkbox] {
+  accent-color:var(--accent);
+}
+.live-card .live-param input[type=text],
+.device-control .live-param input[type=text] {
+  background:var(--input);
+  border-color:var(--control-line);
+  border-radius:var(--radius-small);
+}
+
+/* ---- 8. Generator drawer chrome (design-language §7) --------------------
+   A `--subpanel` region indented 12px under its row. Layout of the drawer's
+   innards (kind tabs, waveform display, mini-sliders) is `4-row-regrind`. */
+
+.live-card .live-param-gen,
+.device-control .live-param-gen {
+  margin-left:12px;
+  padding:10px;
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-panel);
+  background:var(--subpanel);
+}
+.live-card .live-param-gen input,
+.live-card .live-param-gen select,
+.device-control .live-param-gen input,
+.device-control .live-param-gen select {
+  border-color:var(--control-line);
+  border-radius:var(--radius-control);
+}
+.live-card .live-param-gen button.primary,
+.device-control .live-param-gen button.primary {
+  border-color:var(--accent);
+  background:var(--control);
+}
