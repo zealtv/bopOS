@@ -87,5 +87,26 @@ with cues (as zero-element events) in the events section, targetable at all
 seats / a group / an individual seat. That stitch describes the UI; this
 thread ratifies the wire and implements engine/simfleet/relay parity.
 
-Start with `1-event-plane-design` (Bob-gated proposal); implementation
-stitches follow ratification.
+## Ratified 2026-07-28 — `1-event-plane-design` is tied
+
+The proposal and `decisions.md` are in `.loom/tied/1-event-plane-design/`.
+Bob ratified the `kind` grammar, `text` as the fifth kind's name, identity
+carried in the address, no show-document migration, and pill code `EV`.
+Two additions came out of the ratification session:
+
+- **The `text` kind's UI is now in scope for this thread** (Bob: strings are
+  in the contract, so they need a manifest implementation and a styled
+  control) — manifest half in child `2`, styled control deferred to child `6`.
+- **The event row's sync toggle is superseded.** The tied `6-non-float-kinds`
+  shipped it per the original mockup; every event forward-syncs, so the row
+  has one fire button. Child `4` removes it.
+
+Children, worked in order (Bob works sequentially):
+
+1. `2-kind-grammar` — the declaration break, no wire change.
+2. `3-event-plane-wire` — `/e/*`, generalized scheduler, the `"0"` lead
+   sentinel, simfleet + audition parity, contract v1.14.
+3. `4-cue-retirement` — delete `/cue` everywhere, pill rename, cue triggers
+   onto the control panel's events section.
+4. `5-pd-adoption` — **Bob's** `.pd` receiver edits and the rig check.
+5. `6-text-kind-control` — deferred styled text control.
