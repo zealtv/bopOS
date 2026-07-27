@@ -194,6 +194,34 @@ class AudioConfigTests(unittest.TestCase):
             self.assertEqual(reply.calls[0][0][0:5], [
                 "/os/audio-config", ",ssss", "node-a", "ok", "applied"])
 
+    def test_audio_restart_reapplies_execution_mute_safety(self):
+        with tempfile.TemporaryDirectory() as root:
+            Path(root, "run").mkdir()
+            Path(root, "bopos.config").write_text(
+                "SOUNDCARD=DigiAMP\nMIXER_CONTROL=Digital\n"
+            )
+            node, reply = Node(root, enabled=True, mute_all=True), ReplySocket()
+            with (
+                mock.patch.object(bopos, "BOPOS_DIR", root),
+                mock.patch.object(
+                    audio_config, "discover_cards", return_value=CARDS
+                ),
+                mock.patch.object(
+                    bopos, "_restart_audio_engine", return_value=True
+                ),
+                mock.patch.object(
+                    bopos, "enforce_mute", return_value=True
+                ) as enforce,
+            ):
+                self.assertTrue(bopos.apply_audio_config(
+                    json.dumps(CANDIDATE), reply, "10.0.0.8", node
+                ))
+
+            enforce.assert_called_once_with(True, node)
+            self.assertTrue(node.device_enabled)
+            self.assertTrue(node.mute_all)
+            self.assertFalse(bopos.output_enabled(node))
+
     def test_failed_candidate_restores_file_and_old_engine(self):
         with tempfile.TemporaryDirectory() as root:
             Path(root, "run").mkdir()

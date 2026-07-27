@@ -48,6 +48,17 @@ class State:
     def public(self):
         return self.data
 
+    def ensure(self, uid):
+        return self.devices.setdefault(uid, {
+            "uid": uid, "id": -1, "online": False, "virtual": False,
+        })
+
+    def ensure_device_alias(self, uid):
+        if uid in self.device_registry:
+            return self.device_registry[uid], False
+        self.device_registry[uid] = {"device_enabled": True}
+        return self.device_registry[uid], True
+
     def clean_seat_id(self, value):
         try:
             return int(value)
@@ -216,6 +227,26 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(
             frame[0] in ("/all/os/to", "/all/os/assign", "/all/os/groups")
             for frame in self.sender.frames))
+
+    async def test_reappearing_physical_device_replays_persistent_enabled_state(self):
+        self.state.device_registry["physical-1"]["device_enabled"] = False
+        self.state.devices["physical-1"]["online"] = False
+        self.sender.frames.clear()
+
+        self.bridge.handle(
+            "/hb", ["physical-1", 0, "abc1234", 1], "192.0.2.4"
+        )
+
+        enabled = [
+            frame for frame in self.sender.frames
+            if frame[0] == "/all/os/to"
+            and frame[1][:2] == ["physical-1", "enabled"]
+        ]
+        self.assertEqual(
+            enabled,
+            [("/all/os/to", ["physical-1", "enabled", 0],
+              ("192.0.2.255", 6660))],
+        )
 
     async def test_forget_is_host_only(self):
         uid = "physical-2"
