@@ -103,14 +103,33 @@ remain the authority for a particular piece of work.
 > the Monitor name itself may be revisited later. Patch-tab manifest entries
 > become drag-reorderable to reorder the control panel
 > (`desktop-ui-overhaul/01-control-panel/8-manifest-reorder`).
-> **Order (27 slotted in, 2026-07-27):**
-> `01-control-panel/1-full-manifest-visibility` (ship now) →
-> **Complete — `27-tied-guard-rot`** (the durable `tests/` suite and canonical
-> runner now exist; the tied guard archive is retired historical evidence)
-> alongside `01-control-panel/2-control-panel-design`
-> → control-panel implementation → `44-event-plane/1` → `41/1` →
-> `02-app-wide-rollout-design`. Standing constraint: the system works today
-> and must keep working; prefer small ordered changes over rewrites.
+> **Order — ratified by Bob 2026-07-28, supersedes the 2026-07-27 line.**
+> `27-tied-guard-rot`, `46-control-surface-probe-race`, the control-panel
+> implementation slices, and **`44-event-plane/1` (design, ratified & tied)**
+> are all complete. The live order is:
+>
+> 1. `44-event-plane/2-kind-grammar` — declaration break, zero wire change;
+>    everything downstream waits on it.
+> 2. `44-event-plane/3-event-plane-wire` — `/e/*`, the `"0"` lead sentinel,
+>    contract v1.14; settles the `cue_lead_ms` → `event_lead_ms` rename.
+> 3. `44-event-plane/4-cue-retirement` — the 263-reference `/cue` deletion.
+> 4. `desktop-ui-overhaul/03-global-controls-monitor` — **must follow 3**: it
+>    relocates the cue-lead control, so going earlier means moving it and then
+>    renaming it. Also the natural filler while 6 waits on Bob.
+> 5. `desktop-ui-overhaul/01-control-panel/8-manifest-reorder` — **must follow
+>    4**: both rewrite the manifest editor and the panel's section split, so
+>    this is one pass over that surface instead of two.
+> 6. `44-event-plane/5-pd-adoption` — **Bob's**: the `.pd` receiver edits plus
+>    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
+> 7. `desktop-ui-overhaul/02-app-wide-rollout-design` — unblocks once 5 ties
+>    `01-control-panel`.
+> 8. `41-preset-primitive/1` — design gate. Needs **only** step 1, so pull it
+>    earlier if a Bob design session is free.
+> 9. `44-event-plane/6-text-kind-control` — after 7, so it adopts the app-wide
+>    text treatment rather than competing with it.
+>
+> Standing constraint: the system works today and must keep working; prefer
+> small ordered changes over rewrites.
 >
 > **Update 2026-07-26 (loom tidy):** Bob dropped the old
 > `18-show-chrome-density` goal and replaced its remaining intent with
