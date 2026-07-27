@@ -213,10 +213,17 @@ PARITY_JS = """
     .replace(/--auto-elapsed:[^;"]+/g, '--auto-elapsed:X');
   const seatHtml = probe.tree("seat", seat.id, [seat], declarations, false);
   const deviceHtml = probe.tree("device", seat.bound, [seat], declarations, false);
+  // Keep the probe under the same panel-scoped stylesheet as shipping rows,
+  // but outside `#cards`: facilitator heartbeats replace that container's
+  // innerHTML and used to intermittently delete the probe between checks.
+  const fixture = document.createElement("article");
+  fixture.id = "surface-probe-card";
+  fixture.className = "live-card";
   const host = document.createElement("div");
   host.id = "surface-probe";
   host.innerHTML = deviceHtml;
-  document.body.appendChild(host);
+  fixture.appendChild(host);
+  document.getElementById("cards").after(fixture);
   probe.bind(host);
   return {
     identical: normalize(seatHtml) === normalize(deviceHtml),
@@ -232,13 +239,13 @@ PARITY_JS = """
 
 
 # Measures the ratified parameter-row grammar
-# (`[value box][name-in-slider][∿]`) on the probe host, moved inside a real
-# `.live-card` so the panel stylesheet applies. `density` there is
-# generator-driven, `steps`/`filter/cutoff` are manual.
+# (`[value box][name-in-slider][∿]`) on the probe host. PARITY_JS keeps it in
+# a dedicated `.live-card` outside the heartbeat-rendered `#cards`, so the
+# panel stylesheet applies without making the fixture disposable. `density`
+# there is generator-driven, `steps`/`filter/cutoff` are manual.
 ROW_GRAMMAR_JS = """
 () => {
   const host = document.getElementById("surface-probe");
-  document.querySelector(".live-card").appendChild(host);
   const row = path => host.querySelector(`.live-param[data-param-path="${path}"]`);
   const density = row("density");
   const steps = row("steps");
@@ -606,11 +613,10 @@ def main():
                       repr(sent))
 
                 # --- (e) the ratified row grammar (01-control-panel/4) ---
-                # The probe host is moved inside a real `.live-card` so the
-                # panel-scoped stylesheet applies to it; that gives a
-                # deterministic automated row (PARITY_JS put an LFO on
-                # `density`) alongside manual ones, with no heartbeat racing
-                # the measurement.
+                # The probe host lives in a dedicated `.live-card` outside
+                # `#cards`, so the panel-scoped stylesheet applies without a
+                # heartbeat replacing the fixture. PARITY_JS put an LFO on
+                # `density`, alongside the manual rows measured here.
                 grammar = page.evaluate(ROW_GRAMMAR_JS)
                 check("the row is [value box][name-in-slider][∿]",
                       grammar["shape"] == ["OUTPUT.live-param-value",
