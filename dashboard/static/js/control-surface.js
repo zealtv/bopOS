@@ -211,22 +211,35 @@
       return `<button type="button" class="live-param-mod" data-gen-toggle data-gen-key="${esc(key)}" aria-expanded="${open}" aria-label="${esc(label)}" ${disabled ? "disabled" : ""}>∿</button>`;
     }
 
-    function generatorDrawer(scope, id, key, declaration, running, disabled) {
+    // The drawer's playhead may only move when the surface actually knows the
+    // phase. That is the case when a periodic generator is running AND the
+    // drawer is showing it rather than an edited draft; the display then reads
+    // two cycles wide, so one traversal is two periods.
+    function drawerMotion(key, model) {
+      if (!model || drafts.has(key)) return null;
+      if (model.parsed.mode !== "lfo" && model.parsed.mode !== "loop") return null;
+      if (!(model.periodMs > 0)) return null;
+      return {windowMs: model.periodMs * 2, elapsedMs: model.elapsedMs};
+    }
+
+    function generatorDrawer(scope, id, key, declaration, running, disabled, model) {
       const spec = draftSpec(key, declaration, running);
       const kind = GEN_KINDS.includes(spec.mode) ? spec.mode : "lfo";
       const off = disabled ? "disabled" : "";
       const tabs = GEN_TAB_ORDER.map(item =>
         `<button type="button" data-gen-kind-tab="${item}" aria-pressed="${item === kind}" ${off}>${GEN_TAB_LABELS[item]}</button>`).join("");
+      // Apply and Stop are rendered here but PLACED by the body's layout — they
+      // sit in the column beside the display, under the tabs (Bob,
+      // 2026-07-27), which is what lets the drawer stop stretching.
+      const actions = `<span class="live-param-gen-actions">
+            <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
+            <button type="button" data-gen-stop ${off}>Stop</button>
+          </span>`;
       return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-gen-kind="${esc(kind)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
         <div class="live-param-gen-head">
           <span class="live-param-gen-tabs" role="group" aria-label="generator kind">${tabs}</span>
-          <span class="live-param-gen-actions">
-            <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
-            <button type="button" data-gen-stop ${off}>Stop</button>
-          </span>
         </div>
-        <div class="live-param-gen-fields">${window.ParamGenerator.fields(declaration, spec)}</div>
-        <div class="live-param-gen-preview">${window.ParamGenerator.preview(spec, declaration)}</div>
+        <div class="live-param-gen-fields">${window.ParamGenerator.panelFields(declaration, spec, drawerMotion(key, model), actions)}</div>
         <output class="live-param-gen-error" aria-live="polite"></output>
       </div>`;
     }
@@ -411,7 +424,7 @@
       const key = drawerKey(scope, id, declaration);
       const open = generator && openDrawers.has(key);
       const modButton = generator ? modIcon(key, declaration, open, disabled) : "";
-      const drawer = open ? generatorDrawer(scope, id, key, declaration, state.automation, disabled) : "";
+      const drawer = open ? generatorDrawer(scope, id, key, declaration, state.automation, disabled, model) : "";
       // A mixed row hatches in the modulation ink as soon as a generator is
       // anywhere in the aggregate — one pattern, two inks (design §6).
       const mixedMod = mixed && (state.automationMixed || !!state.automation);
@@ -680,15 +693,66 @@
           const args = compile();
           if (!args) return null;
           drafts.set(key, args);
-          const preview = drawer.querySelector(".live-param-gen-preview");
-          if (preview) {
+          // The display IS the preview now, so an edit redraws its trace. Only
+          // the trace: the shape picker lives inside the same box, and
+          // replacing it under the operator's pointer would drop the focus
+          // they are editing with. The playhead goes, because an edited draft
+          // is no longer the generator that is running (drawerMotion's rule
+          // made visible).
+          const wave = drawer.querySelector(".live-gen-wave");
+          if (wave) {
+            wave.querySelector(".live-gen-playhead")?.remove();
+            const trace = wave.querySelector("svg, .live-gen-wave-empty");
             try {
-              preview.innerHTML = window.ParamGenerator.preview(
+              const drawn = window.ParamGenerator.waveTrace(
                 window.ParamSpec.parse(args, declaration.type), declaration);
-            } catch (_error) { preview.innerHTML = ""; }
+              if (trace) trace.outerHTML = drawn;
+              else wave.insertAdjacentHTML("afterbegin", drawn);
+            } catch (_error) { /* keep the last good trace */ }
           }
           return args;
         };
+
+        // A mini-slider paints itself from `--v`, like the parameter row's
+        // slider, and states its value in its own inside label.
+        const syncMini = input => {
+          const wrap = input.closest(".live-gen-mini");
+          if (!wrap) return;
+          const span = Number(input.max) - Number(input.min);
+          const position = span ? (Number(input.value) - Number(input.min)) / span : 0;
+          wrap.style.setProperty("--v", String(Math.min(1, Math.max(0, position))));
+          const readout = wrap.querySelector("[data-mini-readout]");
+          if (readout) readout.textContent = Number(input.value).toFixed(2);
+        };
+        drawer.querySelectorAll(".live-gen-mini-input").forEach(input => {
+          input.addEventListener("input", () => syncMini(input));
+        });
+
+        // Curve only bends tri, saw and drift; on the other shapes the option
+        // reaches the node and does nothing. Changing shape therefore takes
+        // the control away and zeroes it, so a stale bend cannot ride out on
+        // the next Apply.
+        const shape = drawer.querySelector('[data-param-lfo="shape"]');
+        const curveSlot = drawer.querySelector(".live-gen-curve-slot");
+        if (shape && curveSlot) shape.addEventListener("change", () => {
+          const bends = (curveSlot.dataset.curveShapes || "").split(" ")
+            .includes(shape.value);
+          curveSlot.hidden = !bends;
+          if (bends) return;
+          const input = curveSlot.querySelector(".live-gen-mini-input");
+          if (input) { input.value = "0"; syncMini(input); }
+        });
+
+        // The fade's `from` box is inert until its latching box says there is
+        // a start value to state (Bob, 2026-07-27).
+        const fromEnabled = drawer.querySelector("[data-param-from-enabled]");
+        if (fromEnabled) fromEnabled.addEventListener("change", () => {
+          const field = drawer.querySelector("[data-param-from]");
+          if (!field) return;
+          field.disabled = !fromEnabled.checked;
+          if (fromEnabled.checked && !field.value) field.value = declaration.default ?? declaration.min ?? 0;
+          if (fromEnabled.checked) field.focus();
+        });
 
         drawer.querySelectorAll("[data-gen-kind-tab]").forEach(tab => {
           tab.onclick = () => {
@@ -702,8 +766,11 @@
               other.setAttribute("aria-pressed", String(other === tab));
             }
             const blank = window.ParamGenerator.blank(declaration, kind);
+            // The commit pair lives inside the body, so a kind switch has to
+            // carry it across rather than let the re-render drop it.
+            const actions = drawer.querySelector(".live-param-gen-actions")?.outerHTML || "";
             drawer.querySelector(".live-param-gen-fields").innerHTML =
-              window.ParamGenerator.fields(declaration, blank);
+              window.ParamGenerator.panelFields(declaration, blank, null, actions);
             bindGenerators(drawer.parentElement || root);
             refresh();
           };
@@ -718,7 +785,7 @@
         if (addSegment) addSegment.onclick = () => {
           const list = drawer.querySelector("[data-param-segments]");
           const count = list.querySelectorAll("[data-param-segment]").length;
-          list.insertAdjacentHTML("beforeend", window.ParamGenerator.segmentRow(
+          list.insertAdjacentHTML("beforeend", window.ParamGenerator.panelSegmentRow(
             {value: declaration.max ?? 1, duration: {ms: 1000, amount: "1", unit: "s"}},
             count, declaration, count + 1));
           bindGenerators(drawer.parentElement || root);

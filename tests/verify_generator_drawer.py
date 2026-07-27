@@ -284,9 +284,56 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
         ".map(n => n.dataset.genKindTab)")
     check(f"[{label}] exactly one kind tab is latched on",
           pressed == ["lfo"], repr(pressed))
-    check(f"[{label}] lfo fields and waveform preview render",
-          page.locator(DRAWER + ' [data-param-lfo="shape"]').count() == 1
-          and page.locator(DRAWER + " .show-param-preview").count() == 1)
+    # --- the drawer body is the ratified panel language (01-control-panel/9) ---
+    # The drawer used to render the Show inspector's stacked labelled inputs
+    # with a captioned preview figure beneath them. The panel's drawer is built
+    # AROUND its display: the shape select lives inside it, the shaping args are
+    # mini-sliders beside it, and the numbers sit in one args row underneath.
+    body = page.evaluate(
+        """sel => {
+          const drawer = document.querySelector(sel);
+          const wave = drawer.querySelector(".live-gen-wave");
+          return {
+            wave: !!wave,
+            trace: !!drawer.querySelector(".live-gen-wave-line"),
+            // the shape picker is INSIDE the display, not a labelled row
+            shapeInside: !!wave?.querySelector('[data-param-lfo="shape"]'),
+            // phase is a mini-slider, not a number field
+            phaseRange: drawer.querySelector('[data-param-lfo="phase"]')?.type,
+            args: [...drawer.querySelectorAll(".live-gen-args .live-gen-field")]
+              .map(field => field.textContent.trim()),
+            // the Show inspector's markup is gone from this host
+            inspectorFigure: drawer.querySelectorAll(".show-param-preview").length,
+            inspectorGrid: drawer.querySelectorAll(".show-param-lfo").length,
+          };
+        }""", DRAWER)
+    check(f"[{label}] the drawer is built around a waveform display",
+          body["wave"] and body["trace"] and body["shapeInside"], repr(body))
+    check(f"[{label}] shaping args are mini-sliders",
+          body["phaseRange"] == "range", repr(body))
+    check(f"[{label}] min, max and period sit in one args row",
+          body["args"] == ["min", "max", "period"], repr(body))
+    check(f"[{label}] the Show inspector's drawer markup is gone",
+          body["inspectorFigure"] == 0 and body["inspectorGrid"] == 0,
+          repr(body))
+
+    # Curve bends tri, saw and drift and does nothing to the rest, so the
+    # panel only offers it where it bites (Bob, 2026-07-27). The engine
+    # (`python/paramgen.py` `_lfo_value`) is the authority for that list.
+    def curve_shown():
+        return page.evaluate(
+            """sel => {
+              const slot = document.querySelector(sel + " .live-gen-curve-slot");
+              return !!slot && !slot.hidden;
+            }""", DRAWER)
+
+    check(f"[{label}] a sine offers no curve control", not curve_shown())
+    page.select_option(DRAWER + ' [data-param-lfo="shape"]', "tri")
+    check(f"[{label}] a tri does offer curve", curve_shown())
+    page.select_option(DRAWER + ' [data-param-lfo="shape"]', "square")
+    check(f"[{label}] switching back to square takes curve away again",
+          not curve_shown())
+    page.select_option(DRAWER + ' [data-param-lfo="shape"]', "sine")
 
     # --- the wire: a committed generator reaches the node as sec 3.2 args ---
     page.select_option(DRAWER + ' [data-param-lfo="shape"]', "tri")
@@ -320,6 +367,49 @@ def run(page, base_url, fleet_log_path, state_path, mixed):
         "() => Object.values(installation.automation || {})"
         ".every(entry => !entry.density)", timeout=8000)
     check(f"[{label}] stop clears the recorded automation", cleared is not None)
+
+    # --- the fade's optional `from` is stated, not implied (Bob, 2026-07-27) ---
+    # "No from value" is a real state — start from wherever the parameter is —
+    # and an empty box could not say it out loud. An unlabelled latching box
+    # says it, and this pins that the box, not the field's emptiness, is what
+    # reaches the wire.
+    page.click(DRAWER + ' [data-gen-kind-tab="fade"]')
+    page.wait_for_selector(DRAWER + " [data-param-from-enabled]")
+    # A long segment, so the fade is still running when its args are read.
+    page.fill(DRAWER + " [data-param-segment-duration]", "30")
+    gate = DRAWER + " [data-param-from-enabled]"
+    check(f"[{label}] the from box starts off, and its field with it",
+          not page.is_checked(gate)
+          and page.is_disabled(DRAWER + " [data-param-from]"))
+    page.click(DRAWER + " [data-gen-apply]")
+    without = page.wait_for_function(
+        """() => {
+          const entry = Object.values(installation.automation || {})
+            .map(item => item.density).find(Boolean);
+          if (!entry) return null;
+          const parsed = window.ParamSpec.parse(entry.args, "f");
+          return parsed.mode === "fade" ? {from: parsed.from} : null;
+        }""", timeout=8000).json_value()
+    check(f"[{label}] with the box off the fade carries no from value",
+          without["from"] is None, repr(without))
+    page.check(gate)
+    check(f"[{label}] checking the box wakes its field",
+          not page.is_disabled(DRAWER + " [data-param-from]"))
+    page.fill(DRAWER + " [data-param-from]", "0.15")
+    page.click(DRAWER + " [data-gen-apply]")
+    with_from = page.wait_for_function(
+        """() => {
+          const entry = Object.values(installation.automation || {})
+            .map(item => item.density).find(Boolean);
+          if (!entry) return null;
+          const parsed = window.ParamSpec.parse(entry.args, "f");
+          return parsed.mode === "fade" && parsed.from === 0.15
+            ? {from: parsed.from} : null;
+        }""", timeout=8000).json_value()
+    check(f"[{label}] checking it puts that start value on the wire",
+          with_from is not None and with_from["from"] == .15, repr(with_from))
+    page.click(DRAWER + " [data-gen-stop]")
+    page.click(DRAWER + ' [data-gen-kind-tab="lfo"]')
 
     # --- a second click on the ∿ icon closes the drawer and stops nothing ---
     page.click(MOD_ICON)

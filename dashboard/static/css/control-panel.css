@@ -951,3 +951,494 @@
   clip-path:inset(50%);
   white-space:nowrap;
 }
+
+/* ---- 17. The generator drawer body (design-language §7) ------------------
+   `9-generator-drawer-panel`. §8 gave the drawer its shell; this is its
+   interior, and it is the mockup's: a waveform display the drawer is built
+   around, a side column of mini-sliders, an args row, and one line per fade
+   segment. The fields themselves are the same fields — `panelFields()` emits
+   the identical `data-param-*` hooks the Show inspector's `fields()` does, so
+   only the layout changed. */
+
+.live-card .live-param-gen,
+.device-control .live-param-gen {
+  position:relative;
+  display:grid;
+  gap:8px;
+}
+/* The pointer up to the row's ∿ icon: the drawer belongs to that row, and at
+   a glance in a long panel that is the only thing that says which. */
+.live-card .live-param-gen::before,
+.device-control .live-param-gen::before {
+  content:"";
+  position:absolute;
+  top:-5px;
+  right:9px;
+  width:8px;
+  height:8px;
+  background:var(--subpanel);
+  border-left:1px solid var(--group-line);
+  border-top:1px solid var(--group-line);
+  transform:rotate(45deg);
+}
+
+.live-card .live-gen-body,
+.device-control .live-gen-body {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 112px;
+  gap:8px;
+}
+
+/* --- the waveform display --- */
+.live-card .live-gen-wave,
+.device-control .live-gen-wave {
+  position:relative;
+  height:74px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+}
+.live-card .live-gen-wave svg,
+.device-control .live-gen-wave svg {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+.live-card .live-gen-wave-line,
+.device-control .live-gen-wave-line {
+  fill:none;
+  stroke:var(--mod);
+  stroke-width:1.5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.live-card .live-gen-wave-empty,
+.device-control .live-gen-wave-empty {
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  color:var(--dim);
+  font-size:11px;
+}
+/* The shape names what the display is showing, so it sits inside it. */
+.live-card .live-gen-shape,
+.device-control .live-gen-shape {
+  position:absolute;
+  right:4px;
+  bottom:4px;
+}
+.live-card .live-gen-shape select,
+.device-control .live-gen-shape select {
+  min-height:18px;
+  padding:0 2px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  color:var(--text);
+  font:inherit;
+  font-size:11px;
+}
+/* The playhead only exists when the surface knows the phase; `--gen-window` is
+   the duration of one traversal of the display (two cycles) and `--gen-elapsed`
+   anchors it through the heartbeat re-render, the marker's mechanism. */
+.live-card .live-gen-playhead,
+.device-control .live-gen-playhead {
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:0;
+  width:1px;
+  background:var(--mod);
+  opacity:.85;
+  animation:live-gen-playhead var(--gen-window,2000ms) linear infinite;
+  animation-delay:calc(-1 * var(--gen-elapsed,0ms));
+}
+@keyframes live-gen-playhead {
+  from { left:0 }
+  to   { left:100% }
+}
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-gen-playhead,
+  .device-control .live-gen-playhead { display:none }
+}
+
+/* --- the side column: mini-sliders, then `free` --- */
+.live-card .live-gen-side,
+.device-control .live-gen-side {
+  display:grid;
+  gap:6px;
+  align-content:start;
+}
+/* A mini-slider is the row slider at 16px: same trough, same fill, and the
+   label inside (design-language §5 — a mini-slider is a control, so its name
+   goes in it). It states its value beside its name, PD's `label: value`. */
+.live-card .live-gen-mini,
+.device-control .live-gen-mini {
+  position:relative;
+  display:block;
+  height:16px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+  cursor:ew-resize;
+}
+.live-card .live-gen-mini-fill,
+.device-control .live-gen-mini-fill {
+  position:absolute;
+  inset:0;
+  width:calc(var(--v,0) * 100%);
+  background:var(--value-fill);
+  pointer-events:none;
+}
+.live-card .live-gen-mini::after,
+.device-control .live-gen-mini::after {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:calc(var(--v,0) * 100%);
+  margin-left:-.75px;
+  width:1.5px;
+  background:var(--control-line);
+  pointer-events:none;
+}
+.live-card .live-gen-mini-name,
+.device-control .live-gen-mini-name {
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:0 5px;
+  color:var(--dim);
+  font-size:11px;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.live-card .live-gen-mini-name b,
+.device-control .live-gen-mini-name b {
+  color:var(--text);
+  font-weight:400;
+  font-variant-numeric:tabular-nums;
+}
+.live-card .live-gen-mini-input,
+.device-control .live-gen-mini-input {
+  position:absolute;
+  inset:0;
+  z-index:3;
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent;
+  border:0;
+  cursor:ew-resize;
+}
+.live-card .live-gen-mini-input::-webkit-slider-runnable-track,
+.device-control .live-gen-mini-input::-webkit-slider-runnable-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-gen-mini-input::-moz-range-track,
+.device-control .live-gen-mini-input::-moz-range-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-gen-mini-input::-webkit-slider-thumb,
+.device-control .live-gen-mini-input::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-gen-mini-input::-moz-range-thumb,
+.device-control .live-gen-mini-input::-moz-range-thumb {
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+  border-radius:0;
+}
+
+/* --- `free`: a latching control, so PD-sharp (design-language §8) --- */
+.live-card .live-gen-pill,
+.device-control .live-gen-pill {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:20px;
+  padding:2px 8px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--input);
+  color:var(--dim);
+  font-size:12px;
+  cursor:pointer;
+}
+.live-card .live-gen-pill input,
+.device-control .live-gen-pill input {
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
+.live-card .live-gen-pill:has(input:checked),
+.device-control .live-gen-pill:has(input:checked) {
+  background:var(--mod-soft);
+  border-color:var(--mod);
+  color:var(--mod);
+}
+.live-card .live-gen-pill:has(input:focus-visible),
+.device-control .live-gen-pill:has(input:focus-visible) {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+/* --- number boxes: the standardized 58px, wherever they appear --- */
+.live-card .live-gen-num,
+.device-control .live-gen-num {
+  box-sizing:border-box;
+  width:58px;
+  min-width:0;
+  height:20px;
+  padding:0 5px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+}
+.live-card .live-gen-unit,
+.device-control .live-gen-unit {
+  height:20px;
+  min-height:20px;
+  padding:0 2px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+}
+/* Drawer args label above-left in `--dim` (design-language §5). */
+.live-card .live-gen-args,
+.device-control .live-gen-args {
+  display:flex;
+  align-items:end;
+  gap:5px;
+  flex-wrap:wrap;
+}
+.live-card .live-gen-field,
+.device-control .live-gen-field {
+  display:grid;
+  gap:2px;
+  color:var(--dim);
+  font-size:11px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+.live-card .live-gen-field-inline,
+.device-control .live-gen-field-inline {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+
+/* --- the fade's optional `from`, gated by an unlabelled PD toggle box --- */
+.live-card .live-gen-from,
+.device-control .live-gen-from {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+.live-card .live-gen-check,
+.device-control .live-gen-check {
+  box-sizing:border-box;
+  flex:none;
+  width:16px;
+  height:16px;
+  margin:0;
+  padding:0;
+  appearance:none;
+  -webkit-appearance:none;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  cursor:pointer;
+}
+.live-card .live-gen-check:checked,
+.device-control .live-gen-check:checked {
+  background:var(--value-fill);
+}
+/* The ✕ is the PD toggle's mark, drawn rather than typed so the box stays
+   16px whatever the font does. */
+.live-card .live-gen-check:checked::after,
+.device-control .live-gen-check:checked::after {
+  content:"";
+  display:block;
+  height:100%;
+  background:
+    linear-gradient(45deg,transparent calc(50% - .75px),var(--text) calc(50% - .75px) calc(50% + .75px),transparent calc(50% + .75px)),
+    linear-gradient(-45deg,transparent calc(50% - .75px),var(--text) calc(50% - .75px) calc(50% + .75px),transparent calc(50% + .75px));
+}
+.live-card .live-gen-from input:disabled,
+.device-control .live-gen-from input:disabled {
+  opacity:.5;
+}
+
+/* --- fade / loop segments: one line each --- */
+.live-card .live-gen-segments,
+.device-control .live-gen-segments {
+  display:grid;
+  gap:5px;
+}
+/* One line per segment, read as a sentence: `to <value> in <n> <unit>`. The
+   columns are sized to their contents and packed left — a segment row is a
+   phrase, not a table, so it must not stretch to the panel's width. */
+.live-card .live-gen-seg,
+.device-control .live-gen-seg {
+  display:grid;
+  grid-template-columns:auto 58px auto 58px auto auto;
+  justify-content:start;
+  gap:5px;
+  align-items:center;
+  color:var(--dim);
+  font-size:11px;
+}
+.live-card .live-gen-seg-label,
+.device-control .live-gen-seg-label {
+  color:var(--dim);
+}
+/* remove and add both act once — momentary, PD-bang rounded. */
+.live-card .live-gen-remove,
+.device-control .live-gen-remove,
+.live-card .live-gen-add,
+.device-control .live-gen-add {
+  min-height:20px;
+  padding:1px 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:11px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+.live-card .live-gen-add-row,
+.device-control .live-gen-add-row {
+  display:flex;
+  justify-content:flex-end;
+}
+
+/* Narrow panels (the Device tab's column, a tablet) stack the display over
+   its side column rather than shrinking either below usefulness. */
+@media (max-width:560px) {
+  .live-card .live-gen-body,
+  .device-control .live-gen-body { grid-template-columns:minmax(0,1fr) }
+  .live-card .live-gen-seg,
+  .device-control .live-gen-seg {
+    grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);
+  }
+  .live-card .live-gen-seg select,
+  .device-control .live-gen-seg select { grid-column:2 }
+  .live-card .live-gen-seg .live-gen-remove,
+  .device-control .live-gen-seg .live-gen-remove { grid-column:4 }
+}
+
+/* --- 17b. Drawer chrome the hosts still size for touch -------------------
+   `facilitator.css` gives every drawer input a 38px min-height and 100%
+   width, and every drawer button 36px — the tablet sizing from before the
+   panel had a language. The panel's own controls state their metrics here,
+   including the `min-height` the host rule would otherwise win with. */
+
+.live-card .live-gen-num,
+.device-control .live-gen-num,
+.live-card .live-gen-unit,
+.device-control .live-gen-unit,
+.live-card .live-gen-shape select,
+.device-control .live-gen-shape select {
+  min-height:20px;
+}
+.live-card .live-gen-unit,
+.device-control .live-gen-unit,
+.live-card .live-gen-shape select,
+.device-control .live-gen-shape select {
+  width:auto;
+  min-width:0;
+}
+.live-card .live-gen-mini-input,
+.device-control .live-gen-mini-input {
+  min-height:0;
+}
+.live-card .live-gen-check,
+.device-control .live-gen-check {
+  min-height:0;
+  width:16px;
+}
+/* Apply and Stop act once: momentary, and no taller than the tabs beside
+   them. They are the drawer's only commit path, so Apply keeps the accent. */
+.live-card .live-param-gen-actions button,
+.device-control .live-param-gen-actions button {
+  min-height:20px;
+  padding:3px 10px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+.live-card .live-param-gen-actions button.primary,
+.device-control .live-param-gen-actions button.primary {
+  border-color:var(--accent);
+  background:var(--control);
+}
+.live-card .live-param-gen-head,
+.device-control .live-param-gen-head {
+  align-items:center;
+  gap:6px;
+}
+
+/* --- 17c. Drawer proportions (Bob, 2026-07-27, against the Excalidraw) ----
+   The drawer is a fixed-size instrument face, not a block that stretches to
+   whatever the panel is wide. With Apply/Stop moved out of the head and into
+   the column beside the display, the head is tabs alone, and the whole drawer
+   holds the mockup's proportions: display ≈ 2/3, side column ≈ 1/3, each kind
+   tab about a third of the drawer's width. */
+
+.live-card .live-param-gen,
+.device-control .live-param-gen {
+  /* Right-aligned, not indented from the left: the drawer's pointer sits
+     `right:9px` — the centre of the row's 18px ∿ column — so the drawer's
+     right edge has to be the row's right edge, or the pointer stops naming
+     the row it belongs to. The 12px indent from §8 gives way; the width cap
+     supplies the inset the indent used to.
+
+     `justify-self`, not an auto margin: the drawer is a grid item, and an
+     auto margin cancels the stretch, which sizes the drawer to its content
+     and squeezes the display down with it. */
+  justify-self:end;
+  width:min(460px,100%);
+  margin-left:0;
+}
+.live-card .live-param-gen-actions,
+.device-control .live-param-gen-actions {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5px;
+}
