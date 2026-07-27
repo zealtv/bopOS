@@ -50,6 +50,27 @@ remain the authority for a particular piece of work.
 
 ## Next sweep — holistic ordered program of work (2026-07-23)
 
+> **Update 2026-07-27 (control-panel UI + architecture review):** Bob's
+> braindump (lore `2026-07-27-control-panel-ui-and-architecture-braindump`,
+> which holds the transcribed mockup annotations and session directives)
+> reordered the front of the queue. Priority now: **(1)
+> `desktop-ui-overhaul/01-control-panel`** — first the small ratified
+> behavior change `1-full-manifest-visibility` (the Control tab shows **all**
+> manifest params; the manifest's `dashboard:` flag now gates only the
+> facilitator/iPad view — this supersedes the "Dashboard live controls come
+> only from `dashboard: true`" line below once shipped), then
+> `2-control-panel-design`, the compact grayscale/cyan mockup-driven design
+> pass (Bob ratifies). The old app-wide density stitch was renamed
+> `02-app-wide-rollout-design` and now extracts the ratified control-panel
+> language app-wide. **(2) `entity-architecture-review`** — in parallel with
+> or after the UI work: `1-system-map` (as-is entity/storage/coupling map for
+> devices, seats, groups, patches, presets, shows) then
+> `2-workflows-and-simplification` (workflow walkthroughs + a
+> simplicity-first proposal, Bob reviews). This thread **gates
+> `41-preset-primitive/1`** — no preset design until the review is done.
+> Standing constraint: the system works today and must keep working; prefer
+> small ordered changes over rewrites.
+>
 > **Update 2026-07-26 (loom tidy):** Bob dropped the old
 > `18-show-chrome-density` goal and replaced its remaining intent with
 > `desktop-ui-overhaul/01-density-and-layout-design`: an app-wide desktop pass
@@ -157,12 +178,20 @@ a real regression hides among the drift.)
    param-value, param-fade, param-loop, param-lfo, param-stop), with visible
    kind codes as a non-colour channel.
 
-### Tier 3 — desktop UI overhaul
+### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 
-- **`desktop-ui-overhaul/01-density-and-layout-design`** — audit and propose an
-  app-wide desktop language with smaller controls, tighter spacing, clearer
-  hierarchy, and better viewport use. The standalone facilitator retains its
-  separate tablet-first constraints.
+- **`desktop-ui-overhaul/01-control-panel`** — the Control-tab control panel
+  as the reference surface for the new compact UI language (Bob's 2026-07-27
+  mockup): `1-full-manifest-visibility` (ratified, shippable now) then
+  `2-control-panel-design` (Bob-gated design pass).
+- **`entity-architecture-review`** — `1-system-map` then
+  `2-workflows-and-simplification`; gates `41-preset-primitive/1`. Parallel
+  with or after the control-panel work.
+- **`desktop-ui-overhaul/02-app-wide-rollout-design`** — after
+  `01-control-panel`: extract the ratified language and propose the app-wide
+  rollout with smaller controls, tighter spacing, clearer hierarchy, and
+  better viewport use. The standalone facilitator retains its separate
+  tablet-first constraints.
 
 ### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
 

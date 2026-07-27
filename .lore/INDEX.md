@@ -1,5 +1,6 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-07-27-control-panel-ui-and-architecture-braindump](items/2026-07-27-control-panel-ui-and-architecture-braindump/) — Control-panel UI mockup + architecture-review braindump — Bob's 2026-07-27 braindump: a compact grayscale/cyan control-panel UI mockup
 - [2026-07-24-patching-session-braindump](items/2026-07-24-patching-session-braindump/) — Patching-session braindump: precision input, reusable control surface, control tab, manifest presets — Bob's 2026-07-24 braindump after the deepest patching session yet — a patch
 - [2026-07-23-fresh-device-install](items/2026-07-23-fresh-device-install/) — Fresh Raspberry Pi device installation report — An end-to-end record of the 2026-07-23 `install-device.sh` run on a freshly flashed Raspberry Pi, including the locale, storage, systemd, and headless JACK findings.
 - [2026-07-21-show-console-dock-and-fixes-braindump](items/2026-07-21-show-console-dock-and-fixes-braindump/) — Show console dock, chrome fixes, theme tint & listener range braindump — Bob's 2026-07-21 fix list after living with the tied `18-show-chrome-density`

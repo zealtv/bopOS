@@ -19,3 +19,11 @@ asked for an architectural evaluation, not a straight port.
 
 Child `1-preset-architecture-design` is the Bob-gated design stitch;
 implementation stitches follow ratification.
+
+**Gated 2026-07-27 on `entity-architecture-review`** (lore
+`2026-07-27-control-panel-ui-and-architecture-braindump`): Bob wants the
+holistic entity/coupling review (devices, seats, patches, presets, shows)
+done before the preset design is written, so the preset primitive lands on a
+reviewed model instead of adding to the complexity smell. The mockup's
+provisional preset row (dropdown + new/save/del at the control-panel top) is
+UI input for the design stitch.
