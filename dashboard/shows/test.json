@@ -215,6 +215,72 @@
         }
       ],
       "uid": "8a53cb96"
+    },
+    {
+      "alias": "bonks",
+      "kind": "divider",
+      "uid": "573debdf"
+    },
+    {
+      "alias": null,
+      "duration_s": 120.0,
+      "kind": "step",
+      "messages": [
+        {
+          "address": "/p/velocity",
+          "alias": null,
+          "args": [
+            {
+              "type": "i",
+              "value": 0
+            },
+            {
+              "type": "s",
+              "value": "1s"
+            }
+          ],
+          "target": [
+            "all"
+          ],
+          "uid": "d02dc14e"
+        }
+      ],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "play_again"
+        }
+      ],
+      "uid": "9b1bd673"
+    },
+    {
+      "alias": null,
+      "duration_s": 5.0,
+      "kind": "step",
+      "messages": [
+        {
+          "address": "/p/gain",
+          "alias": null,
+          "args": [
+            {
+              "type": "f",
+              "value": 0.0
+            }
+          ],
+          "target": [
+            "g0",
+            "g1"
+          ],
+          "uid": "83fea08d"
+        }
+      ],
+      "play_count": 1,
+      "then_actions": [
+        {
+          "type": "stop"
+        }
+      ],
+      "uid": "89814a78"
     }
   ],
   "name": "test",
