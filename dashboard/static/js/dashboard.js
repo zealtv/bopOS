@@ -1361,9 +1361,13 @@ const deviceSurface=window.ControlSurface.create({
   deviceForSeat:seat=>seat?.bound?installation.devices?.[seat.bound]:null,
   deviceForScope:uid=>installation.devices?.[uid],
   send:({scope,id,name,value})=>ws.send("set_live_param",{scope,id,name,value}),
+  // Returns the lead so the panel's fire button can sweep for exactly as long
+  // as the event is actually scheduled for (04-event-fire-affordance).
   sendEvent:({scope,id,identity,elements})=>{
     const selector=scope==="all"?"all":scope==="group"?`g${id}`:String(id);
-    ws.send("fire_event",{selector,identity,elements,lead_ms:Number(installation.event_lead_ms??500)});
+    const leadMs=Math.min(10000,Math.max(0,Number(installation.event_lead_ms??500)||0));
+    ws.send("fire_event",{selector,identity,elements,lead_ms:leadMs});
+    return leadMs;
   },
   sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
   setInteracting:editing=>{deviceControlInteracting=editing;},

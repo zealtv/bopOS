@@ -237,17 +237,23 @@ def main():
                       [item.strip() for item in modes]
                       == ["All", "Groups", "Seat"], repr(modes))
 
-                # --- events sit above the surface ---
-                # `/cue` is retired (thread 44 child 4); the standalone
-                # facilitator's panel is now the events panel, and the
-                # ordering assertion this journey owns is unchanged.
-                check("events sit above the control surface",
+                # --- events sit above the parameters, inside the panel ---
+                # `/cue` is retired (thread 44 child 4) and the top event panel
+                # went with it (`04-event-fire-affordance`): firing lives on the
+                # panel's own rows, and the Events section leads the card.
+                check("the retired top event panel is gone",
                       page.frames[-1].evaluate(
-                          "() => { const events ="
-                          " document.querySelector('#event-panel');"
-                          " const cards = document.querySelector('#cards');"
-                          " return !!(events && cards && (events.compareDocumentPosition(cards)"
-                          " & Node.DOCUMENT_POSITION_FOLLOWING)); }"))
+                          "() => !document.querySelector('#event-panel')"
+                          " && !document.querySelector('#event-lead')"))
+                check("events sit above parameters in the panel",
+                      page.frames[-1].evaluate(
+                          "() => { const card ="
+                          " document.querySelector('.live-card');"
+                          " const sections = [...card.querySelectorAll("
+                          "'.live-control-section')].map(node =>"
+                          " node.className.includes('-events')"
+                          " ? 'events' : 'parameters');"
+                          " return sections[0] === 'events'; }"))
 
                 # --- the filter scopes the surface ---
                 frame.locator('.live-card[data-live-scope="all"]').wait_for()

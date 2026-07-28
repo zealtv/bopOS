@@ -122,7 +122,16 @@ remain the authority for a particular piece of work.
 > targetable at all / a group / one seat. **Step 4 is also complete and tied
 > (2026-07-28): master, MUTE ALL, and event lead now share a Globals panel in
 > the Monitor dock, and a muted fleet stays visible on the collapsed dock
-> header. The live next step is 5.**
+> header. Step 5 (`8-manifest-reorder`) is tied too, and Bob's 2026-07-28
+> review of the shipped panel added and tied
+> **`desktop-ui-overhaul/04-event-fire-affordance`**: the top `#event-panel`
+> (buttons *and* the lead field) is deleted from both the Control tab and the
+> standalone iPad view, the row's `fire` button became a 58 × `--row-h`
+> panel object carrying the retired cue's lead sweep + fire flash (cyan —
+> `decisions.md` widens `cyan = modulation` to "something is driving this,
+> continuously or discretely"), and Events now render above Parameters on the
+> panel and in the manifest editor. Lead time is desktop-only from here: an
+> iPad fires, it does not configure. **The live next step is 6.**
 >
 > 1. ~~`44-event-plane/2-kind-grammar`~~ — done.
 > 2. ~~`44-event-plane/3-event-plane-wire`~~ — done, contract v1.14.
@@ -131,10 +140,9 @@ remain the authority for a particular piece of work.
 >    global controls left the app header, the Control tab, and the Show
 >    transport for one `Globals` Monitor panel. Bob's "Monitor may want
 >    renaming" note is carried in the tied stitch's `decisions.md`.
-> 5. `desktop-ui-overhaul/01-control-panel/8-manifest-reorder` — **next**, and
->    **must follow 4**: both rewrite the manifest editor and the panel's
->    section split, so this is one pass over that surface instead of two.
-> 6. `44-event-plane/5-pd-adoption` — **Bob's**: the `.pd` receiver edits plus
+> 5. ~~`desktop-ui-overhaul/01-control-panel/8-manifest-reorder`~~ — done, and
+>    `04-event-fire-affordance` re-passed the same surface (section order).
+> 6. `44-event-plane/5-pd-adoption` — **next**, **Bob's**: the `.pd` receiver edits plus
 >    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
 > 7. `desktop-ui-overhaul/02-app-wide-rollout-design` — unblocks once 5 ties
 >    `01-control-panel`.
@@ -250,6 +258,14 @@ a real regression hides among the drift.)
    to settle whether the missing replay is a real output-safety defect or the
    promoted fake is too thin. Workable now, Bob-independent up to the point
    where the answer is "deliberately absent".
+12. **`47-live-param-kinds-flake`** — `tests/verify_live_param_kinds.py` fails
+   intermittently in `tools/run-tests.sh browser` on its two slider
+   assertions, and only under full-suite load (confirmed pre-existing on clean
+   `main`, 2026-07-28). Same family as the tied `46-control-surface-probe-race`:
+   a Playwright step racing the heartbeat re-render, suspect being gotcha (16)
+   — actionability passing is not the handler being bound. Diagnose before
+   fixing; if it turns out to be a real binding window in `control-surface.js`,
+   it is an operator-facing defect, not a test bug.
 
 ### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 

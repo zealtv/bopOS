@@ -4,18 +4,18 @@ const embedded = new URLSearchParams(location.search).get("embedded") === "1";
 if (embedded) document.body.classList.add("embedded");
 const ws = new BopSocket("/ws");
 let installation = {devices: {}, seats: {}, groups: {}};
-let eventLeadModified = false;
 let muted = false;
 let master = 1.0;
 let presetNames = [];
-let renderedEventSignature = null;
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
 // The parameter rows themselves live in control-surface.js (37/07) so the
 // Device tab can render the identical surface. This page keeps what is its
-// own: which cards exist, events, master/silence, presets, device commands.
+// own: which cards exist, master/silence, presets, device commands. Events
+// are no longer this page's business — the top event panel was retired in
+// `04-event-fire-affordance` and firing lives on the panel's own rows.
 const surface = window.ControlSurface.create({
   getState: () => installation,
   deviceForSeat: seat => deviceForSeat(seat),
@@ -26,9 +26,13 @@ const surface = window.ControlSurface.create({
     ws.send("set_live_param", payload);
     updateLocalParams(scope, numericId, name, value);
   },
+  // The panel paints its own lead-progress sweep, so the send reports back the
+  // lead it actually put on the wire rather than letting the surface guess.
   sendEvent: ({scope, id, identity, elements}) => {
     const selector = scope === "all" ? "all" : scope === "group" ? `g${id}` : String(id);
-    ws.send("fire_event", {selector, identity, elements, lead_ms: Number(installation.event_lead_ms ?? 500)});
+    const leadMs = Math.min(10000, Math.max(0, Number(installation.event_lead_ms ?? 500) || 0));
+    ws.send("fire_event", {selector, identity, elements, lead_ms: leadMs});
+    return leadMs;
   },
   // A drawer-authored generator takes the same targeting but carries a §3.2
   // argument list, so it needs its own verb; the server records the automation
@@ -146,7 +150,6 @@ ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
   surface.refreshAnchors(data);
   presetNames = Object.keys(data.presets || {}).sort();
-  if (!eventLeadModified) $("#event-lead").value = Number(data.event_lead_ms ?? 500);
   render();
   const loading = $("#initial-loading");
   if (loading) loading.hidden = true;
@@ -168,12 +171,6 @@ ws.on("event_scheduled", data => {
 });
 
 let interacting = false;
-$("#event-lead").addEventListener("input", () => { eventLeadModified = true; });
-$("#event-lead").addEventListener("change", event => {
-  const ms = Math.min(10000, Math.max(0, Math.trunc(Number(event.target.value) || 0)));
-  event.target.value = ms;
-  ws.send("set_event_lead", {ms});
-});
 document.addEventListener("pointerdown", event => {
   if (event.target.matches('input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]')) interacting = true;
 });
@@ -188,51 +185,7 @@ document.addEventListener("pointerup", () => {
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
   targetFilter.render();
-  renderEvents(); renderCards(); renderControls(); renderCommands(); renderPresets();
-}
-
-function eventButton(declaration) {
-  return `<button data-live-event="${esc(declaration.identity)}" aria-label="Fire ${esc(declaration.name)} event">${esc(declaration.name)}</button>`;
-}
-
-function renderEvents() {
-  const events = liveEventSchema()?.events || [];
-  const panel = $("#event-panel");
-  panel.hidden = events.length === 0;
-  const signature = JSON.stringify(events);
-  if (!events.length) {
-    renderedEventSignature = signature;
-    $("#declared-events").innerHTML = "";
-    $("#event-status").value = "";
-    return;
-  }
-  if (signature === renderedEventSignature) return;
-  renderedEventSignature = signature;
-  $("#declared-events").innerHTML = events.map(eventButton).join("");
-  document.querySelectorAll("[data-live-event]").forEach(button => button.onclick = () => {
-    const declaration = events.find(item => item.identity === button.dataset.liveEvent);
-    const chosen = targetFilter.target();
-    const selector = chosen.mode === "seat" && chosen.seat ? String(chosen.seat.id) : "all";
-    const arity = Math.min(3, Math.max(0, Number(declaration?.arity) || 0));
-    const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
-    const elements = Array.from({length: arity}, (_unused, index) => Number(defaults[index]) || 0);
-    const lead = $("#event-lead");
-    const leadMs = Math.min(10000, Math.max(0, Number(lead.value) || 0));
-    lead.value = leadMs;
-    ws.send("fire_event", {selector, identity: button.dataset.liveEvent, elements, lead_ms: leadMs});
-    button.disabled = true;
-    button.style.setProperty("--event-lead-duration", `${leadMs}ms`);
-    button.classList.add("scheduling");
-    button.setAttribute("aria-busy", "true");
-    setTimeout(() => button.classList.add("triggered"), leadMs);
-    setTimeout(() => {
-      button.disabled = false;
-      button.classList.remove("scheduling", "triggered");
-      button.style.removeProperty("--event-lead-duration");
-      button.removeAttribute("aria-busy");
-      button.focus({preventScroll: true});
-    }, leadMs + 300);
-  });
+  renderCards(); renderControls(); renderCommands(); renderPresets();
 }
 
 function renderCards() {

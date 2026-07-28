@@ -311,7 +311,7 @@
       // Reading order is the sending order (Bob, 2026-07-27): the trigger, the
       // elements it will send, then the name.
       return `<div class="live-param live-param-event" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}">
-        <button type="button" class="live-event-send" aria-label="${esc(`fire ${declaration.name}`)}"${off}>fire</button>
+        <button type="button" class="live-event-send" aria-label="${esc(`fire ${declaration.name}`)}"${off}><span class="live-event-label">fire</span><i class="live-event-sweep" aria-hidden="true"></i></button>
         ${boxes}<span class="live-param-name">${esc(declaration.name)}</span>
       </div>`;
     }
@@ -486,7 +486,10 @@
       const section = (kind, label, items) => items.length
         ? `<section class="live-control-section live-control-section-${kind}"><h3>${label}</h3>${declarationTree(scope, id, members, items, disabled)}</section>`
         : "";
-      return section("parameters", "Parameters", parameters) + section("events", "Events", events);
+      // Events first (Bob, 2026-07-28): they are the panel's performative
+      // controls, and the Patch tab's manifest editor lists them in the same
+      // order, so authoring and playing read top-to-bottom the same way.
+      return section("events", "Events", events) + section("parameters", "Parameters", parameters);
     }
 
     // The slider's fill and marker are painted by the wrapper from `--v`, so
@@ -572,6 +575,37 @@
       }
     }
 
+    // The fire button carries the whole schedule: a sweep across the button for
+    // the lead the host actually sent, then a cyan flash at the moment the
+    // event lands. This is the feedback the retired `/cue` buttons had, moved
+    // onto the row where firing now lives (04-event-fire-affordance).
+    // Lead 0 is sync-off, so it flashes with no sweep.
+    const FLASH_MS = 260;
+    function fireFeedback(button, leadMs) {
+      if (button.dataset.firing) return;
+      button.dataset.firing = "1";
+      button.setAttribute("aria-busy", "true");
+      // A heartbeat re-render mid-sweep would replace the button and drop the
+      // animation, so hold renders off the same way a dragged slider does.
+      context.setInteracting?.(true);
+      const flash = () => {
+        button.classList.remove("firing");
+        button.classList.add("fired");
+        button.style.removeProperty("--event-lead-duration");
+        setTimeout(() => {
+          button.classList.remove("fired");
+          delete button.dataset.firing;
+          button.removeAttribute("aria-busy");
+          context.setInteracting?.(false);
+          context.requestRender?.();
+        }, FLASH_MS);
+      };
+      if (leadMs <= 0) { flash(); return; }
+      button.style.setProperty("--event-lead-duration", `${leadMs}ms`);
+      button.classList.add("firing");
+      setTimeout(flash, leadMs);
+    }
+
     function bindParams(root = document) {
       root.querySelectorAll(".live-param-event").forEach(row => {
         const button = row.querySelector(".live-event-send");
@@ -584,7 +618,8 @@
           const elements = [...row.querySelectorAll(".live-event-box")].map(input => Number(input.value));
           const scope = row.dataset.liveScope;
           const id = row.dataset.liveId == null ? null : row.dataset.liveId;
-          context.sendEvent?.({scope, id, identity: row.dataset.paramPath, elements});
+          const lead = context.sendEvent?.({scope, id, identity: row.dataset.paramPath, elements});
+          fireFeedback(button, Number.isFinite(Number(lead)) ? Math.max(0, Number(lead)) : 0);
         };
       });
       root.querySelectorAll("[data-live-param]").forEach(input => {

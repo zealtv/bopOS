@@ -363,6 +363,66 @@ def main():
                       typed == ["55.5", "66.625"]
                       and seat_ids == [2], repr(typed))
 
+                # --- the fire button's lead sweep and fire flash ---
+                # `04-event-fire-affordance`: the feedback the retired `/cue`
+                # buttons carried now lives on the row's fire button. The
+                # button sweeps for exactly the lead the host sent, flashes on
+                # arrival, then returns to rest.
+                fire = seat_row.locator(".live-event-send")
+                geometry = fire.evaluate(
+                    """button => {
+                      const rect = button.getBoundingClientRect();
+                      const style = getComputedStyle(button);
+                      return {width: Math.round(rect.width),
+                              height: Math.round(rect.height),
+                              radius: style.borderTopLeftRadius,
+                              sweeps: button.querySelectorAll(
+                                ".live-event-sweep").length};
+                    }""")
+                box_width = seat_row.locator(".live-event-box").first.evaluate(
+                    "box => Math.round(box.getBoundingClientRect().width)")
+                check("fire takes the value box's column width",
+                      geometry["width"] == box_width, repr([geometry, box_width]))
+                check("fire is a momentary-shaped panel object",
+                      geometry["radius"] == "7px"
+                      and geometry["sweeps"] == 1, repr(geometry))
+                click_once(page, fire)
+                # The class is applied in the click handler, so it is already
+                # set by the time this evaluates; waiting keeps it robust
+                # against a slow first paint.
+                live_frame.wait_for_function(
+                    """() => {
+                      const button = document.querySelector(
+                        '.live-card[data-live-scope="seat"]' +
+                        ' .live-param-event[data-param-path="strike"]' +
+                        ' .live-event-send');
+                      return button && button.classList.contains("firing");
+                    }""")
+                lead = fire.evaluate(
+                    "button => button.style.getPropertyValue("
+                    "'--event-lead-duration')")
+                check("the sweep runs for the scheduled lead",
+                      lead == "500ms", repr(lead))
+                live_frame.wait_for_function(
+                    """() => {
+                      const button = document.querySelector(
+                        '.live-card[data-live-scope="seat"]' +
+                        ' .live-param-event[data-param-path="strike"]' +
+                        ' .live-event-send');
+                      return button && button.classList.contains("fired");
+                    }""")
+                live_frame.wait_for_function(
+                    """() => {
+                      const button = document.querySelector(
+                        '.live-card[data-live-scope="seat"]' +
+                        ' .live-param-event[data-param-path="strike"]' +
+                        ' .live-event-send');
+                      return button && !button.classList.contains("fired")
+                        && !button.classList.contains("firing")
+                        && !button.hasAttribute("aria-busy");
+                    }""")
+                check("the button returns to rest after the flash", True)
+
                 check("no page errors", not errors, repr(errors))
                 browser.close()
         finally:

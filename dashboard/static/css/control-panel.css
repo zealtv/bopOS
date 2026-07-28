@@ -836,16 +836,91 @@
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.live-card .live-param-event button,
-.device-control .live-param-event button {
+/* The fire button is a top-level panel object, not chrome (Bob, 2026-07-28):
+   it takes the value box's 58px column and row height, `--input` fill and a
+   `--radius-momentary` corner, so an event row aligns with every parameter row
+   above it and the shape still says "momentary" per §5. */
+.live-card .live-event-send,
+.device-control .live-event-send {
+  position:relative;
+  overflow:hidden;
+  box-sizing:border-box;
   flex:none;
-  min-height:20px;
-  padding:1px 6px;
+  display:grid;
+  place-items:center;
+  width:58px;                 /* the same column as a parameter's value box */
+  height:var(--row-h);
+  padding:0;
   border:1px solid var(--control-line);
-  background:var(--control);
+  border-radius:var(--radius-momentary);
+  background:var(--input);
   color:var(--text);
   font:inherit;
-  font-size:11px;
+  font-size:12px;
+  line-height:1;
+  cursor:pointer;
+}
+/* Hover is a rest-state affordance only. While the button is sweeping or
+   flashing the hover fill competed with both (Bob, 2026-07-28) — the wash sat
+   on `--hover` instead of `--input`, and the cursor happens to be on the
+   button exactly when it fires, so it was muddying the moment it exists for. */
+.live-card .live-event-send:hover:not(:disabled):not(.firing):not(.fired),
+.device-control .live-event-send:hover:not(:disabled):not(.firing):not(.fired) {
+  background:var(--hover);
+}
+.live-card .live-event-send:disabled,
+.device-control .live-event-send:disabled {
+  color:var(--dim);
+  cursor:default;
+}
+.live-card .live-event-label,
+.device-control .live-event-label {
+  position:relative;
+  z-index:2;
+}
+/* The lead sweep: a wash crossing the button over exactly the lead the host
+   scheduled. `--event-lead-duration` is set per click. It is cyan, not the
+   neutral `--value-fill` the design session mocked: at 58px a low-contrast
+   wash did not read (Bob, 2026-07-28), and sweeping in the flash's own ink
+   makes the schedule one gesture — the fill builds, then the whole box lands
+   on it. */
+.live-card .live-event-sweep,
+.device-control .live-event-sweep {
+  position:absolute;
+  z-index:1;
+  inset:0;
+  transform:scaleX(0);
+  transform-origin:left;
+  background:var(--mod-fill);
+}
+.live-card .live-event-send.firing,
+.device-control .live-event-send.firing {
+  border-color:var(--mod);
+  background:var(--input);
+}
+.live-card .live-event-send.firing .live-event-sweep,
+.device-control .live-event-send.firing .live-event-sweep {
+  animation:event-lead-sweep var(--event-lead-duration,500ms) linear forwards;
+}
+@keyframes event-lead-sweep { from { transform:scaleX(0) } to { transform:scaleX(1) } }
+/* The flash: cyan, because an event is a generator driving this control —
+   just discretely rather than continuously (Bob, 2026-07-28). */
+.live-card .live-event-send.fired,
+.device-control .live-event-send.fired {
+  border-color:var(--mod);
+  background:var(--mod);
+  color:var(--input);
+}
+.live-card .live-event-send.fired .live-event-sweep,
+.device-control .live-event-send.fired .live-event-sweep {
+  transform:scaleX(0);
+}
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-event-send.firing .live-event-sweep,
+  .device-control .live-event-send.firing .live-event-sweep {
+    animation:none;
+    transform:scaleX(1);
+  }
 }
 .live-card .live-control-section,
 .device-control .live-control-section {
