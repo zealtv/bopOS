@@ -30,6 +30,7 @@ let manifestDraft = null;
 let manifestBaseline = null;
 let manifestDirty = false;
 let manifestFeedback = "";
+let manifestDrag = null;
 let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -716,6 +717,7 @@ function paramManifestRow(param, index) {
     ? `<label>options · one per line<textarea data-manifest-field="options" rows="2">${esc((param.options||[]).join("\n"))}</textarea></label>`:"";
   const defaultType=kind==="text"?"text":"number";
   return `<div class="manifest-row manifest-param" data-param-index="${index}">
+    <button type="button" class="manifest-drag-handle" data-manifest-drag="params" data-manifest-drag-index="${index}" aria-label="Drag parameter ${esc(paramIdentity(param)||index+1)}">⋮⋮</button>
     <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off"></label>
     <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off"></label>
     <label>kind<select data-manifest-field="kind">${["float","int","toggle","enum","text"].map(value=>`<option value="${value}" ${kind===value?"selected":""}>${value}</option>`).join("")}</select></label>
@@ -733,6 +735,7 @@ function eventManifestRow(declaration, index) {
     <label>element ${element} label<input data-event-label="${element}" type="text" value="${esc(labels[element]||"")}" autocomplete="off"></label>
     <label>element ${element} default<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element]??0)}"></label>`).join("");
   return `<div class="manifest-row manifest-event" data-event-index="${index}">
+    <button type="button" class="manifest-drag-handle" data-manifest-drag="events" data-manifest-drag-index="${index}" aria-label="Drag event ${esc(declaration.name||index+1)}">⋮⋮</button>
     <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name||"")}" autocomplete="off"></label>
     <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
     ${elements}
@@ -809,6 +812,93 @@ function bindManifestEditor(source) {
   document.querySelectorAll("[data-remove-event]").forEach(button=>button.onclick=()=>{
     manifestDraft.events.splice(Number(button.dataset.removeEvent),1); manifestDirty=true; renderManifestEditor(source);
   });
+  bindManifestReorder(source);
+}
+function clearManifestDropMarkers() {
+  document.querySelectorAll(".manifest-drop-before,.manifest-drop-after").forEach(row=>{
+    row.classList.remove("manifest-drop-before","manifest-drop-after");
+  });
+}
+function manifestDropAt(kind, clientY) {
+  const container=$(kind==="params"?"#manifest-params":"#manifest-events");
+  const selector=kind==="params"?".manifest-param":".manifest-event";
+  if (!container) return null;
+  const bounds=container.getBoundingClientRect();
+  if (clientY<bounds.top || clientY>bounds.bottom) {
+    clearManifestDropMarkers();
+    return null;
+  }
+  const rows=[...container.querySelectorAll(selector)]
+    .filter(row=>row!==manifestDrag?.row);
+  let index=0, next=null;
+  for (const row of rows) {
+    const rowBounds=row.getBoundingClientRect();
+    if (clientY<rowBounds.top+rowBounds.height/2) {
+      next=row;
+      break;
+    }
+    index+=1;
+  }
+  clearManifestDropMarkers();
+  if (next) next.classList.add("manifest-drop-before");
+  else if (rows.length) rows[rows.length-1].classList.add("manifest-drop-after");
+  return index;
+}
+function finishManifestDrag(event, commit, source) {
+  if (!manifestDrag || event.pointerId!==manifestDrag.pointerId) return;
+  const drag=manifestDrag;
+  manifestDrag=null;
+  if (drag.handle.hasPointerCapture?.(event.pointerId)) drag.handle.releasePointerCapture(event.pointerId);
+  drag.row.classList.remove("manifest-dragging");
+  $("#manifest-editor")?.classList.remove("manifest-drag-active");
+  clearManifestDropMarkers();
+  if (commit && drag.active && drag.drop!==null) {
+    const items=manifestDraft[drag.kind];
+    const [item]=items.splice(drag.index,1);
+    items.splice(drag.drop,0,item);
+    if (drag.drop!==drag.index) manifestDirty=true;
+    renderManifestEditor(source);
+  }
+  if (drag.active) event.preventDefault();
+}
+function bindManifestReorder(source) {
+  const panel=$("#manifest-editor");
+  if (!panel) return;
+  panel.onpointerdown=event=>{
+    if (event.button!==0 || manifestDrag) return;
+    const handle=event.target.closest("[data-manifest-drag]");
+    if (!handle || handle.disabled) return;
+    manifestDrag={
+      pointerId:event.pointerId,
+      kind:handle.dataset.manifestDrag,
+      index:Number(handle.dataset.manifestDragIndex),
+      handle,
+      row:handle.closest(".manifest-row"),
+      startX:event.clientX,
+      startY:event.clientY,
+      active:false,
+      drop:null,
+    };
+    handle.focus();
+    handle.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+  panel.onpointermove=event=>{
+    if (!manifestDrag || event.pointerId!==manifestDrag.pointerId) return;
+    const distance=Math.hypot(event.clientX-manifestDrag.startX,event.clientY-manifestDrag.startY);
+    if (!manifestDrag.active && distance<7) return;
+    if (!manifestDrag.active) {
+      manifestDrag.active=true;
+      manifestDrag.row.classList.add("manifest-dragging");
+      panel.classList.add("manifest-drag-active");
+    }
+    if (event.clientY<70) window.scrollBy(0,-14);
+    else if (event.clientY>window.innerHeight-70) window.scrollBy(0,14);
+    manifestDrag.drop=manifestDropAt(manifestDrag.kind,event.clientY);
+    event.preventDefault();
+  };
+  panel.onpointerup=event=>finishManifestDrag(event,true,source);
+  panel.onpointercancel=event=>finishManifestDrag(event,false,source);
 }
 function renderManifestEditor(source) {
   const panel=$("#manifest-editor"); if (!panel) return;
@@ -956,7 +1046,7 @@ function renderEditor() {
   $("#editor-relaunch")?.addEventListener("click",()=>ws.send("relaunch_edit",{}));
   const focused=document.activeElement;
   const source=manifestSource(editor,patches,editorPatchChoice);
-  if (!$("#manifest-editor").contains(focused)) renderManifestEditor(source);
+  if (!manifestDrag && !$("#manifest-editor").contains(focused)) renderManifestEditor(source);
   renderEditorPreview(editor);
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;

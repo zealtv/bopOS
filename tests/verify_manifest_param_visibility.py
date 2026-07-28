@@ -89,6 +89,12 @@ PARAMS = [
     {"path": ["texture"], "name": "rate", "kind": "int",
      "min": 1, "max": 8, "default": 3},
 ]
+EVENTS = [
+    {"name": "strike", "arity": 1, "labels": ["velocity"],
+     "defaults": [1], "dashboard": True},
+    {"name": "release", "arity": 0, "labels": [], "defaults": [],
+     "dashboard": True},
+]
 
 
 def write_fixture(temp):
@@ -102,7 +108,8 @@ def write_fixture(temp):
     manifest = os.path.join(patch, "bopos.patch.json")
     with open(manifest, "w", encoding="utf-8") as target:
         json.dump({"engine": "test", "entrypoint": "main.bin",
-                   "params": PARAMS, "caps": [], "slots": []},
+                   "params": PARAMS, "events": EVENTS,
+                   "caps": [], "slots": []},
                   target)
     state_path = os.path.join(temp, "installation.json")
     with open(state_path, "w", encoding="utf-8") as target:
@@ -126,6 +133,29 @@ def identities(locator):
         "nodes => nodes.map(node => node.dataset.paramPath)"))
 
 
+def ordered_identities(locator):
+    return locator.evaluate_all(
+        "nodes => nodes.map(node => node.dataset.paramPath)")
+
+
+def drag_before(page, handle, target):
+    """Pointer-drag one handle just above a row; callers scroll explicitly."""
+    handle.evaluate(
+        "(element) => element.scrollIntoView({block:'center',inline:'center'})")
+    source_box = handle.bounding_box()
+    target_box = target.bounding_box()
+    if source_box is None or target_box is None:
+        raise RuntimeError("manifest drag endpoint has no bounding box")
+    start_x = source_box["x"] + source_box["width"] / 2
+    start_y = source_box["y"] + source_box["height"] / 2
+    end_x = target_box["x"] + target_box["width"] / 2
+    end_y = target_box["y"] + target_box["height"] / 4
+    page.mouse.move(start_x, start_y)
+    page.mouse.down()
+    page.mouse.move(end_x, end_y, steps=8)
+    page.mouse.up()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-param-visibility-") as temp:
         state_path, patches, assets, manifest = write_fixture(temp)
@@ -146,7 +176,7 @@ def main():
                 "--send-port", str(send_port),
                 "--osc-target", "127.0.0.1", "--state-file", state_path,
                 "--assets-dir", assets, "--patches-dir", patches,
-                "--public-url", base_url,
+                "--public-url", base_url, "--sim-no-engine",
             ], cwd=ROOT, stdout=server_log, stderr=subprocess.STDOUT)
             wait_http(base_url, server)
             fleet = subprocess.Popen([
@@ -164,6 +194,7 @@ def main():
                                                   "height": 1100})
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("dialog", lambda dialog: dialog.accept())
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
                 page.click("#tab-button-control")
@@ -239,6 +270,98 @@ def main():
                       page.locator(
                           "#manifest-params .manifest-check").first.inner_text(
                           ).strip() == "Facilitator")
+
+                # Reordering is an ordinary dirty manifest edit. Keep the
+                # nested texture declarations together so the tree renderer's
+                # visible row order can be asserted directly.
+                stop(fleet)
+                fleet = None
+                page.click("#editor-launch")
+                page.wait_for_function(
+                    "() => installation.supervisor?.mode === 'edit'"
+                    " && installation.editor?.patch === 'alpha'")
+                page.locator(
+                    '#manifest-params [data-manifest-drag="params"]'
+                ).first.wait_for(state="visible")
+                page.wait_for_function(
+                    "() => !document.querySelector("
+                    "'#manifest-params [data-manifest-drag=\"params\"]'"
+                    ").disabled")
+
+                param_rows = page.locator("#manifest-params .manifest-param")
+                drag_before(
+                    page,
+                    param_rows.nth(2).locator(
+                        '[data-manifest-drag="params"]'),
+                    param_rows.nth(1))
+                param_order = page.evaluate(
+                    "() => manifestDraft.params.map(paramIdentity)")
+                check("parameter drag changes only presentation order",
+                      param_order == ["gain", "texture/rate",
+                                      "texture/density"],
+                      repr(param_order))
+
+                event_rows = page.locator("#manifest-events .manifest-event")
+                drag_before(
+                    page,
+                    event_rows.nth(1).locator(
+                        '[data-manifest-drag="events"]'),
+                    event_rows.nth(0))
+                event_order = page.evaluate(
+                    "() => manifestDraft.events.map(item => item.name)")
+                check("event drag reorders within the Events section",
+                      event_order == ["release", "strike"],
+                      repr(event_order))
+
+                # A parameter released over Events is not accepted as an
+                # Events insertion (and does not disturb either list).
+                parameter_handle = page.locator(
+                    '#manifest-params [data-manifest-drag="params"]').first
+                event_target = page.locator(
+                    "#manifest-events .manifest-event").first
+                drag_before(page, parameter_handle, event_target)
+                cross_section = page.evaluate(
+                    "() => ({params:manifestDraft.params.map(paramIdentity),"
+                    " events:manifestDraft.events.map(item => item.name)})")
+                check("cross-section drag is a no-op",
+                      cross_section == {
+                          "params": ["gain", "texture/rate",
+                                     "texture/density"],
+                          "events": ["release", "strike"],
+                      }, repr(cross_section))
+
+                page.click("#manifest-save")
+                page.wait_for_function(
+                    "() => { const text=document.querySelector("
+                    "'#manifest-feedback')?.textContent||''; const lower=text.toLowerCase();"
+                    " return !text.includes('Saving manifest')"
+                    " && (lower.includes('saved')"
+                    " || text.startsWith('Not saved:')); }")
+                feedback = page.locator("#manifest-feedback").inner_text()
+                with open(manifest, encoding="utf-8") as source:
+                    saved = json.load(source)
+                check("saved manifest persists parameter and event order",
+                      [item["name"] for item in saved["params"]]
+                      == ["gain", "rate", "density"]
+                      and [item["name"] for item in saved["events"]]
+                      == ["release", "strike"],
+                      f"feedback={feedback!r} manifest={saved!r}")
+
+                page.click("#tab-button-control")
+                frame.locator(
+                    '[data-param-path="texture/rate"]').first.wait_for(
+                        state="attached")
+                control_order = ordered_identities(
+                    frame.locator("[data-live-param]"))
+                check("Control panel follows the saved parameter order",
+                      control_order == [
+                          "gain", "texture/rate", "texture/density"],
+                      repr(control_order))
+                control_event_order = ordered_identities(
+                    frame.locator(".live-param-event"))
+                check("Control panel follows the saved event order",
+                      control_event_order == ["release", "strike"],
+                      repr(control_event_order))
                 check("browser surfaces emitted no page errors",
                       not errors and not facilitator_errors,
                       repr(errors + facilitator_errors))
