@@ -1048,6 +1048,10 @@ function renderHeader() {
     button.setAttribute("aria-pressed",active?"true":"false");
   });
   $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
+  // MUTE ALL lives in the Monitor dock's Globals panel, which is hidden while
+  // the dock is collapsed; the header flag keeps a muted fleet always visible.
+  const muteFlag = document.querySelector("[data-monitor-mute-flag]");
+  if (muteFlag) muteFlag.hidden = !muted;
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
   const editorMaster=$("#editor-master");

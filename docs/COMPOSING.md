@@ -188,8 +188,11 @@ place, and safe side-by-side revisions.
 
 ## Step 7 — perform
 
-The **Control** tab is the full show surface: master, MUTE ALL, presets, every
-declared parameter, and declared cue triggers. **Open standalone dashboard**
+The **Control** tab is the full show surface: presets, every declared
+parameter, and declared cue triggers. The three controls that belong to the
+whole installation — **master**, **MUTE ALL**, and the event lead time — live
+together in the **Globals** panel of the Monitor dock, reachable from any tab.
+**Open standalone dashboard**
 provides the simplified tablet view with only parameters marked
 `"dashboard": true`. A target filter at the top scopes either surface to All,
 Groups, or one Seat, and presets follow that target. Any visible numeric row

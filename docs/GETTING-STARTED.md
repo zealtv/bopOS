@@ -54,9 +54,11 @@ maintain":
 
 ![Dashboard tab: master fader, seat presets, and per-Seat live controls](images/tab-dashboard.png)
 
-**Control** is the live-performance surface: the master fader, MUTE ALL,
-presets, and every parameter declared by the active patch, scoped by an All /
-Groups / Seat target filter. (It was called
+**Control** is the live-performance surface: presets and every parameter
+declared by the active patch, scoped by an All / Groups / Seat target filter.
+The installation-wide controls — master fader, MUTE ALL, and event lead time —
+are in the **Globals** panel of the Monitor dock at the bottom of every tab.
+(It was called
 Dashboard until 2026-07-25; the old `#dashboard` link still works.) **Open standalone dashboard** gives the same surface as a
 curated full-screen page for a tablet at the venue; only parameters marked
 `"dashboard": true` appear there.
@@ -94,9 +96,11 @@ A two-minute exercise to feel the system move:
 2. In **Seats**, drag its element somewhere on the map.
 3. In **Seats**, press **Add Point** and drag the point near that element —
    the simulated node computes its proximity value just like a real one.
-4. On the **Dashboard** tab, pull the master fader down and back up.
+4. Open **Globals** in the Monitor dock and pull the master fader down and
+   back up.
 5. Press **MUTE ALL**, then release it. Safe, idempotent, and instant — this
-   is the one control the framework owns end-to-end.
+   is the one control the framework owns end-to-end. While muted, a red
+   **MUTED — UNMUTE** flag stays on the dock header even when it is collapsed.
 
 Everything you just did used the real wire protocol; only the audio was
 missing.

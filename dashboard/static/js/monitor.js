@@ -1,6 +1,6 @@
 (function () {
   const STORAGE_KEY = "bopos.monitor.v1";
-  const MONITOR_TABS = ["out", "in", "send", "reports", "system"];
+  const MONITOR_TABS = ["globals", "out", "in", "send", "reports", "system"];
   const CONSOLE_LIMIT = 500;
   const CONSOLE_VISIBLE = 200;
   const TRANSPORT_ERROR_LIMIT = 50;
@@ -49,6 +49,8 @@
     <div class="monitor-header">
       <strong class="monitor-title">Monitor</strong>
       <div class="monitor-tabs" role="tablist" aria-label="Monitor views">
+        <button type="button" role="tab" data-monitor-tab="globals"
+                aria-controls="monitor-panel-globals">Globals</button>
         <button type="button" role="tab" data-monitor-tab="out"
                 aria-controls="monitor-panel-out">Outgoing</button>
         <button type="button" role="tab" data-monitor-tab="in"
@@ -60,10 +62,14 @@
         <button type="button" role="tab" data-monitor-tab="system"
                 aria-controls="monitor-panel-system">System</button>
       </div>
+      <button type="button" class="monitor-mute-flag danger" data-monitor-mute-flag
+              hidden>MUTED — UNMUTE</button>
       <button type="button" class="monitor-collapse" data-monitor-collapse
               aria-label="Expand Monitor"></button>
     </div>
     <div class="monitor-body">
+      <div id="monitor-panel-globals" class="monitor-panel" role="tabpanel"
+           data-monitor-panel="globals"></div>
       ${["out", "in"].map(kind => `
         <div id="monitor-panel-${kind}" class="monitor-panel" role="tabpanel"
              data-monitor-panel="${kind}" data-console="${kind}">
@@ -172,6 +178,14 @@
     [...monitor.querySelectorAll("[data-monitor-panel]")]
       .map(panel => [panel.dataset.monitorPanel, panel]));
   const monitorBody = monitor.querySelector(".monitor-body");
+  // The global controls are authored in index.html so dashboard.js binds them
+  // at parse time; the dock adopts the live nodes rather than rebuilding them.
+  const globalControls = document.getElementById("global-controls");
+  if (globalControls) {
+    globalControls.hidden = false;
+    panels.globals.append(globalControls);
+  }
+  const eventLeadInput = globalControls?.querySelector("#event-lead-ms") || null;
   monitorBody.replaceChildren();
 
   function createPane(name) {
@@ -431,6 +445,11 @@
   });
 
   monitor.addEventListener("click", event => {
+    if (event.target.closest("[data-monitor-mute-flag]")) {
+      // Reuse the one MUTE ALL handler rather than duplicating its semantics.
+      document.getElementById("mute-all")?.click();
+      return;
+    }
     const tab = event.target.closest("[data-monitor-tab]");
     if (tab) {
       setActive(tab.dataset.monitorTab, {expand: true});
@@ -529,6 +548,14 @@
     consoles[panel.dataset.console].autoScroll =
       log.scrollTop + log.clientHeight >= log.scrollHeight - 24;
   }, true);
+
+  if (eventLeadInput) {
+    eventLeadInput.addEventListener("change", () => {
+      const ms = Math.min(10000, Math.max(0, Math.trunc(Number(eventLeadInput.value) || 0)));
+      eventLeadInput.value = ms;
+      ws.send("set_event_lead", {ms});
+    });
+  }
 
   const sendForm = panels.send.querySelector("[data-monitor-send-form]");
   const sendLine = panels.send.querySelector("[data-monitor-send-line]");
@@ -675,6 +702,9 @@
       ? `fingerprint …${String(patch.fingerprint).slice(-8)}`
       : "no desired fingerprint");
     systemText("version", state?.host_version || "—");
+    if (eventLeadInput && document.activeElement !== eventLeadInput) {
+      eventLeadInput.value = Number(state?.event_lead_ms ?? 500);
+    }
   }
 
   function renderTransportErrors() {

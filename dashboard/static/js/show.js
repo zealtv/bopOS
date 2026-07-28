@@ -436,7 +436,6 @@
     const playLabel = activeState === "playing" ? `Pause ${stepLabel(activeStep)}`
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
-    const eventLead = currentInstallation().event_lead_ms ?? 500;
     return `<div class="show-transport-strip">
       <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
       <div class="show-manage">
@@ -448,7 +447,6 @@
         <button id="show-manage-delete" class="danger" type="button">Delete</button>
       </div>
       <div class="show-transport-actions">
-        <label class="show-event-lead">event lead · ms <input id="show-event-lead" type="number" min="0" max="10000" step="50" value="${escapeHtml(eventLead)}"></label>
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
         ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
@@ -759,11 +757,8 @@
     const oldPicker = root.querySelector("#show-switch-select");
     const renderedShow = oldPicker?.querySelector("option[selected]")?.value;
     const pickedShow = oldPicker && oldPicker.value !== renderedShow ? oldPicker.value : null;
-    const oldEventLead = root.querySelector("#show-event-lead");
-    const eventLeadDraft = oldEventLead && document.activeElement === oldEventLead
-      ? oldEventLead.value : null;
-    // Same rationale as eventLeadDraft: an unrelated broadcast mid-rename must
-    // not wipe an uncommitted inline name edit (step/divider/message; no
+    // Same rationale as the picker above: an unrelated broadcast mid-rename
+    // must not wipe an uncommitted inline name edit (step/divider/message; no
     // per-keystroke saves).
     const oldNameInput = root.querySelector("[data-show-name-input]");
     const nameDraft = oldNameInput && document.activeElement === oldNameInput
@@ -783,13 +778,6 @@
       const picker = root.querySelector("#show-switch-select");
       if (picker && [...picker.options].some(option => option.value === pickedShow)) {
         picker.value = pickedShow;
-      }
-    }
-    if (eventLeadDraft != null) {
-      const eventLead = root.querySelector("#show-event-lead");
-      if (eventLead) {
-        eventLead.value = eventLeadDraft;
-        eventLead.focus({preventScroll: true});
       }
     }
     if (nameEdit.kind) {
@@ -1262,12 +1250,6 @@
   });
 
   root.addEventListener("change", event => {
-    if (event.target.id === "show-event-lead") {
-      const ms = Math.min(10000, Math.max(0, Math.trunc(Number(event.target.value) || 0)));
-      event.target.value = ms;
-      ws.send("set_event_lead", {ms});
-      return;
-    }
     const stepEditor = event.target.closest("[data-show-step-editor]");
     if (stepEditor) {
       const step = stepByUid(stepEditor.dataset.showStepEditor);

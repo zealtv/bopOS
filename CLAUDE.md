@@ -119,17 +119,21 @@ remain the authority for a particular piece of work.
 > **contract v1.15** (commit `e8e998b`). The contract is now at **v1.15** —
 > `/cue` no longer exists anywhere in `python/`, `dashboard/`, `tools/` or the
 > patch manifests, and cue firing lives on the control panel's events section,
-> targetable at all / a group / one seat. **The live next step is 4.**
+> targetable at all / a group / one seat. **Step 4 is also complete and tied
+> (2026-07-28): master, MUTE ALL, and event lead now share a Globals panel in
+> the Monitor dock, and a muted fleet stays visible on the collapsed dock
+> header. The live next step is 5.**
 >
 > 1. ~~`44-event-plane/2-kind-grammar`~~ — done.
 > 2. ~~`44-event-plane/3-event-plane-wire`~~ — done, contract v1.14.
 > 3. ~~`44-event-plane/4-cue-retirement`~~ — done, contract v1.15.
-> 4. `desktop-ui-overhaul/03-global-controls-monitor` — **next.** It
->    relocates the cue-lead control, so going earlier means moving it and then
->    renaming it. Also the natural filler while 6 waits on Bob.
-> 5. `desktop-ui-overhaul/01-control-panel/8-manifest-reorder` — **must follow
->    4**: both rewrite the manifest editor and the panel's section split, so
->    this is one pass over that surface instead of two.
+> 4. ~~`desktop-ui-overhaul/03-global-controls-monitor`~~ — done. The three
+>    global controls left the app header, the Control tab, and the Show
+>    transport for one `Globals` Monitor panel. Bob's "Monitor may want
+>    renaming" note is carried in the tied stitch's `decisions.md`.
+> 5. `desktop-ui-overhaul/01-control-panel/8-manifest-reorder` — **next**, and
+>    **must follow 4**: both rewrite the manifest editor and the panel's
+>    section split, so this is one pass over that surface instead of two.
 > 6. `44-event-plane/5-pd-adoption` — **Bob's**: the `.pd` receiver edits plus
 >    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
 > 7. `desktop-ui-overhaul/02-app-wide-rollout-design` — unblocks once 5 ties

@@ -33,6 +33,15 @@ def check(label, condition, detail=""):
         FAILURES.append(label)
 
 
+def click_mute_all(page):
+    """MUTE ALL lives in the Monitor dock's Globals panel, which is hidden
+    while the dock is collapsed. Open it, click, and collapse again so the
+    fixed dock does not cover the rest of the journey's targets."""
+    page.click('[data-monitor-tab="globals"]')
+    page.locator("#mute-all").click()
+    page.click("[data-monitor-collapse]")
+
+
 def free_port(kind, host="127.0.0.1"):
     for _attempt in range(256):
         port = random.SystemRandom().randrange(20000, 60000)
@@ -435,7 +444,7 @@ def main():
                     repr(frames))
 
                 peer.clear()
-                page.locator("#mute-all").click()
+                click_mute_all(page)
                 page.wait_for_function("() => installation.muted === true")
                 muted_engine, muted_frames = wait_engine_master(engine, 0.0)
                 check(
@@ -486,7 +495,7 @@ def main():
                     has_enabled(frames), repr(frames))
 
                 peer.clear()
-                page.locator("#mute-all").click()
+                click_mute_all(page)
                 page.wait_for_function("() => installation.muted === false")
                 resumed_engine, resumed_frames = wait_engine_master(engine, .25)
                 check(
