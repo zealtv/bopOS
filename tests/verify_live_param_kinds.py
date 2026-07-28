@@ -272,10 +272,22 @@ def main():
                 slider = ('.live-card[data-live-scope="all"] '
                           'input[type="range"][data-live-param]'
                           '[data-param-path="density"]')
-                # fires input AND change. `press` re-checks actionability, so a
-                # heartbeat re-render between focusing and typing cannot
-                # swallow the keystroke — focus() + keyboard.press() did, and
-                # that was this file's one intermittent failure.
+                # A keyboard-focused control must hold the host render guard:
+                # without it, the next heartbeat replaces the focused node
+                # before a human (or Playwright) can press a key.
+                page.locator(slider).focus()
+                page.wait_for_timeout(600)  # three heartbeat render chances
+                focus_state = page.evaluate("""selector => {
+                  const input = document.querySelector(selector);
+                  return {
+                    focused: document.activeElement === input,
+                    oninput: !!input?.oninput,
+                    onchange: !!input?.onchange,
+                  };
+                }""", slider)
+                check("keyboard focus and handlers survive heartbeat updates",
+                      all(focus_state.values()), repr(focus_state))
+                # `press` fires input AND change on the still-bound control.
                 page.locator(slider).press("ArrowRight")
                 check("slider change-commit reaches the wire numerically",
                       wait_log(fleet_log_path, r"p/density=0\.21(\b|0)"),
@@ -285,8 +297,8 @@ def main():
                 steps = ('.live-card[data-live-scope="all"] '
                          'input[type="range"][data-live-param]'
                          '[data-param-path="steps"]')
-                # `press` re-checks actionability, so a heartbeat re-render
-                # between focusing and typing cannot swallow the keystroke.
+                # Moving focus releases the first guard and acquires it on
+                # this row; both controls share the component binding.
                 page.locator(steps).press("ArrowRight")
                 check("an integer row steps by one to the wire",
                       wait_log(fleet_log_path, r"p/steps=3(\b|\.)"),

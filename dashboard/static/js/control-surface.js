@@ -662,7 +662,34 @@
             announceTakeover(value);
           }
         };
-        input.onpointerdown = beginTakeover;
+        // Pointer interactions are guarded by each host, but keyboard users
+        // can focus a control without a pointerdown. Hold the same render
+        // guard while keyboard-focused so a heartbeat cannot replace the node
+        // between focus and key activation (47-live-param-kinds-flake).
+        //
+        // Keep the two sources distinct: a pointerup deliberately releases
+        // the host guard even though a clicked control remains focused. The
+        // deferred reassertion also wins over a preceding pointerup's queued
+        // release when focus moves immediately under a loaded browser.
+        let pointerFocusing = false, keyboardFocused = false;
+        input.onfocus = () => {
+          keyboardFocused = !pointerFocusing;
+          if (!keyboardFocused) return;
+          context.setInteracting?.(true);
+          setTimeout(() => {
+            if (document.activeElement === input) context.setInteracting?.(true);
+          }, 0);
+        };
+        input.onblur = () => {
+          if (keyboardFocused) context.setInteracting?.(false);
+          keyboardFocused = false;
+        };
+        input.onpointerdown = () => {
+          pointerFocusing = true;
+          beginTakeover();
+        };
+        input.addEventListener("pointerup", () => { pointerFocusing = false; });
+        input.addEventListener("pointercancel", () => { pointerFocusing = false; });
         if (toggle) {
           // The button IS the state: flip `aria-pressed` first, then send what
           // it now reads, so semantics and the wire cannot disagree. A mixed
