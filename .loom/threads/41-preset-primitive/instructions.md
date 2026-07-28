@@ -55,9 +55,17 @@ preset affordance at all** — which means the provisional row shipped by
 `7-preset-slot` must be *removed* from the facilitator host, superseding that
 stitch's decision 1.
 
-The eight implementation stitches are laid out in addendum §10 and are **not
-created yet** — the first one ratifies the grammar and reference closure into
-contract v1.17, and nothing amends the contract before it.
+**Next: `3-addendum-review`** — Bob placed one more review, and **that one
+flows straight into implementation**: it attacks the addendum's own repairs
+(which have had no adversarial pass), then lays out the stitches from addendum
+§10 as real children numbered from `4-` and starts working them. There is no
+further design gate. It stops for Bob only on a defect in one of his rulings,
+a wire-grammar ambiguity a contract amendment would ratify, or a change big
+enough to break the §10 shape.
+
+The eight implementation stitches in addendum §10 are therefore **specced but
+not created** — `3-addendum-review` creates them. Nothing amends the OSC
+contract until its grammar questions close.
 
 **Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
 tied. The preset design proceeds on the ratified four-layer model — see
