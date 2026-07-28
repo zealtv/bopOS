@@ -20,6 +20,21 @@ asked for an architectural evaluation, not a straight port.
 Child `1-preset-architecture-design` is the Bob-gated design stitch;
 implementation stitches follow ratification.
 
+**RATIFIED AND TIED 2026-07-28.** The design is
+`.loom/tied/1-preset-architecture-design/proposal.md`, with Bob's four
+rulings in `decisions.md`. Headline: a preset is not a wire concept — an
+entry is the `/p/<identity>` argument list, stored sparsely in
+`patches/<patch>/presets/<slug>.json` and applied as an ordinary fan-out.
+`presets/` is excluded from the distribution fingerprint; interpolation is
+the additive `morph <dur> <spec…>` grammar form; capture-as-step omits
+un-preset targets; the applied marker is stored provenance with derived
+dirtiness. Contract delta proposed as v1.17.
+
+**Next: `2-proposal-review`** — Bob placed a review stitch ahead of
+implementation (another agent reads the proposal against the code). The six
+implementation stitches are sketched in proposal §11 and deliberately not
+created yet, because the review may reshape them.
+
 **Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
 tied. The preset design proceeds on the ratified four-layer model — see
 `.notes/entity-map-2026-07.md` (as-is map) and the tied

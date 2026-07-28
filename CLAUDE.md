@@ -146,8 +146,20 @@ remain the authority for a particular piece of work.
 >    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
 > 7. `desktop-ui-overhaul/02-app-wide-rollout-design` — unblocks once 5 ties
 >    `01-control-panel`.
-> 8. `41-preset-primitive/1` — design gate. Needs **only** step 1, so pull it
->    earlier if a Bob design session is free.
+> 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
+>    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
+>    proposal.md + decisions.md). A preset is **not a wire concept**: an entry
+>    is the `/p/<identity>` argument list, stored sparsely in
+>    `patches/<patch>/presets/<slug>.json`, applied as an ordinary fan-out.
+>    `presets/` is excluded from the distribution fingerprint (otherwise every
+>    save restages the fleet patch); interpolation is **`morph <dur> <spec…>`**
+>    — argument-vector interpolation preserving §3.3's one-slot model, not an
+>    output crossfade; capture-as-step omits targets with no preset applied;
+>    the applied-preset marker stores provenance with **derived** dirtiness
+>    (R5). Contract delta is proposed **v1.17**. The live child is
+>    `41-preset-primitive/2-proposal-review` — Bob placed a review stitch
+>    ahead of implementation, so the six implementation stitches are a sketch
+>    in proposal §11 and are deliberately **not** created yet.
 > 9. `44-event-plane/6-text-kind-control` — after 7, so it adopts the app-wide
 >    text treatment rather than competing with it.
 >
