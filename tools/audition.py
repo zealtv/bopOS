@@ -266,7 +266,7 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.15",
+            "contract_version": "1.16",
             "groups": list(getattr(node, "groups", ())),
             "device_enabled": bool(node.device_enabled),
             "mute_all": bool(node.mute_all),

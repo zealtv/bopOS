@@ -677,12 +677,10 @@ function manifestParamsForSave(params) {
 function manifestEventsForSave(events) {
   return events.map(declaration=>{
     const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-    const labels=Array.isArray(declaration.labels)?declaration.labels:[];
     const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
     return {
       name:String(declaration.name||""),
       arity,
-      labels:Array.from({length:arity},(_unused,index)=>String(labels[index]||"")),
       defaults:Array.from({length:arity},(_unused,index)=>Number(defaults[index])||0),
       dashboard:declaration.dashboard===true,
     };
@@ -729,12 +727,10 @@ function paramManifestRow(param, index) {
 }
 function eventManifestRow(declaration, index) {
   const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-  const labels=Array.isArray(declaration.labels)?declaration.labels:[];
   const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
   const elements=Array.from({length:arity},(_unused,element)=>`
-    <label>element ${element} label<input data-event-label="${element}" type="text" value="${esc(labels[element]||"")}" autocomplete="off"></label>
-    <label>element ${element} default<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element]??0)}"></label>`).join("");
-  return `<div class="manifest-row manifest-event" data-event-index="${index}">
+    <label>element ${element}<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element]??0)}"></label>`).join("");
+  return `<div class="manifest-row manifest-event" data-event-index="${index}" data-arity="${arity}">
     <button type="button" class="manifest-drag-handle" data-manifest-drag="events" data-manifest-drag-index="${index}" aria-label="Drag event ${esc(declaration.name||index+1)}">⋮⋮</button>
     <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name||"")}" autocomplete="off"></label>
     <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
@@ -774,7 +770,6 @@ function bindManifestEditor(source) {
   });
   document.querySelectorAll(".manifest-event").forEach(row=>{
     const index=Number(row.dataset.eventIndex);
-    manifestDraft.events[index].labels=Array.isArray(manifestDraft.events[index].labels)?manifestDraft.events[index].labels:[];
     manifestDraft.events[index].defaults=Array.isArray(manifestDraft.events[index].defaults)?manifestDraft.events[index].defaults:[];
     row.querySelectorAll("[data-manifest-field]").forEach(input=>{
       const update=()=>{
@@ -783,7 +778,6 @@ function bindManifestEditor(source) {
         if(field==="arity"){
           const arity=Math.min(3,Math.max(0,Math.trunc(Number(input.value)||0)));
           declaration.arity=arity;
-          declaration.labels=Array.from({length:arity},(_unused,element)=>declaration.labels?.[element]||"");
           declaration.defaults=Array.from({length:arity},(_unused,element)=>Number(declaration.defaults?.[element])||0);
           manifestDirty=true;
           renderManifestEditor(source);
@@ -794,10 +788,6 @@ function bindManifestEditor(source) {
       };
       input.oninput=update;
       input.onchange=update;
-    });
-    row.querySelectorAll("[data-event-label]").forEach(input=>input.oninput=()=>{
-      manifestDraft.events[index].labels[Number(input.dataset.eventLabel)]=input.value;
-      manifestDirty=true;
     });
     row.querySelectorAll("[data-event-default]").forEach(input=>input.oninput=()=>{
       manifestDraft.events[index].defaults[Number(input.dataset.eventDefault)]=Number(input.value)||0;
@@ -917,7 +907,7 @@ function renderManifestEditor(source) {
   const addParam=$("#manifest-add-param"), addEvent=$("#manifest-add-event");
   addParam.disabled=!source.editable; addEvent.disabled=!source.editable;
   addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",kind:"float",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
-  addEvent.onclick=()=>{manifestDraft.events.push({name:"",arity:0,labels:[],defaults:[],dashboard:false});manifestDirty=true;renderManifestEditor(source);};
+  addEvent.onclick=()=>{manifestDraft.events.push({name:"",arity:0,defaults:[],dashboard:false});manifestDirty=true;renderManifestEditor(source);};
   const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
   save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
   save.onclick=()=>{
@@ -970,10 +960,9 @@ function renderEditorPreview(editor) {
   if (!events || !free || !fire || !editor.active) return;
   events.innerHTML=(editor.events||[]).map(declaration=>{
     const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-    const labels=Array.isArray(declaration.labels)?declaration.labels:[];
     const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
     const elements=Array.from({length:arity},(_unused,index)=>
-      `<input data-editor-event-element="${index}" type="number" step="any" value="${esc(defaults[index]??0)}" aria-label="${esc(`${declaration.name} ${labels[index]||`element ${index}`}`)}">`).join("");
+      `<input data-editor-event-element="${index}" type="number" step="any" value="${esc(defaults[index]??0)}" aria-label="${esc(`${declaration.name} element ${index}`)}">`).join("");
     return `<div class="editor-event-row" data-editor-event="${esc(declaration.name)}"><button title="Fire ${esc(declaration.name)}">${esc(declaration.name)}</button>${elements}</div>`;
   }).join("");
   const send=(identity,elements=[])=>{

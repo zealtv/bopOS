@@ -141,7 +141,10 @@ class AssetSlotContextTests(unittest.TestCase):
         self.assertEqual(pd_adapter.count("clip~ -1 1"), 2)
 
         contract = (REPO / "docs" / "OSC-CONTRACT.md").read_text()
-        self.assertIn("**Version 1.15**", contract)
+        # This guard's subject is the asset-slot list, not the revision
+        # number: pin that the contract carries a version header, not which
+        # one, so an unrelated amendment cannot fail an unrelated test.
+        self.assertRegex(contract, r"\*\*Version \d+\.\d+\*\*")
         self.assertIn("`BOPOS_ASSETS` is a UTF-8 JSON array", contract)
 
     def test_simfleet_context_is_a_restart_snapshot(self):

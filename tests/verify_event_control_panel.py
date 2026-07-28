@@ -134,7 +134,7 @@ def make_fixture(root):
             }],
             "events": [{
                 "name": "strike", "arity": 2,
-                "labels": ["note", "velocity"], "defaults": [64, 127],
+                "defaults": [64, 127],
                 "dashboard": True,
             }],
             "caps": [],

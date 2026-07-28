@@ -298,15 +298,13 @@
     function eventRow(scope, id, declaration, disabled) {
       const arity = Math.min(3, Math.max(0, Number(declaration.arity) || 0));
       const off = disabled ? " disabled" : "";
-      const labels = Array.isArray(declaration.labels) ? declaration.labels : [];
       const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
       // Exactly `arity` boxes, no held-open slots: the name hugs the last box
       // (Bob, 2026-07-27), so a one-element event's name sits where its one
       // box ends rather than where a triplet's third box would have.
       const boxes = Array.from({length: arity}, (_unused, index) => {
         const shown = Number.isFinite(Number(defaults[index])) ? Number(defaults[index]) : 0;
-        const name = labels[index] || `element ${index}`;
-        return `<input class="live-event-box" type="number" step="any" value="${esc(shown)}" aria-label="${esc(`${declaration.name} ${name}`)}"${off}>`;
+        return `<input class="live-event-box" type="number" step="any" value="${esc(shown)}" aria-label="${esc(`${declaration.name} element ${index}`)}"${off}>`;
       }).join("");
       // Reading order is the sending order (Bob, 2026-07-27): the trigger, the
       // elements it will send, then the name.

@@ -785,7 +785,10 @@ class Dashboard:
         elif kind == "fire_editor_event":
             if self.supervisor_mode != "edit":
                 return
-            event, error = self.validate_event_command(data)
+            # The editor drives the local audition engine, which is seat 0 —
+            # the same selector `set_editor_param` writes to. The browser sends
+            # only an identity and elements, so supply it here.
+            event, error = self.validate_event_command(dict(data, selector="0"))
             if error is not None:
                 await self.ws_error(ws, error)
                 return
@@ -1493,8 +1496,7 @@ class Dashboard:
         Events are carried beside the parameter schema rather than inside it:
         they are not `/p/*` values, so nothing that consumes `declarations`
         (replay, presets, the Show message builder) should see them. The
-        control panel renders them disabled until `44-event-plane` ratifies the
-        `<target>/e/*` wire.
+        control panel fires them over the `<target>/e/*` wire (contract §3.2).
         """
         manifest = self.live_control_manifest(patch_name)
         if manifest is None:

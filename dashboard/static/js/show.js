@@ -703,10 +703,9 @@
     const declaration = manifest.events.find(item => item.identity === identity) || manifest.events[0];
     const options = manifest.events.map(item => `<option value="${escapeHtml(item.identity)}" ${item.identity === identity ? "selected" : ""}>${escapeHtml(item.name || item.identity)}</option>`).join("");
     const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
-    const labels = Array.isArray(declaration?.labels) ? declaration.labels : [];
     const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
     const elements = Array.from({length: arity}, (_unused, index) =>
-      `<label>${escapeHtml(labels[index] || `element ${index}`)} <input data-event-element="${index}" type="number" step="any" value="${escapeHtml(numberAttr(message.args?.[index]?.value, defaults[index] ?? 0))}"></label>`).join("");
+      `<label>element ${index} <input data-event-element="${index}" type="number" step="any" value="${escapeHtml(numberAttr(message.args?.[index]?.value, defaults[index] ?? 0))}"></label>`).join("");
     return `<section class="show-inspector-section" data-payload-builder="event">
       <label>event <select id="show-event-picker">${options || '<option value="">No staged events</option>'}</select></label>
       ${elements}

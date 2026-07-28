@@ -137,7 +137,7 @@ class PhysicalPeer:
         self.send("/os/report", json.dumps({
             "uid": UID, "hostname": "finn-jet", "engine": "test",
             "patch": "alpha", "git_rev": "physical-test",
-            "update_model": "persistent", "contract_version": "1.15",
+            "update_model": "persistent", "contract_version": "1.16",
             "groups": [], "device_enabled": True, "mute_all": False,
             "output_enabled": True,
             "log": self.log_state(),

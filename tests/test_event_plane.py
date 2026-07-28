@@ -119,10 +119,9 @@ class EventPlaneTests(unittest.TestCase):
             dashboard.state.data["supervisor"]["mode"] = "edit"
             await dashboard.handle_ws({
                 "type": "fire_editor_event",
-                "data": {
-                    "selector": "0", "identity": "snap", "elements": [],
-                    "lead_ms": 999,
-                },
+                # The browser sends no selector: the editor drives the local
+                # audition engine, and the server supplies seat 0 itself.
+                "data": {"identity": "snap", "elements": [], "lead_ms": 999},
             })
 
         asyncio.run(exercise())

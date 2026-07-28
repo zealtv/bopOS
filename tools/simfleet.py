@@ -485,7 +485,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.15",
+            "contract_version": "1.16",
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),

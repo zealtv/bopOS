@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.15** — base ratified 2026-07-07; latest revision 2026-07-28. The
+**Version 1.16** — base ratified 2026-07-07; latest revision 2026-07-28. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -223,9 +223,10 @@ Node → engine (localhost 6661), at the local deadline:
 - `<identity>` has the `/p/*` segment grammar: 1–8 non-empty
   `[A-Za-z0-9_-]+` segments and at most 255 ASCII bytes when slash-joined.
   Nesting is preserved and wire indices are 0-based by default.
-- The element list has arity 0–3. Elements are free-form 32-bit OSC floats;
-  labels such as note/velocity/duration are patch convention, not framework
-  semantics. A zero-element fire has no engine arguments.
+- The element list has arity 0–3. Elements are free-form 32-bit OSC floats,
+  identified by 0-based position; meanings such as note/velocity/duration are
+  patch convention, not framework semantics. A zero-element fire has no engine
+  arguments.
 - `sharedTimeNs` is the decimal string of an integer leader
   `monotonic_ns()` count and always comes first because the element list is
   variable-length. The engine never receives it.
@@ -812,11 +813,13 @@ A patch ships **`bopos.patch.json`** in its patch root:
   surface reads the labels.
 - **`events` (optional; wired in v1.14):** a top-level
   list beside `params`, each `{"name": …, "path": […], "arity": 0|1|2|3,
-  "labels": […], "defaults": […], "dashboard": bool}`. `name`/`path` qualify
+  "defaults": […], "dashboard": bool}`. `name`/`path` qualify
   exactly like a param; `/p/*` and `/e/*` are distinct planes, so the same
-  qualified identity may be declared once in each. Elements
-  are free-form labeled floats — note/velocity/duration is the common case,
-  not an enforced framework meaning (Bob, 2026-07-27). Fires use `/e/*`
+  qualified identity may be declared once in each. An event carries **one
+  label — its `name`**; elements are free-form floats named only by 0-based
+  position (per-element `labels` were retired 2026-07-28, Bob). What an
+  element means — note/velocity/duration is the common case — is patch
+  convention, not an enforced framework meaning. Fires use `/e/*`
   (§3.2), always forward-synchronized unless the installation-wide
   `event_lead_ms` is `0`. A zero-element event is a momentary named fire.
   Presets do not capture events.
@@ -980,3 +983,4 @@ reasoning.
 | 1.13 am. | 2026-07-27 | Patch-manifest presentation clarification (§8): all declared params appear on desktop Control and Device control surfaces; the existing `dashboard: true` field now gates only the simplified standalone facilitator/iPad surface. No manifest or wire shape changes. | stitch `1-full-manifest-visibility` |
 | 1.14 | 2026-07-28 | Additive targetable `/e/*` event plane (§3.2): patch-declared identities with 0–3 floats, framework-owned forward scheduling, selector-free/time-free engine fires, and exact `"0"` fire-on-arrival sentinel. Installation setting `cue_lead_ms` becomes `event_lead_ms` with load-only fallback. `/cue` remains unchanged for its separate retirement stitch. | thread `44-event-plane` |
 | 1.15 | 2026-07-28 | Hard-break retirement of the `/cue` plane and the manifest `cues` key. Zero-element `/e/*` events replace named fires in full; no compatibility alias, deprecation path, or show-document migration. | thread `44-event-plane` |
+| 1.16 | 2026-07-28 | Manifest event-element `labels` retired (§8): an event carries one label, its `name`; elements are numbered 0-based floats with optional `defaults`. Authoring surfaces stopped requiring a name per element. Stale `labels` keys are stripped on read, not rejected. | Bob, live session (thread `44-event-plane`) |

@@ -244,14 +244,10 @@ def validate(candidate, patch_path, require_entrypoint=True):
                 or not 0 <= arity <= MAX_EVENT_ARITY):
             return None, f"event {name}: arity must be 0, 1, 2 or {MAX_EVENT_ARITY}"
         event["arity"] = arity
-        labels = event.get("labels")
-        if labels is not None:
-            if (not isinstance(labels, list) or len(labels) != arity
-                    or any(not isinstance(label, str)
-                           or OPTION_LABEL.fullmatch(label) is None
-                           for label in labels)):
-                return None, (f"event {name}: labels must be {arity} names of "
-                              "1–32 characters")
+        # Per-element labels were retired 2026-07-28 (Bob): an event carries
+        # one label, its name, and elements are numbered floats. Older
+        # manifests are cleaned on read rather than rejected.
+        event.pop("labels", None)
         defaults = event.get("defaults")
         if defaults is not None:
             if (not isinstance(defaults, list) or len(defaults) != arity

@@ -228,8 +228,7 @@ class ManifestTests(unittest.TestCase):
     def test_event_declarations_are_validated_beside_the_params(self):
         loaded, error = self.validate(
             [self.declaration("gain")],
-            events=[{"name": "note", "arity": 2,
-                     "labels": ["pitch", "velocity"], "defaults": [64, 127]},
+            events=[{"name": "note", "arity": 2, "defaults": [64, 127]},
                     {"name": "hit", "path": ["drum"]},
                     {"name": "snap", "arity": 0}],
         )
@@ -243,9 +242,14 @@ class ManifestTests(unittest.TestCase):
 
         self.assert_invalid(events=[{"name": "note", "arity": -1}])
         self.assert_invalid(events=[{"name": "note", "arity": 4}])
-        self.assert_invalid(events=[{"name": "note", "arity": 2,
-                                     "labels": ["only"]}])
         self.assert_invalid(events=[{"name": "note", "defaults": ["loud"]}])
+        # An event carries one label, its name (Bob, 2026-07-28). A stale
+        # per-element `labels` key is stripped on read, never rejected.
+        stripped, error = self.validate(
+            [self.declaration("gain")],
+            events=[{"name": "note", "arity": 2, "labels": ["only"]}])
+        self.assertIsNone(error)
+        self.assertNotIn("labels", stripped["events"][0])
         self.assert_invalid(events=[{"name": "note"}, {"name": "note"}])
         self.assert_invalid(events=[{"name": "bad name"}])
         self.assert_invalid(events="note")

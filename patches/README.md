@@ -57,8 +57,8 @@ least the engine and entry point, so the entry point is not required to be
 `params` declares the controls the dashboard can render. Each parameter uses
 an explicit `kind`: `float`, `int`, `toggle`, `enum`, or `text`. Optional
 `events` documents actions the patch handles. Each event has a `name`, optional
-structural `path`, an `arity` from 0–3, and optional per-element `labels` and
-`defaults`. Events are delivered as `/e/<identity>` with zero to three floats.
+structural `path`, an `arity` from 0–3, and optional per-element `defaults`.
+An event carries one label — its name; elements are numbered 0-based. Events are delivered as `/e/<identity>` with zero to three floats.
 Declarations do not filter event traffic, so well-formed undeclared identities
 are still delivered.
 

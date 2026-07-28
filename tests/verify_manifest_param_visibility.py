@@ -90,10 +90,8 @@ PARAMS = [
      "min": 1, "max": 8, "default": 3},
 ]
 EVENTS = [
-    {"name": "strike", "arity": 1, "labels": ["velocity"],
-     "defaults": [1], "dashboard": True},
-    {"name": "release", "arity": 0, "labels": [], "defaults": [],
-     "dashboard": True},
+    {"name": "strike", "arity": 1, "defaults": [1], "dashboard": True},
+    {"name": "release", "arity": 0, "defaults": [], "dashboard": True},
 ]
 
 

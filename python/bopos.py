@@ -1308,7 +1308,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.15",
+        "contract_version": "1.16",
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),

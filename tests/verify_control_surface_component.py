@@ -137,7 +137,7 @@ def make_fixture(root):
         # `44-event-plane`'s question, so this row must render without
         # sending anything.
         "events": [{"name": "strike", "arity": 2,
-                    "labels": ["note", "velocity"], "defaults": [64, 127],
+                "defaults": [64, 127],
                     "dashboard": True}],
         "caps": [], "slots": [],
     }
