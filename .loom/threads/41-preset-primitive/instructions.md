@@ -30,10 +30,34 @@ the additive `morph <dur> <spec…>` grammar form; capture-as-step omits
 un-preset targets; the applied marker is stored provenance with derived
 dirtiness. Contract delta proposed as v1.17.
 
-**Next: `2-proposal-review`** — Bob placed a review stitch ahead of
-implementation (another agent reads the proposal against the code). The six
-implementation stitches are sketched in proposal §11 and deliberately not
-created yet, because the review may reshape them.
+**Reviewed and revised 2026-07-28.** `2-proposal-review` is tied
+(`.loom/tied/2-proposal-review/review.md`) and found real defects: the `morph`
+form was grammatically ambiguous, its phase maths was wrong, `presets/`
+exclusion did not reach `fetcher._prune`, generator state never replayed to a
+rejoining seat, and an All-scoped apply could write into a pinned device
+running a different patch.
+
+**`design-addendum.md` in this directory revises the tied proposal** and is
+authoritative where the two differ. It closes every finding, notably: a
+wrapper's arguments precede the message it wraps (`morph <dur> [c:<n>]
+<spec…>`); **magnitudes interpolate, anything defining time or shape takes the
+destination at t=0** — which keeps the generator clock-anchored and idempotent
+throughout a morph instead of needing a phase accumulator; unalignable pairs
+snap and are reported; apply resolves to concrete seats and filters by
+effective patch; provenance is stored per concrete seat so no ordered ledger
+is needed.
+
+**All four addendum questions are RULED (Bob, 2026-07-28, §9):** morph keeps
+its curve via leading options; the preset file carries the schema fingerprint
+only (the *show* message carries patch `{name, fingerprint}`); venue group
+names become non-empty and unique; and the standalone facilitator gets **no
+preset affordance at all** — which means the provisional row shipped by
+`7-preset-slot` must be *removed* from the facilitator host, superseding that
+stitch's decision 1.
+
+The eight implementation stitches are laid out in addendum §10 and are **not
+created yet** — the first one ratifies the grammar and reference closure into
+contract v1.17, and nothing amends the contract before it.
 
 **Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
 tied. The preset design proceeds on the ratified four-layer model — see
