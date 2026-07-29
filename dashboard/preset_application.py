@@ -65,6 +65,18 @@ def canonicalize_args(declaration, args):
     return result
 
 
+def automation_key(seat):
+    """Return the automation-table key for one concrete target.
+
+    Seats key by their numeric id, which is also their OSC selector. The patch
+    editor's audition engine answers on selector 0 but is not Seat 0, so it
+    carries an explicit key of its own rather than sharing a real Seat's
+    automation entries (08-editor-save-recall).
+    """
+    key = seat.get("automation_key") if isinstance(seat, dict) else None
+    return str(key) if key else str(seat.get("id"))
+
+
 def automation_spec(entry, declaration):
     if not isinstance(entry, dict) or not isinstance(entry.get("args"), list):
         return None
@@ -95,9 +107,8 @@ def automation_active(entry, declaration, now):
 
 def replay_args(seat, declaration, automation, now):
     """Return active automation args, otherwise the durable scalar."""
-    seat_id = str(seat.get("id"))
     identity = declaration["identity"]
-    entry = automation.get(seat_id, {}).get(identity)
+    entry = automation.get(automation_key(seat), {}).get(identity)
     if automation_active(entry, declaration, now):
         return canonicalize_args(declaration, entry["args"])
     value = seat.get("params", {}).get(identity)
@@ -195,7 +206,7 @@ def capture_params(seats, declarations, automation, now):
         values = []
         complete = True
         for seat in seats:
-            entry = automation.get(str(seat["id"]), {}).get(identity)
+            entry = automation.get(automation_key(seat), {}).get(identity)
             spec = automation_spec(entry, declaration)
             if (spec is not None and spec.kind in {"lfo", "loop"}
                     and automation_active(entry, declaration, now)):
@@ -258,7 +269,7 @@ def preset_dirty(document, seat, declarations, automation, effective_patch, now)
         declaration = by_identity.get(identity)
         if declaration is None:
             return True
-        entry = automation.get(str(seat["id"]), {}).get(identity)
+        entry = automation.get(automation_key(seat), {}).get(identity)
         spec = automation_spec(entry, declaration)
         if len(expected) > 1:
             actual = (canonicalize_args(declaration, entry["args"])

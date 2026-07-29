@@ -44,7 +44,10 @@
   }
 
   function create(context) {
-    // context: {getState, deviceForSeat, send, sendEvent, sendAutomation, setInteracting, requestRender}
+    // context: {getState, deviceForSeat, send, sendEvent, sendAutomation,
+    //           setInteracting, requestRender,
+    //           presetCatalog, applyPreset, savePreset, deletePreset,
+    //           requestCapturePreview, capturePreview, presetReport}
     const automationAnchors = new Map();
     const takeoverAnnouncements = new Map();
     // Which generator drawers are open, and the argument list each one is
@@ -249,31 +252,225 @@
       </div>`;
     }
 
-    // ---- the provisional preset row (01-control-panel/7) -------------------
+    // ---- the preset row (41-preset-primitive/07, /08) ----------------------
     // Panel anatomy item 2 (control-panel-design §1): patch name, preset
-    // dropdown, `new`/`save`/`del`. The slot is DESIGNED, not built — presets
-    // are `41-preset-primitive`, which is gated behind `44-event-plane`. It
-    // renders now so 41 lands into a designed home instead of redesigning the
-    // panel around itself.
+    // dropdown, `new`/`save`/`del`. `7-preset-slot` shipped the slot inert;
+    // this is the same anatomy made live, deliberately unchanged in shape.
     //
-    // Everything but the patch name is inert. Disabled controls are not
-    // focusable, so `title` alone would never be announced: the row carries a
-    // visually-hidden note and every control points at it with
-    // `aria-describedby`, which IS announced for a disabled control.
-    const PRESET_NOTE = "Presets are not built yet — the preset system is 41-preset-primitive.";
+    // A preset is not a wire concept. Everything here is host state: the row
+    // asks the server to apply, capture, or delete, and shows what the server
+    // says came back. Preset BODIES never reach the browser (C3) — the row
+    // sees a catalog listing, per-target provenance, and an apply report.
     const PRESET_ACTIONS = ["new", "save", "del"];
+    // Which rows have their save drawer open, and which identities the
+    // operator has unticked inside it. Both survive the heartbeat re-render,
+    // like the generator drawer's drafts.
+    const openSaveDrawers = new Map();
+    const saveExclusions = new Map();
 
-    function presetRow(patch, key) {
-      const noteId = `live-preset-note-${String(key).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      const described = `aria-describedby="${noteId}" title="${esc(PRESET_NOTE)}"`;
-      const actions = PRESET_ACTIONS.map(action =>
-        `<button type="button" class="live-preset-action" data-preset-action="${action}" ${described} disabled>${action}</button>`).join("");
-      return `<div class="live-preset-row" data-preset-slot>
-        <span class="live-preset-patch">${esc(patch || "no patch")}</span>
-        <select class="live-preset-select" aria-label="preset" ${described} disabled><option>no presets</option></select>
-        ${actions}
-        <span id="${noteId}" class="live-preset-note">${esc(PRESET_NOTE)}</span>
+    const presetKey = (scope, id) => `${scope}:${id ?? "all"}`;
+    const catalogFor = patch =>
+      (patch && context.presetCatalog ? context.presetCatalog(patch) : null) || [];
+
+    // Agree-or-mixed, the same idiom aggregate values use: a card states a
+    // preset only when every target it covers carries that same one.
+    function presetProvenance(members) {
+      if (!members.length) return {preset: null, dirty: false, mixed: false};
+      const marker = seat => {
+        const applied = seat.applied_preset;
+        return applied ? `${applied.patch}/${applied.name}` : "";
+      };
+      const first = marker(members[0]);
+      if (members.some(seat => marker(seat) !== first)) {
+        return {preset: null, dirty: false, mixed: true};
+      }
+      return {preset: members[0].applied_preset || null,
+              dirty: members.some(seat => !!seat.preset_dirty), mixed: false};
+    }
+
+    // The apply report is one compact line with a disclosure — never a modal
+    // (07 scope). Drift verdicts ride the same line, non-blocking.
+    function presetReport(key, members) {
+      const report = context.presetReport?.(key, members);
+      if (!report) return "";
+      const totals = {applied: 0, clamped: 0, snapped: 0, dropped: 0, skipped: 0};
+      for (const target of Object.values(report.targets || {})) {
+        for (const name of Object.keys(totals)) totals[name] += Number(target[name]) || 0;
+      }
+      const summary = Object.entries(totals).filter(([, count]) => count)
+        .map(([name, count]) => `${count} ${name}`).join(" · ") || "nothing to apply";
+      const verdicts = Object.entries(report.verdicts || {})
+        .filter(([, verdict]) => verdict.status !== "applied")
+        .map(([identity, verdict]) =>
+          `<li>${esc(identity)} — ${esc(verdict.status)}${verdict.reason ? ` (${esc(verdict.reason)})` : ""}</li>`)
+        .join("");
+      const skipped = Object.entries(report.targets || {})
+        .filter(([, target]) => target.skipped)
+        .map(([id]) => `<li>Seat ${esc(id)} — runs another patch, skipped</li>`).join("");
+      const detail = verdicts + skipped;
+      return `<details class="live-preset-report"><summary>${esc(report.name || "cleared")} · ${esc(summary)}</summary>${
+        detail ? `<ul>${detail}</ul>` : '<p class="dim">Every entry applied as stored.</p>'}</details>`;
+    }
+
+    function saveDrawer(key, patch, mode) {
+      const preview = context.capturePreview?.(key);
+      if (!preview) {
+        return `<div class="live-preset-drawer" data-preset-drawer="${esc(key)}"><p class="dim">Reading the current values…</p></div>`;
+      }
+      const excluded = saveExclusions.get(key) || new Set();
+      const rows = Object.keys(preview.params || {}).sort().map(identity =>
+        `<label class="live-preset-include"><input type="checkbox" data-preset-include="${esc(identity)}" ${excluded.has(identity) ? "" : "checked"}><span>${esc(identity)}</span><code>${esc(JSON.stringify(preview.params[identity]))}</code></label>`).join("");
+      // F8: a silent sparse omission surprises on the next apply, so the
+      // identities the target disagrees on are STATED before the save, not
+      // discovered later.
+      const omitted = (preview.omitted || []).length
+        ? `<div class="live-preset-omitted"><strong>${preview.omitted.length} omitted as mixed</strong><ul>${
+            preview.omitted.map(identity => `<li>${esc(identity)}</li>`).join("")}</ul><p class="dim">These targets disagree, so the preset stores no value for them and a later apply leaves them alone.</p></div>`
+        : "";
+      const name = mode.name || "";
+      return `<div class="live-preset-drawer" data-preset-drawer="${esc(key)}" data-preset-patch="${esc(patch)}"${mode.revision ? ` data-preset-revision="${esc(mode.revision)}"` : ""}>
+        <div class="live-preset-drawer-head">
+          <label>name <input type="text" data-preset-name value="${esc(name)}" ${mode.kind === "save" ? "readonly" : ""}></label>
+          <span class="live-preset-drawer-actions">
+            <button type="button" data-preset-cancel>Cancel</button>
+            <button type="button" data-preset-commit class="primary">${mode.kind === "save" ? "Overwrite" : "Save"}</button>
+          </span>
+        </div>
+        <div class="live-preset-include-list">${rows || '<p class="dim">No parameter has a value to capture.</p>'}</div>
+        ${omitted}
+        <output class="live-preset-error" aria-live="polite"></output>
       </div>`;
+    }
+
+    // `members` are the concrete targets this row covers (Seats, or the single
+    // editor target); `patch` is the patch whose schema owns the card.
+    function presetRow(scope, id, members, patch, options = {}) {
+      const key = options.key || presetKey(scope, id);
+      const catalog = catalogFor(patch);
+      const provenance = presetProvenance(members || []);
+      const applied = provenance.preset && provenance.preset.patch === patch
+        ? provenance.preset.name : null;
+      const appliedSlug = catalog.find(entry => entry.name === applied)?.slug || "";
+      const disabled = !!options.disabled || !patch;
+      // Applying is legal offline — the values are dashboard state and replay
+      // when the node returns. Capturing from a target you cannot hear is not
+      // (F8), so save/new/del follow their own gate.
+      const saveOff = disabled || !!options.saveDisabled;
+      const off = disabled ? " disabled" : "";
+      const options_ = catalog.map(entry => {
+        if (!entry.valid) {
+          return `<option value="${esc(entry.slug)}" disabled>${esc(entry.slug)} — unreadable</option>`;
+        }
+        const marks = `${entry.slug === appliedSlug && provenance.dirty ? " *" : ""}${entry.drift ? " ⚠" : ""}`;
+        return `<option value="${esc(entry.slug)}"${entry.slug === appliedSlug ? " selected" : ""}>${esc(entry.name)}${marks}</option>`;
+      }).join("");
+      const placeholder = provenance.mixed
+        ? '<option value="" selected disabled>·····</option>'
+        : `<option value=""${appliedSlug ? "" : " selected"}>— none —</option>`;
+      const selectLabel = provenance.mixed ? "preset, mixed across targets"
+        : provenance.dirty ? `preset ${applied}, edited since it was applied` : "preset";
+      const drift = catalog.find(entry => entry.slug === appliedSlug)?.drift
+        ? '<span class="live-preset-drift" title="This preset was saved against a different parameter schema. Entries that no longer fit are dropped or clamped when it is applied.">schema changed</span>' : "";
+      const actions = PRESET_ACTIONS.map(action => {
+        const inert = action === "del"
+          ? saveOff || !appliedSlug || !catalog.length
+          : action === "save" ? saveOff || !appliedSlug : saveOff;
+        return `<button type="button" class="live-preset-action" data-preset-action="${action}"${inert ? " disabled" : ""}>${action}</button>`;
+      }).join("");
+      const drawerMode = openSaveDrawers.get(key);
+      const drawer = drawerMode && !saveOff ? saveDrawer(key, patch, drawerMode) : "";
+      return `<div class="live-preset-row" data-preset-slot data-preset-key="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-preset-patch="${esc(patch || "")}">
+        <span class="live-preset-patch">${esc(patch || "no patch")}</span>
+        <select class="live-preset-select" data-preset-select aria-label="${esc(selectLabel)}"${off}>${placeholder}${options_}</select>
+        ${drift}${actions}
+      </div>${drawer}${presetReport(key, members || [])}`;
+    }
+
+    function bindPresets(root = document) {
+      root.querySelectorAll("[data-preset-slot]").forEach(row => {
+        const key = row.dataset.presetKey;
+        const patch = row.dataset.presetPatch;
+        const scope = row.dataset.liveScope;
+        const id = row.dataset.liveId == null ? null : row.dataset.liveId;
+        const catalog = catalogFor(patch);
+        const select = row.querySelector("[data-preset-select]");
+        const selected = () => catalog.find(entry => entry.slug === select?.value) || null;
+        if (select) select.onchange = () => {
+          const entry = selected();
+          // The empty option is an explicit recall-none: it clears provenance
+          // rather than pretending some preset is still applied.
+          context.applyPreset?.({scope, id, patch, name: entry ? entry.name : null});
+        };
+        row.querySelectorAll("[data-preset-action]").forEach(button => {
+          button.onclick = () => {
+            const action = button.dataset.presetAction;
+            const entry = selected();
+            if (action === "del") {
+              if (!entry || !window.confirm(`Delete preset "${entry.name}"?`)) return;
+              context.deletePreset?.({patch, slug: entry.slug, revision: entry.revision});
+              return;
+            }
+            openSaveDrawers.set(key, action === "save"
+              ? {kind: "save", name: entry?.name || "", revision: entry?.revision || null}
+              : {kind: "new", name: "", revision: null});
+            saveExclusions.delete(key);
+            context.requestCapturePreview?.({key, scope, id, patch});
+            context.requestRender?.();
+          };
+        });
+      });
+
+      root.querySelectorAll("[data-preset-drawer]").forEach(drawer => {
+        const key = drawer.dataset.presetDrawer;
+        const row = root.querySelector(`[data-preset-key="${CSS.escape(key)}"]`);
+        const scope = row?.dataset.liveScope;
+        const id = row?.dataset.liveId == null ? null : row.dataset.liveId;
+        // Editing a name or ticking boxes must survive the heartbeat, the same
+        // guard the generator drawer and precision field use.
+        drawer.onfocusin = () => context.setInteracting?.(true);
+        drawer.onfocusout = () => context.setInteracting?.(false);
+        drawer.querySelectorAll("[data-preset-include]").forEach(box => {
+          box.onchange = () => {
+            const excluded = saveExclusions.get(key) || new Set();
+            if (box.checked) excluded.delete(box.dataset.presetInclude);
+            else excluded.add(box.dataset.presetInclude);
+            saveExclusions.set(key, excluded);
+          };
+        });
+        const close = () => {
+          openSaveDrawers.delete(key);
+          saveExclusions.delete(key);
+          context.setInteracting?.(false);
+          context.requestRender?.();
+        };
+        const cancel = drawer.querySelector("[data-preset-cancel]");
+        if (cancel) cancel.onclick = close;
+        const commit = drawer.querySelector("[data-preset-commit]");
+        if (commit) commit.onclick = () => {
+          const error = drawer.querySelector(".live-preset-error");
+          const name = drawer.querySelector("[data-preset-name]")?.value.trim() || "";
+          if (!name) {
+            if (error) error.value = "A preset needs a name.";
+            return;
+          }
+          const include = [...drawer.querySelectorAll("[data-preset-include]")]
+            .filter(box => box.checked).map(box => box.dataset.presetInclude);
+          if (!include.length) {
+            if (error) error.value = "Tick at least one parameter to capture.";
+            return;
+          }
+          context.savePreset?.({
+            scope, id, patch: drawer.dataset.presetPatch, name, include,
+            revision: drawer.dataset.presetRevision || null,
+          });
+          close();
+        };
+      });
+    }
+
+    function closeSaveDrawer(key) {
+      openSaveDrawers.delete(key);
+      saveExclusions.delete(key);
     }
 
     // ---- parameter kinds (01-control-panel/6) ------------------------------
@@ -735,6 +932,7 @@
       });
       bindBranches(root);
       bindGenerators(root);
+      bindPresets(root);
       startFadeAnimator();
     }
 
@@ -914,6 +1112,8 @@
       tree: paramTree,
       control: paramControl,
       presetRow,
+      bindPresets,
+      closeSaveDrawer,
       bind: bindParams,
       refreshAnchors: refreshAutomationAnchors,
       announcement: key => takeoverAnnouncements.get(key) || "",

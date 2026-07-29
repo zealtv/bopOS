@@ -45,7 +45,46 @@ const surface = window.ControlSurface.create({
   },
   setInteracting: editing => { interacting = editing; },
   requestRender: () => render(),
+  // ---- presets (41-preset-primitive/07) ----------------------------------
+  // The catalog is listing metadata only; preset bodies stay server-side.
+  presetCatalog: patch => installation.preset_catalog?.[patch] || [],
+  applyPreset: ({scope, id, patch, name}) => {
+    const payload = {scope, patch, name};
+    if (id != null) payload.id = Number(id);
+    ws.send("apply_preset", payload);
+  },
+  savePreset: ({scope, id, patch, name, include, revision}) => {
+    const payload = {scope, patch, name, include};
+    if (id != null) payload.id = Number(id);
+    if (revision) payload.revision = revision;
+    ws.send("save_patch_preset", payload);
+  },
+  deletePreset: ({patch, slug, revision}) =>
+    ws.send("delete_patch_preset", {patch, slug, revision}),
+  requestCapturePreview: ({key, scope, id, patch}) => {
+    capturePreviews.delete(key);
+    pendingPreview = key;
+    const payload = {scope, patch};
+    if (id != null) payload.id = Number(id);
+    ws.send("preview_preset_capture", payload);
+  },
+  capturePreview: key => capturePreviews.get(key) || null,
+  // A report belongs to the row whose targets it covers exactly — an apply
+  // broadcast carries no card key, and any client's apply may produce it.
+  presetReport: (_key, members) => {
+    if (!lastPresetReport) return null;
+    const targets = new Set(Object.keys(lastPresetReport.targets || {}));
+    const mine = (members || []).map(seat => String(seat.id));
+    return mine.length && mine.length === targets.size
+      && mine.every(id => targets.has(id)) ? lastPresetReport : null;
+  },
 });
+
+// Capture previews and apply reports are per-row transient state: the surface
+// renders them, this page holds them.
+const capturePreviews = new Map();
+let pendingPreview = null;
+let lastPresetReport = null;
 
 // All / Groups / Seat. The filter is the reusable component (37/10); this page
 // only decides which cards a chosen target implies.
@@ -102,6 +141,9 @@ function groupSeats(id) {
 }
 
 function deviceForSeat(seat) {
+  // An All card in a venue with no Seats has no member to read a device from;
+  // the row still renders (disabled), so this must answer rather than throw.
+  if (!seat) return null;
   const devices = Object.values(installation.devices || {});
   return (seat.bound ? installation.devices?.[seat.bound] : null) ||
     devices.find(device => device.virtual && Number(device.seat_id) === Number(seat.id));
@@ -131,10 +173,20 @@ function liveCard(scope, item, members, declarations, schemaAvailable, patch) {
   const controls = declarations.length ? `<div class="promoted-controls">${surface.tree(scope, id, members, declarations, empty)}</div>` : "";
   const cardKey = `${scope}:${id ?? "all"}`;
   // Panel anatomy: the preset row sits between the header and the parameter
-  // rows, on every card that has parameters — a preset is per target (the
-  // shipping venue-preset shelf already scopes by target), so the slot belongs
-  // to the panel, not to one privileged card.
-  const presets = declarations.length ? surface.presetRow(patch, cardKey) : "";
+  // rows, on every card that has parameters.
+  //
+  // Only when embedded. Bob's Q4 ruling for `41-preset-primitive` is that the
+  // standalone facilitator/iPad surface carries NO preset affordance at all —
+  // removed, not inert — which supersedes decision 1 of the tied stitch
+  // `desktop-ui-overhaul/01-control-panel/7-preset-slot` ("the row is per
+  // panel, not per privileged card"). Same reasoning as
+  // `04-event-fire-affordance`: an iPad fires, it does not configure.
+  const presets = embedded && declarations.length
+    ? surface.presetRow(scope, id, members, patch, {key: cardKey,
+        // Capturing from a target you cannot hear is refused (F8); applying
+        // stays legal, because the values are dashboard state either way.
+        saveDisabled: scope === "seat" && !live})
+    : "";
   return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${id}"`}>
     <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, id, !schemaAvailable) : ""}</div>
     ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status visually-hidden" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
@@ -164,6 +216,20 @@ ws.on("device_offline", data => { if (installation.devices[data.uid]) { installa
 ws.on("mute_all", data => { muted = !!data.value; renderControls(); });
 ws.on("master", data => { master = Number(data.value); renderControls(); });
 ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
+ws.on("preset_capture_preview", data => {
+  if (!pendingPreview) return;
+  capturePreviews.set(pendingPreview, data);
+  pendingPreview = null;
+  render();
+});
+ws.on("preset_saved", data => {
+  const status = $("#event-status");
+  if (status) {
+    status.value = `Saved ${data.name}${data.omitted?.length
+      ? ` · ${data.omitted.length} omitted as mixed` : ""}`;
+  }
+});
+ws.on("preset_applied", data => { lastPresetReport = data; render(); });
 ws.on("event_scheduled", data => {
   const declaration = (liveEventSchema()?.events || []).find(item => item.identity === data.identity);
   const status = $("#event-status");

@@ -352,9 +352,9 @@ def main():
                       page.locator(slider).count() == 1
                       and page.get_attribute(slider, "data-live-scope")
                       == "device")
-                # The provisional preset slot (01-control-panel/7) is part of
-                # the shared panel, so the Device tab gets the same designed
-                # home for `41-preset-primitive` that the Control tab has.
+                # The preset row (01-control-panel/7) is part of the shared
+                # panel, so the Device tab carries the same one the Control tab
+                # does -- live since `41-preset-primitive/07`.
                 preset = page.evaluate(
                     """sel => {
                       const body = document.querySelector(sel);
@@ -371,10 +371,12 @@ def main():
                           .filter(control => !control.disabled).length,
                       };
                     }""", BODY)
-                check("the device panel carries the same preset slot",
+                # Supersedes this file's `live == 0` inertness check: Bob
+                # ratified the preset design in `41-preset-primitive/1`.
+                check("the device panel carries the same live preset row",
                       preset["present"] and preset.get("patch") == "alpha"
                       and preset.get("aboveRows")
-                      and preset.get("live") == 0, repr(preset))
+                      and preset.get("live") > 0, repr(preset))
 
                 page.eval_on_selector(
                     slider,

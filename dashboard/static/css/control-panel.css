@@ -1005,16 +1005,18 @@
   }
 }
 
-/* ---- 16. The provisional preset row (control-panel-design §1.2) ----------
-   `7-preset-slot`. Patch name (live) + preset dropdown + new/save/del, all
-   inert: the preset system is `41-preset-primitive`. The slot is here so 41
-   lands into a designed panel rather than redesigning one.
+/* ---- 16. The preset row (control-panel-design §1.2) ----------------------
+   `7-preset-slot` designed it inert; `41-preset-primitive/07` and `/08` made
+   the same anatomy live. Patch name + preset dropdown + new/save/del, now on
+   the Control tab, the Device panel and the patch editor. The standalone
+   facilitator carries no preset affordance at all (Bob's Q4 ruling).
 
    It sits between the panel header and the parameter rows in both hosts, and
    is separated from the rows by the panel rule the mockup draws there. */
 
 .live-card .live-preset-row,
-.device-control .live-preset-row {
+.device-control .live-preset-row,
+#editor-params .live-preset-row {
   display:flex;
   align-items:center;
   gap:var(--gap);
@@ -1033,7 +1035,8 @@
   border-top:0;
 }
 .live-card .live-preset-patch,
-.device-control .live-preset-patch {
+.device-control .live-preset-patch,
+#editor-params .live-preset-patch {
   margin-right:auto;
   min-width:0;
   overflow:hidden;
@@ -1043,7 +1046,8 @@
   text-overflow:ellipsis;
 }
 .live-card .live-preset-select,
-.device-control .live-preset-select {
+.device-control .live-preset-select,
+#editor-params .live-preset-select {
   max-width:110px;
   min-height:20px;
   padding:1px 4px;
@@ -1056,7 +1060,8 @@
 }
 /* new/save/del act once each — momentary, so PD-bang rounded (§8). */
 .live-card .live-preset-action,
-.device-control .live-preset-action {
+.device-control .live-preset-action,
+#editor-params .live-preset-action {
   min-height:20px;
   padding:2px 6px;
   border:1px solid var(--control-line);
@@ -1070,14 +1075,16 @@
 }
 /* Disabled reads as unavailable, not as broken chrome. */
 .live-card .live-preset-row :disabled,
-.device-control .live-preset-row :disabled {
+.device-control .live-preset-row :disabled,
+#editor-params .live-preset-row :disabled {
   opacity:.5;
   cursor:not-allowed;
 }
 /* The explanation exists for assistive technology: a disabled control is not
    focusable, so its `title` never surfaces, but `aria-describedby` does. */
 .live-card .live-preset-note,
-.device-control .live-preset-note {
+.device-control .live-preset-note,
+#editor-params .live-preset-note {
   position:absolute;
   width:1px;
   height:1px;
@@ -1087,6 +1094,96 @@
   overflow:hidden;
   clip-path:inset(50%);
   white-space:nowrap;
+}
+
+/* The applied preset's derived-dirty asterisk and a drifting preset's warning
+   both ride the row itself; neither blocks anything. */
+.live-preset-drift {
+  padding:0 4px;
+  border-radius:var(--radius-control);
+  color:var(--amber);
+  font-size:11px;
+  white-space:nowrap;
+}
+
+/* The apply report is ONE compact line with a disclosure -- never a modal. */
+.live-preset-report {
+  margin:0 0 var(--gap);
+  font-size:11px;
+}
+.live-preset-report > summary {
+  color:var(--dim);
+  cursor:pointer;
+}
+.live-preset-report ul {
+  margin:2px 0 0;
+  padding-left:16px;
+  color:var(--dim);
+}
+
+/* The save drawer: include/exclude per captured row, with the mixed omissions
+   stated BEFORE the write rather than discovered on the next apply (F8). */
+.live-preset-drawer {
+  margin:0 0 var(--gap);
+  padding:var(--gap);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-control);
+  background:var(--subpanel);
+  font-size:12px;
+}
+.live-preset-drawer-head {
+  display:flex;
+  align-items:center;
+  gap:var(--gap);
+  margin-bottom:var(--gap);
+}
+.live-preset-drawer-head input[type="text"] {
+  min-width:0;
+  padding:1px 4px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+}
+.live-preset-drawer-actions {
+  display:flex;
+  gap:4px;
+  margin-left:auto;
+}
+.live-preset-include-list {
+  display:grid;
+  gap:2px;
+  max-height:200px;
+  overflow:auto;
+}
+.live-preset-include {
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:6px;
+}
+.live-preset-include code {
+  color:var(--dim);
+  font-size:11px;
+}
+.live-preset-omitted {
+  margin-top:var(--gap);
+  padding-top:var(--gap);
+  border-top:1px solid var(--group-line);
+  color:var(--amber);
+}
+.live-preset-omitted ul {
+  margin:2px 0;
+  padding-left:16px;
+}
+.live-preset-omitted p {
+  color:var(--dim);
+}
+.live-preset-error:not(:empty) {
+  display:block;
+  margin-top:4px;
+  color:var(--red);
 }
 
 /* ---- 17. The generator drawer body (design-language §7) ------------------

@@ -260,14 +260,15 @@ def main():
                 check("All shows the aggregate card only",
                       frame.locator(".live-card").count() == 1)
 
-                # --- the provisional preset slot (01-control-panel/7) ---
-                # The row is a DESIGNED SLOT, not behaviour: `41-preset-primitive`
-                # is still gated behind `44-event-plane`. What is verified here
-                # is that the slot exists in its ratified place, names the live
-                # patch, and cannot be mistaken for working presets.
+                # --- the preset row (01-control-panel/7, made live by
+                # 41-preset-primitive/07) ---
+                # The slot shipped inert; the preset system landed into it
+                # without redesigning it, so the ratified anatomy and placement
+                # are still what this checks. Behaviour lives in
+                # verify_preset_surfaces.py.
                 slot = frame.locator(
                     '.live-card[data-live-scope="all"] [data-preset-slot]')
-                check("the panel carries the provisional preset slot",
+                check("the panel carries the preset row",
                       slot.count() == 1)
                 check("the preset row names the live patch",
                       slot.locator(".live-preset-patch").inner_text().strip()
@@ -290,22 +291,17 @@ def main():
                         aboveRows: !!(row.compareDocumentPosition(rows) & after),
                         live: [...row.querySelectorAll("select,button")]
                           .filter(control => !control.disabled).length,
-                        explained: [...row.querySelectorAll("select,button")]
-                          .every(control => {
-                            const note = document.getElementById(
-                              control.getAttribute("aria-describedby") || "");
-                            return !!note && /41-preset-primitive/
-                              .test(note.textContent);
-                          }),
                       };
                     }""")
                 check("the preset row sits between the header and the rows",
                       placement["belowHead"] and placement["aboveRows"],
                       repr(placement))
-                check("every preset control is inert",
-                      placement["live"] == 0, repr(placement))
-                check("each inert control explains that presets are future work",
-                      placement["explained"], repr(placement))
+                # Supersedes this file's two `7-preset-slot` inertness checks:
+                # Bob ratified the preset design in `41-preset-primitive/1`, so
+                # the row is live and the visually-hidden "not built yet" note
+                # is gone with it.
+                check("the preset row is live, not a placeholder",
+                      placement["live"] > 0, repr(placement))
 
                 frame.locator('[data-target-mode="groups"]').click()
                 frame.locator('.live-card[data-live-scope="group"]').wait_for()

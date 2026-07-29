@@ -129,8 +129,12 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             "alpha", "Dawn", "all", None, duration_ms=250, curve=1)
 
         self.assertEqual(self.saved, 1)
-        self.assertEqual(len(self.broadcasts), 1)
-        self.assertEqual(self.broadcasts[0][0], "preset_applied")
+        # One persist, then the ordinary mirror publication every live write
+        # makes, then the additive report. `07-control-device-ui` needs both:
+        # the report says what the apply did, `state` is how a card learns the
+        # new values and provenance.
+        self.assertEqual([kind for kind, _payload in self.broadcasts],
+                         ["state", "preset_applied"])
         self.assertTrue(self.sent)
         self.assertTrue(all(address.startswith("/1/") or address.startswith("/3/")
                             for address, _args in self.sent))
@@ -277,6 +281,61 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         durable = self.state.durable()["seats"]["1"]
         self.assertNotIn("applied_preset", durable)
         self.assertNotIn("preset_dirty", durable)
+
+
+class PresetSurfaceServiceTests(PresetApplicationTests):
+    """The host-side surface the Control, Device and editor rows consume."""
+
+    async def test_catalog_lists_metadata_and_derives_schema_drift(self):
+        self.save_preset({"gain": [0.5]}, name="Dawn")
+        self.dashboard._editor_seat = {"id": 0, "automation_key": "editor",
+                                       "editor": True, "bound": None,
+                                       "groups": [], "params": {}}
+        self.state.data["editor"] = {"patch": None}
+        catalog = self.dashboard.preset_catalog()
+        self.assertEqual([entry["slug"] for entry in catalog["alpha"]], ["Dawn"])
+        entry = catalog["alpha"][0]
+        # Metadata only: a listing never carries the stored parameter body.
+        self.assertNotIn("params", entry)
+        self.assertTrue(entry["valid"])
+        self.assertFalse(entry["drift"])
+
+        # Change the schema the preset was fingerprinted against.
+        written, error = manifest.write_atomic(self.patches / "alpha", {
+            "engine": "test", "entrypoint": "main.bin",
+            "params": [{"name": "gain", "kind": "float", "min": 0, "max": 2}],
+        })
+        self.assertIsNone(error)
+        self.assertIsNotNone(written)
+        drifted = self.dashboard.preset_catalog()["alpha"][0]
+        self.assertTrue(drifted["drift"])
+
+    async def test_editor_target_is_selector_zero_but_not_seat_zero(self):
+        """The editor's audition engine shares selector 0 with a Seat 0 on the
+        wire, and nothing else: its durable mirror is the editor's own params
+        map and its automation entries are keyed separately (08)."""
+        self.dashboard._editor_seat = {"id": 0, "automation_key": "editor",
+                                       "editor": True, "bound": None,
+                                       "groups": [], "params": {}}
+        self.state.data["editor"] = {"patch": "alpha", "params": {"gain": 0.25}}
+        self.dashboard.set_supervisor_mode("edit")
+        seats, selector = self.dashboard.live_param_target("editor", None)
+        self.assertEqual(selector, 0)
+        self.assertEqual(
+            self.dashboard.effective_patch_for_seat(seats[0]), "alpha")
+        # The params dict is shared by reference, so an apply writes straight
+        # through to the state the editor panel renders.
+        self.assertIs(seats[0]["params"], self.state.data["editor"]["params"])
+
+        self.state.data["seats"]["0"] = self.seat(0, "zero")
+        self.osc.record_param_for(
+            seats, "gain", ["lfo", "sine", 0, 1, "4s"], sent_at=10)
+        self.assertIn("editor", self.osc.automation)
+        self.assertNotIn("0", self.osc.automation)
+
+        self.dashboard.set_supervisor_mode("off")
+        self.assertEqual(
+            self.dashboard.live_param_target("editor", None), (None, None))
 
 
 if __name__ == "__main__":

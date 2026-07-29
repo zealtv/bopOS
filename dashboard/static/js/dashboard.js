@@ -250,6 +250,27 @@ function renderVenues() {
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
 })();
 ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
+// ---- patch presets (41-preset-primitive) ----------------------------------
+ws.on("preset_capture_preview", data => {
+  if (!pendingPreview) return;
+  const {key, rerender} = pendingPreview;
+  capturePreviews.set(key, data);
+  pendingPreview = null;
+  rerender();
+});
+// The omitted-as-mixed set is stated in the drawer BEFORE the save (F8), so
+// the confirmation only has to say the write landed; the catalog broadcast
+// that follows is what repopulates the dropdown.
+ws.on("preset_saved", data => {
+  manifestFeedback = `Saved preset ${data.name}${data.omitted?.length
+    ? ` · ${data.omitted.length} omitted as mixed` : ""}`;
+  render();
+});
+ws.on("preset_applied", data => {
+  lastPresetReport = data;
+  renderDeviceDetail();
+  renderEditor();
+});
 // Presets follow the target filter (Bob, 2026-07-25). The filter itself lives
 // in the embedded Control surface, but its choice is in shared storage, so the
 // shelf here reads the same target the operator is looking at.
@@ -1040,8 +1061,22 @@ function renderEditor() {
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;
   const controls=editorParamTree(editor.declarations||[],editor.params||{});
+  // The sculpt→save workflow (41-preset-primitive/08). The editor drives its
+  // own audition engine on selector 0, so the row targets scope "editor" and
+  // recall goes through the same server-side application core the Control tab
+  // uses — same clamping, same report, same provenance. Saving writes into
+  // `patches/<patch>/presets/`, which is excluded from the patch fingerprint,
+  // so a save while sculpting never restages the fleet.
+  const editorPresets=editor.active
+    ? editorSurface.presetRow("editor",null,[{
+        id:0,
+        applied_preset:editor.applied_preset||null,
+        preset_dirty:!!editor.preset_dirty,
+      }],editor.patch,{key:"editor:0"})
+    : "";
   $("#editor-params").innerHTML=editor.active
-    ? `<h3>master</h3><label><span>master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
+    ? `${editorPresets}<h3>master</h3><label><span>master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
+  editorSurface.bindPresets($("#editor-params"));
   document.querySelectorAll("[data-editor-param]").forEach(input=>{
     const send=()=>{const value=input.type==="checkbox"?(input.checked?1:0):(input.type==="range"?Number(input.value):input.value);editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});};
     if(input.type==="range") {
@@ -1341,6 +1376,49 @@ function logSection(d) {
     </div></section>`;
 }
 
+// ---- preset wiring shared by the Device panel and the patch editor --------
+// Both surfaces render the same ratified preset row through the shared
+// component (41-preset-primitive/07 and /08), so they share its callbacks:
+// only the target scope differs. Preset bodies never reach the browser — the
+// row sees a catalog listing, per-target provenance, and an apply report.
+const capturePreviews=new Map();
+let pendingPreview=null, lastPresetReport=null;
+function presetContext(rerender) {
+  return {
+    presetCatalog:patch=>installation.preset_catalog?.[patch]||[],
+    applyPreset:({scope,id,patch,name})=>ws.send("apply_preset",{scope,id,patch,name}),
+    savePreset:({scope,id,patch,name,include,revision})=>
+      ws.send("save_patch_preset",{scope,id,patch,name,include,revision}),
+    deletePreset:({patch,slug,revision})=>
+      ws.send("delete_patch_preset",{patch,slug,revision}),
+    requestCapturePreview:({key,scope,id,patch})=>{
+      capturePreviews.delete(key);
+      pendingPreview={key,rerender};
+      ws.send("preview_preset_capture",{scope,id,patch});
+    },
+    capturePreview:key=>capturePreviews.get(key)||null,
+    // A report belongs to the row whose targets it covers exactly: the
+    // broadcast carries no card key, and any client's apply produces one.
+    presetReport:(_key,members)=>{
+      if(!lastPresetReport)return null;
+      const targets=new Set(Object.keys(lastPresetReport.targets||{}));
+      const mine=(members||[]).map(seat=>String(seat.id));
+      return mine.length&&mine.length===targets.size
+        &&mine.every(id=>targets.has(id))?lastPresetReport:null;
+    },
+  };
+}
+
+// The patch editor keeps its own parameter tree (it drives one audition engine
+// and predates the shared surface), but its PRESET row is the shared, ratified
+// one, so the editor and the Control tab read as one language (08).
+const editorSurface=window.ControlSurface.create({
+  getState:()=>installation,
+  setInteracting:editing=>{interacting=editing;},
+  requestRender:()=>renderEditor(),
+  ...presetContext(()=>renderEditor()),
+});
+
 // The Device tab renders the same live controls the Control tab does, through
 // the shared component (37/07). Only the scope and the send differ: a device
 // write targets one device, resolved node-side to its seat selector.
@@ -1361,6 +1439,7 @@ const deviceSurface=window.ControlSurface.create({
   sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
   setInteracting:editing=>{deviceControlInteracting=editing;},
   requestRender:()=>renderDeviceDetail(),
+  ...presetContext(()=>renderDeviceDetail()),
 });
 
 const DEVICE_CONTROL_OPEN="bopos.device-control-open";
@@ -1398,7 +1477,13 @@ function deviceControlSection(d) {
     :!live?'Offline — showing the last known values.':'';
   // The preset row now names the patch (panel anatomy item 2), so the head
   // line keeps only what the row cannot say: where that patch came from.
-  const presets=declarations.length?deviceSurface.presetRow(schema?.patch,`device:${d.uid}`):"";
+  // Save is refused while the device is offline (F8): applying is dashboard
+  // state and replays when the node returns, but capturing from a device you
+  // cannot hear would store a guess.
+  const presets=declarations.length
+    ? deviceSurface.presetRow("device",d.uid,seat?[seat]:[],schema?.patch,
+        {key:`device:${d.uid}`,disabled:!seat,saveDisabled:disabled})
+    : "";
   const body=!declarations.length
     ? '<p class="dim">This patch declares no parameters.</p>'
     : `${presets}<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;

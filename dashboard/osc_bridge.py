@@ -23,6 +23,9 @@ if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import manifest as patch_manifest
 from python.paramgen import ParamGrammarError, parse_message
+# Imported after the repo root joins sys.path: preset_application reaches into
+# python.paramgen at module scope.
+import preset_application
 
 
 LEGACY_DECLARATIONS = [
@@ -426,6 +429,19 @@ class OSCBridge:
     def record_param(self, selector, name, value, sent_at=None,
                      persist=True, broadcast=True):
         """Update dashboard mirrors without sending; persistence is optional."""
+        return self.record_param_for(
+            self._selector_seats(selector), name, value,
+            sent_at=sent_at, persist=persist, broadcast=broadcast)
+
+    def record_param_for(self, seats, name, value, sent_at=None,
+                         persist=True, broadcast=True):
+        """Record mirrors for targets a caller has already resolved.
+
+        Preset apply resolves its concrete targets before deciding whether the
+        send can coalesce to `all`/`gN`, and the patch editor's audition target
+        is not a Seat at all — neither can be recovered from the selector, so
+        the recording boundary takes the targets themselves.
+        """
         # Show automation passes the full §3.2 argument list; plain writes
         # stay a single scalar.
         args = value if isinstance(value, list) else [value]
@@ -433,7 +449,6 @@ class OSCBridge:
             spec = parse_message(args, "f")
         except ParamGrammarError:
             spec = None
-        seats = self._selector_seats(selector)
         changed = False
         if spec is not None and spec.kind in {"fade", "loop", "lfo"}:
             entry = {"args": list(args), "kind": spec.kind,
@@ -457,7 +472,8 @@ class OSCBridge:
                     # last-written value is its only honest guess.
                     prior = seat.get("params", {}).get(name)
                     seat_entry["from"] = spec.start if spec.start is not None else prior
-                self.automation.setdefault(str(seat["id"]), {})[name] = seat_entry
+                self.automation.setdefault(
+                    preset_application.automation_key(seat), {})[name] = seat_entry
                 changed = True
             if spec.kind == "fade":
                 self._store_fade_destination(
@@ -465,11 +481,12 @@ class OSCBridge:
                     persist=persist, broadcast=broadcast)
         else:
             for seat in seats:
-                per_seat = self.automation.get(str(seat["id"]), {})
+                key = preset_application.automation_key(seat)
+                per_seat = self.automation.get(key, {})
                 if per_seat.pop(name, None) is not None:
                     changed = True
                 if not per_seat:
-                    self.automation.pop(str(seat["id"]), None)
+                    self.automation.pop(key, None)
         return changed
 
     def set_param(self, selector, name, value):
@@ -498,7 +515,10 @@ class OSCBridge:
         touched = set()
         for seat in seats:
             seat.setdefault("params", {})[identity] = destination
-            for device in self.state.devices.values():
+            # The editor's audition target owns no Device mirror: it is one
+            # engine on selector 0, not a Seat any Device is bound to.
+            for device in ([] if seat.get("editor")
+                           else self.state.devices.values()):
                 if (device.get("uid") == seat.get("bound")
                         or (device.get("virtual")
                             and str(device.get("seat_id")) == str(seat["id"]))):

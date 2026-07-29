@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""Real-dashboard browser journey for preset save/recall in the patch editor
+(`41-preset-primitive/08-editor-save-recall`).
+
+This is the primary sculpt→save workflow, and it is deliberately the SAME row
+as the Control tab's: the editor keeps its own parameter tree, but its preset
+row is the shared, ratified one.
+
+What this pins:
+
+  * the editor's control panel carries the preset row for the patch being
+    edited, with the ratified `new`/`save`/`del` anatomy;
+  * SAVE captures the audition engine's state -- the same selector
+    `set_editor_param` writes to -- and stores it under
+    `patches/<patch>/presets/`;
+  * a save while sculpting does NOT change the patch fingerprint and does not
+    restage anything: `presets/` is excluded from the distribution
+    (contract v1.17 §9), which is the whole reason the exclusion exists;
+  * RECALL goes through the one server-side application core, so it restores
+    the stored values after a nudge, emits `/0/p/*` on the audition relay, and
+    records provenance;
+  * DELETE removes the file.
+
+Runs headless with `--sim-no-engine --sim-audio-backend none`: `set_edit`
+reaches a real `edit` supervisor mode without launching Pure Data. Real PD/GUI
+behaviour remains a hardware adoption check.
+
+Owned by code surface (dashboard.js editor panel, control-surface.js preset
+row, dashboard/server.py editor preset target).
+"""
+
+import json
+import os
+import random
+import select
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+from playwright.sync_api import sync_playwright
+from pythonosc.osc_message import OscMessage
+
+sys.dont_write_bytecode = True
+HERE = os.path.realpath(os.path.dirname(__file__))
+REPO = HERE
+while not os.path.isfile(os.path.join(REPO, "tools", "simfleet.py")):
+    parent = os.path.dirname(REPO)
+    if parent == REPO:
+        raise SystemExit("cannot locate bopOS repository")
+    REPO = parent
+
+FAILURES = []
+RESERVED = set()
+
+
+def check(label, condition, detail=""):
+    print("[{}] {}{}".format(
+        "PASS" if condition else "FAIL", label,
+        " -- " + detail if detail and not condition else ""), flush=True)
+    if not condition:
+        FAILURES.append(label)
+
+
+def free_port(kind):
+    for _attempt in range(256):
+        port = random.SystemRandom().randrange(20000, 60000)
+        if (kind, port) in RESERVED:
+            continue
+        probe = socket.socket(socket.AF_INET, kind)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            probe.close()
+            continue
+        probe.close()
+        RESERVED.add((kind, port))
+        return port
+    raise RuntimeError("could not reserve a local port")
+
+
+def stop_process(process):
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def wait_http(url, process):
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError("dashboard exited before serving HTTP")
+        try:
+            urllib.request.urlopen(url, timeout=1).read()
+            return
+        except OSError:
+            time.sleep(.2)
+    raise RuntimeError("dashboard did not serve HTTP")
+
+
+def drain(sock):
+    while select.select([sock], [], [], 0)[0]:
+        sock.recvfrom(65535)
+
+
+def collect(sock, seconds=1.0):
+    frames = []
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        readable, _, _ = select.select(
+            [sock], [], [], max(0, deadline - time.monotonic()))
+        if not readable:
+            continue
+        message = OscMessage(sock.recvfrom(65535)[0])
+        frames.append((message.address, list(message.params)))
+    return frames
+
+
+def make_fixture(root):
+    patches = os.path.join(root, "patches")
+    assets = os.path.join(root, "assets")
+    patch = os.path.join(patches, "alpha")
+    os.makedirs(patch)
+    os.makedirs(assets)
+    with open(os.path.join(patch, "main.bin"), "wb") as target:
+        target.write(b"preset-editor-verifier")
+    with open(os.path.join(patch, "bopos.patch.json"), "w",
+              encoding="utf-8") as target:
+        json.dump({
+            "engine": "test", "entrypoint": "main.bin",
+            "params": [
+                {"name": "density", "kind": "float", "min": 0, "max": 1,
+                 "default": .2, "dashboard": True},
+                {"name": "depth", "kind": "float", "min": 0, "max": 1,
+                 "default": .4, "dashboard": True},
+            ],
+            "events": [], "caps": [], "slots": [],
+        }, target)
+    state = {
+        "schema": 1, "name": "Editor preset rig",
+        "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
+                        "staged_at": time.time(), "previous": None},
+        "params_patch": "alpha", "groups": {}, "seats": {},
+    }
+    state_path = os.path.join(root, "installation.json")
+    with open(state_path, "w", encoding="utf-8") as target:
+        json.dump(state, target)
+    return state_path, patch
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="bopos-editor-presets-") as temp:
+        state_path, patch_dir = make_fixture(temp)
+        assets = os.path.join(temp, "assets")
+        patches = os.path.join(temp, "patches")
+        presets_dir = os.path.join(patch_dir, "presets")
+        http_port = free_port(socket.SOCK_STREAM)
+        listen_port = free_port(socket.SOCK_DGRAM)
+        send_port = free_port(socket.SOCK_DGRAM)
+        engine_port = free_port(socket.SOCK_DGRAM)
+        engine = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        engine.bind(("127.0.0.1", engine_port))
+        base_url = f"http://127.0.0.1:{http_port}"
+        server_log = open(os.path.join(temp, "server.log"), "w",
+                          encoding="utf-8")
+        server = None
+        try:
+            server = subprocess.Popen([
+                sys.executable, os.path.join(REPO, "dashboard", "server.py"),
+                "--host", "127.0.0.1", "--port", str(http_port),
+                "--listen-port", str(listen_port),
+                "--send-port", str(send_port),
+                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--assets-dir", assets, "--patches-dir", patches,
+                "--public-url", base_url,
+                "--sim-audio-backend", "none", "--sim-no-engine",
+                "--sim-engine-port-base", str(engine_port),
+            ], cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)
+            wait_http(base_url, server)
+
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1440,
+                                                  "height": 1200})
+                page.set_default_timeout(15000)
+                errors = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("dialog", lambda dialog: dialog.accept())
+                page.goto(base_url)
+                page.wait_for_selector("#ws-status.online")
+                page.evaluate(
+                    "() => ws.send('set_edit',"
+                    " {active:true, patch:'alpha', confirmed:true})")
+                page.wait_for_function(
+                    "() => installation.supervisor?.mode === 'edit'")
+                page.click("#tab-button-patches")
+                page.wait_for_selector("#editor-params [data-preset-slot]")
+
+                row = page.locator("#editor-params [data-preset-slot]")
+                check("the editor panel carries the preset row for its patch",
+                      row.locator(".live-preset-patch").inner_text().strip()
+                      == "alpha")
+                check("it is the ratified row anatomy",
+                      [button.strip() for button in row.locator(
+                          ".live-preset-action").all_text_contents()]
+                      == ["new", "save", "del"])
+
+                # --- sculpt, then save what the audition engine is holding ---
+                page.evaluate(
+                    "() => ws.send('set_editor_param',"
+                    " {name:'density', value:0.83})")
+                page.wait_for_function(
+                    "() => installation.editor?.params?.density === 0.83")
+                fingerprint_before = page.evaluate(
+                    "() => installation.fleet_patch?.fingerprint")
+
+                page.click('#editor-params [data-preset-action="new"]')
+                page.wait_for_selector("#editor-params [data-preset-name]")
+                page.fill("#editor-params [data-preset-name]", "Sculpt")
+                page.click("#editor-params [data-preset-commit]")
+                page.wait_for_function(
+                    "() => (installation.preset_catalog?.alpha || []).length"
+                    " === 1")
+                with open(os.path.join(presets_dir, "Sculpt.json"),
+                          encoding="utf-8") as source:
+                    stored = json.load(source)
+                check("the editor save captures the audition engine's state",
+                      stored["params"] == {"density": [.83], "depth": [.4]},
+                      repr(stored["params"]))
+
+                # --- and never restages the patch it was saved into ---
+                time.sleep(1.5)
+                check("a save while sculpting leaves the fingerprint alone",
+                      page.evaluate(
+                          "() => installation.fleet_patch?.fingerprint")
+                      == fingerprint_before)
+                check("the fleet patch is not marked stale by a save",
+                      page.evaluate(
+                          "() => !installation.fleet_patch?.previous"))
+
+                # --- nudge away, then recall through the application core ---
+                page.evaluate(
+                    "() => ws.send('set_editor_param',"
+                    " {name:'density', value:0.11})")
+                page.wait_for_function(
+                    "() => installation.editor?.params?.density === 0.11")
+                drain(engine)
+                page.wait_for_function(
+                    """() => !!document.querySelector(
+                      '#editor-params [data-preset-select]')?.onchange""")
+                page.select_option("#editor-params [data-preset-select]",
+                                   "Sculpt")
+                page.wait_for_function(
+                    "() => installation.editor?.params?.density === 0.83")
+                frames = collect(engine, 1.0)
+                check("recall restores the stored value after a nudge",
+                      page.evaluate(
+                          "() => installation.editor.params.density") == .83)
+                # The dashboard addresses `/0/p/<identity>`; the audition
+                # relay strips the seat selector before the engine sees it, so
+                # what arrives here is the engine-side `/p/<identity>`.
+                check("recall reaches the audition engine on selector 0",
+                      any(address.endswith("/p/density")
+                          and args and abs(float(args[0]) - .83) < 1e-4
+                          for address, args in frames), repr(frames))
+                page.wait_for_function(
+                    "() => installation.editor?.applied_preset?.name"
+                    " === 'Sculpt'")
+                check("the editor records applied-preset provenance", True)
+
+                # --- derived dirtiness carries over to this surface too ---
+                page.evaluate(
+                    "() => ws.send('set_editor_param',"
+                    " {name:'depth', value:0.05})")
+                page.wait_for_function(
+                    "() => installation.editor?.preset_dirty === true")
+                check("moving a value after a recall reads as dirty", True)
+
+                # --- delete ---
+                page.wait_for_function(
+                    """() => !!document.querySelector(
+                      '#editor-params [data-preset-action="del"]')
+                      && !document.querySelector(
+                      '#editor-params [data-preset-action="del"]').disabled""")
+                page.click('#editor-params [data-preset-action="del"]')
+                page.wait_for_function(
+                    "() => (installation.preset_catalog?.alpha || []).length"
+                    " === 0")
+                check("delete removes the preset file",
+                      not os.path.exists(
+                          os.path.join(presets_dir, "Sculpt.json")))
+
+                page.evaluate(
+                    "() => ws.send('set_edit', {active:false, confirmed:true})")
+                page.wait_for_function(
+                    "() => installation.supervisor?.mode === 'off'")
+                check("no page errors", not errors, repr(errors))
+                browser.close()
+        finally:
+            stop_process(server)
+            engine.close()
+            server_log.close()
+
+    if FAILURES:
+        print("\nFAILED: " + "; ".join(FAILURES))
+        return 1
+    print("\nEditor preset checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

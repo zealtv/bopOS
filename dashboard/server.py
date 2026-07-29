@@ -170,6 +170,12 @@ class Dashboard:
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
         self.preset_store = preset_store.PresetStore(self.patches_dir)
+        # The editor's audition engine as a seat-shaped preset target; see
+        # editor_target(). `id` 0 is its OSC selector, `automation_key` keeps
+        # its generator entries out of a real Seat 0's.
+        self._editor_seat = {"id": 0, "automation_key": "editor",
+                             "editor": True, "bound": None, "groups": [],
+                             "params": {}}
         self.shows_dir = show_model.shows_dir(self.state.path)
         current_show = self.state.data.get("current_show")
         self.show = (show_model.load_show(self.shows_dir, current_show)
@@ -306,6 +312,7 @@ class Dashboard:
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
             "save_preset", "load_preset", "apply_preset",
+            "save_patch_preset", "delete_patch_preset",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
@@ -321,9 +328,17 @@ class Dashboard:
             "set_room", "set_points", "set_point", "clear_point",
             "save_venue", "load_venue",
         }
-        if self.supervisor_mode == "edit" and kind in edit_blocked_mutations:
+        # The editor's own preset recall is not a fleet execution control: it
+        # targets the audition engine Patch Edit owns, so it is the one apply
+        # that belongs *inside* edit mode (08-editor-save-recall).
+        editor_scoped = data.get("scope") == "editor"
+        if (self.supervisor_mode == "edit" and kind in edit_blocked_mutations
+                and not (kind == "apply_preset" and editor_scoped)):
             await self.ws_error(
                 ws, "That execution control is unavailable during Patch Edit.")
+            return
+        if editor_scoped and self.supervisor_mode != "edit":
+            await self.ws_error(ws, "The patch editor is not running.")
             return
         if kind in {"save_patch_manifest", "create_patch"} and not manifest_locked:
             async with self.manifest_lock:
@@ -880,6 +895,38 @@ class Dashboard:
                     curve=data.get("curve"))
             except preset_store.PresetStoreError as error:
                 await self.ws_error(ws, str(error))
+        elif kind == "preview_preset_capture":
+            # What a save would store, answered by the server so the operator
+            # confirms the canonical values that will actually be written --
+            # including which identities the target disagrees on (F8).
+            try:
+                preview = self.capture_preset(
+                    data.get("patch"), data.get("scope"), data.get("id"))
+            except preset_store.PresetStoreError as error:
+                await self.ws_error(ws, str(error))
+                return
+            if ws is not None:
+                await ws.send_json({"type": "preset_capture_preview", "data": {
+                    "patch": data.get("patch"),
+                    "scope": data.get("scope"),
+                    "id": data.get("id"),
+                    **preview,
+                }})
+        elif kind == "save_patch_preset":
+            await self.save_patch_preset(data, ws)
+        elif kind == "delete_patch_preset":
+            patch = data.get("patch")
+            slug = data.get("slug")
+            revision = data.get("revision")
+            try:
+                self.preset_store.delete(
+                    patch, slug,
+                    revision if isinstance(revision, str) else None)
+            except preset_store.PresetStoreError as error:
+                await self.ws_error(ws, str(error))
+                return
+            self.refresh_preset_dirtiness()
+            await self.broadcast("state", await self.public_state())
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -1550,8 +1597,25 @@ class Dashboard:
                 # that timestamp would resurrect an almost-complete fade.
                 self.osc.send(f"/{int(seat['id'])}/p/{identity}", args)
 
+    def editor_target(self):
+        """The patch editor's audition engine, shaped as one concrete target.
+
+        The editor drives OSC selector 0 on the private audition relay, but it
+        is not Seat 0: it has no Device, no groups, and its durable mirror is
+        the editor's own `params` map. Presenting it as a seat-shaped target is
+        what lets preset apply and capture stay the single path R1 asks for
+        (08-editor-save-recall) instead of growing an editor-only pipeline.
+        The `params` dict is shared by reference, so a preset apply writes
+        straight through to the state the editor panel renders.
+        """
+        editor = self.state.data["editor"]
+        self._editor_seat["params"] = editor.setdefault("params", {})
+        return self._editor_seat
+
     def effective_patch_for_seat(self, seat):
         """Return a seat's device pin, otherwise the staged fleet patch."""
+        if seat.get("editor"):
+            return self.state.data["editor"].get("patch")
         override = self.state.device_patch_for(seat.get("bound"))
         if override:
             return override["name"]
@@ -1571,7 +1635,8 @@ class Dashboard:
         identity = declaration["identity"]
         changed = False
         for seat in seats:
-            entry = self.osc.automation.get(str(seat["id"]), {}).get(identity)
+            entry = self.osc.automation.get(
+                preset_application.automation_key(seat), {}).get(identity)
             value = preset_application.estimate_automation(
                 identity, declaration, entry, now)
             if value is None:
@@ -1602,6 +1667,74 @@ class Dashboard:
             seats, self.state.seats.values(), self.state.data.get("groups", {}))
         return captured
 
+    def preset_patches(self):
+        """Every patch whose presets some visible surface can offer.
+
+        The fleet patch answers the Control tab, a pin answers that Device's
+        panel, and the editor patch answers the patch editor.
+        """
+        candidates = [self.state.data.get("params_patch"),
+                      self.state.data["editor"].get("patch")]
+        for uid in self.state.device_registry:
+            override = self.state.device_patch_for(uid)
+            if override:
+                candidates.append(override.get("name"))
+        names = []
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate and candidate not in names:
+                names.append(candidate)
+        return names
+
+    def preset_catalog(self):
+        """Preset listings per patch — metadata only, never preset bodies (C3).
+
+        A listing carries the schema fingerprint the preset was saved against
+        plus a derived `drift` flag against the patch's current schema, so a
+        row can warn before an apply rather than only reporting afterwards.
+        """
+        catalog = {}
+        for name in self.preset_patches():
+            try:
+                entries = self.preset_store.list(name)
+            except preset_store.PresetStoreError:
+                continue
+            manifest = self.live_control_manifest(name)
+            try:
+                current = (preset_store.schema_fingerprint(manifest)
+                           if manifest is not None else None)
+            except preset_store.PresetStoreError:
+                current = None
+            catalog[name] = [
+                dict(entry,
+                     drift=bool(entry["valid"] and current is not None
+                                and entry["schema"] != current))
+                for entry in entries
+            ]
+        return catalog
+
+    def refresh_preset_catalog(self):
+        """Publish the catalog on the runtime state every broadcast carries.
+
+        `state.public()` is the whole runtime dict, so parking the listing
+        there keeps a partial `state` broadcast from momentarily emptying every
+        preset dropdown. It is absent from `durable()`, like automation, so
+        nothing about it is persisted.
+        """
+        self.state.data["preset_catalog"] = self.preset_catalog()
+
+    def publish_editor_provenance(self):
+        """Mirror the editor pseudo-target's provenance into editor state.
+
+        Runtime only, exactly like a Seat's: `durable()` never sees the editor
+        block at all, so a restart forgets which preset was applied (A7).
+        """
+        editor = self.state.data.get("editor")
+        if not isinstance(editor, dict) or not hasattr(self, "_editor_seat"):
+            return
+        marker = self._editor_seat.get("applied_preset")
+        editor["applied_preset"] = copy.deepcopy(marker) if marker else None
+        editor["preset_dirty"] = bool(self._editor_seat.get("preset_dirty"))
+
     def preset_card_projection(self, scope, target_id):
         seats, _selector = self.live_param_target(scope, target_id)
         return preset_application.card_preset_projection(seats or [])
@@ -1609,7 +1742,11 @@ class Dashboard:
     def refresh_preset_dirtiness(self, seats=None, now=None):
         """Derive dirty flags; preset bodies remain server-side."""
         now = time.time() if now is None else float(now)
-        for seat in seats or self.state.seats.values():
+        if seats is None:
+            seats = list(self.state.seats.values())
+            if self.supervisor_mode == "edit":
+                seats.append(self.editor_target())
+        for seat in seats:
             marker = seat.get("applied_preset")
             if not isinstance(marker, dict):
                 seat["preset_dirty"] = False
@@ -1625,6 +1762,60 @@ class Dashboard:
             seat["preset_dirty"] = preset_application.preset_dirty(
                 document, seat, declarations, self.osc.automation,
                 self.effective_patch_for_seat(seat), now)
+        self.publish_editor_provenance()
+
+    async def save_patch_preset(self, data, ws):
+        """Capture the current target and write it through the 05 store.
+
+        Nothing here touches the patch distribution: `presets/` is excluded
+        from the patch fingerprint (contract v1.17 §9), so sculpting and saving
+        during a live show never restages the fleet patch.
+        """
+        patch = data.get("patch")
+        name = data.get("name")
+        scope = data.get("scope")
+        target_id = data.get("id")
+        include = data.get("include")
+        revision = data.get("revision")
+        try:
+            captured = self.capture_preset(patch, scope, target_id)
+        except preset_store.PresetStoreError as error:
+            await self.ws_error(ws, str(error))
+            return
+        params = captured["params"]
+        if isinstance(include, list):
+            allowed = {str(item) for item in include}
+            params = {identity: args for identity, args in params.items()
+                      if identity in allowed}
+        if not params:
+            await self.ws_error(
+                ws, "Nothing to save: no parameter had an agreed value.")
+            return
+        try:
+            record = await asyncio.to_thread(
+                self.preset_store.save, patch, name, params,
+                revision if isinstance(revision, str) else None)
+        except preset_store.PresetConflictError as error:
+            await self.ws_error(
+                ws, f"{error}. Reload the preset list and save again.")
+            return
+        except preset_store.PresetStoreError as error:
+            await self.ws_error(ws, str(error))
+            return
+        if ws is not None:
+            await ws.send_json({"type": "preset_saved", "data": {
+                "patch": patch,
+                "slug": record["slug"],
+                "name": record["document"]["name"],
+                "revision": record["revision"],
+                "omitted": captured["omitted"],
+                "scope": scope,
+                "id": target_id,
+            }})
+        # A save is not an apply: it does not claim the target now carries the
+        # preset, because it captured only what the operator chose to include.
+        self.refresh_preset_dirtiness()
+        await self.broadcast("state", await self.public_state())
 
     async def apply_preset(self, patch, name, scope, target_id,
                            duration_ms=None, curve=None):
@@ -1636,7 +1827,9 @@ class Dashboard:
             for seat in seats:
                 seat.pop("applied_preset", None)
                 seat["preset_dirty"] = False
+            self.publish_editor_provenance()
             report = self._preset_report(patch, None, seats)
+            await self.broadcast("state", None)
             await self.broadcast("preset_applied", report)
             return report
 
@@ -1691,12 +1884,14 @@ class Dashboard:
             target_counts[str(seat["id"])] = counts
 
         messages = []
+        prepared = []
         for identity, args in canonical.items():
             declaration = declarations[identity]
             timed = (duration is not None and len(args) == 1
                      and declaration.get("kind") in {"float", "int"})
             outgoing = ([args[0], duration] + ([curve_token] if curve_token else [])
                         if timed else list(args))
+            prepared.append((identity, outgoing))
             if duration is not None and not timed:
                 for seat in matching:
                     target_counts[str(seat["id"])]["snapped"] += 1
@@ -1736,15 +1931,21 @@ class Dashboard:
             value = args[0]
             for seat in matching:
                 seat.setdefault("params", {})[identity] = value
-                for device in self.state.devices.values():
+                # The editor's audition target owns no Device mirror (08).
+                for device in ([] if seat.get("editor")
+                               else self.state.devices.values()):
                     if (device.get("uid") == seat.get("bound")
                             or (device.get("virtual")
                                 and str(device.get("seat_id"))
                                 == str(seat["id"]))):
                         device.setdefault("params", {})[identity] = value
-        for message_target, identity, outgoing in messages:
-            self.osc.record_param(
-                message_target, identity, outgoing, sent_at=sent_at,
+        # Record against the concretely resolved targets rather than
+        # re-deriving them from the selector: a coalesced `all`/`gN` datagram
+        # resolves to the same set only because nothing was skipped, and the
+        # editor's target is not a Seat the selector could find at all.
+        for identity, outgoing in prepared:
+            self.osc.record_param_for(
+                matching, identity, outgoing, sent_at=sent_at,
                 persist=False, broadcast=False)
         provenance = {"patch": patch, "name": document["name"]}
         for seat in matching:
@@ -1775,6 +1976,11 @@ class Dashboard:
         for message_target, identity, outgoing in messages:
             self.osc.send(f"/{message_target}/p/{identity}", outgoing)
         self.refresh_preset_dirtiness(matching, now=sent_at)
+        # One persist, then the ordinary mirror publication every live write
+        # makes, then the report. The report is additive: it says what the
+        # apply DID, while `state` is how every surface learns the new values
+        # and provenance (07 needs both to render a card).
+        await self.broadcast("state", None)
         report = self._preset_report(
             patch, document["name"], seats, target_counts, resolved["verdicts"])
         await self.broadcast("preset_applied", report)
@@ -1836,6 +2042,12 @@ class Dashboard:
         return override["name"] if override else None
 
     def live_param_target(self, scope, target_id):
+        if scope == "editor":
+            # Only meaningful while the editor owns the audio path; outside
+            # Patch edit there is no engine on selector 0 to talk to.
+            if self.supervisor_mode != "edit":
+                return None, None
+            return [self.editor_target()], 0
         if scope == "all":
             return list(self.state.seats.values()), "all"
         if scope == "seat":
@@ -1940,6 +2152,7 @@ class Dashboard:
 
     async def public_state(self):
         self.refresh_preset_dirtiness()
+        self.refresh_preset_catalog()
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
         # The durable record captures the identity staged by the operator, but
@@ -2716,6 +2929,10 @@ class Dashboard:
         editor = self.state.data["editor"]
         generation = int(editor.get("generation", 0)) + 1
         declarations = list(manifest.get("params", ()))
+        # A new session starts with no applied preset: provenance is runtime
+        # state about values this engine is currently holding (08).
+        self._editor_seat.pop("applied_preset", None)
+        self._editor_seat["preset_dirty"] = False
         editor.clear()
         editor.update(active=True, status="starting", patch=patch_name,
                       engine_alive=None, generation=generation,
