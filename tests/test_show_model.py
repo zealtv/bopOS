@@ -280,6 +280,95 @@ class ShowSchemaTests(unittest.TestCase):
         bridge.send.assert_not_called()
         bridge.set_param.assert_not_called()
 
+    def test_preset_reference_has_strict_args_and_uses_injected_application(self):
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+            "schema": "sha256:" + "b" * 64,
+        }
+        preset = show_model.clean_message(message(
+            kind="reference",
+            address="/preset/alpha/Dawn",
+            args=[
+                {"type": "f", "value": 250},
+                {"type": "s", "value": "c:-1"},
+            ],
+            target=["group:Front", "3"],
+            reference=reference,
+        ))
+        apply = mock.Mock()
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock(), apply_preset=apply)
+
+        engine._send_message(preset)
+
+        apply.assert_called_once_with(
+            "alpha", "Dawn", ["group:Front", "3"], 250.0, -1.0,
+            reference)
+        bridge.send.assert_not_called()
+        for bad_args in (
+            [{"type": "s", "value": "250ms"}],
+            [{"type": "f", "value": -1}],
+            [{"type": "s", "value": "c:1"}, {"type": "f", "value": 2}],
+        ):
+            with self.subTest(args=bad_args):
+                self.assertIsNone(show_model.clean_message(message(
+                    kind="reference", address="/preset/alpha/Dawn",
+                    args=bad_args, reference=reference)))
+
+    def test_preset_drift_warnings_cover_patch_and_schema_independently(self):
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+            "schema": "sha256:" + "b" * 64,
+        }
+        show = show_model.clean_show(document([
+            step(messages=[message(
+                kind="reference", address="/preset/alpha/Dawn",
+                args=[], reference=reference,
+            )]),
+        ]))
+        warnings = show_model.show_reference_warnings(
+            show, {"alpha": "c" * 64},
+            {"alpha": "sha256:" + "d" * 64})
+        self.assertEqual(
+            [warning["code"] for warning in warnings],
+            ["patch_drift", "schema_drift"])
+        self.assertTrue(all(
+            warning["message_uid"] == "b0000001" for warning in warnings))
+
+    def test_flatten_and_capture_are_each_one_atomic_model_mutation(self):
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+            "schema": "sha256:" + "b" * 64,
+        }
+        preset = message(
+            kind="reference", address="/preset/alpha/Dawn",
+            args=[], reference=reference)
+        show = show_model.clean_show(document([step(messages=[preset])]))
+        flattened = [
+            {"kind": "osc", "alias": None, "address": "/p/gain",
+             "args": [{"type": "f", "value": 0.5}], "target": ["all"]},
+            {"kind": "osc", "alias": None, "address": "/p/mode",
+             "args": [{"type": "i", "value": 1}], "target": ["all"]},
+        ]
+
+        next_show, result, error = show_model.flatten_preset_message(
+            show, "b0000001", flattened)
+        self.assertIsNone(error)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(
+            [item["address"] for item in next_show["items"][0]["messages"]],
+            ["/p/gain", "/p/mode"])
+        self.assertEqual(
+            show["items"][0]["messages"][0]["address"],
+            "/preset/alpha/Dawn")
+
+        captured_show, captured, error = show_model.capture_preset_step(
+            next_show, [{key: value for key, value in preset.items()
+                         if key != "uid"}])
+        self.assertIsNone(error)
+        self.assertEqual(captured["alias"], "Captured presets")
+        self.assertEqual(len(captured_show["items"]), 2)
+
 
 class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
     async def test_reference_update_and_undo_restore_one_persisted_snapshot(self):

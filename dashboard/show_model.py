@@ -32,6 +32,7 @@ PATCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 CONTENT_FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
 SCHEMA_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
 MESSAGE_KINDS = frozenset(("osc", "reference"))
+PRESET_ADDRESS_PREFIX = "/preset/"
 THEN_ACTION_TYPES = frozenset((
     "stop", "play_again", "next_step", "previous_step",
     "any_in_section", "other_in_section", "goto",
@@ -136,6 +137,58 @@ def clean_reference(value):
     return cleaned
 
 
+def preset_message_parts(message):
+    """Return ``(patch, slug, duration_ms, curve)`` for a preset reference.
+
+    Preset messages are authored composition references, not OSC datagrams.
+    Keeping their small argument grammar here gives load, edit, playback and
+    flattening one definition of the pseudo-address.
+    """
+    if not isinstance(message, dict):
+        return None
+    address = message.get("address")
+    if not isinstance(address, str) or not address.startswith(PRESET_ADDRESS_PREFIX):
+        return None
+    parts = address.split("/")
+    if (len(parts) != 4 or parts[:2] != ["", "preset"]
+            or PATCH_NAME_RE.fullmatch(parts[2]) is None or not parts[3]):
+        return None
+    reference = message.get("reference")
+    if (message.get("kind") != "reference" or not isinstance(reference, dict)
+            or reference.get("content", {}).get("name") != parts[2]
+            or "schema" not in reference):
+        return None
+    args = message.get("args", [])
+    if not isinstance(args, list) or len(args) > 2:
+        return None
+    duration = curve = None
+    if args:
+        first = args[0]
+        if (not isinstance(first, dict) or first.get("type") not in {"i", "f"}
+                or isinstance(first.get("value"), bool)):
+            return None
+        try:
+            duration = float(first["value"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not math.isfinite(duration) or duration < 0:
+            return None
+    if len(args) == 2:
+        token = args[1]
+        if not isinstance(token, dict) or token.get("type") != "s":
+            return None
+        raw = token.get("value")
+        if not isinstance(raw, str) or not raw.startswith("c:"):
+            return None
+        try:
+            curve = float(raw[2:])
+        except ValueError:
+            return None
+        if not math.isfinite(curve):
+            return None
+    return parts[2], parts[3], duration, curve
+
+
 def clean_message(value):
     if not isinstance(value, dict):
         return None
@@ -174,6 +227,8 @@ def clean_message(value):
                "args": args, "target": target}
     if reference is not None:
         cleaned["reference"] = reference
+    if address.startswith(PRESET_ADDRESS_PREFIX) and preset_message_parts(cleaned) is None:
+        return None
     return cleaned
 
 
@@ -249,6 +304,51 @@ def show_target_warnings(show, groups):
         for message in item.get("messages", []):
             _resolved, message_warnings = resolve_targets(
                 message.get("target"), groups)
+            warnings.extend({
+                **warning,
+                "step_uid": item.get("uid"),
+                "message_uid": message.get("uid"),
+            } for warning in message_warnings)
+    return warnings
+
+
+def show_reference_warnings(show, patch_fingerprints, schema_fingerprints):
+    """Return derived, non-blocking drift warnings for preset references."""
+    warnings = []
+    for item in show.get("items", []) if isinstance(show, dict) else []:
+        if not isinstance(item, dict) or item.get("kind") != "step":
+            continue
+        for message in item.get("messages", []):
+            parts = preset_message_parts(message)
+            if parts is None:
+                continue
+            patch, _slug, _duration, _curve = parts
+            reference = message["reference"]
+            authored_patch = reference["content"]["fingerprint"]
+            current_patch = patch_fingerprints.get(patch)
+            authored_schema = reference["schema"]
+            current_schema = schema_fingerprints.get(patch)
+            message_warnings = []
+            if current_patch is None:
+                message_warnings.append({
+                    "code": "missing_patch",
+                    "message": f'Patch "{patch}" is not installed.',
+                })
+            elif current_patch != authored_patch:
+                message_warnings.append({
+                    "code": "patch_drift",
+                    "message": f'Patch "{patch}" has changed since this preset message was authored.',
+                })
+            if current_schema is None:
+                message_warnings.append({
+                    "code": "missing_schema",
+                    "message": f'Patch "{patch}" has no current preset schema.',
+                })
+            elif current_schema != authored_schema:
+                message_warnings.append({
+                    "code": "schema_drift",
+                    "message": f'Patch "{patch}" parameter schema has changed since this preset message was authored.',
+                })
             warnings.extend({
                 **warning,
                 "step_uid": item.get("uid"),
@@ -725,6 +825,61 @@ def remove_message(show, uid):
     step["messages"] = messages
     items[step_index] = step
     return {**show, "items": items}, removed, None
+
+
+def flatten_preset_message(show, uid, messages):
+    """Replace one preset reference with literal messages as one mutation."""
+    step_index, message_index = _find_message(show, uid)
+    if step_index is None:
+        return show, None, "Message not found."
+    original = show["items"][step_index]["messages"][message_index]
+    if preset_message_parts(original) is None:
+        return show, None, "Message is not a preset reference."
+    if not isinstance(messages, list) or not messages:
+        return show, None, "Preset has no applicable parameters to flatten."
+    existing = _message_uids(show)
+    flattened = []
+    for raw in messages:
+        candidate = dict(raw) if isinstance(raw, dict) else {}
+        candidate["uid"] = mint_uid(existing)
+        existing.add(candidate["uid"])
+        cleaned = clean_message(candidate)
+        if cleaned is None or cleaned["kind"] != "osc":
+            return show, None, "Invalid flattened preset message."
+        flattened.append(cleaned)
+    items = list(show["items"])
+    step = dict(items[step_index])
+    next_messages = list(step["messages"])
+    next_messages[message_index:message_index + 1] = flattened
+    step["messages"] = next_messages
+    items[step_index] = step
+    return {**show, "items": items}, flattened, None
+
+
+def capture_preset_step(show, messages, alias="Captured presets"):
+    """Append one arrangement step, minting every uid atomically."""
+    if not isinstance(messages, list) or not messages:
+        return show, None, "No applied presets are available to capture."
+    existing_messages = _message_uids(show)
+    captured = []
+    for raw in messages:
+        candidate = dict(raw) if isinstance(raw, dict) else {}
+        candidate["uid"] = mint_uid(existing_messages)
+        existing_messages.add(candidate["uid"])
+        cleaned = clean_message(candidate)
+        if cleaned is None or preset_message_parts(cleaned) is None:
+            return show, None, "Invalid captured preset message."
+        captured.append(cleaned)
+    step = {
+        "kind": "step",
+        "uid": mint_uid(_item_uids(show)),
+        "alias": alias if isinstance(alias, str) else "Captured presets",
+        "messages": captured,
+        "duration_s": 5.0,
+        "play_count": 1,
+        "then_actions": [{"type": "stop"}],
+    }
+    return {**show, "items": list(show["items"]) + [step]}, step, None
 
 
 # --------------------------------------------------------------------------

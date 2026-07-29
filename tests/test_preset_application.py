@@ -1,5 +1,6 @@
 """Durable tests for the single preset application path."""
 
+import asyncio
 import copy
 import datetime as dt
 import sys
@@ -7,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.dont_write_bytecode = True
 
@@ -16,8 +18,10 @@ for source in (ROOT, ROOT / "python", ROOT / "dashboard"):
         sys.path.insert(0, str(source))
 
 import manifest  # noqa: E402
+import identity  # noqa: E402
 import preset_application  # noqa: E402
 import preset_store  # noqa: E402
+import show_model  # noqa: E402
 from osc_bridge import OSCBridge  # noqa: E402
 from server import Dashboard  # noqa: E402
 from state import InstallationState  # noqa: E402
@@ -170,6 +174,57 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         await self.dashboard.apply_preset("alpha", "Dawn", "group", 1)
         self.assertEqual(self.sent, [("/g1/p/gain", [0.25])])
 
+    async def test_show_apply_resolves_named_targets_and_reports_patch_skips(self):
+        self.state.device_registry["two"]["desired_patch"] = {
+            "name": "beta", "fingerprint": None}
+        self.save_preset({"gain": [0.75], "gate": [1]})
+
+        report = await self.dashboard.apply_show_preset(
+            "alpha", "Dawn", ["group:Pair A", "3"],
+            duration_ms=400, curve=-1)
+
+        by_address = dict(self.sent)
+        self.assertEqual(by_address["/1/p/gain"], [0.75, 400.0, "c:-1"])
+        self.assertEqual(by_address["/3/p/gain"], [0.75, 400.0, "c:-1"])
+        self.assertEqual(by_address["/1/p/gate"], [1])
+        self.assertFalse(any(address.startswith("/2/") for address, _ in self.sent))
+        self.assertEqual(report["targets"]["2"]["skipped"], 1)
+        self.assertEqual(report["targets"]["1"]["snapped"], 1)
+
+        self.state.device_registry["two"].pop("desired_patch")
+        self.sent.clear()
+        await self.dashboard.apply_show_preset(
+            "alpha", "Dawn", ["group:Pair A"])
+        self.assertEqual(dict(self.sent)["/g1/p/gain"], [0.75])
+        self.assertEqual(dict(self.sent)["/g1/p/gate"], [1])
+
+    def test_show_load_warnings_compare_both_reference_fingerprints(self):
+        record = self.save_preset({"gain": [0.5]})
+        self.dashboard.show = show_model.clean_show({
+            "schema": 1, "name": "opening", "items": [{
+                "kind": "step", "uid": "a0000001", "alias": None,
+                "messages": [{
+                    "kind": "reference", "uid": "b0000001", "alias": None,
+                    "address": "/preset/alpha/Dawn", "args": [],
+                    "target": ["all"],
+                    "reference": {
+                        "content": {
+                            "name": "alpha", "fingerprint": "0" * 64,
+                        },
+                        "schema": "sha256:" + "1" * 64,
+                    },
+                }],
+                "duration_s": 5, "play_count": 1,
+                "then_actions": [{"type": "stop"}],
+            }],
+        })
+        warnings = self.dashboard.show_warnings()
+        self.assertEqual(
+            [warning["code"] for warning in warnings],
+            ["patch_drift", "schema_drift"])
+        self.assertNotEqual(
+            record["document"]["schema"], "sha256:" + "1" * 64)
+
     async def test_apply_persist_failure_rolls_back_and_sends_nothing(self):
         self.save_preset({"gain": [0.25]})
         seat = self.state.seats["1"]
@@ -267,6 +322,63 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             "patch": "alpha", "name": "Night"}
         self.assertTrue(
             self.dashboard.preset_card_projection("group", 1)["mixed"])
+
+    async def test_flatten_and_capture_persist_as_single_undo_entries(self):
+        record = self.save_preset({"gain": [0.5], "gate": [1]})
+        fingerprint = identity.fingerprint(self.patches / "alpha")
+        reference = {
+            "content": {"name": "alpha", "fingerprint": fingerprint},
+            "schema": record["document"]["schema"],
+        }
+        preset_message = {
+            "kind": "reference", "uid": "b0000001", "alias": "Dawn",
+            "address": "/preset/alpha/Dawn",
+            "args": [{"type": "f", "value": 250}],
+            "target": ["all"], "reference": reference,
+        }
+        self.dashboard.show = show_model.clean_show({
+            "schema": 1, "name": "opening", "items": [{
+                "kind": "step", "uid": "a0000001", "alias": None,
+                "messages": [preset_message], "duration_s": 5,
+                "play_count": 1, "then_actions": [{"type": "stop"}],
+            }],
+        })
+        self.dashboard.show_engine = SimpleNamespace(show=self.dashboard.show)
+        self.dashboard.show_edit_lock = asyncio.Lock()
+        self.dashboard.show_undo = []
+        self.dashboard.shows_dir = str(self.root / "shows")
+        self.state.data["current_show"] = "opening"
+
+        await self.dashboard.flatten_show_preset(None, "b0000001")
+
+        self.assertEqual(len(self.dashboard.show_undo), 1)
+        flattened = self.dashboard.show["items"][0]["messages"]
+        self.assertEqual(
+            [message["address"] for message in flattened],
+            ["/p/gain", "/p/gate"])
+        self.assertEqual(flattened[0]["args"], [
+            {"type": "f", "value": 0.5},
+            {"type": "f", "value": 250.0},
+        ])
+        self.assertEqual(flattened[1]["args"], [{"type": "i", "value": 1}])
+
+        for seat in (self.state.seats["1"], self.state.seats["2"]):
+            seat["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
+        self.state.seats["1"]["preset_dirty"] = True
+        preview = self.dashboard.show_preset_capture_preview("all", None)
+        self.assertEqual(
+            {key: preview[key] for key in ("applied", "total", "omitted")},
+            {"applied": 2, "total": 3, "omitted": 1})
+
+        await self.dashboard.capture_show_preset_step(None, "all", None)
+
+        self.assertEqual(len(self.dashboard.show_undo), 2)
+        captured = self.dashboard.show["items"][-1]
+        self.assertEqual(len(captured["messages"]), 1)
+        self.assertEqual(captured["messages"][0]["target"], ["group:Pair A"])
+        self.assertEqual(
+            captured["messages"][0]["reference"]["content"]["fingerprint"],
+            fingerprint)
 
     def test_provenance_is_runtime_only_and_dirty_compares_canonical_state(self):
         self.save_preset({"gain": [0.123457]})

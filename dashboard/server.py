@@ -40,6 +40,7 @@ from python import asset_slots
 from python import manifest as patch_manifest
 
 
+log = logging.getLogger("bopos.dashboard")
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 OSC_ADDRESS_RE = re.compile(r"/(?!/)(?:[^\s#*,?\[\]{}]+/?)*[^\s/#*,?\[\]{}]")
 PATCH_TEMPLATE = os.path.join(".templates", "bopos-template.pd")
@@ -184,7 +185,8 @@ class Dashboard:
             self.osc, self.broadcast,
             event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500),
             resolve_targets=lambda targets: show_model.resolve_targets(
-                targets, self.state.data.get("groups", {}))[0])
+                targets, self.state.data.get("groups", {}))[0],
+            apply_preset=self.queue_show_preset)
         self.show_engine.show = self.show
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
@@ -316,6 +318,7 @@ class Dashboard:
             "send_distribution", "sync_distribution", "drop_distribution",
             "save_preset", "load_preset", "apply_preset",
             "save_patch_preset", "delete_patch_preset",
+            "capture_show_preset_step",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
@@ -1398,6 +1401,19 @@ class Dashboard:
                 data.get("to_step_uid"), data.get("after_uid"))
         elif kind == "remove_message":
             await self.apply_show_mutation(ws, show_model.remove_message, data.get("uid"))
+        elif kind == "flatten_preset_message":
+            await self.flatten_show_preset(ws, data.get("uid"))
+        elif kind == "preview_show_preset_capture":
+            preview = self.show_preset_capture_preview(
+                data.get("scope"), data.get("id"))
+            if ws is not None:
+                await ws.send_json({
+                    "type": "show_preset_capture_preview",
+                    "data": preview,
+                })
+        elif kind == "capture_show_preset_step":
+            await self.capture_show_preset_step(
+                ws, data.get("scope"), data.get("id"))
         elif kind == "step_start":
             await self.show_engine.step_start(data.get("uid"))
         elif kind == "step_stop":
@@ -1429,8 +1445,32 @@ class Dashboard:
 
     def show_warnings(self):
         """Derived, non-blocking authoring warnings for the loaded Show."""
-        return show_model.show_target_warnings(
+        target_warnings = show_model.show_target_warnings(
             self.show, self.state.data.get("groups", {}))
+        patches = set()
+        for item in self.show.get("items", []):
+            for message in item.get("messages", []) if item.get("kind") == "step" else []:
+                parts = show_model.preset_message_parts(message)
+                if parts is not None:
+                    patches.add(parts[0])
+        patch_fingerprints = {}
+        schema_fingerprints = {}
+        for patch in patches:
+            root = os.path.join(self.patches_dir, patch)
+            if os.path.isdir(root) and not os.path.islink(root):
+                try:
+                    patch_fingerprints[patch] = identity.fingerprint(root)
+                except OSError:
+                    pass
+            manifest = self.live_control_manifest(patch)
+            if manifest is not None:
+                try:
+                    schema_fingerprints[patch] = preset_store.schema_fingerprint(
+                        manifest)
+                except preset_store.PresetStoreError:
+                    pass
+        return target_warnings + show_model.show_reference_warnings(
+            self.show, patch_fingerprints, schema_fingerprints)
 
     async def apply_show_mutation(self, ws, mutate, *args):
         """Run one show_model edit op against the loaded show and persist it.
@@ -1683,6 +1723,218 @@ class Dashboard:
             seats, self.state.seats.values(), self.state.data.get("groups", {}))
         return captured
 
+    def queue_show_preset(self, patch, slug, targets, duration_ms, curve,
+                          reference):
+        """Schedule one Show reference on the dashboard-owned apply path."""
+        return self.spawn(self._apply_queued_show_preset(
+            patch, slug, targets, duration_ms, curve, reference))
+
+    async def _apply_queued_show_preset(self, patch, slug, targets,
+                                        duration_ms, curve, reference):
+        # A step can contain several preset messages. Preserve their authored
+        # order and the same state/save serialization as WebSocket applies.
+        async with self.supervisor_lock:
+            return await self.apply_show_preset(
+                patch, slug, targets, duration_ms, curve, reference)
+
+    async def apply_show_preset(self, patch, slug, targets, duration_ms=None,
+                                curve=None, reference=None):
+        """Resolve portable Show targets, then enter the one application core."""
+        resolved, warnings = show_model.resolve_targets(
+            targets, self.state.data.get("groups", {}))
+        if warnings:
+            log.warning("show preset %s/%s target warnings: %s",
+                        patch, slug, warnings)
+        seats = []
+        seen = set()
+        for selector in resolved:
+            if selector == "all":
+                candidates = list(self.state.seats.values())
+            elif isinstance(selector, str) and selector.startswith("g"):
+                try:
+                    candidates = self.state.seats_for_group(int(selector[1:]))
+                except ValueError:
+                    candidates = []
+            else:
+                seat = self.state.seats.get(str(selector))
+                candidates = [seat] if seat is not None else []
+            for seat in candidates:
+                key = str(seat["id"])
+                if key not in seen:
+                    seen.add(key)
+                    seats.append(seat)
+        if not seats:
+            log.warning("show preset %s/%s has no resolved targets; skipped",
+                        patch, slug)
+            return None
+        selector = (resolved[0] if len(resolved) == 1
+                    and (resolved[0] == "all"
+                         or str(resolved[0]).startswith("g"))
+                    else None)
+        try:
+            return await self.apply_preset(
+                patch, slug, "show", None, duration_ms, curve,
+                _seats=seats, _selector=selector)
+        except preset_store.PresetStoreError as error:
+            # Playback has no requesting WebSocket. Keep the Show running and
+            # make the non-blocking failure visible in the operator log.
+            log.warning("show preset %s/%s skipped: %s", patch, slug, error)
+            return None
+
+    @staticmethod
+    def _show_arg_type(declaration, value):
+        if isinstance(value, str):
+            return "s"
+        return "f" if declaration.get("kind") == "float" else "i"
+
+    def _flattened_preset_messages(self, message):
+        parts = show_model.preset_message_parts(message)
+        if parts is None:
+            raise preset_store.PresetStoreError(
+                "message is not a preset reference")
+        patch, slug, duration, curve = parts
+        record = self.preset_store.read(patch, slug)
+        manifest = self.live_control_manifest(patch)
+        if manifest is None:
+            raise preset_store.PresetStoreError(
+                "preset patch manifest is unavailable")
+        declarations = {
+            item["identity"]: item for item in self.live_control_declarations(patch)
+        }
+        resolved = preset_store.resolve_entries(record["document"], manifest)
+        flattened = []
+        for identity in sorted(resolved["params"]):
+            declaration = declarations[identity]
+            args = preset_application.canonicalize_args(
+                declaration, resolved["params"][identity])
+            if args is None:
+                continue
+            timed = (duration is not None and len(args) == 1
+                     and declaration.get("kind") in {"float", "int"})
+            outgoing = (list(args) + [duration]
+                        + ([f"c:{preset_application.canonical_float(curve):g}"]
+                           if timed and curve is not None else [])
+                        if timed else list(args))
+            typed = []
+            for index, value in enumerate(outgoing):
+                kind = ("s" if isinstance(value, str)
+                        else "f" if timed and index == 1
+                        else self._show_arg_type(declaration, value))
+                typed.append({"type": kind, "value": value})
+            flattened.append({
+                "kind": "osc",
+                "alias": None,
+                "address": f"/p/{identity}",
+                "args": typed,
+                "target": copy.deepcopy(message["target"]),
+            })
+        return flattened
+
+    async def flatten_show_preset(self, ws, uid):
+        message = None
+        for item in self.show.get("items", []):
+            if item.get("kind") == "step":
+                message = next(
+                    (candidate for candidate in item.get("messages", [])
+                     if candidate.get("uid") == uid), message)
+        if message is None:
+            await self.ws_error(ws, "Message not found.")
+            return
+        try:
+            flattened = self._flattened_preset_messages(message)
+        except preset_store.PresetStoreError as error:
+            await self.ws_error(ws, str(error))
+            return
+        await self.apply_show_mutation(
+            ws, show_model.flatten_preset_message, uid, flattened)
+
+    def _capture_show_seats(self, scope, target_id):
+        if scope == "seat":
+            seat_id = self.state.clean_seat_id(target_id)
+            seat = self.state.seats.get(str(seat_id))
+            return [seat] if seat is not None else []
+        if scope == "groups":
+            return [seat for seat in self.state.seats.values()
+                    if seat.get("groups")]
+        return list(self.state.seats.values())
+
+    def show_preset_capture_preview(self, scope, target_id):
+        seats = self._capture_show_seats(scope, target_id)
+        applied = sum(
+            isinstance(seat.get("applied_preset"), dict) for seat in seats)
+        return {
+            "scope": scope if scope in {"seat", "groups"} else "all",
+            "id": target_id if scope == "seat" else None,
+            "applied": applied,
+            "total": len(seats),
+            "omitted": len(seats) - applied,
+            "show_loaded": bool(self.state.data.get("current_show")),
+        }
+
+    def _current_patch_fingerprint(self, patch):
+        root = os.path.join(self.patches_dir, patch)
+        if not os.path.isdir(root) or os.path.islink(root):
+            raise preset_store.PresetStoreError(
+                f'patch "{patch}" is not installed')
+        try:
+            return identity.fingerprint(root)
+        except OSError as error:
+            raise preset_store.PresetStoreError(
+                f'patch "{patch}" is not installed') from error
+
+    def _captured_show_preset_messages(self, scope, target_id):
+        seats = self._capture_show_seats(scope, target_id)
+        grouped = {}
+        for seat in seats:
+            marker = seat.get("applied_preset")
+            if not isinstance(marker, dict):
+                continue
+            key = (marker.get("patch"), marker.get("name"))
+            if not all(isinstance(value, str) and value for value in key):
+                continue
+            grouped.setdefault(key, []).append(seat)
+        messages = []
+        all_seats = list(self.state.seats.values())
+        groups = self.state.data.get("groups", {})
+        for (patch, name), members in sorted(grouped.items()):
+            record = self.preset_store.read(patch, preset_store.slugify(name))
+            target = preset_application.capture_target(
+                members, all_seats, groups)
+            if target["scope"] == "all":
+                selectors = ["all"]
+            elif target["scope"] == "group":
+                group = groups.get(str(target["id"]))
+                if not isinstance(group, dict) or not group.get("name"):
+                    raise preset_store.PresetStoreError(
+                        "captured preset group has no portable name")
+                selectors = [f'group:{group["name"]}']
+            else:
+                selectors = [str(item) for item in target["ids"]]
+            messages.append({
+                "kind": "reference",
+                "alias": name,
+                "address": f'/preset/{patch}/{record["slug"]}',
+                "args": [],
+                "target": selectors,
+                "reference": {
+                    "content": {
+                        "name": patch,
+                        "fingerprint": self._current_patch_fingerprint(patch),
+                    },
+                    "schema": record["document"]["schema"],
+                },
+            })
+        return messages
+
+    async def capture_show_preset_step(self, ws, scope, target_id):
+        try:
+            messages = self._captured_show_preset_messages(scope, target_id)
+        except preset_store.PresetStoreError as error:
+            await self.ws_error(ws, str(error))
+            return
+        await self.apply_show_mutation(
+            ws, show_model.capture_preset_step, messages)
+
     def preset_patches(self):
         """Every patch whose presets some visible surface can offer.
 
@@ -1834,9 +2086,13 @@ class Dashboard:
         await self.broadcast("state", await self.public_state())
 
     async def apply_preset(self, patch, name, scope, target_id,
-                           duration_ms=None, curve=None):
+                           duration_ms=None, curve=None, _seats=None,
+                           _selector=None):
         """Apply one host preset through the single concrete-seat path."""
-        seats, selector = self.live_param_target(scope, target_id)
+        if _seats is None:
+            seats, selector = self.live_param_target(scope, target_id)
+        else:
+            seats, selector = list(_seats), _selector
         if seats is None:
             raise preset_store.PresetStoreError("preset target is unavailable")
         if name is None:

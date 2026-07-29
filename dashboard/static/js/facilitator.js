@@ -230,6 +230,25 @@ ws.on("preset_saved", data => {
   }
 });
 ws.on("preset_applied", data => { lastPresetReport = data; render(); });
+ws.on("show_preset_capture_preview", data => {
+  const applied = Number(data?.applied) || 0;
+  const total = Number(data?.total) || 0;
+  const omitted = Number(data?.omitted) || 0;
+  if (!data?.show_loaded) {
+    alert("Load or create a Show before capturing a preset arrangement.");
+    return;
+  }
+  if (!applied) {
+    alert(`${applied} of ${total} targets have a preset applied; there is nothing to capture.`);
+    return;
+  }
+  const noun = applied === 1 ? "target has" : "targets have";
+  const other = omitted === 1 ? "the other 1 will" : `the other ${omitted} will`;
+  const omission = omitted ? `; ${other} not be captured` : "";
+  if (confirm(`${applied} of ${total} ${noun} a preset applied${omission}. Add this arrangement as a Show step?`)) {
+    ws.send("capture_show_preset_step", {scope: data.scope, id: data.id});
+  }
+});
 ws.on("event_scheduled", data => {
   const declaration = (liveEventSchema()?.events || []).find(item => item.identity === data.identity);
   const status = $("#event-status");
@@ -251,7 +270,22 @@ document.addEventListener("pointerup", () => {
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
   targetFilter.render();
+  renderShowCapture();
   renderCards(); renderControls(); renderCommands(); renderPresets();
+}
+
+function renderShowCapture() {
+  if (!embedded) return;
+  const host = $("#target-filter-host");
+  host.insertAdjacentHTML("beforeend",
+    '<button type="button" class="capture-show-step" data-capture-show-step>Capture as Show step</button>');
+  host.querySelector("[data-capture-show-step]").onclick = () => {
+    const target = presetScope();
+    ws.send("preview_show_preset_capture", {
+      scope: target.scope,
+      ...(target.id == null ? {} : {id: target.id}),
+    });
+  };
 }
 
 function renderCards() {

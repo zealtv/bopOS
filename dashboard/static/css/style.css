@@ -283,7 +283,8 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
   --show-pill-param-fade-bg:#102638;--show-pill-param-fade-text:#a9d8f2;
   --show-pill-param-loop-bg:#301b28;--show-pill-param-loop-text:#f0b6d6;
   --show-pill-param-lfo-bg:#0f2b2b;--show-pill-param-lfo-text:#a8e9e7;
-  --show-pill-param-stop-bg:#331713;--show-pill-param-stop-text:#ffb0a5
+  --show-pill-param-stop-bg:#331713;--show-pill-param-stop-text:#ffb0a5;
+  --show-pill-preset-bg:#1e1a38;--show-pill-preset-text:#c5baf7
 }
 @media(prefers-color-scheme:light){:root{
   --show-pill-event-bg:#f8ead0;--show-pill-event-text:#6b470e;
@@ -293,7 +294,8 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
   --show-pill-param-fade-bg:#dcecf7;--show-pill-param-fade-text:#15557d;
   --show-pill-param-loop-bg:#f3e0eb;--show-pill-param-loop-text:#713b57;
   --show-pill-param-lfo-bg:#d9f1ef;--show-pill-param-lfo-text:#135f5c;
-  --show-pill-param-stop-bg:#f7dfdc;--show-pill-param-stop-text:#7d3028
+  --show-pill-param-stop-bg:#f7dfdc;--show-pill-param-stop-text:#7d3028;
+  --show-pill-preset-bg:#e7e2f6;--show-pill-preset-text:#4c418d
 }}
 :root[data-theme=light]{
   --show-pill-event-bg:#f8ead0;--show-pill-event-text:#6b470e;
@@ -303,9 +305,12 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
   --show-pill-param-fade-bg:#dcecf7;--show-pill-param-fade-text:#15557d;
   --show-pill-param-loop-bg:#f3e0eb;--show-pill-param-loop-text:#713b57;
   --show-pill-param-lfo-bg:#d9f1ef;--show-pill-param-lfo-text:#135f5c;
-  --show-pill-param-stop-bg:#f7dfdc;--show-pill-param-stop-text:#7d3028
+  --show-pill-param-stop-bg:#f7dfdc;--show-pill-param-stop-text:#7d3028;
+  --show-pill-preset-bg:#e7e2f6;--show-pill-preset-text:#4c418d
 }
 .show-pill-event{--show-pill-bg:var(--show-pill-event-bg);--show-pill-text:var(--show-pill-event-text)}
+.show-pill-preset{--show-pill-bg:var(--show-pill-preset-bg);--show-pill-text:var(--show-pill-preset-text)}
+.show-pill-preset.show-pill-driven{--show-pill-bg:var(--show-pill-param-lfo-bg);--show-pill-text:var(--show-pill-param-lfo-text)}
 
 .editor-event-row{display:grid;grid-template-columns:minmax(100px,1fr) repeat(3,70px);gap:8px;align-items:center}.editor-event-row input{min-width:0;width:100%;padding:6px;border:1px solid var(--line);border-radius:5px;background:var(--deep);color:var(--text)}@media(max-width:760px){.editor-event-row{grid-template-columns:1fr}}
 .show-pill-point{--show-pill-bg:var(--show-pill-point-bg);--show-pill-text:var(--show-pill-point-text)}

@@ -28,6 +28,7 @@ address kind:
 """
 
 import asyncio
+import inspect
 import logging
 import os
 import random
@@ -47,13 +48,17 @@ MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
 class ShowEngine:
     def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None,
-                 resolve_targets=None):
+                 resolve_targets=None, apply_preset=None):
         self.bridge = bridge
         self.broadcast = broadcast  # async callable(message_type, data)
         self.event_lead_ms = event_lead_ms or (lambda: 500)
         # Venue identity stays outside this transport engine. The dashboard
         # injects portable group-name -> wire selector resolution.
         self.resolve_targets = resolve_targets or (lambda targets: targets)
+        # Preset resolution remains dashboard-owned. The transport engine only
+        # recognizes the reference family and hands it to the injected
+        # application core; it never reads patch or preset files itself.
+        self.apply_preset = apply_preset
         if seed is None:
             # No existing mechanism threads a run-context seed into the
             # dashboard process (python/runcontext.py's BOPOS_SEED is
@@ -146,10 +151,19 @@ class ShowEngine:
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
         if message.get("kind") == "reference":
-            # A content reference is not raw OSC. The consumer callback/branch
-            # arrives with the concrete reference family (presets in 09/2);
-            # until then, fail closed instead of leaking a pseudo-address onto
-            # the network.
+            preset = show_model.preset_message_parts(message)
+            if preset is not None and self.apply_preset is not None:
+                patch, slug, duration_ms, curve = preset
+                result = self.apply_preset(
+                    patch, slug, target, duration_ms, curve,
+                    message.get("reference"))
+                # Dashboard callbacks schedule/return a Task; an async test or
+                # embedding may return a bare coroutine instead.
+                if inspect.isawaitable(result) and not isinstance(result, asyncio.Task):
+                    asyncio.create_task(result)
+                return
+            # A content reference is never raw OSC. Unknown reference families
+            # fail closed instead of leaking pseudo-addresses onto the network.
             log.warning("show engine: unhandled content reference %s; skipped",
                         address)
             return
