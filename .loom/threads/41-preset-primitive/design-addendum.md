@@ -9,6 +9,13 @@ Written 2026-07-28. Four questions for Bob are in §9; everything else is a
 closure I am confident in, biased — per Bob — toward the simplest thing that
 is actually correct.
 
+> **Superseded in part, 2026-07-29:** `.loom/tied/3-addendum-review/review-2.md` F1 —
+> Bob ruled **morph is dropped from v1** and deferred to
+> `feature-backlog/48-morph-interpolation`. §1 (A1) and §2 (A2) describe the
+> deferred mechanism; timed apply now uses the existing fade grammar for
+> float/int entries and sets everything else at t=0. §10.4 disappears; the
+> live stitch layout is review-2.md §Layout.
+
 Findings confirmed by independent reading before writing this: D1, D2, D5, D6,
 D7 (see §8 for the two that are pre-existing bugs unrelated to presets).
 

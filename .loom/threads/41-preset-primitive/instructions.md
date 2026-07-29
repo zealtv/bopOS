@@ -55,7 +55,22 @@ preset affordance at all** — which means the provisional row shipped by
 `7-preset-slot` must be *removed* from the facilitator host, superseding that
 stitch's decision 1.
 
-**Next: `3-addendum-review`** — Bob placed one more review, and **that one
+**Reviewed 2026-07-29 — and MORPH IS DROPPED FROM V1 (Bob).**
+`.loom/tied/3-addendum-review/review-2.md` attacked the addendum's repairs: none broken,
+but its F1 surfaced that the whole morph apparatus serves only
+generator-argument interpolation while scalar morphing is the existing fade
+grammar. Bob ruled: defer morph to `feature-backlog/48-morph-interpolation`
+(which carries the settled design for revival). **Timed preset apply ships
+as: float/int entries fade via the existing `x <dur> c:<n>` form;
+generator/toggle/enum/text entries set at t=0 and are counted in the apply
+report.** The contract delta shrinks to the `presets/` exclusion + schema
+fingerprint + capture sentence — no new wire form, no engine work. The
+review's other findings (coalescing named-delta, `_file_fetch` in the ignore
+policy, derived replay expiry, estimate-documented `stop`, entry whitelist)
+fold into the six-stitch layout in review-2.md §Layout, which supersedes
+addendum §10.
+
+**`3-addendum-review`** — Bob placed one more review, and **that one
 flows straight into implementation**: it attacks the addendum's own repairs
 (which have had no adversarial pass), then lays out the stitches from addendum
 §10 as real children numbered from `4-` and starts working them. There is no
@@ -63,9 +78,15 @@ further design gate. It stops for Bob only on a defect in one of his rulings,
 a wire-grammar ambiguity a contract amendment would ratify, or a change big
 enough to break the §10 shape.
 
-The eight implementation stitches in addendum §10 are therefore **specced but
-not created** — `3-addendum-review` creates them. Nothing amends the OSC
-contract until its grammar questions close.
+**The implementation stitches are CREATED (2026-07-29)** and specced for an
+independent implementing agent: `04-contract-and-schema` →
+`05-store-and-foundations` → `06-application-core` → `07-control-device-ui`
+∥ `08-editor-save-recall` → `09-show-integration` (children
+`1-reference-foundation` then `2-preset-messages`) →
+`10-venue-preset-retirement`. Work them in numeric order (07/08 are
+parallel after 06); each stitch's `instructions.md` names its authority
+docs, scope, file:line anchors, and verification. `3-addendum-review` is
+tied.
 
 **Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
 tied. The preset design proceeds on the ratified four-layer model — see
