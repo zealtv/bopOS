@@ -170,7 +170,7 @@ class ManifestTests(unittest.TestCase):
         self.assertIsNone(loaded)
         self.assertIn("type was removed", error)
 
-        for bound in ({"min": 0}, {"max": 1}, {"min": 0, "max": 1}):
+        for bound in ({"min": -1}, {"max": 2}, {"min": 0, "max": 2}):
             loaded, error = self.validate([
                 self.declaration("gate", "toggle", default=0, **bound)
             ])
@@ -278,6 +278,22 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(written["params"][0]["dashboard"])
         self.assertNotIn("facilitator", written["params"][0])
         self.assertNotIn("group", written["params"][0])
+
+    def test_toggle_manifest_survives_atomic_write_and_reload(self):
+        candidate = self.candidate([
+            self.declaration("gate", "toggle", default=1)
+        ])
+
+        written, error = manifest.write_atomic(self.patch, candidate)
+        self.assertIsNone(error)
+        self.assertEqual(
+            (written["params"][0]["min"], written["params"][0]["max"]),
+            (0, 1),
+        )
+
+        reloaded, error = manifest.load(self.patch)
+        self.assertIsNone(error)
+        self.assertEqual(reloaded, written)
 
 
 if __name__ == "__main__":

@@ -59,9 +59,19 @@ def host_checkout_shorthand(repo_dir=REPO_DIR):
 
 class DistributionStaticFiles(StaticFiles):
     """Serve manifest-listed content without exposing source-control internals."""
+    def __init__(self, *args, patch_root=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.patch_root = patch_root
+
     async def get_response(self, path, scope):
         parts = path.replace("\\", "/").split("/")
         if any(part.startswith(".") or part.endswith(".part") for part in parts):
+            return PlainTextResponse("Not Found", status_code=404)
+        # The patches mount is rooted one level above each patch. Strip that
+        # patch-name segment before applying the shared patch-relative policy.
+        policy_parts = [part for part in parts if part not in ("", ".")]
+        if (self.patch_root and len(policy_parts) > 1
+                and identity.is_host_only("/".join(policy_parts[1:]))):
             return PlainTextResponse("Not Found", status_code=404)
         current = self.directory
         for part in parts:
@@ -2512,7 +2522,8 @@ def create_app(args):
         return JSONResponse(directory_manifest(patches, name))
 
     app.mount("/assets", DistributionStaticFiles(directory=assets), name="assets")
-    app.mount("/patches", DistributionStaticFiles(directory=patches), name="patches")
+    app.mount("/patches", DistributionStaticFiles(
+        directory=patches, patch_root=True), name="patches")
     static = os.path.join(os.path.dirname(__file__), "static")
 
     @app.get("/facilitator")

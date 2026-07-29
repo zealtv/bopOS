@@ -185,11 +185,15 @@ def validate(candidate, patch_path, require_entrypoint=True):
         elif options is not None:
             return None, f"param {name}: options only apply to kind enum"
         if kind == "toggle":
-            authored_bounds = [key for key in ("min", "max") if key in param]
-            if authored_bounds:
-                return None, (f"param {name}: {'/'.join(authored_bounds)} "
-                              "is derived for kind toggle, not authored")
-            param["min"], param["max"] = 0, 1
+            # The binary range is derived rather than authored. Accepting a
+            # matching pair keeps a round-tripped manifest (the editor saves
+            # what it loaded) valid, while a different pair remains an error.
+            for key, derived in (("min", 0), ("max", 1)):
+                if param.get(key) is None:
+                    param[key] = derived
+                elif param[key] != derived:
+                    return None, (f"param {name}: {key} is derived for kind "
+                                  f"toggle ({derived}), not authored")
         low, high, default = param.get("min"), param.get("max"), param.get("default")
         if kind == "text":
             if "min" in param or "max" in param:

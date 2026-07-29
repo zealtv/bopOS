@@ -138,6 +138,48 @@ class FileConvergenceTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(loaded["entrypoint"], "main.bin")
 
+    def test_patch_fetch_preserves_host_presets_and_prunes_other_stale_files(self):
+        destination = self.patches / "stage"
+        write_patch(destination, b"old")
+        write_file(destination / "stale.txt", b"remove")
+        write_file(destination / "presets" / "dawn.json", b"host authored")
+        write_patch(self.source, b"new")
+
+        ok, _detail = self.fetch("patch:stage")
+
+        self.assertTrue(ok)
+        self.assertEqual(
+            (destination / "presets" / "dawn.json").read_bytes(),
+            b"host authored",
+        )
+        self.assertFalse((destination / "stale.txt").exists())
+
+    def test_file_patch_fetch_does_not_transfer_source_presets(self):
+        write_patch(self.source, b"new")
+        write_file(self.source / "presets" / "source-only.json", b"do not fetch")
+
+        ok, _detail = self.fetch("patch:stage")
+
+        self.assertTrue(ok)
+        destination = self.patches / "stage"
+        self.assertEqual((destination / "main.bin").read_bytes(), b"new")
+        self.assertFalse((destination / "presets").exists())
+
+    def test_patch_fetch_still_refuses_symlinks_inside_presets(self):
+        destination = self.patches / "stage"
+        write_patch(destination, b"old")
+        outside = self.root / "outside-preset.json"
+        outside.write_bytes(b"outside")
+        (destination / "presets").mkdir()
+        (destination / "presets" / "linked.json").symlink_to(outside)
+        write_patch(self.source, b"new")
+
+        ok, _detail = self.fetch("patch:stage")
+
+        self.assertFalse(ok)
+        self.assertEqual((destination / "main.bin").read_bytes(), b"old")
+        self.assertEqual(outside.read_bytes(), b"outside")
+
     def test_invalid_fetched_patch_leaves_current_bytes_intact(self):
         destination = self.patches / "stage"
         write_patch(destination, b"old")

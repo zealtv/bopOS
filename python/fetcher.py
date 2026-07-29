@@ -91,10 +91,13 @@ def _prune(root, wanted):
         for name in files:
             path = os.path.join(directory, name)
             relative = os.path.normpath(os.path.relpath(path, root))
-            if relative not in wanted:
+            if relative not in wanted and not identity.is_host_only(relative):
                 os.remove(path)
         for name in dirs:
             path = os.path.join(directory, name)
+            relative = os.path.normpath(os.path.relpath(path, root))
+            if identity.is_host_only(relative):
+                continue
             try:
                 os.rmdir(path)
             except OSError:
@@ -170,7 +173,12 @@ def _file_fetch(uri, destination, cache_root=None):
         raise ValueError("file source is not a directory")
     files = []
     for directory, dirs, names in os.walk(source):
-        dirs[:] = [name for name in dirs if not name.startswith(".")]
+        dirs[:] = [
+            name for name in dirs
+            if not name.startswith(".")
+            and not identity.is_host_only(
+                os.path.relpath(os.path.join(directory, name), source))
+        ]
         for name in names:
             if name.startswith(".") or name.endswith(".part"):
                 continue
