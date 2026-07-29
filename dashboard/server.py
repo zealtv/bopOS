@@ -182,7 +182,9 @@ class Dashboard:
                     if current_show else show_model.empty_show(""))
         self.show_engine = ShowEngine(
             self.osc, self.broadcast,
-            event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500))
+            event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500),
+            resolve_targets=lambda targets: show_model.resolve_targets(
+                targets, self.state.data.get("groups", {}))[0])
         self.show_engine.show = self.show
         os.makedirs(self.assets_dir, exist_ok=True)
         os.makedirs(self.patches_dir, exist_ok=True)
@@ -286,6 +288,7 @@ class Dashboard:
             "names": show_model.list_shows(self.shows_dir),
             "current": self.state.data.get("current_show")}})
         await ws.send_json({"type": "show", "data": self.show})
+        await ws.send_json({"type": "show_warnings", "data": self.show_warnings()})
         await ws.send_json({"type": "show_playback", "data": self.show_engine.snapshot()})
         for device_uid, device in self.state.devices.items():
             if self.state.seat_for_uid(device_uid) and device.get("online"):
@@ -1015,12 +1018,14 @@ class Dashboard:
                 await self.ws_error(ws, error)
                 return
             await self.broadcast("state", self.state.public())
+            await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "rename_group":
             group, error = self.state.rename_group(data.get("id"), data.get("name", ""))
             if error:
                 await self.ws_error(ws, error)
                 return
             await self.broadcast("state", self.state.public())
+            await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "delete_group":
             group_id = self.state.clean_group_id(data.get("id"))
             affected = [seat for seat in self.state.seats.values()
@@ -1032,6 +1037,7 @@ class Dashboard:
             for seat in affected:
                 self.sync_seat_groups(seat)
             await self.broadcast("state", self.state.public())
+            await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "set_seat_groups":
             seat, error = self.state.set_seat_groups(data.get("id"), data.get("groups"))
             if error:
@@ -1280,6 +1286,7 @@ class Dashboard:
                 await self.broadcast("venue_rebind", self.state.last_venue_rebind)
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
+                await self.broadcast("show_warnings", self.show_warnings())
             else:
                 self.replay_current_assignments()
                 await self.ws_error(ws, "The venue could not be saved as current; no dashboard state changed.")
@@ -1381,7 +1388,8 @@ class Dashboard:
             await self.apply_show_mutation(
                 ws, show_model.add_message, data.get("step_uid"), data.get("message"))
         elif kind == "update_message":
-            patch = {key: data[key] for key in ("alias", "address", "args", "target")
+            patch = {key: data[key] for key in
+                     ("kind", "reference", "alias", "address", "args", "target")
                      if key in data}
             await self.apply_show_mutation(ws, show_model.update_message, data.get("uid"), patch)
         elif kind == "move_message":
@@ -1417,6 +1425,12 @@ class Dashboard:
         await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                        "current": name})
         await self.broadcast("show", self.show)
+        await self.broadcast("show_warnings", self.show_warnings())
+
+    def show_warnings(self):
+        """Derived, non-blocking authoring warnings for the loaded Show."""
+        return show_model.show_target_warnings(
+            self.show, self.state.data.get("groups", {}))
 
     async def apply_show_mutation(self, ws, mutate, *args):
         """Run one show_model edit op against the loaded show and persist it.
@@ -1446,6 +1460,7 @@ class Dashboard:
             self.show = new_show
             self.show_engine.show = new_show
             await self.broadcast("show", self.show)
+            await self.broadcast("show_warnings", self.show_warnings())
 
     async def undo_show(self, ws):
         """Restore the last persisted Show edit for every connected client."""
@@ -1462,6 +1477,7 @@ class Dashboard:
             self.show = previous
             self.show_engine.show = previous
             await self.broadcast("show", self.show)
+            await self.broadcast("show_warnings", self.show_warnings())
 
     async def revoke_online(self, uid, ws, action):
         """Make an online physical node acknowledge id=-1 before mutation."""

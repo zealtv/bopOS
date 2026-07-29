@@ -4,6 +4,7 @@
 
   let shows = {names: [], current: null};
   let show = {schema: 1, name: "", items: []};
+  let showWarnings = [];
   let playback = {steps: {}};
   let playbackAt = performance.now();
   let focus = {kind: null, uid: null};
@@ -222,6 +223,7 @@
       manifest: manifestFromStagedPatch(),
       seats: seats().map(seat => ({id: seat.id, name: seat.name, groups: seat.groups || []})),
       groups: groups().map(group => ({id: group.id, name: group.name})),
+      notices: state.notices || [],
     });
   }
 
@@ -231,18 +233,47 @@
     return typeof target === "string" && target ? [target] : ["all"];
   }
 
-  function terseTargets(message) {
-    const list = targetList(message);
-    return list.includes("all") ? "all" : list.join("+");
+  function targetLabel(target) {
+    return String(target).startsWith("group:") ? String(target).slice(6) : String(target);
   }
 
-  function toggledTargets(message, selector) {
+  function terseTargets(message) {
+    const list = targetList(message);
+    return list.includes("all") ? "all" : list.map(targetLabel).join("+");
+  }
+
+  function toggledTargets(message, selector, aliases = []) {
     if (selector === "all") return ["all"];
     const current = targetList(message).filter(entry => entry !== "all");
-    const next = current.includes(selector)
-      ? current.filter(entry => entry !== selector)
+    const equivalents = [selector, ...aliases].filter(Boolean);
+    const on = equivalents.some(entry => current.includes(entry));
+    const withoutEquivalent = current.filter(entry => !equivalents.includes(entry));
+    const next = on
+      ? withoutEquivalent
       : [...current, selector];
     return next.length ? next : ["all"];
+  }
+
+  function namedTargetWarnings(message) {
+    const catalog = groups();
+    return targetList(message).flatMap(target => {
+      if (!target.startsWith("group:")) return [];
+      const name = target.slice(6);
+      const matches = catalog.filter(group => group.name === name);
+      if (!matches.length) return [`Group "${name}" does not exist in this venue.`];
+      if (matches.length > 1) return [`Group "${name}" is ambiguous in this venue.`];
+      return [];
+    });
+  }
+
+  function wireTargets(message) {
+    const catalog = groups();
+    const resolved = targetList(message).flatMap(target => {
+      if (!target.startsWith("group:")) return [target];
+      const matches = catalog.filter(group => group.name === target.slice(6));
+      return matches.length === 1 ? [`g${matches[0].id}`] : [];
+    });
+    return resolved.length ? resolved.join("+") : "(no resolved target)";
   }
 
   function renderTargetPicker(message, disabled) {
@@ -250,9 +281,10 @@
     const isAll = selected.includes("all");
     const off = disabled ? " disabled" : "";
     const groupChips = groups().map((group, index) => {
-      const value = `g${group.id}`;
-      const on = !isAll && selected.includes(value);
-      return `<button type="button" class="show-target-chip show-target-group slot-${index % 4}${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" aria-pressed="${on}"${off}><span class="show-target-swatch" aria-hidden="true"></span>${escapeHtml(group.name || `Group ${group.id}`)}<small>g${escapeHtml(group.id)}</small></button>`;
+      const value = `group:${group.name}`;
+      const legacy = `g${group.id}`;
+      const on = !isAll && (selected.includes(value) || selected.includes(legacy));
+      return `<button type="button" class="show-target-chip show-target-group slot-${index % 4}${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" data-target-legacy="${escapeHtml(legacy)}" aria-pressed="${on}"${off}><span class="show-target-swatch" aria-hidden="true"></span>${escapeHtml(group.name)}<small>g${escapeHtml(group.id)}</small></button>`;
     }).join("");
     const seatChips = seats().map(seat => {
       const value = String(seat.id);
@@ -261,8 +293,10 @@
     }).join("");
     const summary = isAll
       ? '<span class="dim">every Seat</span>'
-      : selected.map(entry => `<button type="button" class="show-target-chip show-target-selected" data-target-remove="${escapeHtml(entry)}" title="Remove ${escapeHtml(entry)}"${off}>${escapeHtml(entry)}<span aria-hidden="true"> ×</span></button>`).join("");
+      : selected.map(entry => `<button type="button" class="show-target-chip show-target-selected" data-target-remove="${escapeHtml(entry)}" title="Remove ${escapeHtml(targetLabel(entry))}"${off}>${escapeHtml(targetLabel(entry))}<span aria-hidden="true"> ×</span></button>`).join("");
     const open = targetDisclosure.uid === message.uid && targetDisclosure.open ? " open" : "";
+    const warnings = namedTargetWarnings(message)
+      .map(warning => `<p class="show-target-warning">${escapeHtml(warning)}</p>`).join("");
     return `<details class="show-inspector-section show-target-picker${disabled ? " show-disabled-field" : ""}" data-target-disclosure="${escapeHtml(message.uid)}"${open}>
       <summary><span>Target</span><output class="show-target-terse">${escapeHtml(terseTargets(message))}</output></summary>
       <div class="show-target-body">
@@ -272,6 +306,7 @@
           ${groupChips}
         </div>
         ${seatChips ? `<div class="show-target-chips show-target-roster">${seatChips}</div>` : ""}
+        ${warnings}
       </div>
     </details>`;
   }
@@ -299,7 +334,7 @@
 
   function wirePreview(message) {
     const args = (message.args || []).map(arg => `${arg.type}:${String(arg.value)}`).join(", ");
-    return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${terseTargets(message)}`;
+    return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${wireTargets(message)}`;
   }
 
   function friendlyShowError() {
@@ -520,7 +555,12 @@
   function renderLoadedShow() {
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
-    root.innerHTML = `${renderTransport()}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
+    const notices = (currentInstallation().notices || []).map(message => ({message}));
+    const warnings = [...notices, ...showWarnings];
+    const warningPanel = warnings.length
+      ? `<div class="show-warning-list" role="status">${warnings.map(warning =>
+          `<p>${escapeHtml(warning.message || warning)}</p>`).join("")}</div>` : "";
+    root.innerHTML = `${renderTransport()}${warningPanel}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
       <div class="show-list-shell">
         ${renderEditBar()}
         <div class="show-rows-box" style="height:${showRowsHeight}px">
@@ -877,9 +917,11 @@
 
   function copyMessage(message) {
     clipboard = {
+      kind: message.kind || "osc",
       alias: message.alias, address: message.address,
       args: structuredClone(message.args || []),
       target: structuredClone(targetList(message)),
+      ...(message.reference ? {reference: structuredClone(message.reference)} : {}),
     };
     render();
   }
@@ -1161,23 +1203,26 @@
       const identity = declaration?.identity || "gain";
       const type = declarationWireType(declaration);
       const value = declaration?.default ?? (type === "s" ? "" : 0);
-      updateMessage(message.uid, {address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
+      updateMessage(message.uid, {kind: "osc", reference: null,
+        address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
     } else if (mode === "event") {
       const declaration = manifest.events[0];
       const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
       const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
       updateMessage(message.uid, {
+        kind: "osc", reference: null,
         address: `/e/${declaration?.identity || ""}`,
         args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
         target: targetList(message),
       });
     } else if (mode === "point") {
-      updateMessage(message.uid, {address: "/pt", args: [
+      updateMessage(message.uid, {kind: "osc", reference: null, address: "/pt", args: [
         {type: "i", value: 0}, {type: "f", value: 0}, {type: "f", value: 0},
         {type: "f", value: 1}, {type: "i", value: 1},
       ], target: targetList(message)});
     } else {
-      updateMessage(message.uid, {address: "/raw", args: message.args || [], target: targetList(message)});
+      updateMessage(message.uid, {kind: "osc", reference: null,
+        address: "/raw", args: message.args || [], target: targetList(message)});
     }
   }
 
@@ -1397,7 +1442,8 @@
       }
       const toggle = event.target.closest("[data-target-toggle]");
       if (toggle) {
-        updateMessage(message.uid, {target: toggledTargets(message, toggle.dataset.targetToggle)});
+        updateMessage(message.uid, {target: toggledTargets(
+          message, toggle.dataset.targetToggle, [toggle.dataset.targetLegacy])});
       }
       const removal = event.target.closest("[data-target-remove]");
       if (removal) {
@@ -1529,6 +1575,10 @@
         ? (show.items || []).some(item => item.kind === "divider" && item.uid === focus.uid)
         : (show.items || []).some(item => item.kind === "step" && (item.messages || []).some(message => message.uid === focus.uid));
     if (!validFocus) focus = {kind: null, uid: null};
+    render();
+  });
+  ws.on("show_warnings", data => {
+    showWarnings = Array.isArray(data) ? data : [];
     render();
   });
   ws.on("show_playback", data => {

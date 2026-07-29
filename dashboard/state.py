@@ -114,16 +114,20 @@ class InstallationState:
                      "params_patch": None,
                      "current_show": None,
                      "listener": None,
+                     # Runtime-only operator notices. Adoption messages live
+                     # for this dashboard session and are never persisted.
+                     "notices": [],
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
         self._load_invalid = False
         self._registry_migrated = False
+        self._group_names_migrated = False
         self.last_venue_rebind = {"rebound": [], "waiting": []}
         self._load()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
-        changed = self._registry_migrated
+        changed = self._registry_migrated or self._group_names_migrated
         if (not self._load_invalid and not self.data["seats"] and devices_file
                 and os.path.exists(devices_file)):
             self._import_seed(devices_file)
@@ -157,7 +161,9 @@ class InstallationState:
             # migrated or partially honoured.
             if (isinstance(loaded, dict) and loaded.get("schema") == SCHEMA
                     and isinstance(loaded.get("seats"), dict)):
-                groups = self.clean_groups(loaded.get("groups", {}))
+                adopted_groups, adoptions = self.adopt_group_names(
+                    loaded.get("groups", {}))
+                groups = self.clean_groups(adopted_groups)
                 next_group_id = self.clean_next_group_id(
                     loaded.get("next_group_id"), groups,
                     missing="next_group_id" not in loaded)
@@ -193,6 +199,11 @@ class InstallationState:
                     self.data["listener"] = listener
                 self.data["seats"] = rebuilt
                 self.data["groups"] = groups
+                if adoptions:
+                    self._group_names_migrated = True
+                    self.data["notices"].append(
+                        self.group_name_adoption_notice(
+                            self.data["name"], adoptions))
                 self.data["next_group_id"] = next_group_id
                 self._registry_migrated = loaded.get("device_registry") != registry
                 self.data["device_registry"] = registry
@@ -506,20 +517,90 @@ class InstallationState:
         name = value.get("name", "")
         if not isinstance(name, str):
             return None
-        return {"id": group_id, "name": name.strip()[:48]}
+        name = name.strip()[:48]
+        if not name:
+            return None
+        return {"id": group_id, "name": name}
 
     @classmethod
     def clean_groups(cls, value):
         if not isinstance(value, dict):
             return None
-        rebuilt = {}
+        rebuilt, names = {}, set()
         for key, raw in value.items():
             group = cls.clean_group(raw)
             if (group is None or str(group["id"]) != str(key)
-                    or str(group["id"]) in rebuilt):
+                    or str(group["id"]) in rebuilt or group["name"] in names):
                 return None
             rebuilt[str(group["id"])] = group
+            names.add(group["name"])
         return dict(sorted(rebuilt.items(), key=lambda item: int(item[0])))
+
+    @staticmethod
+    def _unique_group_name(base, unavailable):
+        """Return a <=48-char deterministic suffix variant not in unavailable."""
+        for suffix_number in range(2, MAX_GROUP_ID + 2):
+            suffix = f"-{suffix_number}"
+            candidate = base[:48 - len(suffix)] + suffix
+            if candidate not in unavailable:
+                return candidate
+        return None
+
+    @classmethod
+    def adopt_group_names(cls, value):
+        """Repair only the pre-invariant blank/duplicate group-name cases.
+
+        Existing first occurrences keep their spelling. Generated names avoid
+        every original non-blank name, so repairing an early duplicate cannot
+        steal a later group's already-unique name.
+        """
+        if not isinstance(value, dict):
+            return value, []
+        ordered = []
+        for key, raw in value.items():
+            if not isinstance(raw, dict):
+                return value, []
+            group_id = cls.clean_group_id(raw.get("id"))
+            name = raw.get("name", "")
+            if (group_id is None or str(group_id) != str(key)
+                    or not isinstance(name, str)):
+                return value, []
+            ordered.append((group_id, key, raw, name.strip()[:48]))
+        ordered.sort(key=lambda item: item[0])
+        reserved = {name for _group_id, _key, _raw, name in ordered if name}
+        used, rebuilt, changes = set(), {}, []
+        for group_id, key, raw, original in ordered:
+            name = original or f"group-{group_id}"
+            if not original or name in used:
+                unavailable = reserved | used
+                if name in unavailable:
+                    name = cls._unique_group_name(name, unavailable)
+                if name is None:
+                    return value, []
+            used.add(name)
+            group = dict(raw)
+            group["name"] = name
+            rebuilt[key] = group
+            if name != original:
+                changes.append({"id": group_id, "from": original, "to": name})
+        return rebuilt, changes
+
+    @staticmethod
+    def group_name_adoption_notice(venue_name, changes):
+        renames = ", ".join(
+            f'g{change["id"]} '
+            f'{change["from"] if change["from"] else "(blank)"} → {change["to"]}'
+            for change in changes)
+        return (
+            f'Venue "{venue_name}" group names were repaired for portable Shows: '
+            f"{renames}."
+        )
+
+    def group_name_available(self, name, except_id=None):
+        return all(
+            group["name"] != name or group["id"] == except_id
+            for group in self.data.get("groups", {}).values()
+        )
 
     @staticmethod
     def clean_next_group_id(value, groups, missing=False):
@@ -558,7 +639,9 @@ class InstallationState:
         """Create a never-reused canonical group ID and persist its allocator."""
         cleaned = self.clean_group({"id": 0, "name": name})
         if cleaned is None:
-            return None, "Group names must be text."
+            return None, "Group names must be non-empty text."
+        if not self.group_name_available(cleaned["name"]):
+            return None, "Group names must be unique within the venue."
         group_id = self.clean_next_group_id(
             self.data.get("next_group_id"), self.data.get("groups", {}))
         if group_id is None or group_id > MAX_GROUP_ID:
@@ -583,9 +666,11 @@ class InstallationState:
         candidate = self.clean_group({"id": group_id, "name": name})
         key = str(group_id)
         if candidate is None:
-            return None, "Group names must be text."
+            return None, "Group names must be non-empty text."
         if key not in self.data.get("groups", {}):
             return None, "Group no longer exists."
+        if not self.group_name_available(candidate["name"], except_id=group_id):
+            return None, "Group names must be unique within the venue."
         previous = dict(self.data["groups"][key])
         self.data["groups"][key] = candidate
         try:
@@ -998,7 +1083,9 @@ class InstallationState:
         if (not isinstance(loaded, dict) or loaded.get("schema") != SCHEMA
                 or not isinstance(loaded.get("seats"), dict)):
             return None, None
-        groups = self.clean_groups(loaded.get("groups", {}))
+        adopted_groups, adoptions = self.adopt_group_names(
+            loaded.get("groups", {}))
+        groups = self.clean_groups(adopted_groups)
         next_group_id = self.clean_next_group_id(
             loaded.get("next_group_id"), groups,
             missing="next_group_id" not in loaded)
@@ -1008,6 +1095,21 @@ class InstallationState:
         loaded = dict(loaded)
         loaded["groups"] = groups
         loaded["next_group_id"] = next_group_id
+        if adoptions:
+            persisted = dict(loaded)
+            temporary = path + ".tmp"
+            try:
+                with open(temporary, "w", encoding="utf-8") as target:
+                    json.dump(persisted, target, indent=2, sort_keys=True)
+                    target.write("\n")
+                os.replace(temporary, path)
+            except OSError:
+                try:
+                    os.remove(temporary)
+                except OSError:
+                    pass
+                return None, None
+            loaded["_group_name_adoptions"] = adoptions
         return loaded, rebuilt
 
     def load_venue(self, name, prepared=None):
@@ -1068,6 +1170,10 @@ class InstallationState:
                 self.data[key] = value
             self.last_venue_rebind = previous_rebind
             return False
+        adoptions = loaded.get("_group_name_adoptions", [])
+        if adoptions:
+            self.data["notices"].append(
+                self.group_name_adoption_notice(name, adoptions))
         return True
 
     async def close(self):

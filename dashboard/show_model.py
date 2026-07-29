@@ -27,6 +27,11 @@ import sys
 SCHEMA = 1
 UID_RE = re.compile(r"[0-9a-f]{8}")
 TARGET_RE = re.compile(r"all|[0-9]+|g[0-9]+")
+NAMED_GROUP_PREFIX = "group:"
+PATCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+CONTENT_FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+SCHEMA_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
+MESSAGE_KINDS = frozenset(("osc", "reference"))
 THEN_ACTION_TYPES = frozenset((
     "stop", "play_again", "next_step", "previous_step",
     "any_in_section", "other_in_section", "goto",
@@ -68,7 +73,14 @@ def clean_target(value):
         return None
     selectors = []
     for raw in value:
-        if not isinstance(raw, str) or not TARGET_RE.fullmatch(raw):
+        if not isinstance(raw, str):
+            return None
+        if raw.startswith(NAMED_GROUP_PREFIX):
+            name = raw[len(NAMED_GROUP_PREFIX):]
+            if not name or name != name.strip() or len(name) > 48:
+                return None
+            raw = NAMED_GROUP_PREFIX + name
+        elif not TARGET_RE.fullmatch(raw):
             return None
         if raw not in selectors:
             selectors.append(raw)
@@ -95,6 +107,35 @@ def clean_arg(value):
     return {"type": kind, "value": number}
 
 
+def clean_reference(value):
+    """Validate one authored content reference carried by a Show message.
+
+    The payload is deliberately content-generic: this foundation knows that
+    composition content is a patch identified by name + fingerprint, but not
+    what operation will consume it. The preset-message stitch adds the
+    optional schema applicability fingerprint without changing the envelope.
+    """
+    if not isinstance(value, dict):
+        return None
+    content = value.get("content")
+    if not isinstance(content, dict):
+        return None
+    name = content.get("name")
+    fingerprint = content.get("fingerprint")
+    if (not isinstance(name, str) or PATCH_NAME_RE.fullmatch(name) is None
+            or not isinstance(fingerprint, str)
+            or CONTENT_FINGERPRINT_RE.fullmatch(fingerprint) is None):
+        return None
+    cleaned = {"content": {"name": name, "fingerprint": fingerprint}}
+    schema = value.get("schema")
+    if schema is not None:
+        if (not isinstance(schema, str)
+                or SCHEMA_FINGERPRINT_RE.fullmatch(schema) is None):
+            return None
+        cleaned["schema"] = schema
+    return cleaned
+
+
 def clean_message(value):
     if not isinstance(value, dict):
         return None
@@ -119,7 +160,101 @@ def clean_message(value):
     target = clean_target(value.get("target"))
     if target is None:
         return None
-    return {"uid": uid, "alias": alias, "address": address, "args": args, "target": target}
+    kind = value.get("kind", "osc")
+    if kind not in MESSAGE_KINDS:
+        return None
+    reference = value.get("reference")
+    if kind == "reference":
+        reference = clean_reference(reference)
+        if reference is None:
+            return None
+    elif reference is not None:
+        return None
+    cleaned = {"kind": kind, "uid": uid, "alias": alias, "address": address,
+               "args": args, "target": target}
+    if reference is not None:
+        cleaned["reference"] = reference
+    return cleaned
+
+
+def _group_entries(groups):
+    if isinstance(groups, dict):
+        values = groups.values()
+    elif isinstance(groups, (list, tuple)):
+        values = groups
+    else:
+        return []
+    entries = []
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        group_id, name = value.get("id"), value.get("name")
+        if (isinstance(group_id, bool) or not isinstance(group_id, int)
+                or group_id < 0 or not isinstance(name, str) or not name):
+            continue
+        entries.append({"id": group_id, "name": name})
+    return entries
+
+
+def resolve_targets(value, groups):
+    """Resolve portable group names to the current venue's wire selectors.
+
+    Missing or ambiguous names are omitted from the result and returned as
+    non-blocking warnings. Other valid selectors pass through unchanged.
+    """
+    targets = clean_target(value)
+    if targets is None:
+        return [], [{"code": "invalid_target", "target": value,
+                     "message": "The message has an invalid target."}]
+    if targets == ["all"]:
+        return targets, []
+    entries = _group_entries(groups)
+    resolved, warnings = [], []
+    for target in targets:
+        if not target.startswith(NAMED_GROUP_PREFIX):
+            if target not in resolved:
+                resolved.append(target)
+            continue
+        name = target[len(NAMED_GROUP_PREFIX):]
+        matches = sorted(
+            (entry for entry in entries if entry["name"] == name),
+            key=lambda entry: entry["id"],
+        )
+        if not matches:
+            warnings.append({
+                "code": "missing_group",
+                "target": target,
+                "message": f'Group "{name}" does not exist in this venue.',
+            })
+            continue
+        if len(matches) > 1:
+            warnings.append({
+                "code": "ambiguous_group",
+                "target": target,
+                "message": f'Group "{name}" is ambiguous in this venue.',
+            })
+            continue
+        selector = f'g{matches[0]["id"]}'
+        if selector not in resolved:
+            resolved.append(selector)
+    return resolved, warnings
+
+
+def show_target_warnings(show, groups):
+    """Return every derived portable-target warning in document order."""
+    warnings = []
+    for item in show.get("items", []) if isinstance(show, dict) else []:
+        if not isinstance(item, dict) or item.get("kind") != "step":
+            continue
+        for message in item.get("messages", []):
+            _resolved, message_warnings = resolve_targets(
+                message.get("target"), groups)
+            warnings.extend({
+                **warning,
+                "step_uid": item.get("uid"),
+                "message_uid": message.get("uid"),
+            } for warning in message_warnings)
+    return warnings
 
 
 def clean_then_action(value):
@@ -532,6 +667,18 @@ def update_message(show, uid, patch):
         if target is None:
             return show, None, "invalid target."
         candidate["target"] = target
+    if "kind" in patch or "reference" in patch:
+        if "kind" in patch:
+            candidate["kind"] = patch["kind"]
+        if "reference" in patch:
+            if patch["reference"] is None:
+                candidate.pop("reference", None)
+            else:
+                candidate["reference"] = patch["reference"]
+        cleaned = clean_message(candidate)
+        if cleaned is None:
+            return show, None, "invalid message reference."
+        candidate = cleaned
     step = dict(items[step_index])
     messages = list(step["messages"])
     messages[message_index] = candidate

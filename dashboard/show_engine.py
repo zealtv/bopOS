@@ -12,10 +12,10 @@ Message emission always goes through existing `OSCBridge` methods, keyed by
 address kind:
   - `/e/<identity>` -> `fire_event` for each target with the current
                        installation-wide event lead.
-  - `/p/<name>` -> `set_param(selector, name, value)` once per selector in
-                   the message's `target` list -- each entry is already the
-                   literal selector (design note sec 2 + 5c amendment),
-                   never re-derived.
+  - `/p/<name>` -> `set_param(selector, name, value)` once per resolved
+                   selector. Seat/all/legacy group selectors pass through;
+                   portable group names resolve through the dashboard-owned
+                   callback before the wire sees them.
   - anything else (including `/pt`) -> `send(address, args)` verbatim. A show
     message's `args` already carry the exact wire-order OSC arguments for
     its address (this is how `/pt`'s selector-free contract plane -- and any
@@ -46,10 +46,14 @@ MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
 
 class ShowEngine:
-    def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None):
+    def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None,
+                 resolve_targets=None):
         self.bridge = bridge
         self.broadcast = broadcast  # async callable(message_type, data)
         self.event_lead_ms = event_lead_ms or (lambda: 500)
+        # Venue identity stays outside this transport engine. The dashboard
+        # injects portable group-name -> wire selector resolution.
+        self.resolve_targets = resolve_targets or (lambda targets: targets)
         if seed is None:
             # No existing mechanism threads a run-context seed into the
             # dashboard process (python/runcontext.py's BOPOS_SEED is
@@ -141,9 +145,21 @@ class ShowEngine:
     def _send_message(self, message):
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
+        if message.get("kind") == "reference":
+            # A content reference is not raw OSC. The consumer callback/branch
+            # arrives with the concrete reference family (presets in 09/2);
+            # until then, fail closed instead of leaking a pseudo-address onto
+            # the network.
+            log.warning("show engine: unhandled content reference %s; skipped",
+                        address)
+            return
+        selectors = self.resolve_targets(target)
+        if isinstance(selectors, tuple):
+            selectors = selectors[0]
+        if not isinstance(selectors, list):
+            selectors = [selectors] if selectors is not None else []
         if address.startswith("/e/") and len(address) > 3:
             identity = address[len("/e/"):]
-            selectors = target if isinstance(target, list) else [target]
             for selector in selectors:
                 self.bridge.fire_event(
                     selector, identity, args, lead_ms=self.event_lead_ms())
@@ -154,7 +170,6 @@ class ShowEngine:
             # receives the write twice -- harmless, params are idempotent
             # full-state writes, so no set-algebra here. The model already
             # collapses exact duplicates and lets "all" subsume the rest.
-            selectors = target if isinstance(target, list) else [target]
             for selector in selectors:
                 self.bridge.set_param(selector, name, args if args else [0])
         else:

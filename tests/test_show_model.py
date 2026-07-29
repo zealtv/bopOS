@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Living tests for the Show document model and tolerant persistence."""
 
+import asyncio
 import json
 import sys
 import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.dont_write_bytecode = True
@@ -15,6 +17,9 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "dashboard"))
 
 import show_model  # noqa: E402
+from server import Dashboard  # noqa: E402
+from show_engine import ShowEngine  # noqa: E402
+from state import InstallationState  # noqa: E402
 
 
 def message(uid="b0000001", target="all", **extra):
@@ -170,6 +175,228 @@ class ShowSchemaTests(unittest.TestCase):
             ["a0000001", "a0000002"],
         )
         self.assertEqual(duplicate["messages"][0]["uid"], "b0000002")
+
+    def test_reference_payload_survives_clean_duplicate_move_and_persistence(self):
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+            "schema": "sha256:" + "b" * 64,
+        }
+        original = show_model.clean_show(document([
+            step("a0000001", [
+                message("b0000001", kind="reference", reference=reference),
+            ]),
+            step("a0000002"),
+        ]))
+        self.assertEqual(
+            original["items"][0]["messages"][0]["reference"],
+            reference,
+        )
+
+        minted = iter(("a0000003", "b0000002"))
+        with mock.patch.object(
+            show_model, "mint_uid", side_effect=lambda _existing: next(minted)
+        ):
+            duplicated, clone, error = show_model.duplicate_item(
+                original, "a0000001"
+            )
+        self.assertIsNone(error)
+        self.assertEqual(clone["messages"][0]["reference"], reference)
+        moved, result, error = show_model.move_message(
+            duplicated, "b0000001", "a0000002"
+        )
+        self.assertIsNone(error)
+        self.assertEqual(result["reference"], reference)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            show_model.save_show(temporary, moved)
+            loaded = show_model.load_show(temporary, moved["name"])
+        moved_message = loaded["items"][1]["messages"][0]
+        self.assertEqual(moved_message["kind"], "reference")
+        self.assertEqual(moved_message["reference"], reference)
+
+    def test_reference_payload_is_explicit_and_strict(self):
+        valid_reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+        }
+        self.assertIsNotNone(show_model.clean_message(
+            message(kind="reference", reference=valid_reference)
+        ))
+        for bad in (
+            message(kind="reference"),
+            message(kind="osc", reference=valid_reference),
+            message(kind="reference", reference={
+                "content": {"name": "../alpha", "fingerprint": "a" * 64},
+            }),
+            message(kind="reference", reference={
+                "content": {"name": "alpha", "fingerprint": "short"},
+            }),
+            message(kind="reference", reference={
+                "content": {"name": "alpha", "fingerprint": "a" * 64},
+                "schema": "bad",
+            }),
+        ):
+            with self.subTest(bad=bad):
+                self.assertIsNone(show_model.clean_message(bad))
+
+    def test_named_group_targets_resolve_with_non_blocking_warnings(self):
+        groups = [
+            {"id": 7, "name": "Front"},
+            {"id": 9, "name": "Twin"},
+            {"id": 10, "name": "Twin"},
+        ]
+        resolved, warnings = show_model.resolve_targets(
+            ["3", "group:Front", "group:Missing", "group:Twin"], groups
+        )
+        self.assertEqual(resolved, ["3", "g7"])
+        self.assertEqual(
+            [warning["code"] for warning in warnings],
+            ["missing_group", "ambiguous_group"],
+        )
+
+    def test_playback_uses_dashboard_resolved_group_wire_selector(self):
+        bridge = mock.Mock()
+        groups = {"7": {"id": 7, "name": "Front"}}
+        engine = ShowEngine(
+            bridge,
+            mock.AsyncMock(),
+            resolve_targets=lambda targets: show_model.resolve_targets(
+                targets, groups)[0],
+        )
+        engine._send_message(show_model.clean_message(
+            message(target=["group:Front"])
+        ))
+        bridge.set_param.assert_called_once_with("g7", "gain", [0.5])
+
+    def test_unhandled_reference_fails_closed_instead_of_sending_raw_osc(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock())
+        engine._send_message(show_model.clean_message(message(
+            kind="reference",
+            address="/content/example",
+            reference={
+                "content": {"name": "alpha", "fingerprint": "a" * 64},
+            },
+        )))
+        bridge.send.assert_not_called()
+        bridge.set_param.assert_not_called()
+
+
+class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reference_update_and_undo_restore_one_persisted_snapshot(self):
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+        }
+        original = show_model.clean_show(document([
+            step(messages=[message()]),
+        ]))
+        dashboard = object.__new__(Dashboard)
+        dashboard.show_edit_lock = asyncio.Lock()
+        dashboard.show_undo = []
+        dashboard.state = SimpleNamespace(
+            data={"current_show": original["name"], "groups": {}}
+        )
+        dashboard.show = original
+        dashboard.show_engine = SimpleNamespace(show=original)
+        dashboard.broadcast = mock.AsyncMock()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            dashboard.shows_dir = temporary
+            show_model.save_show(temporary, original)
+            await dashboard.apply_show_mutation(
+                None, show_model.update_message, "b0000001",
+                {"kind": "reference", "reference": reference},
+            )
+            self.assertEqual(len(dashboard.show_undo), 1)
+            self.assertEqual(
+                dashboard.show["items"][0]["messages"][0]["reference"],
+                reference,
+            )
+            await dashboard.undo_show(None)
+            self.assertEqual(
+                dashboard.show["items"][0]["messages"][0]["kind"],
+                "osc",
+            )
+            self.assertNotIn(
+                "reference", dashboard.show["items"][0]["messages"][0]
+            )
+
+
+class GroupNameInvariantTests(unittest.TestCase):
+    @staticmethod
+    def state_document(groups, next_group_id=4):
+        return {
+            "schema": 1,
+            "name": "Legacy room",
+            "seats": {},
+            "groups": groups,
+            "next_group_id": next_group_id,
+            "device_registry": {},
+        }
+
+    def test_existing_blank_and_duplicate_names_are_repaired_once(self):
+        groups = {
+            "0": {"id": 0, "name": ""},
+            "1": {"id": 1, "name": "Front"},
+            "2": {"id": 2, "name": "Front"},
+            "3": {"id": 3, "name": "Front-2"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "installation.json"
+            path.write_text(json.dumps(self.state_document(groups)))
+            state = InstallationState(str(path))
+            self.assertEqual(
+                [group["name"] for group in state.data["groups"].values()],
+                ["group-0", "Front", "Front-3", "Front-2"],
+            )
+            self.assertIn("repaired for portable Shows", state.data["notices"][0])
+
+            reloaded = InstallationState(str(path))
+            self.assertEqual(reloaded.data["notices"], [])
+            self.assertEqual(
+                [group["name"] for group in reloaded.data["groups"].values()],
+                ["group-0", "Front", "Front-3", "Front-2"],
+            )
+
+    def test_create_and_rename_enforce_non_empty_unique_names(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(str(Path(temporary) / "installation.json"))
+            front, error = state.create_group("Front")
+            self.assertIsNone(error)
+            self.assertIsNone(state.create_group(" ")[0])
+            self.assertIn("non-empty", state.create_group(" ")[1])
+            self.assertIn("unique", state.create_group("Front")[1])
+            rear, error = state.create_group("Rear")
+            self.assertIsNone(error)
+            self.assertIn("unique", state.rename_group(rear["id"], "Front")[1])
+            renamed, error = state.rename_group(front["id"], " Front ")
+            self.assertIsNone(error)
+            self.assertEqual(renamed["name"], "Front")
+
+    def test_saved_venue_is_adopted_and_surfaces_the_renames_on_load(self):
+        legacy_groups = {
+            "4": {"id": 4, "name": ""},
+            "5": {"id": 5, "name": "Side"},
+            "6": {"id": 6, "name": "Side"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = InstallationState(str(root / "installation.json"))
+            venues = root / "installations"
+            venues.mkdir()
+            venue_path = venues / "legacy.json"
+            venue_path.write_text(json.dumps(
+                self.state_document(legacy_groups, next_group_id=7)
+            ))
+
+            loaded, seats = state.read_venue("legacy")
+            self.assertEqual(
+                [group["name"] for group in loaded["groups"].values()],
+                ["group-4", "Side", "Side-2"],
+            )
+            persisted = json.loads(venue_path.read_text())
+            self.assertEqual(persisted["groups"], loaded["groups"])
+            self.assertTrue(state.load_venue("legacy", (loaded, seats)))
+            self.assertIn("g4 (blank) → group-4", state.data["notices"][-1])
 
 
 class ShowPersistenceTests(unittest.TestCase):
