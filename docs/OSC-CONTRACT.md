@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.16** — base ratified 2026-07-07; latest revision 2026-07-28. The
+**Version 1.17** — base ratified 2026-07-07; latest revision 2026-07-29. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -824,6 +824,59 @@ A patch ships **`bopos.patch.json`** in its patch root:
   `event_lead_ms` is `0`. A zero-element event is a momentary named fire.
   Presets do not capture events.
 
+### 8.1 Presets (host-side, non-wire)
+
+Ratified 2026-07-29 (v1.17). **A preset is not a wire concept.** It is a
+stored, sparse map from qualified parameter identity to the `/p/<identity>`
+argument list that reproduces that parameter's state. Applying one is an
+ordinary dashboard-driven fan-out of the `/p/*` messages §3.3 already defines:
+no preset plane, no preset state on the node, no new engine term, and nothing
+a node has to learn. This section exists so host tooling — dashboard, editor,
+show model, patch tooling — agrees on one definition of the pieces the wire
+does not carry.
+
+- **Storage.** Presets live in a `presets/` subdirectory of the patch root,
+  one JSON file per preset, alongside `bopos.patch.json`. They are authored
+  content and travel with the patch through git and host-to-host copies; they
+  are **host-only** for distribution purposes (§9).
+- **What a preset captures.** Declared params only. Events are never captured
+  (§8, above). `master`, mute, spatial positions, and seat/device assignments
+  are site-layer state and are never preset material. A capture records
+  **intended dashboard state**, not observed node output — §14 rejects a
+  runtime query verb, and UDP, offline nodes, and engine-start windows all
+  make the two legitimately differ.
+- **The parameter-schema fingerprint.** A preset file carries a `schema`
+  field: a fast "is there drift at all" check whose authority is the
+  per-entry resolution against the current manifest. It hashes a deliberate
+  canonical projection of the patch manifest's declared params — **not** the
+  patch directory, so editing `main.pd` or adding a sample does not
+  invalidate a preset; only changing what is controllable does. The
+  projection is the list
+
+  ```
+  [{"identity": …, "kind": …, "min": …, "max": …, "options": [ordered labels]}, …]
+  ```
+
+  sorted ascending by qualified identity (byte order), with the five keys in
+  exactly that order, serialized as UTF-8 JSON with no insignificant
+  whitespace, hashed with SHA-256 and recorded as `sha256:<hex>`. `min` and
+  `max` are the **effective** values after §8's derivation (toggle `0`/`1`,
+  enum `0`…`n-1`), and `options` is the ordered label list for `kind: "enum"`;
+  each is JSON `null` where the kind has no such value. Two deliberate
+  choices: sorting by identity makes manifest reordering irrelevant by
+  construction, and hashing the **ordered enum labels** rather than their
+  count is required, because reordering `["dry","wet"]` preserves kind, count
+  and derived range while reversing the meaning of every stored index.
+- **Timed apply uses the existing grammar.** A preset applied with a duration
+  emits the **existing** §3.3 fade form — `<dest> <dur>`, with an optional
+  trailing `c:<n>` — for `float` and `int` entries. `toggle`, `enum`, `text`,
+  and generator (`lfo`, `loop`) entries are set full-state at t=0. There is no
+  preset wire form and no `morph`: kind-aware snapping is a host concern
+  (the wire stays kind-blind), and the messages that leave the dashboard are
+  indistinguishable from any other `/p/*` traffic. Interpolating generator
+  argument vectors was designed and deliberately deferred — see the v1.17
+  revision-history note.
+
 ## 9. Distribution and landing
 
 ```
@@ -855,6 +908,19 @@ joins the job.
   prune-to-manifest convergence semantics as an asset slot. A device patch is
   either git-managed or host-mirrored: fetch refuses with `err` when the target
   contains `.git`.
+- **`presets/` is a host-only patch subdirectory (v1.17).** A patch's
+  `presets/` directory (§8.1) is excluded from the distribution manifest, from
+  the patch content fingerprint, and from prune-to-manifest convergence, and
+  is **not served over the distribution HTTP surface** even to a hand-built
+  URL — alongside the existing dotfile, `.part` and symlink exclusions. The
+  rule lives with the file enumeration itself, so host and node compute the
+  identical patch identity and nothing drifts. Rationale: the fingerprint
+  covers every file in the patch directory, so counting presets would mean
+  **saving a preset restages the fleet patch, refetches it on every node, and
+  restarts every engine mid-sculpt** — while nodes have no use for the files,
+  because apply is dashboard-driven fan-out of ordinary `/p/*` messages.
+  Presets still travel with the patch through git and host-to-host copies;
+  they simply do not travel over the fetch path.
 - Fetching the active patch is allowed. The node stops its engine, converges
   the patch, restarts the engine, then replies. The dashboard must confirm-gate
   this disruptive operation; the node does not refuse it.
@@ -984,3 +1050,4 @@ reasoning.
 | 1.14 | 2026-07-28 | Additive targetable `/e/*` event plane (§3.2): patch-declared identities with 0–3 floats, framework-owned forward scheduling, selector-free/time-free engine fires, and exact `"0"` fire-on-arrival sentinel. Installation setting `cue_lead_ms` becomes `event_lead_ms` with load-only fallback. `/cue` remains unchanged for its separate retirement stitch. | thread `44-event-plane` |
 | 1.15 | 2026-07-28 | Hard-break retirement of the `/cue` plane and the manifest `cues` key. Zero-element `/e/*` events replace named fires in full; no compatibility alias, deprecation path, or show-document migration. | thread `44-event-plane` |
 | 1.16 | 2026-07-28 | Manifest event-element `labels` retired (§8): an event carries one label, its `name`; elements are numbered 0-based floats with optional `defaults`. Authoring surfaces stopped requiring a name per element. Stale `labels` keys are stripped on read, not rejected. | Bob, live session (thread `44-event-plane`) |
+| 1.17 | 2026-07-29 | Preset foundations, host-side and additive — **no wire form is added**. New §8.1 states that a preset is a sparse map from parameter identity to the `/p/*` argument list that reproduces it, applied as ordinary fan-out; defines the canonical parameter-schema fingerprint (`{identity, kind, min, max, options}` projection, sorted by identity, ordered enum labels, SHA-256); states that a capture holds declared params only, never events, never site-layer state, and records intended dashboard state rather than observed node output; and pins that a timed apply reuses the existing §3.3 fade form for `float`/`int` while every other kind sets full-state at t=0. §9 excludes `presets/` from the distribution manifest, the patch fingerprint, prune-to-manifest convergence, and the distribution HTTP surface, so saving a preset cannot restage the fleet patch. §3.2 and §3.3 are unchanged. **`morph` deferred, not overlooked:** an additive `morph <dur> [c:<n>] <spec…>` form interpolating generator argument vectors was designed, reviewed and ratified in outline, then dropped from v1 by Bob on 2026-07-29 because the workhorse case — sweeping scalars — is already the existing fade form, and the wire/engine risk served only generator interpolation. The settled design is parked in `feature-backlog/48-morph-interpolation`; nothing here forecloses it, since a preset entry already *is* the full-state argument list `morph` would consume. | `.loom/tied/1-preset-architecture-design/`; thread `41-preset-primitive` (`design-addendum.md`, `.loom/tied/3-addendum-review/review-2.md` §F1) |

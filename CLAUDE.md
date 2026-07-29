@@ -6,10 +6,13 @@ installations. This file is the orientation for any agent working here.
 ## Start here
 
 1. `README.md` — system overview, OSC port map, patch system.
-2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (**now v1.15**; the
+2. `docs/OSC-CONTRACT.md` — the **ratified** OSC contract (**now v1.17**; the
    version list below is historical through v1.11 — read §15 Revision history
    in the contract itself for the authoritative record, including the v1.14
-   additive `/e/*` event plane and the v1.15 hard-break `/cue` retirement.
+   additive `/e/*` event plane, the v1.15 hard-break `/cue` retirement, the
+   v1.16 event-element `labels` retirement, and the v1.17 host-side preset
+   foundations (§8.1 + the `presets/` distribution exclusion, no new wire
+   form).
    v1.11: 2026-07-07 base +
    the 2026-07-11 seam amendment, 2026-07-12 engine-boundary revision,
    2026-07-13 patch/asset distribution amendment, and the 2026-07-14
@@ -116,7 +119,8 @@ remain the authority for a particular piece of work.
 > the explicit `kind` field; `3-event-plane-wire` shipped `/e/*` and the `"0"`
 > fire-on-arrival sentinel as **contract v1.14** (commit `cbac939`); and
 > `4-cue-retirement` deleted `/cue` and the manifest `cues` key outright as
-> **contract v1.15** (commit `e8e998b`). The contract is now at **v1.15** —
+> **contract v1.15** (commit `e8e998b`), which is where the contract stood
+> at the end of that step —
 > `/cue` no longer exists anywhere in `python/`, `dashboard/`, `tools/` or the
 > patch manifests, and cue firing lives on the control panel's events section,
 > targetable at all / a group / one seat. **Step 4 is also complete and tied
@@ -152,14 +156,18 @@ remain the authority for a particular piece of work.
 >    is the `/p/<identity>` argument list, stored sparsely in
 >    `patches/<patch>/presets/<slug>.json`, applied as an ordinary fan-out.
 >    `presets/` is excluded from the distribution fingerprint (otherwise every
->    save restages the fleet patch); interpolation is **`morph <dur> <spec…>`**
->    — argument-vector interpolation preserving §3.3's one-slot model, not an
->    output crossfade; capture-as-step omits targets with no preset applied;
->    the applied-preset marker stores provenance with **derived** dirtiness
->    (R5). Contract delta is proposed **v1.17**. The live child is
->    `41-preset-primitive/2-proposal-review` — Bob placed a review stitch
->    ahead of implementation, so the six implementation stitches are a sketch
->    in proposal §11 and are deliberately **not** created yet.
+>    save restages the fleet patch); capture-as-step omits targets with no
+>    preset applied; the applied-preset marker stores provenance with
+>    **derived** dirtiness (R5). Two reviews followed
+>    (`.loom/tied/2-proposal-review/`, `.loom/tied/3-addendum-review/`); the
+>    addendum plus `review-2.md` are authoritative over the proposal where
+>    they differ. **Bob dropped `morph` from v1 (2026-07-29)** — a timed apply
+>    fades `float`/`int` entries with the existing §3.3 form and sets every
+>    other kind at t=0; the settled argument-vector design is parked in
+>    `feature-backlog/48-morph-interpolation`. The implementation stitches
+>    `04-contract-and-schema` … `10-venue-preset-retirement` exist and are
+>    served in lexical order; **`04` is tied — the contract is at v1.17**
+>    (§8.1 + the §9 `presets/` exclusion, no new wire form), so `05` is live.
 > 9. `44-event-plane/6-text-kind-control` — after 7, so it adopts the app-wide
 >    text treatment rather than competing with it.
 >
