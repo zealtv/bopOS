@@ -21,18 +21,20 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+
 import points
 import device_aliases
+import preset_application
+import preset_store
 import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from python.paramgen import ParamGrammarError, parse_message
 from state import (InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
-
-REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-if REPO_DIR not in sys.path:
-    sys.path.insert(0, REPO_DIR)
 from python import identity
 from python import asset_slots
 from python import manifest as patch_manifest
@@ -167,6 +169,7 @@ class Dashboard:
         self.host_version = host_checkout_shorthand()
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
         self.patches_dir = os.path.realpath(getattr(args, "patches_dir", os.path.join(REPO_DIR, "patches")))
+        self.preset_store = preset_store.PresetStore(self.patches_dir)
         self.shows_dir = show_model.shows_dir(self.state.path)
         current_show = self.state.data.get("current_show")
         self.show = (show_model.load_show(self.shows_dir, current_show)
@@ -302,7 +305,8 @@ class Dashboard:
             "set_device_patch", "clear_device_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
             "send_distribution", "sync_distribution", "drop_distribution",
-            "save_preset", "load_preset", "mute_all", "add_seat", "update_seat",
+            "save_preset", "load_preset", "apply_preset",
+            "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room", "set_points",
@@ -313,7 +317,7 @@ class Dashboard:
             "set_param", "set_live_param", "set_live_automation",
             "replay_live_params", "switch_patch",
             "set_fleet_patch", "set_device_patch", "clear_device_patch",
-            "revert_fleet_patch", "save_preset", "load_preset",
+            "revert_fleet_patch", "save_preset", "load_preset", "apply_preset",
             "set_room", "set_points", "set_point", "clear_point",
             "save_venue", "load_venue",
         }
@@ -380,6 +384,7 @@ class Dashboard:
             if declaration is None or cleaned is None or seats is None:
                 await self.ws_error(ws, "That live parameter or target is unavailable.")
                 return
+            cleaned = preset_application.canonicalize_value(declaration, cleaned)
             # Local name must not shadow the module-level `identity` import:
             # handle_ws also calls identity.valid_asset_slot() in the
             # drop_distribution branch, and a plain `identity =` here would make
@@ -408,6 +413,7 @@ class Dashboard:
                 await self.ws_error(ws, "Could not save the live parameter; no command was sent.")
                 return
             self.osc.set_param(selector, param_identity, cleaned)
+            self.refresh_preset_dirtiness(seats)
             await self.broadcast("state", self.state.public())
         elif kind == "set_live_automation":
             # The live counterpart of set_live_param: the control surface's
@@ -439,7 +445,11 @@ class Dashboard:
             except ParamGrammarError as error:
                 await self.ws_error(ws, f"That generator is not valid: {error}")
                 return
+            args = preset_application.canonicalize_args(declaration, args)
+            if args == ["stop"]:
+                self.store_stopped_automation(seats, declaration)
             self.osc.set_param(selector, declaration["identity"], args)
+            self.refresh_preset_dirtiness(seats)
             await self.broadcast("state", self.state.public())
         elif kind == "replay_live_params":
             scope = str(data.get("scope", ""))
@@ -861,6 +871,15 @@ class Dashboard:
                 await self.broadcast("device_update", device)
             self.osc.send_master()
             self.state.save_debounced()
+        elif kind == "apply_preset":
+            try:
+                await self.apply_preset(
+                    data.get("patch"), data.get("name"),
+                    data.get("scope"), data.get("id"),
+                    duration_ms=data.get("duration_ms"),
+                    curve=data.get("curve"))
+            except preset_store.PresetStoreError as error:
+                await self.ws_error(ws, str(error))
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -1520,12 +1539,265 @@ class Dashboard:
         return declarations
 
     def replay_live_params_for_seat(self, seat):
-        """Replay one Seat snapshot through the staged parameter schema."""
-        for declaration in self.live_control_declarations():
+        """Replay active automation, otherwise durable state, for one Seat."""
+        patch_name = self.effective_patch_for_seat(seat)
+        for declaration in self.live_control_declarations(patch_name):
             identity = declaration["identity"]
-            if identity in seat.get("params", {}):
-                self.osc.set_param(int(seat["id"]), identity,
-                                   seat["params"][identity])
+            args = preset_application.replay_args(
+                seat, declaration, self.osc.automation, time.time())
+            if args is not None:
+                # Replay is idempotent and must not replace sent_at: refreshing
+                # that timestamp would resurrect an almost-complete fade.
+                self.osc.send(f"/{int(seat['id'])}/p/{identity}", args)
+
+    def effective_patch_for_seat(self, seat):
+        """Return a seat's device pin, otherwise the staged fleet patch."""
+        override = self.state.device_patch_for(seat.get("bound"))
+        if override:
+            return override["name"]
+        fleet = self.state.data.get("fleet_patch")
+        if isinstance(fleet, dict) and isinstance(fleet.get("name"), str):
+            return fleet["name"]
+        return self.state.data.get("params_patch")
+
+    def store_stopped_automation(self, seats, declaration, now=None):
+        """Persist the dashboard's held-value estimate before sending Stop.
+
+        Free LFO and sh/drift values are estimates: device-local phase is
+        intentionally unknowable. Stop remains the wire command so divergent
+        devices freeze in place instead of jumping to this dashboard estimate.
+        """
+        now = time.time() if now is None else float(now)
+        identity = declaration["identity"]
+        changed = False
+        for seat in seats:
+            entry = self.osc.automation.get(str(seat["id"]), {}).get(identity)
+            value = preset_application.estimate_automation(
+                identity, declaration, entry, now)
+            if value is None:
+                continue
+            seat.setdefault("params", {})[identity] = value
+            for device in self.state.devices.values():
+                if (device.get("uid") == seat.get("bound")
+                        or (device.get("virtual")
+                            and str(device.get("seat_id")) == str(seat["id"]))):
+                    device.setdefault("params", {})[identity] = value
+            changed = True
+        if changed:
+            self.state.save()
+        return changed
+
+    def capture_preset(self, patch, scope, target_id, now=None):
+        """Capture intended dashboard state for a concrete preset target."""
+        seats, _selector = self.live_param_target(scope, target_id)
+        if seats is None:
+            raise preset_store.PresetStoreError("preset target is unavailable")
+        declarations = self.live_control_declarations(patch)
+        if not declarations:
+            raise preset_store.PresetStoreError("preset patch manifest is unavailable")
+        captured = preset_application.capture_params(
+            seats, declarations, self.osc.automation,
+            time.time() if now is None else float(now))
+        captured["target"] = preset_application.capture_target(
+            seats, self.state.seats.values(), self.state.data.get("groups", {}))
+        return captured
+
+    def preset_card_projection(self, scope, target_id):
+        seats, _selector = self.live_param_target(scope, target_id)
+        return preset_application.card_preset_projection(seats or [])
+
+    def refresh_preset_dirtiness(self, seats=None, now=None):
+        """Derive dirty flags; preset bodies remain server-side."""
+        now = time.time() if now is None else float(now)
+        for seat in seats or self.state.seats.values():
+            marker = seat.get("applied_preset")
+            if not isinstance(marker, dict):
+                seat["preset_dirty"] = False
+                continue
+            try:
+                record = self.preset_store.read(
+                    marker["patch"], preset_store.slugify(marker["name"]))
+            except (KeyError, preset_store.PresetStoreError):
+                seat["preset_dirty"] = True
+                continue
+            document = dict(record["document"], _patch=marker["patch"])
+            declarations = self.live_control_declarations(marker["patch"])
+            seat["preset_dirty"] = preset_application.preset_dirty(
+                document, seat, declarations, self.osc.automation,
+                self.effective_patch_for_seat(seat), now)
+
+    async def apply_preset(self, patch, name, scope, target_id,
+                           duration_ms=None, curve=None):
+        """Apply one host preset through the single concrete-seat path."""
+        seats, selector = self.live_param_target(scope, target_id)
+        if seats is None:
+            raise preset_store.PresetStoreError("preset target is unavailable")
+        if name is None:
+            for seat in seats:
+                seat.pop("applied_preset", None)
+                seat["preset_dirty"] = False
+            report = self._preset_report(patch, None, seats)
+            await self.broadcast("preset_applied", report)
+            return report
+
+        record = self.preset_store.read(patch, preset_store.slugify(name))
+        document = record["document"]
+        manifest = self.live_control_manifest(patch)
+        if manifest is None:
+            raise preset_store.PresetStoreError("preset patch manifest is unavailable")
+        declarations = {
+            item["identity"]: item for item in self.live_control_declarations(patch)
+        }
+        resolved = preset_store.resolve_entries(document, manifest)
+        canonical = {}
+        for identity, args in resolved["params"].items():
+            cleaned = preset_application.canonicalize_args(
+                declarations[identity], args)
+            if cleaned is not None:
+                canonical[identity] = cleaned
+
+        duration = None
+        if duration_ms is not None:
+            if (isinstance(duration_ms, bool)
+                    or not isinstance(duration_ms, (int, float))
+                    or not math.isfinite(float(duration_ms))
+                    or float(duration_ms) < 0):
+                raise preset_store.PresetStoreError(
+                    "preset duration must be non-negative milliseconds")
+            duration = preset_application.canonical_float(duration_ms)
+        if (curve is not None and
+                (isinstance(curve, bool)
+                 or not isinstance(curve, (int, float))
+                 or not math.isfinite(float(curve)))):
+            raise preset_store.PresetStoreError("preset curve must be finite")
+        if curve is not None and duration is None:
+            raise preset_store.PresetStoreError(
+                "preset curve requires a duration")
+        curve_token = (f"c:{preset_application.canonical_float(curve):g}"
+                       if curve is not None else None)
+
+        matching = []
+        skipped = []
+        for seat in seats:
+            (matching if self.effective_patch_for_seat(seat) == patch
+             else skipped).append(seat)
+        sent_at = time.time()
+        target_counts = {}
+        for seat in seats:
+            counts = dict(resolved["counts"], snapped=0, skipped=0)
+            if seat in skipped:
+                counts.update(applied=0, clamped=0, snapped=0,
+                              dropped=0, skipped=1)
+            target_counts[str(seat["id"])] = counts
+
+        messages = []
+        for identity, args in canonical.items():
+            declaration = declarations[identity]
+            timed = (duration is not None and len(args) == 1
+                     and declaration.get("kind") in {"float", "int"})
+            outgoing = ([args[0], duration] + ([curve_token] if curve_token else [])
+                        if timed else list(args))
+            if duration is not None and not timed:
+                for seat in matching:
+                    target_counts[str(seat["id"])]["snapped"] += 1
+            if matching:
+                # This is an optimization with two accepted, named deltas:
+                # `all` also reaches unassigned nodes, unlike numeric fan-out,
+                # and gN can briefly see node membership-sync lag. It is only
+                # safe when every concretely resolved Seat survives filtering.
+                coalesced = (
+                    not skipped
+                    and (str(selector) == "all"
+                         or str(selector).startswith("g"))
+                )
+                if coalesced:
+                    targets = [selector]
+                else:
+                    targets = [int(seat["id"]) for seat in matching]
+                for message_target in targets:
+                    messages.append((message_target, identity, outgoing))
+
+        seat_params_before = {
+            str(seat["id"]): dict(seat.get("params", {})) for seat in matching}
+        device_params_before = {
+            uid: dict(device.get("params", {}))
+            for uid, device in self.state.devices.items()}
+        automation_before = copy.deepcopy(self.osc.automation)
+        provenance_before = {
+            str(seat["id"]): (
+                copy.deepcopy(seat.get("applied_preset")),
+                seat.get("preset_dirty"),
+            )
+            for seat in matching
+        }
+        for identity, args in canonical.items():
+            if len(args) != 1:
+                continue
+            value = args[0]
+            for seat in matching:
+                seat.setdefault("params", {})[identity] = value
+                for device in self.state.devices.values():
+                    if (device.get("uid") == seat.get("bound")
+                            or (device.get("virtual")
+                                and str(device.get("seat_id"))
+                                == str(seat["id"]))):
+                        device.setdefault("params", {})[identity] = value
+        for message_target, identity, outgoing in messages:
+            self.osc.record_param(
+                message_target, identity, outgoing, sent_at=sent_at,
+                persist=False, broadcast=False)
+        provenance = {"patch": patch, "name": document["name"]}
+        for seat in matching:
+            seat["applied_preset"] = dict(provenance)
+            seat["preset_dirty"] = False
+        try:
+            self.state.save()
+        except (OSError, TypeError, ValueError):
+            for seat in matching:
+                seat["params"] = seat_params_before[str(seat["id"])]
+                previous_marker, previous_dirty = provenance_before[str(seat["id"])]
+                if previous_marker is None:
+                    seat.pop("applied_preset", None)
+                else:
+                    seat["applied_preset"] = previous_marker
+                if previous_dirty is None:
+                    seat.pop("preset_dirty", None)
+                else:
+                    seat["preset_dirty"] = previous_dirty
+            for uid, params in device_params_before.items():
+                if uid in self.state.devices:
+                    self.state.devices[uid]["params"] = params
+            self.osc.automation.clear()
+            self.osc.automation.update(automation_before)
+            raise preset_store.PresetStoreError(
+                "could not save preset application; no command was sent")
+
+        for message_target, identity, outgoing in messages:
+            self.osc.send(f"/{message_target}/p/{identity}", outgoing)
+        self.refresh_preset_dirtiness(matching, now=sent_at)
+        report = self._preset_report(
+            patch, document["name"], seats, target_counts, resolved["verdicts"])
+        await self.broadcast("preset_applied", report)
+        return report
+
+    @staticmethod
+    def _preset_report(patch, name, seats, counts=None, verdicts=None):
+        targets = {}
+        for seat in seats:
+            target = (
+                dict(counts[str(seat["id"])]) if counts is not None
+                else {"applied": 0, "clamped": 0, "snapped": 0,
+                      "dropped": 0, "skipped": 0})
+            target["applied_preset"] = copy.deepcopy(
+                seat.get("applied_preset"))
+            target["dirty"] = bool(seat.get("preset_dirty"))
+            targets[str(seat["id"])] = target
+        return {
+            "patch": patch,
+            "name": name,
+            "targets": targets,
+            "verdicts": dict(verdicts or {}),
+        }
 
     def live_param_declaration(self, identity, patch_name=None):
         if not isinstance(identity, str):
@@ -1667,6 +1939,7 @@ class Dashboard:
         return public
 
     async def public_state(self):
+        self.refresh_preset_dirtiness()
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
         # The durable record captures the identity staged by the operator, but

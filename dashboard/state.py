@@ -409,8 +409,16 @@ class InstallationState:
                 "next_group_id": self.data.get("next_group_id", 0),
                 "device_registry": {uid: dict(entry)
                                     for uid, entry in self.device_registry.items()},
-                "seats": {str(seat["id"]): dict(seat)
-                          for seat in self.seats.values()}}
+                # Applied-preset provenance and dirtiness are runtime-only,
+                # like automation: a dashboard restart deliberately forgets
+                # them even though public seat projections carry both.
+                "seats": {
+                    str(seat["id"]): {
+                        key: value for key, value in seat.items()
+                        if key not in {"applied_preset", "preset_dirty"}
+                    }
+                    for seat in self.seats.values()
+                }}
 
     @staticmethod
     def clean_positions(value):

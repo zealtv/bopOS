@@ -423,7 +423,9 @@ class OSCBridge:
     def send_editor_element(self, element):
         self.send("/audition/editor-element", [int(element)])
 
-    def set_param(self, selector, name, value):
+    def record_param(self, selector, name, value, sent_at=None,
+                     persist=True, broadcast=True):
+        """Update dashboard mirrors without sending; persistence is optional."""
         # Show automation passes the full §3.2 argument list; plain writes
         # stay a single scalar.
         args = value if isinstance(value, list) else [value]
@@ -437,7 +439,7 @@ class OSCBridge:
             entry = {"args": list(args), "kind": spec.kind,
                      "shape": getattr(spec, "shape", None),
                      "free": bool(getattr(spec, "free", False)),
-                     "sent_at": time.time()}
+                     "sent_at": time.time() if sent_at is None else float(sent_at)}
             if spec.kind == "lfo" and not spec.free:
                 # Non-free node generators use leader monotonic time. Give the
                 # browser the same phase sample so resending an idempotent LFO
@@ -458,7 +460,9 @@ class OSCBridge:
                 self.automation.setdefault(str(seat["id"]), {})[name] = seat_entry
                 changed = True
             if spec.kind == "fade":
-                self._store_fade_destination(seats, name, spec.segments[-1][0])
+                self._store_fade_destination(
+                    seats, name, spec.segments[-1][0],
+                    persist=persist, broadcast=broadcast)
         else:
             for seat in seats:
                 per_seat = self.automation.get(str(seat["id"]), {})
@@ -466,6 +470,11 @@ class OSCBridge:
                     changed = True
                 if not per_seat:
                     self.automation.pop(str(seat["id"]), None)
+        return changed
+
+    def set_param(self, selector, name, value):
+        changed = self.record_param(selector, name, value)
+        args = value if isinstance(value, list) else [value]
         self.send(f"/{selector}/p/{name}", args)
         if changed:
             self.broadcast("state", self.state.public())
@@ -484,7 +493,8 @@ class OSCBridge:
         seat = self.state.seats.get(str(seat_id))
         return [seat] if seat is not None else []
 
-    def _store_fade_destination(self, seats, identity, destination):
+    def _store_fade_destination(self, seats, identity, destination,
+                                persist=True, broadcast=True):
         touched = set()
         for seat in seats:
             seat.setdefault("params", {})[identity] = destination
@@ -494,9 +504,11 @@ class OSCBridge:
                             and str(device.get("seat_id")) == str(seat["id"]))):
                     device.setdefault("params", {})[identity] = destination
                     touched.add(device["uid"])
-        self.state.save_debounced()
-        for uid in touched:
-            self.broadcast("device_update", self.state.devices[uid])
+        if persist:
+            self.state.save_debounced()
+        if broadcast:
+            for uid in touched:
+                self.broadcast("device_update", self.state.devices[uid])
 
     def set_group_param(self, group_id, name, value):
         """Update all durable member mirrors, then emit one group datagram."""
