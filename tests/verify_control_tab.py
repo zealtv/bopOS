@@ -97,19 +97,6 @@ def wait_http(url, process):
     raise RuntimeError("dashboard did not serve HTTP")
 
 
-def wait_state(path, predicate, timeout=8):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            with open(path, encoding="utf-8") as source:
-                if predicate(json.load(source)):
-                    return True
-        except (OSError, ValueError):
-            pass
-        time.sleep(.1)
-    return False
-
-
 def make_fixture(root):
     patches = os.path.join(root, "patches")
     assets = os.path.join(root, "assets")
@@ -196,13 +183,7 @@ def main():
                 page.set_default_timeout(12000)
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                # One type-aware handler: two would race and eat each other's
-                # prompt (CLAUDE.md testing gotcha 3). `prompt_answer` is what
-                # the next prompt returns.
-                prompt_answer = {"value": ""}
-                page.on("dialog", lambda dialog: (
-                    dialog.accept(prompt_answer["value"])
-                    if dialog.type == "prompt" else dialog.accept()))
+                page.on("dialog", lambda dialog: dialog.accept())
 
                 # --- the rename, and the old bookmark ---
                 page.goto(base_url + "#dashboard")
@@ -331,23 +312,30 @@ def main():
                       frame.locator('.live-card[data-live-scope="seat"]')
                       .get_attribute("data-live-id") == "2")
 
-                # --- presets follow the target filter ---
-                page.wait_for_function(
-                    "() => document.querySelector('#preset-scope')"
-                    "?.textContent.toLowerCase().includes('sparks')",
-                    timeout=10000)
-                shelf_scope = page.locator("#preset-scope").inner_text()
-                check("the preset shelf names the current target",
-                      "sparks" in shelf_scope.lower(), repr(shelf_scope))
-                prompt_answer["value"] = "seat-two"
-                page.click("#preset-save")
-                saved = wait_state(state_path, lambda state: (
-                    state.get("presets", {}).get("seat-two", {}).get("scope")
-                    == "seat"
-                    and list(state["presets"]["seat-two"]["seats"]) == ["2"]))
-                check("a Seat-scoped save captures that Seat only", saved)
+                # The old venue-level shelf is retired. Patch presets remain
+                # on each embedded Control card (asserted above).
+                check("the venue-preset shelf is absent",
+                      page.locator("#preset-bar").count() == 0)
 
                 check("no page errors", not errors, repr(errors))
+
+                standalone = browser.new_page(viewport={"width": 1024,
+                                                        "height": 768})
+                standalone_errors = []
+                standalone.on(
+                    "pageerror",
+                    lambda error: standalone_errors.append(str(error)))
+                standalone.goto(base_url + "/facilitator")
+                standalone.wait_for_function(
+                    "() => document.querySelector('#ws-status')"
+                    "?.classList.contains('online')")
+                standalone.locator(".live-card").first.wait_for()
+                check("the standalone facilitator has no preset affordance",
+                      standalone.locator("#preset-section").count() == 0
+                      and standalone.locator("[data-preset-slot]").count() == 0)
+                check("no standalone page errors", not standalone_errors,
+                      repr(standalone_errors))
+                standalone.close()
                 browser.close()
         finally:
             stop_process(fleet)

@@ -88,6 +88,13 @@ parallel after 06); each stitch's `instructions.md` names its authority
 docs, scope, file:line anchors, and verification. `3-addendum-review` is
 tied.
 
+**IMPLEMENTATION STATUS 2026-07-29:** `04` through `10` are tied. Patch
+presets now span storage, application, desktop Control/Device/editor surfaces,
+and Shows; the retired installation-scoped venue-preset store, websocket
+verbs, desktop shelf, and standalone facilitator affordance are gone. The
+later-added `11-browser-test-failures` is the only remaining child before this
+thread can tie.
+
 **Architecture gate CLEARED 2026-07-27**: `entity-architecture-review` is
 tied. The preset design proceeds on the ratified four-layer model — see
 `.notes/entity-map-2026-07.md` (as-is map) and the tied

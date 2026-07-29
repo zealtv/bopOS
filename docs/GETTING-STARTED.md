@@ -52,16 +52,17 @@ exactly the way real Pis are.
 The application is six tabs. Left to right, roughly "perform → place →
 maintain":
 
-![Dashboard tab: master fader, seat presets, and per-Seat live controls](images/tab-dashboard.png)
+![Control tab: patch presets and per-Seat live controls](images/tab-dashboard.png)
 
-**Control** is the live-performance surface: presets and every parameter
+**Control** is the live-performance surface: patch presets and every parameter
 declared by the active patch, scoped by an All / Groups / Seat target filter.
 The installation-wide controls — master fader, MUTE ALL, and event lead time —
 are in the **Globals** panel of the Monitor dock at the bottom of every tab.
 (It was called
-Dashboard until 2026-07-25; the old `#dashboard` link still works.) **Open standalone dashboard** gives the same surface as a
-curated full-screen page for a tablet at the venue; only parameters marked
-`"dashboard": true` appear there.
+Dashboard until 2026-07-25; the old `#dashboard` link still works.) **Open
+standalone dashboard** gives a curated full-screen page for a tablet at the
+venue; only parameters marked `"dashboard": true` appear there, and patch
+presets remain a desktop-only workflow.
 
 ![Seats tab: the room map with numbered elements and the seat roster](images/tab-seats.png)
 

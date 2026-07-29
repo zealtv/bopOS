@@ -32,3 +32,14 @@ pure removal). Then tie this stitch **and assess the thread parent**: with
 04–10 tied, `41-preset-primitive` itself is ready to tie; update CLAUDE.md's
 queue section and the thread `instructions.md` to record completion, per
 house practice.
+
+**COMPLETED 2026-07-29.** Installation and venue documents no longer retain
+the old `presets` key; legacy files load and shed it on their next save. The
+old websocket verbs and scope helper are gone, as are the desktop shelf and
+the standalone facilitator affordance. Patch presets remain on the desktop
+Control, Device, editor, and Show surfaces.
+
+The parent is not yet ready to tie because `11-browser-test-failures` was
+added after these instructions were written. Its generator Stop/tick failure
+reproduces before this stitch and is the only red journey in this stitch's
+full-suite run; `11` explicitly depends on this retirement tying first.

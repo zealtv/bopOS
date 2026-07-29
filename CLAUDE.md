@@ -165,9 +165,13 @@ remain the authority for a particular piece of work.
 >    fades `float`/`int` entries with the existing §3.3 form and sets every
 >    other kind at t=0; the settled argument-vector design is parked in
 >    `feature-backlog/48-morph-interpolation`. The implementation stitches
->    `04-contract-and-schema` … `10-venue-preset-retirement` exist and are
->    served in lexical order; **`04` is tied — the contract is at v1.17**
->    (§8.1 + the §9 `presets/` exclusion, no new wire form), so `05` is live.
+>    `04-contract-and-schema` … `10-venue-preset-retirement` are **all tied**.
+>    The contract is at v1.17 (§8.1 + the §9 `presets/` exclusion, no new wire
+>    form); patch presets now span the store, shared application path,
+>    Control/Device/editor surfaces, and Shows; and the old installation-scoped
+>    venue-preset store and shelves are gone. The only remaining child is
+>    **`11-browser-test-failures`**, the final pre-existing guard cleanup before
+>    thread 41 itself ties.
 > 9. `44-event-plane/6-text-kind-control` — after 7, so it adopts the app-wide
 >    text treatment rather than competing with it.
 >

@@ -6,14 +6,13 @@ const ws = new BopSocket("/ws");
 let installation = {devices: {}, seats: {}, groups: {}};
 let muted = false;
 let master = 1.0;
-let presetNames = [];
 const openCommandDevices = new Set();
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 
 // The parameter rows themselves live in control-surface.js (37/07) so the
 // Device tab can render the identical surface. This page keeps what is its
-// own: which cards exist, master/silence, presets, device commands. Events
+// own: which cards exist, master/silence, and device commands. Events
 // are no longer this page's business — the top event panel was retired in
 // `04-event-fire-affordance` and firing lives on the panel's own rows.
 const surface = window.ControlSurface.create({
@@ -92,7 +91,7 @@ const targetFilter = window.SeatFilter.create({
   host: $("#target-filter-host"),
   getSeats: () => seats(),
   label: "Control target",
-  onChange: () => { renderCards(); renderPresets(); $("#cards").scrollTop = 0; },
+  onChange: () => { renderCards(); $("#cards").scrollTop = 0; },
 });
 
 function liveSchema() {
@@ -201,7 +200,6 @@ ws.on("error", data => { alert(data?.message || "The dashboard rejected that act
 ws.on("state", data => {
   installation = data; muted = !!data.muted; master = Number(data.master ?? 1);
   surface.refreshAnchors(data);
-  presetNames = Object.keys(data.presets || {}).sort();
   render();
   const loading = $("#initial-loading");
   if (loading) loading.hidden = true;
@@ -215,7 +213,6 @@ ws.on("params_declaration", data => { if (data?.uid) installation.devices[data.u
 ws.on("device_offline", data => { if (installation.devices[data.uid]) { installation.devices[data.uid].online = false; render(); } });
 ws.on("mute_all", data => { muted = !!data.value; renderControls(); });
 ws.on("master", data => { master = Number(data.value); renderControls(); });
-ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
 ws.on("preset_capture_preview", data => {
   if (!pendingPreview) return;
   capturePreviews.set(pendingPreview, data);
@@ -271,7 +268,7 @@ function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
   targetFilter.render();
   renderShowCapture();
-  renderCards(); renderControls(); renderCommands(); renderPresets();
+  renderCards(); renderControls(); renderCommands();
 }
 
 function renderShowCapture() {
@@ -341,10 +338,6 @@ function renderControls() {
   silence.classList.toggle("active", muted);
 }
 
-// Presets follow the target filter (Bob, 2026-07-25): saving under All is a
-// different preset from saving under Seat 2, so both the save and the load
-// carry the current target. The shelf is no longer hidden when embedded — the
-// Control tab reserves a place for it.
 function presetScope() {
   const chosen = targetFilter.target();
   if (chosen.mode === "seat" && chosen.seat) {
@@ -353,23 +346,6 @@ function presetScope() {
   }
   if (chosen.mode === "groups") return {scope: "groups", id: null, label: "Groups"};
   return {scope: "all", id: null, label: "All Seats"};
-}
-
-function renderPresets() {
-  const scope = presetScope();
-  // Embedded, the Control tab owns the preset shelf (it has Save as…), so this
-  // page's own shelf stays a standalone-only affordance rather than a second
-  // copy inside the iframe.
-  $("#preset-section").hidden = document.body.classList.contains("embedded");
-  const label = $("#preset-scope");
-  if (label) label.value = scope.label;
-  $("#presets").innerHTML = presetNames.length
-    ? presetNames.map(name => `<button class="chip" data-preset="${esc(name)}">${esc(name)}</button>`).join("")
-    : '<span class="dim">No presets saved</span>';
-  document.querySelectorAll("[data-preset]").forEach(button => button.onclick = () => {
-    const target = presetScope();
-    ws.send("load_preset", {name: button.dataset.preset, scope: target.scope, id: target.id});
-  });
 }
 
 const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);

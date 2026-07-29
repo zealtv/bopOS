@@ -107,7 +107,7 @@ class InstallationState:
         self.data = {"schema": SCHEMA, "name": "bopOS", "seats": {},
                      "groups": {}, "next_group_id": 0,
                      "devices": {}, "device_registry": {}, "muted": False,
-                     "room": dict(self.DEFAULT_ROOM), "master": 1.0, "presets": {},
+                     "room": dict(self.DEFAULT_ROOM), "master": 1.0,
                      "event_lead_ms": 500,
                      "facilitator_commands": [],
                      "fleet_patch": None,
@@ -180,8 +180,6 @@ class InstallationState:
                 self.data["master"] = self.clean_master(loaded.get("master"))
                 self.data["event_lead_ms"] = self.clean_event_lead_ms(
                     loaded.get("event_lead_ms"))
-                if isinstance(loaded.get("presets"), dict):
-                    self.data["presets"] = loaded["presets"]
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
@@ -408,7 +406,6 @@ class InstallationState:
                 "master": self.data.get("master", 1.0),
                 "event_lead_ms": self.clean_event_lead_ms(
                     self.data.get("event_lead_ms")),
-                "presets": self.data.get("presets", {}),
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
@@ -752,32 +749,17 @@ class InstallationState:
         if new_key in self.seats:
             return None, f"Seat ID {new_id} already exists."
         seats = copy.deepcopy(self.seats)
-        presets = copy.deepcopy(self.data.get("presets", {}))
-        if not isinstance(presets, dict):
-            return None, "Seat presets are malformed; no changes were made."
-        for preset in presets.values():
-            if not isinstance(preset, dict):
-                return None, "Seat presets are malformed; no changes were made."
-            values = preset.get("seats")
-            if values is None:
-                continue
-            if not isinstance(values, dict):
-                return None, "Seat presets are malformed; no changes were made."
-            if new_key in values:
-                return None, f"A preset already contains Seat ID {new_id}."
-            if old_key in values:
-                values[new_key] = values.pop(old_key)
         seat = seats.pop(old_key)
         seat["id"] = new_id
         seats[new_key] = seat
         if self.clean_seats(seats) is None:
             return None, "The reindexed Seat would make the installation invalid."
-        previous_seats, previous_presets = self.data["seats"], self.data.get("presets", {})
-        self.data["seats"], self.data["presets"] = seats, presets
+        previous_seats = self.data["seats"]
+        self.data["seats"] = seats
         try:
             self.save()
         except (OSError, TypeError, ValueError):
-            self.data["seats"], self.data["presets"] = previous_seats, previous_presets
+            self.data["seats"] = previous_seats
             return None, "Could not save the reindexed Seat; no changes were made."
         return seat, None
 
@@ -786,24 +768,13 @@ class InstallationState:
         if key not in self.seats:
             return None
         seats = copy.deepcopy(self.seats)
-        presets = copy.deepcopy(self.data.get("presets", {}))
         seat = seats.pop(key)
-        if not isinstance(presets, dict):
-            return None
-        for preset in presets.values():
-            if not isinstance(preset, dict):
-                return None
-            values = preset.get("seats")
-            if values is not None and not isinstance(values, dict):
-                return None
-            if values is not None:
-                values.pop(key, None)
-        previous_seats, previous_presets = self.data["seats"], self.data.get("presets", {})
-        self.data["seats"], self.data["presets"] = seats, presets
+        previous_seats = self.data["seats"]
+        self.data["seats"] = seats
         try:
             self.save()
         except (OSError, TypeError, ValueError):
-            self.data["seats"], self.data["presets"] = previous_seats, previous_presets
+            self.data["seats"] = previous_seats
             return None
         return seat
 
@@ -1056,9 +1027,8 @@ class InstallationState:
             return []
 
     def save_venue(self, name):
-        # snapshot the durable state (name, room, devices) under a venue name;
-        # runtime liveness is not part of a venue (presets land here once the
-        # Dashboard live-control stitch adds them to durable())
+        # Snapshot the durable state under a venue name; runtime liveness is
+        # not part of a venue.
         path = os.path.join(self.venues_dir(), name + ".json")
         temporary = path + ".tmp"
         snapshot = self.durable()
@@ -1093,6 +1063,9 @@ class InstallationState:
         if groups is None or next_group_id is None or rebuilt is None:
             return None, None
         loaded = dict(loaded)
+        # Venue presets retired in thread 41. Old snapshots remain loadable,
+        # but their obsolete store is never propagated into a rewritten file.
+        loaded.pop("presets", None)
         loaded["groups"] = groups
         loaded["next_group_id"] = next_group_id
         if adoptions:
@@ -1129,7 +1102,7 @@ class InstallationState:
             elif uid:
                 rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
-        keys = ("name", "room", "master", "event_lead_ms", "presets", "facilitator_commands", "groups",
+        keys = ("name", "room", "master", "event_lead_ms", "facilitator_commands", "groups",
                 "next_group_id",
                 "fleet_patch", "params_patch", "listener", "seats", "simulation")
         previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
@@ -1141,7 +1114,6 @@ class InstallationState:
         self.data["master"] = self.clean_master(loaded.get("master"))
         self.data["event_lead_ms"] = self.clean_event_lead_ms(
             loaded.get("event_lead_ms"))
-        self.data["presets"] = loaded["presets"] if isinstance(loaded.get("presets"), dict) else {}
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))
         self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))

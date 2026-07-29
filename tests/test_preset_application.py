@@ -112,14 +112,14 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(error)
         return written
 
-    def save_preset(self, params, name="Dawn"):
+    def save_patch_preset(self, params, name="Dawn"):
         return self.dashboard.preset_store.save(
             "alpha", name, params, now=self.now)
 
     async def test_apply_skips_patch_mismatch_and_sends_timed_kinds_honestly(self):
         self.state.device_registry["two"]["desired_patch"] = {
             "name": "beta", "fingerprint": None}
-        self.save_preset({
+        self.save_patch_preset({
             "gain": [1.2345678],
             "count": [3.9],
             "gate": [1],
@@ -163,7 +163,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["verdicts"]["gone"]["status"], "dropped")
 
     async def test_apply_coalesces_only_when_every_concrete_seat_survives(self):
-        self.save_preset({"gain": [0.25]})
+        self.save_patch_preset({"gain": [0.25]})
         await self.dashboard.apply_preset("alpha", "Dawn", "all", None)
         self.assertEqual(self.sent, [("/all/p/gain", [0.25])])
         self.assertEqual(
@@ -177,7 +177,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
     async def test_show_apply_resolves_named_targets_and_reports_patch_skips(self):
         self.state.device_registry["two"]["desired_patch"] = {
             "name": "beta", "fingerprint": None}
-        self.save_preset({"gain": [0.75], "gate": [1]})
+        self.save_patch_preset({"gain": [0.75], "gate": [1]})
 
         report = await self.dashboard.apply_show_preset(
             "alpha", "Dawn", ["group:Pair A", "3"],
@@ -199,7 +199,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dict(self.sent)["/g1/p/gate"], [1])
 
     def test_show_load_warnings_compare_both_reference_fingerprints(self):
-        record = self.save_preset({"gain": [0.5]})
+        record = self.save_patch_preset({"gain": [0.5]})
         self.dashboard.show = show_model.clean_show({
             "schema": 1, "name": "opening", "items": [{
                 "kind": "step", "uid": "a0000001", "alias": None,
@@ -226,7 +226,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             record["document"]["schema"], "sha256:" + "1" * 64)
 
     async def test_apply_persist_failure_rolls_back_and_sends_nothing(self):
-        self.save_preset({"gain": [0.25]})
+        self.save_patch_preset({"gain": [0.25]})
         seat = self.state.seats["1"]
         seat["params"]["gain"] = 0.8
         seat["applied_preset"] = {"patch": "alpha", "name": "Old"}
@@ -324,7 +324,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             self.dashboard.preset_card_projection("group", 1)["mixed"])
 
     async def test_flatten_and_capture_persist_as_single_undo_entries(self):
-        record = self.save_preset({"gain": [0.5], "gate": [1]})
+        record = self.save_patch_preset({"gain": [0.5], "gate": [1]})
         fingerprint = identity.fingerprint(self.patches / "alpha")
         reference = {
             "content": {"name": "alpha", "fingerprint": fingerprint},
@@ -381,7 +381,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             fingerprint)
 
     def test_provenance_is_runtime_only_and_dirty_compares_canonical_state(self):
-        self.save_preset({"gain": [0.123457]})
+        self.save_patch_preset({"gain": [0.123457]})
         seat = self.state.seats["1"]
         seat["params"]["gain"] = 0.12345678
         seat["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
@@ -399,7 +399,7 @@ class PresetSurfaceServiceTests(PresetApplicationTests):
     """The host-side surface the Control, Device and editor rows consume."""
 
     async def test_catalog_lists_metadata_and_derives_schema_drift(self):
-        self.save_preset({"gain": [0.5]}, name="Dawn")
+        self.save_patch_preset({"gain": [0.5]}, name="Dawn")
         self.dashboard._editor_seat = {"id": 0, "automation_key": "editor",
                                        "editor": True, "bound": None,
                                        "groups": [], "params": {}}

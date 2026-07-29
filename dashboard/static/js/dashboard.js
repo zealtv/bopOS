@@ -15,7 +15,6 @@ let master = 1.0;
 const heartbeats = new Map();
 const seatBindingDrafts = new Map();
 const logDestinationDrafts = new Map();  // uid -> unsaved log destination choice
-let presetNames = [];
 let fleetPatchChoice = null;
 let fleetPatchTarget = "all";
 let patchHandoffDevice = null;
@@ -80,9 +79,6 @@ function activateTab(name, updateHash=true) {
   document.querySelectorAll("[data-tab-panel]").forEach(panel=>{
     panel.hidden=panel.dataset.tabPanel!==name;
   });
-  // The preset shelf is scoped by the target filter, which lives in the
-  // embedded surface; re-read it whenever the tab comes forward.
-  if (name==="control") renderPresets();
   if (updateHash) history.replaceState(null,"",`#${name}`);
   window.scrollTo(0,0);
   if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws,groupView()));
@@ -142,7 +138,7 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); presetNames = Object.keys(data.presets || {}).sort(); reconcileSelection(); reconcileGroupView(); resumePatchHandoff(); renderPresets(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
+ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); reconcileSelection(); reconcileGroupView(); resumePatchHandoff(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -249,7 +245,6 @@ function renderVenues() {
   if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
 })();
-ws.on("presets", data => { presetNames = data.names || []; renderPresets(); });
 // ---- patch presets (41-preset-primitive) ----------------------------------
 ws.on("preset_capture_preview", data => {
   if (!pendingPreview) return;
@@ -271,51 +266,6 @@ ws.on("preset_applied", data => {
   renderDeviceDetail();
   renderEditor();
 });
-// Presets follow the target filter (Bob, 2026-07-25). The filter itself lives
-// in the embedded Control surface, but its choice is in shared storage, so the
-// shelf here reads the same target the operator is looking at.
-function presetTarget() {
-  const filter = window.SeatFilter;
-  if (!filter) return {scope: "all", id: null, label: "All Seats"};
-  const mode = localStorage.getItem("bopos.target-filter-mode") || "all";
-  if (mode === "seat") {
-    const id = filter.selectedSeat();
-    const seat = id == null ? null : installation.seats?.[String(id)];
-    if (seat) return {scope: "seat", id: Number(seat.id), label: seat.name || `Seat ${seat.id}`};
-  }
-  if (mode === "groups") return {scope: "groups", id: null, label: "Groups"};
-  return {scope: "all", id: null, label: "All Seats"};
-}
-
-function renderPresets() {
-  const select = $("#preset-select"); if (!select) return;
-  select.innerHTML = presetNames.map(name => `<option>${esc(name)}</option>`).join("") || '<option disabled>none saved</option>';
-  const scope = $("#preset-scope");
-  if (scope) scope.value = presetTarget().label;
-}
-// The target filter lives in the embedded surface, which writes its choice to
-// shared storage; a storage event is how this document hears about it.
-window.addEventListener("storage", event => {
-  if (event.key === "bopos.target-filter-mode"
-      || event.key === window.SeatFilter?.SELECTED_SEAT_KEY) renderPresets();
-});
-(function bindPresets() {
-  const save = $("#preset-save"), load = $("#preset-load");
-  if (save) save.onclick = () => {
-    const target = presetTarget();
-    const name = prompt(`Save ${target.label} params + master as preset:`, "");
-    if (name && (!presetNames.includes(name) || confirm(`Overwrite preset "${name}"?`))) {
-      ws.send("save_preset", {name, scope: target.scope, id: target.id});
-    }
-  };
-  if (load) load.onclick = () => {
-    const name = $("#preset-select").value;
-    if (!name) return;
-    const target = presetTarget();
-    ws.send("load_preset", {name, scope: target.scope, id: target.id});
-  };
-})();
-
 function render() {
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
