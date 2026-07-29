@@ -34,6 +34,12 @@ def canonicalize_args(declaration, args):
     """Canonicalize a stored full-state argument list to OSC precision."""
     if not isinstance(args, list) or not args:
         return None
+    # Stop is a command, not a durable scalar, but it passes through this
+    # shared live-automation boundary after the caller has parsed the grammar.
+    # Do not feed it to canonicalize_value(), which correctly rejects strings
+    # for numeric declarations.
+    if args == ["stop"]:
+        return ["stop"]
     if len(args) == 1:
         value = canonicalize_value(declaration, args[0])
         return [value] if value is not None else None

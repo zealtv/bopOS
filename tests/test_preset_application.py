@@ -291,6 +291,13 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(seat["params"]["gain"], 0.333333)
         self.assertEqual(self.state.devices["one"]["params"]["gain"], 0.333333)
 
+    def test_stop_command_survives_argument_canonicalization(self):
+        declaration = self.dashboard.live_param_declaration("gain", "alpha")
+
+        self.assertEqual(
+            preset_application.canonicalize_args(declaration, ["stop"]),
+            ["stop"])
+
     def test_capture_projection_dirty_and_lowest_group_tie_break(self):
         seats = [self.state.seats["1"], self.state.seats["2"]]
         for seat in seats:

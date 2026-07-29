@@ -456,20 +456,19 @@ PULSE_JS = """
 # Changing an enum puts the option INDEX on the wire, not its label: the enum
 # is a labelled view of the same integer a generator drives (Q2).
 # Reading `__probeSent.at(-1)` straight after the dispatch is a race: a
-# heartbeat re-render landing between the value write and the dispatch swaps
-# the <select> for a freshly bound one, and the last entry is then still
-# whatever the previous interaction sent. Re-query after the write and look
-# for THIS param's send rather than trusting position. (Pre-existing flake,
+# heartbeat re-render landing between two queries can make the value write and
+# dispatch target different <select> elements. The journey waits for a bound
+# control, then keeps that one live element for both operations and looks for
+# THIS param's send rather than trusting position. (Pre-existing flake,
 # reproduced on the commit before `4-cue-retirement`; fixed here because it
 # reddens the browser tier at roughly one run in three.)
 ENUM_SEND_JS = """
 () => {
-  const find = () => document.querySelector(
+  const select = document.querySelector(
     '#surface-probe select.live-enum[data-param-path="mode"]');
   const before = (window.__probeSent || []).length;
-  const select = find();
   select.value = "2";
-  find().dispatchEvent(new Event("change", {bubbles: true}));
+  select.dispatchEvent(new Event("change", {bubbles: true}));
   const sent = window.__probeSent || [];
   return sent.slice(before).find(entry => entry && entry.name === "mode")
     ?? sent.at(-1);
