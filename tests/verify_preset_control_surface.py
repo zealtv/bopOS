@@ -373,6 +373,42 @@ def main():
                       repr(text))
                 frame.locator("[data-preset-drawer] [data-preset-cancel]").click()
 
+                # --- overwrite does not depend on provenance ---
+                # This card is MIXED, so it states no applied preset at all;
+                # updating an existing preset must still be reachable.
+                check("save stays offered on a card with no agreed provenance",
+                      not frame.locator(
+                          '[data-preset-slot] [data-preset-action="save"]')
+                      .is_disabled())
+                inner(page).evaluate(
+                    "() => ws.send('set_live_param',"
+                    " {scope:'all', name:'density', value:0.42})")
+                page.wait_for_function(
+                    "() => installation.seats['1'].params.density === 0.42")
+                frame.locator(
+                    '[data-preset-slot] [data-preset-action="save"]').click()
+                picker = frame.locator("[data-preset-drawer] [data-preset-target]")
+                picker.wait_for()
+                check("the drawer names the preset it will overwrite",
+                      picker.locator("option").all_text_contents() == ["Dawn", "Dusk"],
+                      repr(picker.locator("option").all_text_contents()))
+                picker.select_option("Dawn")
+                before_revision = page.evaluate(
+                    "() => installation.preset_catalog.alpha"
+                    ".find(item => item.slug === 'Dawn').revision")
+                frame.locator("[data-preset-drawer] [data-preset-commit]").click()
+                page.wait_for_function(
+                    "was => (installation.preset_catalog?.alpha || [])"
+                    ".find(item => item.slug === 'Dawn')?.revision !== was",
+                    arg=before_revision)
+                with open(os.path.join(presets_dir, "Dawn.json"),
+                          encoding="utf-8") as source:
+                    updated = json.load(source)
+                check("the overwrite stored the new value",
+                      updated["params"]["density"] == [.42],
+                      repr(updated["params"]))
+                dawn = updated
+
                 # --- a stale revision is refused, never silently clobbered ---
                 conflict = inner(page).evaluate(
                     """() => new Promise(resolve => {

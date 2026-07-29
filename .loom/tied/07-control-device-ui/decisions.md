@@ -104,3 +104,13 @@ gate. `tools/run-tests.sh fast` and `browser` are green.
 One pre-existing defect was fixed in passing because the new fixture trips it:
 `facilitator.js` `deviceForSeat()` threw on an All card in a venue with no
 Seats.
+
+## Follow-up (same day, Bob's first live use)
+
+Overwrite was gated on provenance — `save` needed the row to be *showing* an
+applied preset. On a card that is mixed, or whose apply was partly skipped,
+that left no way to update an existing preset at all. Corrected: `save` is
+offered whenever the patch has at least one valid preset, and the drawer names
+its overwrite target with a picker (defaulting to the applied one). Each option
+carries its own revision token, so switching target cannot carry a stale one
+into the compare-and-swap. `del` still acts on what the row is showing.

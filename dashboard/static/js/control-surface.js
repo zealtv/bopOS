@@ -328,9 +328,21 @@
             preview.omitted.map(identity => `<li>${esc(identity)}</li>`).join("")}</ul><p class="dim">These targets disagree, so the preset stores no value for them and a later apply leaves them alone.</p></div>`
         : "";
       const name = mode.name || "";
+      // Overwrite names its target rather than inheriting it from provenance.
+      // The applied preset is only the DEFAULT: a card can be mixed, or the
+      // operator can be updating a preset they never applied here, and neither
+      // should cost them the update path. The chosen option carries its own
+      // revision token, so the compare-and-swap still refuses a stale write.
+      const target = mode.kind === "save"
+        ? `<label>overwrite <select data-preset-name data-preset-target>${
+            catalogFor(patch).filter(entry => entry.valid).map(entry =>
+              `<option value="${esc(entry.name)}" data-revision="${esc(entry.revision)}"${
+                entry.name === name ? " selected" : ""}>${esc(entry.name)}</option>`).join("")
+          }</select></label>`
+        : `<label>name <input type="text" data-preset-name value="${esc(name)}"></label>`;
       return `<div class="live-preset-drawer" data-preset-drawer="${esc(key)}" data-preset-patch="${esc(patch)}"${mode.revision ? ` data-preset-revision="${esc(mode.revision)}"` : ""}>
         <div class="live-preset-drawer-head">
-          <label>name <input type="text" data-preset-name value="${esc(name)}" ${mode.kind === "save" ? "readonly" : ""}></label>
+          ${target}
           <span class="live-preset-drawer-actions">
             <button type="button" data-preset-cancel>Cancel</button>
             <button type="button" data-preset-commit class="primary">${mode.kind === "save" ? "Overwrite" : "Save"}</button>
@@ -371,10 +383,15 @@
         : provenance.dirty ? `preset ${applied}, edited since it was applied` : "preset";
       const drift = catalog.find(entry => entry.slug === appliedSlug)?.drift
         ? '<span class="live-preset-drift" title="This preset was saved against a different parameter schema. Entries that no longer fit are dropped or clamped when it is applied.">schema changed</span>' : "";
+      // `save` overwrites an EXISTING preset, so it needs one to exist -- not
+      // one to be applied. Requiring provenance meant a mixed card, or a card
+      // whose apply had been skipped, offered no way to update a preset at
+      // all. `del` still acts on what the row is showing.
+      const savable = catalog.some(entry => entry.valid);
       const actions = PRESET_ACTIONS.map(action => {
         const inert = action === "del"
-          ? saveOff || !appliedSlug || !catalog.length
-          : action === "save" ? saveOff || !appliedSlug : saveOff;
+          ? saveOff || !appliedSlug
+          : action === "save" ? saveOff || !savable : saveOff;
         return `<button type="button" class="live-preset-action" data-preset-action="${action}"${inert ? " disabled" : ""}>${action}</button>`;
       }).join("");
       const drawerMode = openSaveDrawers.get(key);
@@ -410,8 +427,11 @@
               context.deletePreset?.({patch, slug: entry.slug, revision: entry.revision});
               return;
             }
+            // The applied preset is the default overwrite target when there is
+            // one; otherwise the drawer's picker starts at the first entry.
+            const fallback = catalog.find(item => item.valid);
             openSaveDrawers.set(key, action === "save"
-              ? {kind: "save", name: entry?.name || "", revision: entry?.revision || null}
+              ? {kind: "save", name: (entry || fallback)?.name || ""}
               : {kind: "new", name: "", revision: null});
             saveExclusions.delete(key);
             context.requestCapturePreview?.({key, scope, id, patch});
@@ -448,7 +468,13 @@
         const commit = drawer.querySelector("[data-preset-commit]");
         if (commit) commit.onclick = () => {
           const error = drawer.querySelector(".live-preset-error");
-          const name = drawer.querySelector("[data-preset-name]")?.value.trim() || "";
+          const field = drawer.querySelector("[data-preset-name]");
+          const name = field?.value.trim() || "";
+          // Overwrite takes its revision from the option the operator chose,
+          // so switching target in the picker cannot carry the wrong token.
+          const revision = field?.dataset.presetTarget !== undefined
+            ? field.selectedOptions[0]?.dataset.revision || null
+            : drawer.dataset.presetRevision || null;
           if (!name) {
             if (error) error.value = "A preset needs a name.";
             return;
@@ -461,7 +487,7 @@
           }
           context.savePreset?.({
             scope, id, patch: drawer.dataset.presetPatch, name, include,
-            revision: drawer.dataset.presetRevision || null,
+            revision,
           });
           close();
         };
