@@ -115,3 +115,12 @@ output.precise-output:focus-visible{outline:2px solid var(--accent-cyan);outline
 .show-param-preview-line{fill:none;stroke:var(--auto);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .show-param-preview-random{padding:9px;border:1px dashed var(--line);border-radius:6px}
 @media(max-width:620px){.show-param-segment,.show-param-lfo{grid-template-columns:1fr}}
+
+/* One disclosure treatment, matching style.css (03-chrome-reclamation). This
+   page does not load style.css, so the rules are repeated rather than shared —
+   the same reason the token block lives in control-panel.css. */
+details>summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"▸";flex:none;color:var(--dim);font-size:10px;line-height:1}
+details[open]>summary::before{content:"▾"}
+details.icon-menu>summary::before{content:none}

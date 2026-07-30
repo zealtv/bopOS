@@ -13,7 +13,8 @@
     </div>
     <button id="mute-all" class="danger">MUTE ALL</button>
   </div>
-  <nav id="primary-tabs" class="primary-tabs" aria-label="bopOS views" role="tablist">
+  <div class="primary-tabs">
+  <nav id="primary-tabs" class="primary-tab-list" aria-label="bopOS views" role="tablist">
     <button id="tab-button-show" role="tab" aria-controls="tab-show" aria-selected="true" data-tab="show">Show</button>
     <button id="tab-button-control" role="tab" aria-controls="tab-control" aria-selected="false" data-tab="control">Control</button>
     <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
@@ -21,9 +22,12 @@
     <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
     <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
   </nav>
+  <!-- A link to another document, deliberately OUTSIDE role="tablist": inside
+       it, assistive tech would announce a seventh tab that isn't one. -->
+  <a href="/facilitator" id="facilitator-link" class="view-link">Remote</a>
+  </div>
   <div class="tab-stage">
     <section id="tab-control" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-control" data-tab-panel="control" hidden>
-      <div class="dashboard-heading"><div><p class="eyebrow">Live control</p><h2>Control</h2></div><a href="/facilitator" id="facilitator-link" class="view-link">Open standalone dashboard</a></div>
       <iframe id="dashboard-live-view" src="/facilitator?embedded=1" title="Dashboard live controls"></iframe>
     </section>
     <section id="tab-seats" class="tab-panel seats-tab" role="tabpanel" aria-labelledby="tab-button-seats" data-tab-panel="seats" hidden>
@@ -73,13 +77,16 @@
       <aside class="device-sidebar">
         <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
         <div id="device-roster" class="device-roster-list"></div>
-        <footer><button id="forget-offline">Forget offline unbound</button><button data-all="reboot">Reboot All</button><button data-all="shutdown" class="danger">Shutdown All</button><button data-all="updatebopos">Update bopOS</button></footer>
+        <!-- Icon buttons for the three recoverable fleet actions; the one that
+             takes the fleet down keeps its words (03-chrome-reclamation: "do
+             not make Shutdown All a bare glyph"). All four still confirm. -->
+        <footer class="fleet-actions"><button id="forget-offline" class="icon-button" title="Forget offline unbound devices" aria-label="Forget offline unbound devices"><span class="icon-glyph" aria-hidden="true">✕</span></button><button data-all="reboot" class="icon-button" title="Reboot all devices" aria-label="Reboot all devices"><span class="icon-glyph" aria-hidden="true">↻</span></button><button data-all="updatebopos" class="icon-button" title="Update bopOS on all devices" aria-label="Update bopOS on all devices"><span class="icon-glyph" aria-hidden="true">⇧</span></button><button data-all="shutdown" class="danger">Shutdown All</button></footer>
       </aside>
       <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
     </section>
     <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
       <section id="fleet-patch-panel">
-        <div class="section-head"><div><p class="eyebrow">Live fleet deployment</p><h2>Fleet patch</h2></div><button id="refresh-distribution" title="Refresh host patch and asset catalogs">Refresh catalog</button></div>
+        <div class="section-head"><h2>Fleet patch</h2><button id="refresh-distribution" class="icon-button" title="Refresh host patch and asset catalogs" aria-label="Refresh host patch and asset catalogs"><span class="icon-glyph" aria-hidden="true">↻</span></button></div>
         <div class="fleet-patch-deploy"><div class="fleet-patch-choice"><select id="patch-select" aria-label="Fleet patch"></select><select id="patch-target" aria-label="Deploy target"></select></div><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button><button id="fleet-patch-revert">Revert</button></div></div>
         <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
         <p id="patch-handoff-crumb" class="patch-handoff-crumb" hidden><button id="patch-handoff-back" class="link-button">← Back to device</button></p>
@@ -125,7 +132,7 @@
       </section>
     </section>
     <section id="tab-assets" class="tab-panel assets-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden>
-      <div class="assets-heading"><div><p class="eyebrow">Single-device delivery</p><h2>Assets</h2></div><button id="asset-refresh">Refresh catalog</button></div>
+      <div class="assets-heading"><button id="asset-refresh" class="icon-button" title="Refresh catalog" aria-label="Refresh catalog"><span class="icon-glyph" aria-hidden="true">↻</span></button></div>
       <section id="asset-target-panel" aria-labelledby="asset-target-title">
         <div class="section-head"><h3 id="asset-target-title">Target device</h3><label class="asset-target-select">device <select id="asset-target" aria-describedby="asset-target-reasons"></select></label></div>
         <div id="asset-target-reasons" class="asset-target-reasons"></div>

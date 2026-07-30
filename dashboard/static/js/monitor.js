@@ -196,7 +196,7 @@
       <div class="monitor-pane-bar">
         <div class="monitor-pane-tabs" role="tablist"
              aria-label="${name === "left" ? "Left" : "Right"} Monitor pane"></div>
-        <details class="monitor-tab-menu">
+        <details class="monitor-tab-menu icon-menu">
           <summary aria-label="Monitor tab layout actions">⋯</summary>
           <div class="monitor-tab-menu-items">
             <button type="button" data-monitor-move="left">Move active left</button>

@@ -452,8 +452,6 @@
     const options = names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
     root.innerHTML = `<div class="show-empty">
       <div>
-        <p class="eyebrow">Show control</p>
-        <h2>Show</h2>
         <p class="dim">Create or load a show to start building performance steps.</p>
       </div>
       <form id="show-create-form" class="show-create-form">
@@ -484,7 +482,7 @@
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
     return `<div class="show-transport-strip">
-      <div><p class="eyebrow">Show control</p><h2>${escapeHtml(show.name || shows.current || "Show")}</h2></div>
+      <h2>${escapeHtml(show.name || shows.current || "Show")}</h2>
       <div class="show-manage">
         <select id="show-switch-select" aria-label="Saved shows">${(shows.names || []).map(name =>
           `<option value="${escapeHtml(name)}" ${name === shows.current ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select>

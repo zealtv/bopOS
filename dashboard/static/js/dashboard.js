@@ -419,7 +419,7 @@ function renderGroups() {
     return `<div class="group-row${focusedGroup===id?' focused':''}${selectedGroup===id?' selected':''}" data-group-row="${id}">
       <button class="group-focus" data-group-focus="${id}" aria-pressed="${focusedGroup===id}">${groupMarker(id)}<span><strong>${esc(group.name)}</strong><small>g${id} · ${count} ${count===1?'Seat':'Seats'}</small></span></button>
       <button class="group-eye" data-group-eye="${id}" aria-pressed="${visible}" aria-label="${esc(action)}" title="${esc(action)}">${eyeIcon(visible)}</button>
-      <details class="group-overflow"><summary aria-label="Actions for ${esc(group.name)}" title="Group actions">…</summary><div><button data-group-rename="${id}">Rename</button><button data-group-delete="${id}" class="danger">Delete</button></div></details>
+      <details class="group-overflow icon-menu"><summary aria-label="Actions for ${esc(group.name)}" title="Group actions">…</summary><div><button data-group-rename="${id}">Rename</button><button data-group-delete="${id}" class="danger">Delete</button></div></details>
     </div>`;
   }).join("");
   const active=groupById(selectedGroup);

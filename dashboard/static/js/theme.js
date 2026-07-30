@@ -24,7 +24,7 @@
     root.dataset.themePreference = preference;
     root.style.colorScheme = theme;
     const themeColor = document.querySelector('meta[name="theme-color"]');
-    if (themeColor) themeColor.content = theme === "light" ? "#f4f1f8" : "#101316";
+    if (themeColor) themeColor.content = theme === "light" ? "#f8f0fc" : "#101316";
     const control = document.querySelector("#theme-select");
     if (control && control.value !== preference) control.value = preference;
   }

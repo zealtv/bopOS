@@ -155,7 +155,16 @@ remain the authority for a particular piece of work.
 >    `2026-07-30-ui-unification-braindump`). Inventory is complete
 >    (`.notes/component-inventory-2026-07.md`); children run
 >    ~~`02-token-promotion`~~ (tied 2026-07-30 — one metric layer, see Tier 3)
->    → **`03-chrome-reclamation` (next)** →
+>    → ~~`03-chrome-reclamation`~~ (tied 2026-07-30 — every `.eyebrow` deleted,
+>    the standalone view is a right-aligned **Remote** link in the tab bar
+>    outside `role="tablist"`, five toolbar actions became icon buttons with
+>    `Shutdown All` keeping its words, and all eight `<details>` share
+>    design-language §9's `▸`/`▾`; Control-tab content starts at 85px instead
+>    of 149px. Two declines are recorded rather than silent: `.mode-actions`
+>    holds one conditional `Relaunch`, and `.fleet-patch-actions` belongs to
+>    `09`. It also found that `shoot.py` wrote `bopos.theme` while `theme.js`
+>    reads **`bopos-theme`**, so every dark Control-tab shot in `02` shows a
+>    light panel in a dark app) → **`04-generator-drawer-component` (next)** →
 >    `04-generator-drawer-component` → `05-value-box-component` →
 >    `06-control-panel-reflow-and-editor` → `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
