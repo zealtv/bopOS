@@ -103,6 +103,10 @@ const targetPicker = window.TargetPicker.create({
   id: "control",
   storageKey: "bopos.target.control",
   followFocusSeat: true,
+  // All stays offerable and never becomes the fallback (D5, Bob 2026-07-31).
+  // A target of Seat 7 that loses Seat 7 becomes NO target — this surface
+  // renders an unresolved state instead of silently driving the whole venue.
+  pruneFallback: "empty",
   spec: () => ({
     label: "Control target",
     sections: window.TargetPicker.seatSections(
@@ -290,11 +294,14 @@ function render() {
 
 function renderShowCapture() {
   if (!embedded) return;
+  // No target, nothing to capture — and no scope this could be widened to.
+  if (!targetPicker.selection().length) return;
   const host = $("#target-picker-host");
   host.insertAdjacentHTML("beforeend",
     '<button type="button" class="capture-show-step" data-capture-show-step>Capture as Show step</button>');
   host.querySelector("[data-capture-show-step]").onclick = () => {
     const target = presetScope();
+    if (!target) return;
     ws.send("preview_show_preset_capture", {
       scope: target.scope,
       ...(target.id == null ? {} : {id: target.id}),
@@ -322,10 +329,29 @@ function selectedCard(selector, declarations, available, patch) {
 // "all" / "groups" / "seats" / "mixed" — what the selection is made of, for the
 // layout to key off.
 function selectionMode(selection) {
+  if (!selection.length) return "none";
   if (selection.includes("all")) return "all";
   const kinds = new Set(selection.map(entry =>
     entry.startsWith("g") || entry.startsWith("group:") ? "groups" : "seats"));
   return kinds.size === 1 ? [...kinds][0] : "mixed";
+}
+
+// What the picker dropped, named the way the operator chose it. A bare "7"
+// would not tell anyone which venue thing has gone.
+function lostLabel(selector) {
+  if (selector.startsWith("group:")) return `Group ${selector.slice(6)}`;
+  if (/^g\d+$/.test(selector)) return `Group ${selector.slice(1)}`;
+  return `Seat ${selector}`;
+}
+
+// No target is a state, not an error, and it renders NO controls — not
+// disabled ones; there is nothing they could act on (D5).
+function unresolvedTarget() {
+  const lost = targetPicker.dropped();
+  const said = lost.length
+    ? `${lost.map(lostLabel).join(", ")} ${lost.length === 1 ? "is" : "are"} no longer in this venue.`
+    : "No target chosen.";
+  return `<p class="live-unresolved">${esc(said)}<button type="button" data-choose-target>choose a target</button></p>`;
 }
 
 function renderCards() {
@@ -336,10 +362,15 @@ function renderCards() {
   const available = declarations.length > 0;
   const selection = targetPicker.selection();
   const patch = schema?.patch;
-  const cards = selection.includes("all") || !selection.length
+  $("#cards").dataset.liveView = selectionMode(selection);
+  if (!selection.length) {
+    $("#cards").innerHTML = unresolvedTarget();
+    $("#cards").querySelector("[data-choose-target]").onclick = () => targetPicker.reveal();
+    return;
+  }
+  const cards = selection.includes("all")
     ? [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0, patch)]
     : selection.map(entry => selectedCard(entry, declarations, available, patch)).filter(Boolean);
-  $("#cards").dataset.liveView = selectionMode(selection);
   $("#cards").innerHTML = cards.join("") || '<p class="empty">No Seats</p>';
   bindCards();
 }
@@ -378,9 +409,12 @@ function renderControls() {
 // that Seat, anything involving a group is "groups", and everything else — All,
 // or several Seats — is the whole venue. The reduction lives here rather than
 // widening the server's vocabulary, which `41-preset-primitive` ratified.
+// An unresolved target reduces to nothing rather than to the venue: the
+// capture affordance is not rendered at all while this returns null.
 function presetScope() {
   const selection = targetPicker.selection();
-  if (selection.includes("all") || !selection.length) {
+  if (!selection.length) return null;
+  if (selection.includes("all")) {
     return {scope: "all", id: null, label: "All Seats"};
   }
   const seatOnly = selection.every(entry =>

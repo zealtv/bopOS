@@ -105,6 +105,7 @@ def wait_http(url, process):
 FIXTURE = """
   <div id="seat-host"></div>
   <div id="device-host"></div>
+  <div id="default-host"></div>
 """
 
 SETUP = """
@@ -113,9 +114,12 @@ SETUP = """
     seats: [{id: 0, name: "Zero"}, {id: 1, name: "One"}, {id: 2, name: "Two"}],
   };
   window.changes = [];
+  // Mirrors the real Control host, including `pruneFallback: "empty"` —
+  // widening a live target is the failure this component must not have.
   window.seatPicker = TargetPicker.create({
     host: document.querySelector("#seat-host"),
     id: "control", storageKey: "test.seat", followFocusSeat: true,
+    pruneFallback: "empty",
     spec: () => ({
       label: "Control target",
       sections: TargetPicker.seatSections({...window.venue, groupSelector: "id"}),
@@ -135,8 +139,19 @@ SETUP = """
       sections: TargetPicker.deviceSections(window.deviceRoster),
     }),
   });
+  // A host that takes the DEFAULT fallback, so "empty" stays an opt-in rather
+  // than quietly becoming the component's behaviour for everyone.
+  window.defaultPicker = TargetPicker.create({
+    host: document.querySelector("#default-host"),
+    id: "default", storageKey: "test.default",
+    spec: () => ({
+      label: "Default target",
+      sections: TargetPicker.seatSections({...window.venue, groupSelector: "id"}),
+    }),
+  });
   window.seatPicker.render();
   window.devicePicker.render();
+  window.defaultPicker.render();
   void 0;
 """
 
@@ -282,12 +297,45 @@ def component_pass(browser):
     }""")
     check("a departed group is pruned from the selection",
           page.evaluate("() => seatPicker.selection()") == ["1"])
+    # --- and a Control-shaped picker goes EMPTY rather than All ---
+    # The defect this pins (D5, Bob 2026-07-31): a target of Seat 7 became a
+    # target of every Seat the moment Seat 7 was deleted, silently, mid-show.
+    # Broadening a live target unasked is the one direction this must not fail
+    # in, so if someone restores `["all"]` for this host, these fail loudly.
     page.evaluate("""() => {
+      defaultPicker.set(["1"]);
       window.venue.seats = [];
       seatPicker.render();
+      defaultPicker.render();
     }""")
-    check("a selection with nothing left falls back to All",
-          page.evaluate("() => seatPicker.selection()") == ["all"])
+    check("a selection with nothing left is EMPTY, never All",
+          page.evaluate("() => seatPicker.selection()") == []
+          and page.evaluate(
+              "() => seatPicker.selection().includes('all')") is False)
+    check("the picker names what it dropped, so the host can say so",
+          page.evaluate("() => seatPicker.dropped()") == ["1"])
+    page.evaluate("() => seatPicker.render()")
+    page.evaluate("() => seatPicker.render()")
+    check("an empty target STAYS empty across re-renders",
+          page.evaluate("() => seatPicker.selection()") == []
+          and page.evaluate("() => seatPicker.dropped()") == ["1"])
+    check("the emptied selection is what persists, not a substituted All",
+          json.loads(page.evaluate(
+              "() => localStorage.getItem('test.seat')")) == [])
+    check("the empty state reads as none, not as all",
+          seat.locator(".target-picker-terse").inner_text().strip() == "none"
+          and seat.locator(".target-picker-summary").inner_text().strip()
+          == "No target")
+    check("All is still OFFERED, it is just not the fallback",
+          seat.locator('[data-target-toggle="all"]').count() == 1
+          and seat.locator('[data-target-toggle="all"]')
+          .get_attribute("aria-pressed") == "false")
+    seat.locator('[data-target-toggle="all"]').click()
+    check("choosing All from the empty state still works",
+          page.evaluate("() => seatPicker.selection()") == ["all"]
+          and page.evaluate("() => seatPicker.dropped()") == [])
+    check("a host that did not opt in still falls back to All",
+          page.evaluate("() => defaultPicker.selection()") == ["all"])
 
     # --- the appearance rulings that are the component's own ---
     face = page.evaluate("""() => {

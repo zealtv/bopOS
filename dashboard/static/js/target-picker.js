@@ -172,7 +172,12 @@
       open = false, disabled = false, hostClass = "", warnings = [],
       allTerse = "all", emptyTerse = "none",
     } = spec;
-    const selection = list(spec.selection, allowAll ? ["all"] : []);
+    // An explicit empty array is a selection of NOTHING and renders as such —
+    // only an absent selection takes the All default. `list`'s own fallback
+    // would turn "no target" back into "every target" in the chrome, which is
+    // the whole point of `pruneFallback: "empty"` (D5).
+    const selection = Array.isArray(spec.selection)
+      ? spec.selection.slice() : list(spec.selection, allowAll ? ["all"] : []);
     const isAll = allowAll && selection.includes("all");
     const off = disabled ? " disabled" : "";
     const labels = labelsFrom(sections);
@@ -235,10 +240,19 @@
   // multi-selection could not express. The single shared thing stays the FOCUS
   // SEAT — a picker with `followFocusSeat` adopts it when the Seats tab moves
   // it, which is the cross-tab behaviour that existed for a reason.
+  //
+  // `pruneFallback` separates "All is OFFERABLE" from "All is the FALLBACK"
+  // (D5, Bob 2026-07-31). A host that keeps the All chip but must never be
+  // widened into it behind the operator's back passes `"empty"`; it then reads
+  // `dropped()` to say what was lost and renders its own unresolved state.
   function create({host, id, storageKey, spec, onChange,
-                   followFocusSeat = false, defaultOpen = true}) {
+                   followFocusSeat = false, defaultOpen = true,
+                   pruneFallback = "all"}) {
     const openKey = storageKey ? `${storageKey}.open` : null;
     let selection = null;
+    // What the last prune took away, kept for as long as nothing has replaced
+    // it, so a host can name the Seat or group that went.
+    let dropped = [];
     // A host whose whole job is choosing a target opens by default — the Show
     // inspector's per-message picker is the one that starts closed. Either way
     // the operator's own collapse survives, so this is a default and not a mode.
@@ -268,6 +282,12 @@
     // offline while it was the Assets target. Prune rather than target either;
     // a disabled chip is not a selectable one, which is what makes the Assets
     // tab advance to the next eligible device as it did before the picker.
+    //
+    // What happens when NOTHING survives is the host's call. Substituting
+    // `["all"]` is right for a picker that must always name something, and
+    // wrong for a live control surface: a fader that drove Seat 7 would drive
+    // the venue the moment Seat 7 was deleted, unasked. An empty target is
+    // safe; an All target is not.
     function prune(current, built) {
       const known = new Set();
       for (const section of built.sections || []) {
@@ -280,10 +300,23 @@
       const kept = current.filter(entry =>
         (entry === "all" && built.allowAll !== false) || known.has(entry));
       if (kept.length) return built.multiple === false ? [kept[0]] : kept;
+      if (pruneFallback === "empty") return [];
       if (built.allowAll !== false) return ["all"];
       const first = (built.sections || []).flatMap(section => section.chips || [])
         .find(chip => !chip.disabled);
       return first ? [first.value] : [];
+    }
+
+    // Prune, and remember what that took. An unchanged empty selection keeps
+    // the earlier casualty list: the host is still displaying it.
+    function settle(next, built) {
+      const pruned = prune(next, built);
+      if (pruned.join(" ") !== next.join(" ")) {
+        dropped = next.filter(entry => !pruned.includes(entry));
+      } else if (pruned.length) {
+        dropped = [];
+      }
+      return pruned;
     }
 
     function adoptFocusSeat(built) {
@@ -292,8 +325,7 @@
       if (seat === lastFocusSeat) return false;
       lastFocusSeat = seat;
       if (seat == null) return false;
-      selection = [String(seat)];
-      selection = prune(selection, built);
+      selection = settle([String(seat)], built);
       persist();
       return true;
     }
@@ -301,7 +333,7 @@
     function resolve(built) {
       if (selection == null) selection = stored() || (built.allowAll === false ? [] : ["all"]);
       const moved = adoptFocusSeat(built);
-      const pruned = prune(selection, built);
+      const pruned = settle(selection, built);
       if (pruned.join(" ") !== selection.join(" ")) {
         selection = pruned;
         persist();
@@ -330,6 +362,7 @@
 
     function apply(next) {
       selection = next;
+      dropped = [];
       persist();
       render();
       onChange?.(selection.slice());
@@ -370,6 +403,16 @@
     return {
       render,
       selection: () => (selection || []).slice(),
+      dropped: () => dropped.slice(),
+      // A host with nothing to render but "choose a target" needs to be able
+      // to answer that button; opening the disclosure is the component's own
+      // business, not the host's to reach in and set.
+      reveal: () => {
+        open = true;
+        if (openKey) writeStored(openKey, true);
+        render();
+        host?.querySelector("[data-target-toggle]")?.focus();
+      },
       set: next => apply(list(next, [])),
     };
   }

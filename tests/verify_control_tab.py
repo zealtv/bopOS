@@ -36,6 +36,7 @@ import tempfile
 import time
 import urllib.request
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 sys.dont_write_bytecode = True
@@ -350,6 +351,44 @@ def main():
                 check("the picker follows the Seat chosen on the Seats tab",
                       frame.locator('.live-card[data-live-scope="seat"]')
                       .get_attribute("data-live-id") == "2")
+
+                # --- a target the venue loses does NOT become every Seat ---
+                # `0-prune-fallback-safety` (D5, Bob 2026-07-31): the picker is
+                # on Seat 2; renumbering Seat 2 out from under it must leave the
+                # surface with NO target and no controls, rather than silently
+                # pointing this fader at the whole venue mid-show.
+                page.click("#tab-button-seats")
+                page.wait_for_selector("#tab-seats:not([hidden])")
+                page.fill("#seat-id", "5")
+                page.click("#seat-reindex")
+                page.click("#tab-button-control")
+                frame = surface(page)
+                # Waited for permissively so that a restored `["all"]` fallback
+                # fails as the named checks below rather than as a timeout.
+                try:
+                    frame.locator(".live-unresolved").wait_for(timeout=15000)
+                except PlaywrightTimeout:
+                    pass
+                unresolved = frame.locator(".live-unresolved")
+                check("a lost target is empty, never widened to every Seat",
+                      json.loads(page.evaluate(
+                          "() => localStorage.getItem('bopos.target.control')"))
+                      == [])
+                check("a lost target renders no controls at all",
+                      frame.locator(".live-card").count() == 0)
+                check("the surface names what went and offers the way back",
+                      unresolved.count() == 1
+                      and "Seat 2 is no longer in this venue"
+                      in unresolved.inner_text()
+                      and frame.locator("[data-choose-target]").count() == 1)
+                # All is still offerable — it was never the problem — and
+                # choosing it is how the operator leaves this state.
+                if unresolved.count():
+                    frame.locator("[data-choose-target]").click()
+                frame.locator('[data-target-toggle="all"]').click()
+                frame.locator('.live-card[data-live-scope="all"]').wait_for()
+                check("choosing All from the unresolved state restores the card",
+                      frame.locator(".live-card").count() == 1)
 
                 # The old venue-level shelf is retired. Patch presets remain
                 # on each embedded Control card (asserted above).
