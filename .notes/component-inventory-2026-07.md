@@ -18,6 +18,16 @@ north star; see `.lore/items/2026-07-27-control-panel-ui-and-architecture-braind
 
 ## 0. The headline finding: two disjoint token systems
 
+> **RESOLVED 2026-07-30 by `02-token-promotion`.** There is one metric layer
+> now. `--chrome-*` is deleted; its 83 consumers in `style.css` point at
+> `--row-h` / `--gap` / `--radius-*` (plus `--pad-control`, `--pad-panel` and
+> `--header-h`, declared beside them), so the app chrome runs at 24px controls
+> and 6px rhythm — chrome above content went 118px → 73px. Off-hue
+> `--feature`/`--feature-line` are retired with it, and the light ground is one
+> `#f8f0fc`. The app-wide light *panel* scale is still purple-tinted grey rather
+> than the mockup's neutral grey; that is held for a Bob-facing pass, see the
+> stitch's `decisions.md`. The section below is the as-found record.
+
 The app has **two complete, non-overlapping design token layers**, and this is
 the mechanical root of every complaint in Bob's brief.
 
@@ -323,7 +333,15 @@ rank 0 (token promotion) — underlies everything; do it first, scoped
    `#e9ecef`, inputs/buttons `#ffffff`, ink `#212529`. A neutral grey scale on
    a pale pink ground — `--cp-bg` is the only pink token. **Shipped
    2026-07-30**, ahead of rank 0, so `02-token-promotion` is now density and
-   `--chrome-*` retirement only.
+   `--chrome-*` retirement only — **both of which then shipped the same day**,
+   including the missed `:root[data-theme="light"]` ground (the toggle had kept
+   the old lavender while the OS preference got the pink).
+
+   Still to do on light: only the **app-wide grey scale** — `--panel:#fff`,
+   `--surface-bar:#e9e4ef`, `--panel-soft:#f0edf4` are purple-tinted where the
+   mockup is neutral. The pink-panel regression Bob objected to is fixed; going
+   neutral app-wide is a further visible change with no ruling behind it, so it
+   waits for a pass that shows him the light app beside the mockup.
 
    Open delta, not acted on: the mockup's cyan fill `#99e9f2` is more
    saturated than `--mod-fill` renders over white. Cyan was ratified

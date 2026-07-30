@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Evidence generator for the 2026-07-30 light-palette correction.
+"""Evidence generator for the token-promotion density pass.
 
-Boots the real dashboard + simfleet and captures the control surface and the
-main app in both themes. Modelled on tests/verify_control_surface_component.py
-(the archived .loom/tied/3-tokens-and-chrome harness has rotted).
+Boots the real dashboard + simfleet and captures the control surface and every
+app tab in both themes at both desktop widths. Modelled on
+tests/verify_control_surface_component.py (the archived
+.loom/tied/3-tokens-and-chrome harness has rotted).
+
+Originally written for the 2026-07-30 light-palette correction (panel/card
+shots at 900px, app shots at 1400px); widened here to the 1280/1680 every-tab
+sweep `02-token-promotion` verifies against.
 
 Usage: shoot.py <output-dir>
 """
@@ -117,6 +122,24 @@ def make_fixture(root):
     return path
 
 
+def populate_show(page):
+    """Create (or load) a show with a couple of steps and focus one."""
+    if page.query_selector("#show-create-form"):
+        page.fill("#show-create-name", "density")
+        page.click("#show-create-form button[type=submit]")
+        page.wait_for_selector(".show-edit-bar")
+    elif page.query_selector("#show-load-button"):
+        page.click("#show-load-button")
+        page.wait_for_selector(".show-edit-bar")
+    for _ in range(2):
+        page.click('[data-edit-bar-action="add-step"]')
+        time.sleep(.4)
+    row = page.query_selector(".show-step-row")
+    if row:
+        row.click()
+    time.sleep(.8)
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-shoot-") as temp:
         state_path = make_fixture(temp)
@@ -174,23 +197,38 @@ def main():
                             path=os.path.join(OUT, f"card-{theme}.png"))
                     page.close()
 
-                    page = browser.new_page(
-                        viewport={"width": 1400, "height": 950})
-                    page.set_default_timeout(15000)
-                    page.on("dialog", lambda d: d.dismiss())
-                    page.goto(base)
-                    page.evaluate(
-                        "t => { localStorage.setItem('bopos.theme', t);"
-                        " document.documentElement.dataset.theme = t; }", theme)
-                    page.click("#tab-button-control")
-                    time.sleep(2.5)
-                    page.screenshot(
-                        path=os.path.join(OUT, f"app-control-{theme}.png"))
-                    page.click("#tab-button-patches")
-                    time.sleep(1.5)
-                    page.screenshot(
-                        path=os.path.join(OUT, f"app-patches-{theme}.png"))
-                    page.close()
+                    for width in (1280, 1680):
+                        page = browser.new_page(
+                            viewport={"width": width, "height": 950})
+                        page.set_default_timeout(15000)
+                        page.on("dialog", lambda d: d.dismiss())
+                        page.goto(base)
+                        page.evaluate(
+                            "t => { localStorage.setItem('bopos.theme', t);"
+                            " document.documentElement.dataset.theme = t; }",
+                            theme)
+                        # Control first (it hosts the surface and takes the
+                        # longest to settle); then every other tab.
+                        for tab in ("control", "show", "seats", "devices",
+                                    "patches", "assets"):
+                            page.click(f"#tab-button-{tab}")
+                            time.sleep(2.5 if tab == "control" else 1.2)
+                            if tab == "show":
+                                # An empty Show tab shows none of the metrics
+                                # that matter (edit bar, step rows, the sticky
+                                # inspector and its calc() offsets), so build
+                                # a two-step show before shooting.
+                                populate_show(page)
+                            page.screenshot(path=os.path.join(
+                                OUT, f"app-{tab}-{width}-{theme}.png"))
+                        # The Monitor dock is app chrome too, and collapsed by
+                        # default; expand it and shoot its Globals panel.
+                        page.click("[data-monitor-collapse]")
+                        page.click('[data-monitor-tab="globals"]')
+                        time.sleep(1.0)
+                        page.screenshot(path=os.path.join(
+                            OUT, f"app-monitor-{width}-{theme}.png"))
+                        page.close()
                 browser.close()
         finally:
             for p in (fleet, server):

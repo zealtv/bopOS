@@ -154,7 +154,8 @@ remain the authority for a particular piece of work.
 >    dropped: Bob reversed the order to components-first (lore
 >    `2026-07-30-ui-unification-braindump`). Inventory is complete
 >    (`.notes/component-inventory-2026-07.md`); children run
->    `02-token-promotion` → `03-chrome-reclamation` →
+>    ~~`02-token-promotion`~~ (tied 2026-07-30 — one metric layer, see Tier 3)
+>    → **`03-chrome-reclamation` (next)** →
 >    `04-generator-drawer-component` → `05-value-box-component` →
 >    `06-control-panel-reflow-and-editor` → `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
@@ -345,7 +346,21 @@ a real regression hides among the drift.)
   grey scale (panel `#f8f9fa`, subpanel/manual-fill `#e9ecef`, inputs
   `#ffffff`, ink `#212529`) on a pale pink ground `#f8f0fc`, and `--cp-bg` is
   the only pink token. That repaint **shipped 2026-07-30**, so
-  `02-token-promotion` is now density and `--chrome-*` retirement only.
+  `02-token-promotion` was density and `--chrome-*` retirement only — and it is
+  now **TIED (2026-07-30)**. There is one metric layer: `--chrome-*` is deleted
+  and its 83 consumers point at `--row-h`/`--gap`/`--radius-*` plus
+  `--pad-control`, `--pad-panel`, `--header-h`, all declared at `:root` in
+  `control-panel.css` (the one file **both** hosts load — `facilitator.html`
+  does not load `style.css`). App chrome above content went 118px → 73px; the
+  teal `--feature`/`--feature-line` pair is retired as off-palette; and the
+  light ground is one `#f8f0fc` (the repaint had missed
+  `:root[data-theme="light"]`). Held for a Bob-facing pass, deliberately: the
+  app-wide light *panel* greys are still purple-tinted rather than the mockup's
+  neutral, and the cyan-saturation delta is still open. Per-surface literals
+  were left to the stitches that own them — dead headings/toolbars to `03`, the
+  target filter to `07`, the Control-tab iframe to `08`. Evidence is 64 matched
+  before/after shots (every tab, 1280 + 1680, light + dark, plus the Monitor
+  dock) in the tied stitch, whose `shoot.py` is the working harness.
 
 ### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
 

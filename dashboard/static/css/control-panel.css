@@ -82,9 +82,13 @@
 }
 
 /* ---- 2. Metric tokens (design-language §4) ------------------------------
-   Theme-independent. `--radius-panel/control/small` are the design's names
-   for the shipping `--chrome-radius-*` values; both spellings stay valid so
-   existing rules keep working. */
+   Theme-independent, and — since `02-component-unification/02-token-promotion`
+   — the WHOLE APP's metric layer, not just the panel's. The parallel
+   `--chrome-*` layer in `style.css` (32px controls, 12px gaps and pads) is
+   retired: `--chrome-radius-*` folded onto `--radius-*` (identical values),
+   `--chrome-control-height` onto `--row-h`, `--chrome-gap` onto `--gap`, and
+   the two padding tokens onto `--pad-control`/`--pad-panel` below. Both hosts
+   load this file, so this is the one place either can read them from. */
 
 :root {
   --radius-panel:6px;
@@ -94,6 +98,15 @@
   --radius-toggle:1px;      /* PD toggle: latching is square */
   --row-h:24px;             /* a parameter row is never taller than this */
   --gap:6px;
+  /* Padding, promoted for the app chrome. The panel derives its own padding
+     from `--gap` (§4 has no padding token because rows get their height from
+     `--row-h`); app chrome needs both a control pad and a panel pad, so they
+     are named here rather than sprinkled as literals. */
+  --pad-control:2px var(--gap);
+  --pad-panel:10px;
+  /* App header. A token because four rules and two `calc(100vh - …)` offsets
+     derive from it; when it was a literal 64px they could silently disagree. */
+  --header-h:40px;
 }
 
 /* The standalone facilitator is tablet-first: same row grammar, bigger touch
