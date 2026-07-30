@@ -50,3 +50,25 @@ output.value-box[data-integer] {
 input[type="number"]:disabled {
   opacity:.5;
 }
+
+/* PrecisionField's readout affordance (05f). These used to live in style.css
+   with the click-to-type hint, plus a cyan focus ring, plus per-surface copies
+   in facilitator.css and control-panel.css — four definitions of one face at
+   three widths. The component owns it now.
+
+   Focus is PURPLE. The shipping ring was `--accent-cyan`, but the ratified
+   palette reserves cyan for modulation (design-language §2 and §5, and `05b`'s
+   widening of cyan to "something is driving this"). A static readout is not
+   modulated. `control-panel.css` had already corrected this inside the panel
+   only; app-wide is the correct scope. */
+output.value-box.precise-output {
+  cursor:text;
+}
+output.value-box.precise-output:hover {
+  outline:1px solid var(--line);
+  outline-offset:1px;
+}
+output.value-box.precise-output:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}

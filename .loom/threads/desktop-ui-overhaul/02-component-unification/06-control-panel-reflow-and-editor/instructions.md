@@ -41,3 +41,24 @@ Verify: the editor journeys launch simfleet with `--sim-no-engine` and
 `--sim-audio-backend none`, so this is testable headlessly
 (`tests/verify_device_control_modes.py` is the template). Real PD/GUI behaviour
 stays a hardware adoption check — say so, do not claim it verified.
+
+## Added 2026-07-30 (Bob's tab-by-tab review) — ground and card
+
+Bob, reviewing the shipped Control tab: *"control looks broken because there is
+an inner panel with a pink background, so the control panel is swimming in empty
+space."*
+
+This is now **design-language §12** (ground and card): `--bg` is the workspace
+ground, visible only as gutter between cards, and nothing but the page may set
+`background:var(--bg)`.
+
+The direct cause is `#dashboard-live-view{background:var(--bg)}` in `style.css`
+— the Control-tab iframe is painted the ground colour *and* given a border and
+radius, so it reads as a bordered pink box with a small card floating inside it.
+Retiring that iframe belongs to `08`, but this stitch owns what replaces it:
+when `ControlSurface` hosts in the parent document, the panel must land **on a
+card**, not on the ground. Do not carry `background:var(--bg)` onto the new host
+element.
+
+Check the same thing for the patch editor when it adopts the shared panel: a
+bordered region with a transparent background is the specific mistake §12 names.

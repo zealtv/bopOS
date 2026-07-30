@@ -81,19 +81,13 @@ POSITIONING = {
 # Every entry names an owning stitch. An allowlist entry without an owner is a
 # suppression, and `test_allowlist_entries_still_apply` stops these outliving
 # their subject.
-ALLOWED = {
-    ("control-panel.css", ".live-card output.precise-output:focus-visible"): "05f",
-    ("control-panel.css", ".device-control output.precise-output:focus-visible"): "05f",
-    ("control-panel.css", ".live-card .precise-input"): "05f",
-    ("control-panel.css", ".device-control .precise-input"): "05f",
-    ("control-panel.css", ".live-card .live-param > .precise-input"): "05f",
-    ("control-panel.css", ".device-control .live-param > .precise-input"): "05f",
-    ("facilitator.css", ".live-param .precise-input"): "05f",
-    ("style.css", ".params .precise-input"): "05f",
-    ("control-panel.css", ".show-param-generator-row .live-param-mod"): "05f",
-    ("control-panel.css",
-     ".show-param-generator-row .live-param-mod[aria-expanded=true]"): "05f",
-}
+# EMPTY as of 05f (2026-07-30), and worth keeping that way. All ten entries were
+# discharged rather than re-scoped: PrecisionField's face moved onto
+# `value-box.css` (its cyan focus ring going purple app-wide, per §2/§5), and the
+# ∿ glyph's §5 circle was re-anchored on `.live-param-mod` itself so "always an
+# 18px circle" is deliverable — a rule scoped to two of the three surfaces that
+# draw one is why the Show inspector could diverge at all.
+ALLOWED = {}
 
 COMMENT = re.compile(r"/\*.*?\*/", re.S)
 CLASS = re.compile(r"\.-?[_a-zA-Z][\w-]*")

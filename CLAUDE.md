@@ -206,11 +206,42 @@ remain the authority for a particular piece of work.
 >    overrides stayed in `control-panel.css` on purpose: its `/* ---- N. */`
 >    numbering is design-language's own ordering and the drawer's sections
 >    interleave with the parameter row's) →
->    **`05f-component-face-divergences` (next, part Bob-gated)** →
+>    ~~`05f-component-face-divergences`~~ (tied 2026-07-30 — the guard's
+>    allowlist is **empty**, all ten discharged. `PrecisionField`'s face moved
+>    onto `value-box.css`; two of its four duplicate widths (70px, 72px) turned
+>    out **already dead**, losing on source order, so those surfaces already
+>    rendered 58px. Its cyan focus ring went purple **app-wide** — the panel had
+>    already corrected it at the wrong scope. **Bob ratified §5 for the ∿: circle
+>    everywhere**, and deleting the Show inspector's override was not enough —
+>    §6's circle was itself host-scoped, so the naive fix ships an unstyled
+>    glyph; §6 is re-anchored on `.live-param-mod`. The new §5 assertion then
+>    caught a **shipped defect**: §6 set `height` but not `min-height`, so the
+>    generic `button{min-height:var(--row-h)}` had made §5's circle an 18×24 oval
+>    in the panel for its whole life, while the *diverging* surface was the
+>    geometrically correct one) →
+>    **`05g-show-list-card` (next)** →
 >    `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
->    `09-patches-deploy-row`. `05c`/`05d` were added 2026-07-30 after `05b`
+>    `09-patches-deploy-row` → `11-ground-and-card-audit`.
+>    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
+>    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,
+>    visible ONLY as gutter between cards; nothing but the page may set
+>    `background:var(--bg)`, and a bordered region with a transparent background
+>    is the specific mistake. Bob: the Remote view is right because *"the pink
+>    defines the workspace from the chrome"*; the Show step list *"looks broken
+>    because the steps aren't atop a neutral card"*; Control *"looks broken
+>    because there is an inner panel with a pink background, so the control panel
+>    is swimming in empty space."* Causes found: `#dashboard-live-view` sets
+>    `background:var(--bg)` plus a border (Control), and `.show-rows-box` sets an
+>    inset border and radius with **no** background (Show). Diagnostic detail: the
+>    Show transport strip and inspector both set `--panel` and look right, so this
+>    is per-surface drift, not a theme bug. Folded into `06` (the panel's new
+>    host) and `08` (delete the iframe declaration, columns are cards on the
+>    ground); the Show list is `05g`; the app-wide sweep is `11`, which runs last
+>    and should consider promoting `background:var(--bg)`-outside-`html/body` to a
+>    guard the way `05d` did for ownership.
+>    `05c`/`05d` were added 2026-07-30 after `05b`
 >    showed the pattern a fourth time: **rules that belong to a component keep
 >    getting written onto the surfaces it is mounted in.** 68 rules in
 >    `control-panel.css` are still scoped to

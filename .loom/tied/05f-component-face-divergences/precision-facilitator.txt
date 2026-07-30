@@ -1,0 +1,28 @@
+bare-div/editor: unchanged
+bare-div/focus: unchanged
+bare-div/readout: unchanged
+device-row/editor:
+    flexShrink: '0' -> '1'
+    minWidth: '0px' -> '58px'
+    padding: '0px 4px' -> '0px 5px'
+    width: '1280px' -> '58px'
+device-row/focus:
+    flexShrink: '0' -> '1'
+    minWidth: '0px' -> '58px'
+    padding: '0px 4px' -> '0px 5px'
+    width: '1280px' -> '58px'
+device-row/readout: unchanged
+panel-row/editor:
+    flexShrink: '0' -> '1'
+    minWidth: '0px' -> '58px'
+    padding: '0px 4px' -> '0px 5px'
+    width: '1238px' -> '58px'
+panel-row/focus:
+    flexShrink: '0' -> '1'
+    minWidth: '0px' -> '58px'
+    padding: '0px 4px' -> '0px 5px'
+    width: '1238px' -> '58px'
+panel-row/readout: unchanged
+patch-editor/editor: unchanged
+patch-editor/focus: unchanged
+patch-editor/readout: unchanged

@@ -252,3 +252,44 @@ Green/amber/red stay reserved for status semantics (connectivity, warnings,
 errors) at their existing token values. They never appear on controls,
 fills, or selection. This keeps the control surface strictly
 pink/purple + cyan while diagnostics stay legible.
+
+## 12. Ground and card (Bob, 2026-07-30)
+
+Added after reviewing the shipped app tab by tab. §1's ruling that the pink is
+"a background that panels sit on, not the colour of panels themselves" is not
+only a palette statement — it is a **layout invariant**, and three tabs were
+violating it in different ways.
+
+**The rule.** `--bg` is the workspace ground. It is visible only as the gutter
+*between* things: around cards, between a card and the chrome, in the margins.
+No interface element is ever painted directly onto it, and nothing may set
+`background:var(--bg)` except the page itself.
+
+Content lives on a neutral card — `--panel`, with `--subpanel` for recessed
+regions inside it. If a region has a border and a radius, it has a card
+background too; a bordered box with a transparent background is the specific
+mistake, because it reads as an empty container with something floating in it.
+
+**What the ground is FOR.** The Remote view is the reference implementation:
+pink separates the workspace from the chrome, so the eye finds the working area
+immediately. That is the whole job. Ground doing any more than that — showing
+through a list, filling a panel, backing a control — reads as unfinished.
+
+**The three shipped violations, as worked examples:**
+
+| surface | cause | reads as |
+|---|---|---|
+| Control tab | `#dashboard-live-view{background:var(--bg)}` — the iframe is painted pink and bordered | a bordered pink box with a small card swimming in it |
+| Show tab | `.show-rows-box` sets an inset border + radius and **no** background | the step rows sit on ground; the gaps between them are pink |
+| Remote | — | correct: chrome, then ground, then card |
+
+The Show case is the diagnostic one: its transport strip and inspector both set
+`background:var(--panel)` and look right, and only the list between them was
+left unbacked. So this is not a theme bug — it is per-surface drift of exactly
+the kind §12 now forecloses, and the same shape as the component-ownership
+defects `05b`–`05e` chased. A surface-by-surface audit belongs in the sweep, not
+in a token change.
+
+**Test:** squint at a tab. You should see chrome, then ground, then cards. If
+you can see ground *inside* a card's footprint, or a control sitting on ground,
+it is wrong.

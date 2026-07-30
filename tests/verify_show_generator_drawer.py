@@ -227,6 +227,22 @@ def main():
                       page.locator("#show-param-value").count() == 1
                       and page.locator("[data-show-gen-drawer]").count() == 0
                       and page.locator("#show-param-generator").count() == 0)
+                # design-language §5: the ∿ is "always an 18px circle". This
+                # surface used to override it to a borderless transparent glyph;
+                # Bob ruled on 2026-07-30 that §5 holds everywhere, so §6's rule
+                # is anchored on `.live-param-mod` itself rather than on the two
+                # panel hosts. Assert the circle HERE, in the third host, since
+                # that is where "always" was previously untrue.
+                mod = page.locator("[data-show-gen-toggle]")
+                face = mod.evaluate(
+                    "el => { const s = getComputedStyle(el); return {"
+                    " radius: s.borderRadius, width: s.width,"
+                    " height: s.height, border: s.borderTopWidth }; }")
+                check("the Show inspector's mod glyph is §5's 18px circle",
+                      face["radius"] == "50%" and face["width"] == "18px"
+                      and face["height"] == "18px"
+                      and face["border"] != "0px", str(face))
+
                 page.locator("[data-show-gen-toggle]").click()
                 page.locator("[data-show-param-stop]").click()
                 check("the explicit Stop action preserves the stop wire form",

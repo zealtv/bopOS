@@ -153,17 +153,9 @@
   outline-offset:1px;
 }
 
-/* The precision readout shipped a cyan focus ring from 40-precision-param-input;
-   under the ratified palette cyan means modulation, so focus goes purple too. */
-.live-card output.precise-output:focus-visible,
-.device-control output.precise-output:focus-visible {
-  outline:2px solid var(--accent);
-}
-.live-card .precise-input,
-.device-control .precise-input {
-  border-color:var(--control-line);
-  border-radius:var(--radius-small);
-}
+/* The precision readout's purple focus ring and its border/radius moved onto the
+   component in `value-box.css` (05f). They were correct here and wrong in scope:
+   a cyan ring is wrong everywhere, not just inside the panel. */
 
 /* ---- 5. Button shapes (design-language §8) ------------------------------
    Momentary = rounded 7px, latching = near-square. The radius keys off
@@ -191,13 +183,25 @@
    lights on `aria-expanded` OR a running generator. (`4-row-regrind` emits
    the markup; it replaced the `value ▸ gen` switch.) */
 
-.live-card .live-param-mod,
-.device-control .live-param-mod {
+/* ANCHORED ON THE GLYPH, NOT ITS HOSTS (05f). §5 says "always an 18px circle",
+   and "always" cannot be delivered by a rule scoped to two of the three
+   surfaces that draw one — that is why the Show inspector was able to diverge.
+   Doubled to hold the specificity the host prefix used to contribute, as in
+   `value-box.css` and §8. */
+.live-param-mod.live-param-mod {
   flex:none;
   display:inline-grid;
   place-items:center;
   width:18px;
+  min-width:18px;
   height:18px;
+  /* `min-height` is not redundant: the app's generic `button` rule sets
+     `min-height:var(--row-h)` (24px), which beats a plain `height` and made
+     §5's "circle" an 18×24 oval in the panel for as long as it has shipped.
+     The Show inspector's now-deleted override happened to state this, so that
+     surface was the geometrically correct one while diverging on ink. Caught by
+     the §5 assertion added to `verify_show_generator_drawer.py` in 05f. */
+  min-height:18px;
   padding:0;
   border:1px solid var(--control-line);
   border-radius:50%;
@@ -207,10 +211,8 @@
   font-size:12px;
   line-height:1;
 }
-.live-card .live-param-mod[aria-expanded=true],
-.device-control .live-param-mod[aria-expanded=true],
-.live-card .live-param.automated .live-param-mod,
-.device-control .live-param.automated .live-param-mod {
+.live-param-mod.live-param-mod[aria-expanded=true],
+.live-param.automated .live-param-mod.live-param-mod {
   border-color:var(--mod);
   background:var(--mod-soft);
   color:var(--mod);
@@ -362,16 +364,11 @@
 .device-control .live-param > output.live-param-value[data-dots] {
   letter-spacing:.12em;
 }
-/* The precision field swaps the box for a number input in the same 58px slot. */
-.live-card .live-param > .precise-input,
-.device-control .live-param > .precise-input {
-  box-sizing:border-box;
-  width:100%;
-  min-width:0;
-  height:var(--row-h);
-  padding:0 4px;
-  flex:none;
-}
+/* The precision field swaps the box for a number input in the same 58px slot,
+   and needs no rule here to do it (05f): the row's first grid column IS 58px
+   (§12 above) and the component's own width is 58px, so `width:100%` was
+   restating the component's face from the surface. `flex:none` was inert in a
+   grid, and `box-sizing`/`height` duplicated `value-box.css`. */
 
 /* --- the slider: trough, fill, marker, name --- */
 .live-card .live-param .live-param-range-wrap,
@@ -1582,21 +1579,11 @@
   font-size:12px;
   text-transform:uppercase;
 }
-.show-param-generator-row .live-param-mod {
-  width:18px;
-  min-width:18px;
-  min-height:18px;
-  height:18px;
-  padding:0;
-  border:0;
-  border-radius:0;
-  background:transparent;
-  color:var(--dim);
-  font:700 15px/18px ui-monospace,SFMono-Regular,Menlo,monospace;
-}
-.show-param-generator-row .live-param-mod[aria-expanded=true] {
-  color:var(--mod);
-}
+/* The ∿ is design-language §5's 18px circle HERE TOO. This surface used to
+   override it to a borderless transparent monospace glyph; Bob ruled on
+   2026-07-30 that §5's "always an 18px circle" holds and the Show inspector
+   adopts it, so the override is gone and §6's rule applies unmodified. One
+   affordance, one appearance. */
 .show-inspector-section[data-payload-builder=param]:has(.show-param-generator-row) {
   min-width:342px;
 }

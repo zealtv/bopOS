@@ -81,7 +81,6 @@ body.embedded header,body.embedded #master-row,body.embedded #buttons{display:no
 output.precise-output{cursor:text;border-radius:4px}
 output.precise-output:hover{outline:1px solid var(--line);outline-offset:1px}
 output.precise-output:focus-visible{outline:2px solid var(--accent-cyan);outline-offset:1px}
-.live-param .precise-input{width:72px;min-width:58px;flex:none;background:var(--input);border:1px solid var(--accent-cyan);color:var(--text);border-radius:5px;padding:5px 6px;font:inherit;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
 
 /* Generator drawer (37/08). The value/gen switch sits in the row; the drawer
    is the row's grid sibling so it opens directly beneath it. The show-param-*

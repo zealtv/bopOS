@@ -39,3 +39,16 @@ the target radios living inside the iframe.
 
 Deliver a written proposal plus mockups at 1280/1680/2560. Do not implement
 past ratification.
+
+## Added 2026-07-30 (Bob's tab-by-tab review) — ground and card
+
+Retiring `#dashboard-live-view` also retires the app's clearest
+design-language **§12** violation: that iframe sets `background:var(--bg)` and a
+border, so the Control tab shows a bordered pink box with the panel swimming in
+it (Bob's words: *"swimming in empty space"*).
+
+§12: `--bg` is the workspace ground, visible only as gutter *between* cards, and
+nothing but the page may set it. So when this stitch lays out N columns, the
+columns are cards on the ground — the ground shows as the gap between them, and
+never inside a column's footprint. Delete the `background:var(--bg)` declaration
+with the iframe rather than porting it to the column container.

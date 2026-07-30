@@ -325,10 +325,10 @@ body.monitor-mounted{padding-bottom:var(--monitor-reserved-height,45px)}
 .show-pill-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Precision typed entry on parameter readouts (40-precision-param-input). */
-output.precise-output{cursor:text;border-radius:4px}
-output.precise-output:hover{outline:1px solid var(--line);outline-offset:1px}
-output.precise-output:focus-visible{outline:2px solid var(--accent-cyan);outline-offset:1px}
-.params .precise-input{width:70px;background:var(--input);border:1px solid var(--accent-cyan);color:var(--text);border-radius:6px;padding:5px 6px;font:inherit;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+
+
+
+
 
 /* Generator drawer: its base layer moved to css/param-generator.css (05e), so
    the dashboard and the Remote view share one copy instead of two. The
