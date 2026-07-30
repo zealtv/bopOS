@@ -219,7 +219,19 @@ remain the authority for a particular piece of work.
 >    generic `button{min-height:var(--row-h)}` had made §5's circle an 18×24 oval
 >    in the panel for its whole life, while the *diverging* surface was the
 >    geometrically correct one) →
->    **`05g-show-list-card` (next)** →
+>    ~~`05g-show-list-card`~~ (tied 2026-07-30 — `.show-rows-box` gains
+>    `background:var(--panel)`, and per Bob *"remove the space between steps…
+>    it's a spreadsheet"* the row `gap` went 3px → 0. Three consequences had
+>    to be handled or butting is worse than the gap: rows lose their radius
+>    and gain `margin-bottom:-1px` so adjacent borders collapse to one shared
+>    gridline (all four edges kept, because focus and the armed pulse tint
+>    `border-color`); focused/active/armed rows get `z-index:2` or the next
+>    row's plain border overpaints the tinted bottom edge; and
+>    `.show-step-progress` loses its radius. Divider `margin` went to 0 too.
+>    **Finding, pre-existing:** in light `--surface-bar` and `--surface-alt`
+>    are both `#e9ecef`, so the "first row after a divider" tint is a no-op
+>    in light — arrived with `02-token-promotion`'s repaint, left for `11`) →
+>    **`06-control-panel-reflow-and-editor` (next)** →
 >    `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
