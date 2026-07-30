@@ -37,7 +37,8 @@
   }
 
   function valueAttrs(declaration) {
-    return `step="${["int", "toggle", "enum"].includes(declaration.kind) ? "1" : "any"}" ${declaration.min != null ? `min="${esc(declaration.min)}"` : ""} ${declaration.max != null ? `max="${esc(declaration.max)}"` : ""}`;
+    const integer = ["int", "toggle", "enum"].includes(declaration.kind);
+    return `step="${integer ? "1" : "any"}" ${integer ? 'data-integer="true"' : ""} ${declaration.min != null ? `min="${esc(declaration.min)}"` : ""} ${declaration.max != null ? `max="${esc(declaration.max)}"` : ""}`;
   }
 
   function segmentRow(segment, index, declaration, count) {

@@ -17,6 +17,7 @@
   // inside commit.
 
   function round(value, integer) {
+    if (window.ValueBox) return window.ValueBox.round(value, integer);
     if (integer) return Math.round(value);
     // toPrecision(6) then back through Number drops trailing zeros and keeps at
     // most six significant figures.
@@ -35,6 +36,7 @@
     output.setAttribute("role", "button");
     output.title = "Click to type an exact value";
     output.classList.add("precise-output");
+    window.ValueBox?.decorate(output, {integer: spec.integer});
 
     const open = () => {
       if (spec.disabled || output.dataset.editing === "true") return;
@@ -48,6 +50,7 @@
       field.step = spec.integer ? "1" : "any";
       field.value = String(spec.value);
       field.setAttribute("aria-label", `${spec.label || "value"}, exact value`);
+      window.ValueBox?.decorate(field, {integer: spec.integer});
       output.replaceWith(field);
       field.focus();
       field.select();

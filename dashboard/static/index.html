@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101316"><title>bopOS</title><script src="/js/theme.js"></script><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/control-panel.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101316"><title>bopOS</title><script src="/js/theme.js"></script><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/control-panel.css"><link rel="stylesheet" href="/css/value-box.css"></head>
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
   <header><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"><button data-execution-target="off" aria-pressed="true">Live Fleet</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div><span class="app-header-spacer" aria-hidden="true"></span><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div><label class="theme-control"><span>theme</span><select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
@@ -9,7 +9,7 @@
   <div id="global-controls" class="monitor-globals" hidden>
     <div class="monitor-globals-audio">
       <label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label>
-      <label id="event-lead-control">event lead · ms <input id="event-lead-ms" type="number" min="0" max="10000" step="50" value="500"></label>
+      <label id="event-lead-control">event lead · ms <input id="event-lead-ms" type="number" min="0" max="10000" step="50" value="500" data-integer="true"></label>
     </div>
     <button id="mute-all" class="danger">MUTE ALL</button>
   </div>
@@ -146,5 +146,5 @@
     </section>
     <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show"><div id="show-root"></div></section>
   </div>
-  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/seat-filter.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/show.js"></script>
+  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/spatial.js"></script><script src="/js/seat-filter.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/show.js"></script>
 </body></html>

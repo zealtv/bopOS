@@ -1,0 +1,39 @@
+/* One numeric-entry primitive across every bopOS surface. Number inputs are
+   native click-to-type controls; PrecisionField decorates its output/readout
+   and temporary editor with the same class. */
+.value-box.value-box,
+input[type="number"].value-box,
+input[type="number"] {
+  box-sizing:border-box;
+  width:58px;
+  min-width:58px;
+  height:var(--row-h);
+  min-height:var(--row-h);
+  padding:0 5px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+  text-align:left;
+}
+.value-box.value-box[data-integer],
+input[type="number"].value-box[data-integer],
+input[type="number"][data-integer] {
+  text-align:right;
+}
+output.value-box {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  overflow:hidden;
+}
+output.value-box[data-integer] {
+  justify-content:flex-end;
+}
+.value-box:disabled,
+input[type="number"]:disabled {
+  opacity:.5;
+}
