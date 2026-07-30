@@ -284,13 +284,19 @@ a real regression hides among the drift.)
    pills use the ratified flat eight-category set (cue, point, raw,
    param-value, param-fade, param-loop, param-lfo, param-stop), with visible
    kind codes as a non-colour channel.
-11. **`45-device-enabled-replay-red`** — the one red test in
-   `tools/run-tests.sh fast`: a persistently disabled device that heartbeats
-   back in does not get its `enabled 0` replayed. Added already-failing by the
-   thread-27 promotion commit `cdff3a3`, so it has never passed; the stitch has
-   to settle whether the missing replay is a real output-safety defect or the
-   promoted fake is too thin. Workable now, Bob-independent up to the point
-   where the answer is "deliberately absent".
+11. **Complete — `45-device-enabled-replay-red`** (tied 2026-07-27, fix
+   `e9e25cc`). The replay was never missing: `OSCBridge.handle()` has replayed
+   `state.device_enabled_for(uid)` on a device's return since `5eda7b4`. The
+   red was a **host-dependent test fake** — `54ff063` made the bridge discover
+   its source route and create a separate `bridge.lan_sender`, while the
+   promoted fake stubbed only `bridge.sender`, so the frame recorder saw
+   nothing on any host that could route to `192.0.2.1`. The fake now routes
+   every sender the bridge creates back through the recorder; the exact
+   `enabled 0` safety assertion is intact. **`fast` is fully green (250).**
+   *This entry claimed the test was still red until 2026-07-30 and sent a
+   later session hunting a fixed bug — the note in the tied stitch's
+   `decisions.md` records why it can look red on one machine and green on
+   another.*
 12. **`47-live-param-kinds-flake`** — `tests/verify_live_param_kinds.py` fails
    intermittently in `tools/run-tests.sh browser` on its two slider
    assertions, and only under full-suite load (confirmed pre-existing on clean
