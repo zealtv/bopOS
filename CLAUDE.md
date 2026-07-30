@@ -188,8 +188,25 @@ remain the authority for a particular piece of work.
 >    27 computed properties on every drawer element in all three real hosts ×
 >    three generator kinds, and 36–46 elements changing in a bare `<div>` —
 >    the future mount point, where the old rules reached nothing) →
->    **`05d-component-ownership-guard` (next)** →
->    `05e-drawer-base-layer-consolidation` →
+>    ~~`05d-component-ownership-guard`~~ (tied 2026-07-30 —
+>    `tests/test_css_component_ownership.py`, browser-free, in `fast`, no
+>    stylelint. Ownership by longest class prefix; the **innermost** identified
+>    component owns a rule and a differing outer one is only a host, which is
+>    what lets `.live-card` be both. Property allowlist for positioning, no
+>    comment opt-out. Verified by reverting `05c`: **66 of 68** rules caught, the
+>    other two positioning-only. Reverting the real commit is what exposed the
+>    guard's own two bugs — a comma split that broke `:is()` and an unregistered
+>    host — which its hand-written fixtures had passed throughout. It found ten
+>    unnamed violations, allowlisted with `05f` as owner) →
+>    ~~`05e-drawer-base-layer-consolidation`~~ (tied 2026-07-30 — the drawer's
+>    duplicated base layers in `style.css` (8 rules) and `facilitator.css` (12)
+>    became one `css/param-generator.css`, the app's **second** component
+>    stylesheet, loaded by both documents ahead of `control-panel.css`. Dashboard
+>    zero-change; facilitator delta was one hidden checkbox. The §8/§13/§17
+>    overrides stayed in `control-panel.css` on purpose: its `/* ---- N. */`
+>    numbering is design-language's own ordering and the drawer's sections
+>    interleave with the parameter row's) →
+>    **`05f-component-face-divergences` (next, part Bob-gated)** →
 >    `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
@@ -221,11 +238,15 @@ remain the authority for a particular piece of work.
 >    plain refactor with no design gate — do not reopen it as a proposal. The
 >    deliberate touch pass is `feature-backlog/49-remote-ipad-restyle`
 >    (`.waiting`, hardware-gated: Playwright's `pointer:coarse` emulation is not
->    a finger). **Interim honesty:** the collapse lands on `--row-h`, which
->    `@media (pointer:coarse)` already resolves to 34px in `control-panel.css`
->    (both documents load it), so touch support survives but the bespoke tuning
->    does not — 44px tap targets become 34px. Flag that to Bob if a live show is
->    scheduled before `49` runs.
+>    a finger). **Measured, not assumed:** the "44px tap targets become 34px" worry
+>    stated when the ruling landed proved wrong for the first component actually
+>    collapsed. `05e` measured the facilitator's drawer cascade and the whole
+>    delta was one hidden `pointer-events:none` checkbox's `min-height` — no tap
+>    target and no visible control changed, because `control-panel.css` §17b had
+>    already restated the drawer's metrics for both hosts. Each later collapse
+>    (`07`, `09`) should measure its own with
+>    `cascade_probe.py --doc facilitator` and record it in `49`, rather than
+>    inheriting either the alarm or the reassurance.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
 >    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry

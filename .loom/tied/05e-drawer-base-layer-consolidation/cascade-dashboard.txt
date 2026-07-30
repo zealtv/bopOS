@@ -1,0 +1,13 @@
+bare-div/fade: 39 elements, 0 differing
+bare-div/lfo: 49 elements, 0 differing
+bare-div/loop: 46 elements, 0 differing
+device-control/fade: 39 elements, 0 differing
+device-control/lfo: 49 elements, 0 differing
+device-control/loop: 46 elements, 0 differing
+live-card/fade: 39 elements, 0 differing
+live-card/lfo: 49 elements, 0 differing
+live-card/loop: 46 elements, 0 differing
+show-inspector-section/fade: 39 elements, 0 differing
+show-inspector-section/lfo: 49 elements, 0 differing
+show-inspector-section/loop: 46 elements, 0 differing
+no rendered change in any real host

@@ -27,10 +27,20 @@ shared coarse-pointer override. The loss is the bespoke tuning
 (`min-height:44px` where the token gives 34px, `font-size:14px` where the
 component gives 12px), not touch support altogether.
 
-That is a real regression in touch ergonomics until this stitch runs. **Say so
-to Bob before a live show** if one is scheduled while this is outstanding — 44px
-to 34px is a smaller tap target on a surface someone uses standing up, in the
-dark, mid-performance.
+**Measured correction (2026-07-30, after `05e` ran).** When this stitch was
+written I said the collapse means 44px tap targets become 34px. For the first
+component actually collapsed — the generator drawer — that was wrong: the
+measured delta in the facilitator was **one hidden, `pointer-events:none`
+checkbox's `min-height`**, and no tap target or visible control changed at all.
+The reason is that `control-panel.css` §17b had already restated the drawer's
+real metrics for both hosts, which is exactly why it exists.
+
+So the tap-target concern is real but **unproven per component**, not a blanket
+regression. Each collapse (`07`, `09`) should measure its own with
+`cascade_probe.py --doc facilitator` and record the delta here, so this stitch
+starts from a list of what actually got smaller rather than an assumption. Still
+worth telling Bob before a live show if a collapse *does* shrink something
+interactive — just don't claim it in advance of the measurement.
 
 ## Scope when it runs
 
