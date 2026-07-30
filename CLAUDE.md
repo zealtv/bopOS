@@ -214,9 +214,18 @@ remain the authority for a particular piece of work.
 >    positives and a guard nobody keeps); and the drawer's **two duplicated base
 >    layers** (`style.css:335-342`, `facilitator.css:91-107`) are a DRY defect,
 >    not an ownership one, so they are `05e` and the guard should pass on them.
->    `05e` may need Bob: unifying them means ruling whether the Remote view's
->    hardcoded 38px/11px/9px are pre-token leftovers or a ratified tablet
->    divergence, and guessing shrinks a live-performance control surface.
+>    **Bob ruled this one same-day (2026-07-30): "let's let facilitator
+>    collapse — we will restyle remote for iPad as a standalone pass."** So the
+>    facilitator's duplicated rules die with no attempt to preserve their values,
+>    component by component as `06`/`07`/`09` reach them, and `05e` is now a
+>    plain refactor with no design gate — do not reopen it as a proposal. The
+>    deliberate touch pass is `feature-backlog/49-remote-ipad-restyle`
+>    (`.waiting`, hardware-gated: Playwright's `pointer:coarse` emulation is not
+>    a finger). **Interim honesty:** the collapse lands on `--row-h`, which
+>    `@media (pointer:coarse)` already resolves to 34px in `control-panel.css`
+>    (both documents load it), so touch support survives but the bespoke tuning
+>    does not — 44px tap targets become 34px. Flag that to Bob if a live show is
+>    scheduled before `49` runs.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
 >    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry
@@ -437,6 +446,13 @@ a real regression hides among the drift.)
 - **`feature-backlog/34-fleet-patch-global-state`** — fleet-patch global state
   and a persistent menu-bar convergence indicator. Bob deferred it 2026-07-23;
   its definition and menu-bar design remain unratified.
+- **`feature-backlog/49-remote-ipad-restyle`** — the Remote (standalone
+  facilitator) touch surface, restyled once as a whole against the finished
+  component set. Created 2026-07-30 by Bob's ruling that `facilitator.css`'s
+  duplicated rules may collapse rather than be defended inside each component
+  stitch. Hardware-gated: `pointer:coarse` emulation is not a finger, so this
+  needs the actual iPad. Until it runs, touch tap targets sit at the shared
+  `--row-h` coarse-pointer 34px rather than the facilitator's bespoke 44px.
 - **`42-node-logging`** (ex-`35`, renumbered + **activated 2026-07-24**: Bob
   set it medium priority — no longer parked) — the append-only-log seed
   (destination in Device tab + USB auto-mount). Design stitch is un-waited and

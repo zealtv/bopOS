@@ -15,32 +15,57 @@ on the component, so they violate DRY rather than component ownership, and
 `05d`'s guard will correctly pass on them. They are a distinct defect, not
 unfinished business from `05c`.
 
-The reason they cannot simply be merged is that the two base layers genuinely
-differ, and the difference is geometry — which `05c`'s instructions excluded.
+## The gate is cleared — do not re-open it
 
-The question to settle first:
+This stitch used to carry a design question: preserve the facilitator's
+divergent metrics, or collapse them? **Bob ruled on 2026-07-30: collapse.**
 
-- CLAUDE.md ratifies that **mobile divergence is a metric override**
-  (`@media (pointer:coarse)`), not a parallel layout, and the standalone
-  facilitator "keeps its tablet-first constraints." Those two statements pull in
-  different directions for this file. If the facilitator's 38px/11px/9px are
-  pre-token leftovers, they become a `(pointer:coarse)` override of `--row-h`
-  and friends and one base layer serves both documents. If they are a ratified
-  tablet divergence, they stay — but then they belong in a named override block
-  rather than a silent copy of the same eight rules.
-- `--row-h` already resolves to 34px under `(pointer:coarse)`, so most of the
-  divergence may already be expressible in tokens both documents load.
+> *"let's let facilitator collapse — we will restyle remote for iPad as a
+> standalone pass."*
 
-**This likely needs Bob**, because "the Remote view's controls are deliberately
-bigger" is a design position, not a refactor. Produce the proposal, mark
-`.waiting` if the answer is not already implied by the tokens, and do not
-unify by guesswork — a silently shrunk iPad control surface is a live-performance
-regression.
+So the facilitator's copy dies with no attempt to preserve its values, and the
+deliberate touch restyle is `feature-backlog/49-remote-ipad-restyle`. Do not
+reopen this as a proposal, and do not hand-carry 38px/11px/9px forward on the
+grounds that a tablet needs them — that is exactly the rule-by-rule defence the
+ruling replaces.
 
-If the answer is "tokens," the payoff is the component stylesheet `05c`
-declined: one `css/param-generator.css` anchored on `.live-param-gen`, loaded by
-both documents, holding the whole drawer.
+Note honestly in `decisions.md` that touch ergonomics regress in the interim:
+the collapse lands on `--row-h`, which `@media (pointer:coarse)` already resolves
+to 34px in `control-panel.css` (a file both documents load), so touch support
+survives but the bespoke tuning does not. Thread `49` owns restoring it.
 
-Verification must include the `cascade_probe.py` harness from `05c` (it locates
-the repo by marker, so it runs from `tied/`) extended to the facilitator's
-stylesheet, plus the tablet/touch viewport that only the Remote view uses.
+## Work
+
+- Delete `facilitator.css:91-107` and `style.css:335-342`.
+- Take the payoff `05c` declined: one `css/param-generator.css`, anchored on
+  `.live-param-gen`, holding the whole drawer — base layer and overrides
+  together. `value-box.css` is the precedent and the only component stylesheet
+  in the app today.
+- Load it from **both** `index.html` and `facilitator.html`; they have different
+  base stylesheets, which is why `value-box.css` exists at all.
+- With one base layer instead of two competing ones, the specificity doubling
+  `05c` had to preserve (`.live-param-gen.live-param-gen`) may no longer be
+  load-bearing. Check before simplifying it, and only simplify if the
+  cascade probe still reports zero change — the doubling is cheap and being
+  wrong here is not.
+- Kill only the drawer's share. The rest of `facilitator.css`'s duplication dies
+  component by component as `06`, `07` and `09` reach it; that is the thread's
+  ratified approach ("each component stitch integrates into every consumer"),
+  not a separate cleanup.
+
+## Verification
+
+`cascade_probe.py` from `.loom/tied/05c-drawer-component-ownership/` is the
+harness — it locates the repo by marker, so it runs from `tied/`. Two extensions
+are needed here that `05c` did not need:
+
+- It currently loads `style.css`; parameterize the base stylesheet so the
+  **facilitator** document's cascade is measured too. `05c` only ever proved the
+  dashboard's.
+- A `pointer:coarse` / tablet viewport run, since that is the cascade path the
+  collapse actually changes.
+
+Expect **non-zero** diffs this time, in the facilitator at touch sizes. That is
+the ruling landing, not a regression — record the measured before/after values in
+`decisions.md` so thread `49` starts from numbers rather than from guesses about
+what it lost.
