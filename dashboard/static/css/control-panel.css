@@ -1351,21 +1351,14 @@
 
 /* --- number boxes: the standardized 58px, wherever they appear --- */
 /* Drawer fields ARE the §12 number box; all that differs is the height — a
-   drawer arg is not a parameter row. No spinners: every numeric entry on this
-   surface is a bop number box, click and type, and browser arrows in one of
-   them and not the others is exactly the incoherence this pass closes. */
+   drawer arg is not a parameter row. Spinner suppression moved onto the
+   component in css/value-box.css (05b), so only the height and colour that are
+   genuinely drawer-local remain here. */
 :is(.live-card,.device-control,.show-inspector-section) .live-gen-num {
   height:20px;
   /* An <input> does not inherit the panel's colour the way an <output> does,
      so the drawer's boxes state it here rather than on the shared rule. */
   color:var(--text);
-  appearance:textfield;
-  -moz-appearance:textfield;
-}
-:is(.live-card,.device-control,.show-inspector-section) .live-gen-num::-webkit-outer-spin-button,
-:is(.live-card,.device-control,.show-inspector-section) .live-gen-num::-webkit-inner-spin-button {
-  -webkit-appearance:none;
-  margin:0;
 }
 /* The drawer's selects joined the §15 select rule; only their size differs —
    they are as wide as their content, not as wide as a column. */

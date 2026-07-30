@@ -164,9 +164,22 @@ remain the authority for a particular piece of work.
 >    holds one conditional `Relaunch`, and `.fleet-patch-actions` belongs to
 >    `09`. It also found that `shoot.py` wrote `bopos.theme` while `theme.js`
 >    reads **`bopos-theme`**, so every dark Control-tab shot in `02` shows a
->    light panel in a dark app) → **`04-generator-drawer-component` (next)** →
->    `04-generator-drawer-component` → `05-value-box-component` →
->    `06-control-panel-reflow-and-editor` → `07-target-selector-component` →
+>    light panel in a dark app) → ~~`04-generator-drawer-component`~~ (tied) →
+>    ~~`05-value-box-component`~~ (tied) →
+>    ~~`05b-value-box-spinner-suppression`~~ (tied 2026-07-30, from Bob's review
+>    of the shipped boxes: native inc/dec arrows were suppressed **only** on the
+>    generator drawer's `.live-gen-num`, by a surface-scoped rule `05` did not
+>    carry onto the component, so every other numeric entry — manifest editor,
+>    Seats, event lead, Show inspector — still painted arrows inside a 58px box.
+>    Suppression now lives on the component in `css/value-box.css` and the
+>    scoped rule in `control-panel.css` is deleted, keeping only the drawer's
+>    genuinely local `height`/`color`. Keyboard ↑/↓ still steps. **New guard
+>    gotcha:** a native shadow-DOM control's *absence* is observable headlessly
+>    by neither DOM nor pixel probe — `getComputedStyle(el,
+>    '::-webkit-inner-spin-button')` mirrors the host element, and headless
+>    never paints the spinner, so a pixel check passes vacuously; assert the
+>    declaration instead) → **`06-control-panel-reflow-and-editor` (next)** →
+>    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
 >    `09-patches-deploy-row`.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;

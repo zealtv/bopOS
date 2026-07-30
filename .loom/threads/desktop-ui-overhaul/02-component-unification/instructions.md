@@ -49,6 +49,9 @@ promotion of the second over the first rather than invention of a third.
 4. `04-generator-drawer-component` — lift the drawer chrome out of
    `control-surface.js`; the Show inspector adopts it.
 5. `05-value-box-component` — one 58px precision numeric entry everywhere.
+   `05b-value-box-spinner-suppression` — follow-up from Bob's review: the
+   component face now owns spinner suppression, which had been living on the
+   generator drawer's surface-scoped rule alone.
 6. `06-control-panel-reflow-and-editor` — atomic parameter rows, non-reflowing
    drawer, and the patch editor adopts the shared panel.
 7. `07-target-selector-component` — one picker, two domains (seats/groups and

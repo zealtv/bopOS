@@ -39,7 +39,13 @@ with sync_playwright() as playwright:
       <input id="float" type="number" min="0" max="10" step="any" value="1">
       <input id="integer" type="number" min="0" max="10" step="1" value="2">
       <output id="precise">3</output>
+      <!-- 05b: the drawer's arg boxes used to carry spinner suppression in
+           control-panel.css. That rule is gone; the component must cover them. -->
+      <div class="live-card"><input id="drawer" class="live-gen-num"
+        type="number" min="0" max="10" step="any" value="4"></div>
     """)
+    page.add_style_tag(path=os.path.join(
+        REPO, "dashboard", "static", "css", "control-panel.css"))
     page.add_style_tag(path=os.path.join(
         REPO, "dashboard", "static", "css", "value-box.css"))
     page.add_script_tag(path=os.path.join(
@@ -48,7 +54,7 @@ with sync_playwright() as playwright:
         REPO, "dashboard", "static", "js", "precision-field.js"))
 
     page.wait_for_function(
-        "document.querySelectorAll('input.value-box').length === 2")
+        "document.querySelectorAll('input.value-box').length === 3")
     float_box = page.locator("#float")
     integer_box = page.locator("#integer")
     check("native number fields adopt the component",
@@ -118,7 +124,54 @@ with sync_playwright() as playwright:
     editor.press("Enter")
     check("precision commits share clamping",
           page.evaluate("window.preciseCommit") == 5)
+
+    # 05b: one face, one appearance. Native inc/dec arrows showed on every
+    # numeric entry except the generator drawer's, which suppressed them with a
+    # surface-scoped rule of its own.
+    # `getComputedStyle(el, '::-webkit-inner-spin-button')` cannot answer this:
+    # Chromium mirrors the host element's own values onto that pseudo (it
+    # reports the input's width, not a spinner box), and headless does not
+    # paint the spinner at all, so a screenshot probe would pass vacuously
+    # (CLAUDE.md gotcha 11). Assert the mechanism that removes the buttons.
+    face = "el => getComputedStyle(el).webkitAppearance"
+    check("value boxes carry the spinner-free textfield face",
+          float_box.evaluate(face) == "textfield", str(float_box.evaluate(face)))
+    check("drawer arg boxes inherit the face from the component",
+          page.locator("#drawer").evaluate(face) == "textfield",
+          str(page.locator("#drawer").evaluate(face)))
+    check("dynamically rendered fields inherit the face too",
+          page.locator("#dynamic").evaluate(face) == "textfield",
+          str(page.locator("#dynamic").evaluate(face)))
+
+    # Removing the buttons must not remove the behavior: the arrows are gone,
+    # the keyboard step is not. Event lead steps 50, so step is read from the
+    # declaration rather than assumed to be 1.
+    integer_box.fill("2")
+    integer_box.press("ArrowUp")
+    check("keyboard up still steps an integer box",
+          integer_box.input_value() == "3", integer_box.input_value())
+    integer_box.press("ArrowDown")
+    integer_box.press("ArrowDown")
+    check("keyboard down still steps an integer box",
+          integer_box.input_value() == "1", integer_box.input_value())
     browser.close()
 
-print("{} checks passed, {} failures".format(12 - len(FAILURES), len(FAILURES)))
+# The WebKit pseudo-element rule is the other half of the suppression and no
+# DOM assertion can observe it, so pin where it lives: on the component, and
+# not re-scoped onto any single surface.
+def read(*parts):
+    with open(os.path.join(REPO, *parts), encoding="utf-8") as handle:
+        return handle.read()
+
+
+component = read("dashboard", "static", "css", "value-box.css")
+panel = read("dashboard", "static", "css", "control-panel.css")
+check("the component owns the webkit spinner rule",
+      'input[type="number"]::-webkit-inner-spin-button' in component
+      and 'input[type="number"]::-webkit-outer-spin-button' in component)
+check("no surface re-scopes spinner suppression",
+      "spin-button" not in panel
+      and "appearance:textfield" not in panel.replace(" ", ""))
+
+print("{} checks passed, {} failures".format(19 - len(FAILURES), len(FAILURES)))
 raise SystemExit(1 if FAILURES else 0)

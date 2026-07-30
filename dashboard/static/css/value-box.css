@@ -18,6 +18,19 @@ input[type="number"] {
   font-size:12px;
   font-variant-numeric:tabular-nums;
   text-align:left;
+  /* No spinners, anywhere. A value box is click-and-type; native inc/dec
+     arrows eat a third of a 58px box and appeared in some surfaces and not
+     others. Suppression belongs on the component so it travels with the face —
+     the generator drawer used to carry this rule locally (control-panel.css),
+     which is how the divergence Bob reported on 2026-07-30 arose. Keyboard
+     ↑/↓ still steps: `textfield` removes the buttons, not the behavior. */
+  appearance:textfield;
+  -moz-appearance:textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance:none;
+  margin:0;
 }
 .value-box.value-box[data-integer],
 input[type="number"].value-box[data-integer],
