@@ -284,7 +284,18 @@ remain the authority for a particular piece of work.
 >    all (use `page.route` + a fabricated origin). Unlike `05e`, this collapse
 >    **does** shrink the Remote view: 44px tabs → 34px chips and a 140px seat
 >    `<select>` → 32px chips, measured and recorded in `49`) →
->    `08-control-tab-columns` (`.waiting`, Bob-gated) →
+>    `08-control-tab-columns` (**split into four on 2026-07-30**, because as one
+>    stitch it bundled a Bob-gated design gate, a cross-document refactor, a
+>    singleton→N state change, and a four-file test migration:
+>    `1-columns-design` (Bob-gated proposal + mockups, and a UX consult on
+>    whether capture-as-step is per column or per tab — Bob declined to default
+>    it) → `2-control-column-component` (extract `ControlColumn` from
+>    `facilitator.js` to instance state, **still inside the iframe**, so the
+>    four existing frame-locating journeys guard the extraction unmodified) →
+>    `3-iframe-retirement` (mount in the parent document, `/facilitator` becomes
+>    Remote-only, the §12 ground fix, migrate the journeys, delete gotcha 15 —
+>    N stays 1) → `4-n-columns` (`.waiting` on `1`). `2` and `3` are unblocked
+>    and may run alongside `1`) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,
