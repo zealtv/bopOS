@@ -178,10 +178,23 @@ remain the authority for a particular piece of work.
 >    by neither DOM nor pixel probe — `getComputedStyle(el,
 >    '::-webkit-inner-spin-button')` mirrors the host element, and headless
 >    never paints the spinner, so a pixel check passes vacuously; assert the
->    declaration instead) → **`06-control-panel-reflow-and-editor` (next)** →
+>    declaration instead) → **`05c-drawer-component-ownership` (next)** →
+>    `05d-component-ownership-guard` → `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
->    `09-patches-deploy-row`.
+>    `09-patches-deploy-row`. `05c`/`05d` were added 2026-07-30 after `05b`
+>    showed the pattern a fourth time: **rules that belong to a component keep
+>    getting written onto the surfaces it is mounted in.** 68 rules in
+>    `control-panel.css` are still scoped to
+>    `:is(.live-card,.device-control,.show-inspector-section)` and nearly all
+>    name the drawer's own `.live-gen-*`/`.live-param-gen*` classes, even though
+>    the drawer emits a `.live-param-gen` root — so `06` (drawer in the patch
+>    editor) and `08` (N columns) would unstyle it wholesale at any new mount
+>    point. `05c` re-anchors; `05d` adds a browser-free source guard that fails
+>    when one selector names both a host container and a component class, with a
+>    narrow property allowlist for legitimate positioning. Deliberately **not**
+>    stylelint, and deliberately not a fourth prose restatement — the principle
+>    was already written in a comment directly above the rule that violated it.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
 >    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry

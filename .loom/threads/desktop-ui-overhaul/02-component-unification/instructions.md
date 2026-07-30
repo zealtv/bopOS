@@ -52,6 +52,13 @@ promotion of the second over the first rather than invention of a third.
    `05b-value-box-spinner-suppression` — follow-up from Bob's review: the
    component face now owns spinner suppression, which had been living on the
    generator drawer's surface-scoped rule alone.
+   `05c-drawer-component-ownership` then `05d-component-ownership-guard` — the
+   generalized form of the same defect. The drawer's 68 rules are still scoped
+   to the three containers it is mounted in rather than to its own root, so `06`
+   and `08` would silently unstyle it at a new mount point; then a browser-free
+   guard makes the next instance a test failure. Four instances inside this
+   thread is the argument for a check rather than a fourth restatement of the
+   principle.
 6. `06-control-panel-reflow-and-editor` — atomic parameter rows, non-reflowing
    drawer, and the patch editor adopts the shared panel.
 7. `07-target-selector-component` — one picker, two domains (seats/groups and
