@@ -184,10 +184,6 @@
     // so the stylesheet and this module cannot disagree about it.
     const PULSE_MS = 1400;
     const GEN_KINDS = ["fade", "loop", "lfo"];
-    // Tab order is the ratified reading order; GEN_KINDS stays the wire/parse
-    // order so nothing downstream has to care about presentation.
-    const GEN_TAB_ORDER = ["lfo", "loop", "fade"];
-    const GEN_TAB_LABELS = {lfo: "LFO", loop: "loop", fade: "fade"};
     const numericDeclaration = declaration =>
       ["float", "int", "toggle", "enum"].includes(declaration.kind);
     const drawerKey = (scope, id, declaration) => `${scope}:${id ?? "all"}:${declaration.identity}`;
@@ -232,8 +228,6 @@
       const spec = draftSpec(key, declaration, running);
       const kind = GEN_KINDS.includes(spec.mode) ? spec.mode : "lfo";
       const off = disabled ? "disabled" : "";
-      const tabs = GEN_TAB_ORDER.map(item =>
-        `<button type="button" data-gen-kind-tab="${item}" aria-pressed="${item === kind}" ${off}>${GEN_TAB_LABELS[item]}</button>`).join("");
       // Apply and Stop are rendered here but PLACED by the body's layout — they
       // sit in the column beside the display, under the tabs (Bob,
       // 2026-07-27), which is what lets the drawer stop stretching.
@@ -243,13 +237,12 @@
             <button type="button" data-gen-stop ${off}>Stop</button>
             <button type="button" data-gen-apply class="primary" ${off}>Apply</button>
           </span>`;
-      return `<div class="live-param-gen" data-gen-drawer="${esc(key)}" data-gen-kind="${esc(kind)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}">
-        <div class="live-param-gen-head">
-          <span class="live-param-gen-tabs" role="group" aria-label="generator kind">${tabs}</span>
-        </div>
-        <div class="live-param-gen-fields">${window.ParamGenerator.panelFields(declaration, spec, drawerMotion(key, model), actions)}</div>
-        <output class="live-param-gen-error" aria-live="polite"></output>
-      </div>`;
+      const attributes = `data-gen-drawer="${esc(key)}" data-live-scope="${esc(scope)}"${
+        id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"${
+        disabled ? " data-gen-disabled" : ""}`;
+      return window.ParamGenerator.drawer(declaration, spec, {
+        attributes, actions, motion: drawerMotion(key, model), activeMode: kind,
+      });
     }
 
     // ---- the preset row (41-preset-primitive/07, /08) ----------------------
@@ -996,6 +989,11 @@
         // dataset, written by the tab row, so the compile path has one source
         // of truth whatever the chrome looks like.
         const currentKind = () => drawer.dataset.genKind || "lfo";
+        if (drawer.hasAttribute("data-gen-disabled")) {
+          drawer.querySelectorAll("button, input, select").forEach(control => {
+            control.disabled = true;
+          });
+        }
 
         // Editing inside a drawer must survive the heartbeat: the host's
         // render guard is the same one the precision field uses.

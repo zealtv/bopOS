@@ -26,6 +26,9 @@
   let inspectorOpen = true;
   let focusInspectorToggle = false;
   let lastSelectClick = {kind: null, uid: null, at: 0};
+  // The inspector is rebuilt on every heartbeat. Keep disclosure outside the
+  // DOM; generator field drafts already live in the focused message args.
+  const generatorDrawerState = new Map();
 
   const THEN_ACTIONS = [
     ["stop", "Stop"],
@@ -761,30 +764,40 @@
     }
     const rawFallback = numeric && !parsed;
     const mode = parsed?.mode || "value";
-    const generator = numeric && !rawFallback ? `<label>generator
-      <select id="show-param-generator">
-        ${["value", "fade", "loop", "lfo", "stop"].map(kind => `<option value="${kind}" ${mode === kind ? "selected" : ""}>${kind}</option>`).join("")}
-      </select>
-    </label>` : "";
-    const fields = rawFallback
-      ? renderParamRawFallback(message)
-      : renderParamGeneratorFields(declaration, parsed || {mode: "value", value: message.args?.[0]?.value ?? declaration.default ?? ""});
-    const preview = !rawFallback && parsed ? renderParamPreview(parsed, declaration) : "";
+    const generated = ["fade", "loop", "lfo"].includes(mode);
+    const open = generatorDrawerState.has(message.uid)
+      ? generatorDrawerState.get(message.uid) : generated;
+    const fields = rawFallback ? renderParamRawFallback(message)
+      : mode === "value" ? renderParamGeneratorFields(declaration, parsed)
+      : mode === "stop"
+        ? '<p class="dim show-param-stop">Automation is stopped. Set a value or choose a generator.</p>'
+        : "";
+    const drawerSpec = generated ? parsed : window.ParamGenerator.blank(declaration, "lfo");
+    const drawerActions = `<span class="live-param-gen-actions">
+      <button type="button" data-show-param-value aria-pressed="${mode === "value"}">Value</button>
+      <button type="button" data-show-param-stop aria-pressed="${mode === "stop"}">Stop</button>
+    </span>`;
+    const generator = numeric && !rawFallback ? `<div class="show-param-generator-row">
+      <span>${generated ? "generator" : escapeHtml(mode)}</span>
+      <button type="button" class="live-param-mod" data-show-gen-toggle aria-expanded="${open}" aria-label="Generator drawer">∿</button>
+    </div>${open ? window.ParamGenerator.drawer(declaration, drawerSpec, {
+      attributes: `data-show-gen-drawer="${escapeHtml(message.uid)}"`,
+      actions: drawerActions,
+      activeMode: generated ? mode : null,
+    }) : ""}` : "";
     return `<section class="show-inspector-section" data-payload-builder="param">
       <label>parameter <select id="show-param-picker">${options || '<option value="">No staged params</option>'}</select></label>
-      ${generator}
       ${fields}
-      ${preview}
+      ${generator}
       <small class="dim">${escapeHtml(declaration.kind || "float")}${declaration.min != null || declaration.max != null ? ` · ${escapeHtml(declaration.min ?? "…")} to ${escapeHtml(declaration.max ?? "…")}` : ""}</small>
     </section>`;
   }
 
   // The generator builder itself lives in param-generator.js (37/08) so the
   // live control surface hosts the identical fields, preview and compilation.
-  const renderParamPreview = (parsed, declaration) => window.ParamGenerator.preview(parsed, declaration);
   const renderParamGeneratorFields = (declaration, parsed) => window.ParamGenerator.fields(declaration, parsed);
   const renderUnitOptions = selected => window.ParamGenerator.unitOptions(selected);
-  const renderParamSegment = (segment, index, declaration, count) => window.ParamGenerator.segmentRow(segment, index, declaration, count);
+  const renderParamSegment = (segment, index, declaration, count) => window.ParamGenerator.panelSegmentRow(segment, index, declaration, count);
 
   function renderParamRawFallback(message) {
     const args = (message.args || []).map((arg, index) => renderRawArg(arg, index)).join("");
@@ -1250,7 +1263,10 @@
 
   function compileParamEditor(message, editor) {
     const declaration = currentParamDeclaration(message);
-    const mode = editor.querySelector("#show-param-generator")?.value || "value";
+    let mode = "value";
+    try { mode = parseParamArgs(message.args || [], declarationWireType(declaration)).mode; }
+    catch (_error) { /* the raw fallback never calls this compiler */ }
+    mode = editor.querySelector("[data-show-gen-drawer]")?.dataset.genKind || mode;
     return window.ParamGenerator.compile(editor, declaration, mode);
   }
 
@@ -1400,15 +1416,21 @@
         if (declaration.kind === "text") mode = "value";
         updateMessage(message.uid, {address: `/p/${event.target.value}`, args: paramModeDefaultArgs(declaration, mode)});
       }
-      if (event.target.id === "show-param-generator") {
-        const declaration = currentParamDeclaration(message);
-        updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, event.target.value)});
-      }
       if (event.target.id === "show-param-value") {
         const declaration = currentParamDeclaration(message);
         updateMessage(message.uid, {args: [typedArg(declarationWireType(declaration), event.target.value)]});
       }
-      if (event.target.matches("[data-param-segment-value], [data-param-segment-duration], [data-param-segment-unit], [data-param-from], [data-param-curve], [data-param-lfo]")) {
+      if (event.target.matches("[data-param-from-enabled]")) {
+        const field = messageEditor.querySelector("[data-param-from]");
+        if (field) {
+          field.disabled = !event.target.checked;
+          if (event.target.checked && !field.value) {
+            const declaration = currentParamDeclaration(message);
+            field.value = declaration.default ?? declaration.min ?? 0;
+          }
+        }
+      }
+      if (event.target.matches("[data-param-segment-value], [data-param-segment-duration], [data-param-segment-unit], [data-param-from], [data-param-from-enabled], [data-param-curve], [data-param-lfo]")) {
         const args = compileParamEditor(message, messageEditor);
         if (args) updateMessage(message.uid, {args});
       }
@@ -1513,6 +1535,32 @@
     if (messageEditor) {
       const {message} = messageByUid(messageEditor.dataset.showMessageEditor);
       if (!message) return;
+      if (event.target.closest("[data-show-gen-toggle]")) {
+        const open = event.target.closest("[data-show-gen-toggle]")
+          .getAttribute("aria-expanded") === "true";
+        generatorDrawerState.set(message.uid, !open);
+        render();
+        return;
+      }
+      const generatorTab = event.target.closest("[data-show-gen-drawer] [data-gen-kind-tab]");
+      if (generatorTab) {
+        generatorDrawerState.set(message.uid, true);
+        const declaration = currentParamDeclaration(message);
+        updateMessage(message.uid, {
+          args: paramModeDefaultArgs(declaration, generatorTab.dataset.genKindTab),
+        });
+        return;
+      }
+      if (event.target.closest("[data-show-param-value]")) {
+        const declaration = currentParamDeclaration(message);
+        updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, "value")});
+        return;
+      }
+      if (event.target.closest("[data-show-param-stop]")) {
+        const declaration = currentParamDeclaration(message);
+        updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, "stop")});
+        return;
+      }
       if (event.target.matches("[data-add-param-segment]")) {
         const declaration = currentParamDeclaration(message);
         const segments = messageEditor.querySelector("[data-param-segments]");

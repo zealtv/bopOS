@@ -10,6 +10,8 @@
   "use strict";
 
   const KINDS = ["value", "fade", "loop", "lfo", "stop"];
+  const DRAWER_KINDS = ["lfo", "loop", "fade"];
+  const DRAWER_LABELS = {lfo: "LFO", loop: "loop", fade: "fade"};
   const SHAPES = ["sine", "tri", "saw", "square", "sh", "drift"];
   const UNITS = ["ms", "s", "m", "h"];
 
@@ -286,6 +288,26 @@
     <p class="show-field-error show-param-loop-hint" ${parsed.mode === "loop" && parsed.segments.length < 2 ? "" : "hidden"}>loop needs at least two segments</p>`;
   }
 
+  // The complete drawer face is shared. Hosts provide only routing attributes
+  // and their momentary actions; tabs, shell and fields cannot drift apart.
+  function drawer(declaration, parsed, {
+    attributes = "",
+    actions = "",
+    motion = null,
+    activeMode = parsed?.mode,
+  } = {}) {
+    const kind = DRAWER_KINDS.includes(parsed?.mode) ? parsed.mode : "lfo";
+    const tabs = DRAWER_KINDS.map(item =>
+      `<button type="button" data-gen-kind-tab="${item}" aria-pressed="${item === activeMode}">${DRAWER_LABELS[item]}</button>`).join("");
+    return `<div class="live-param-gen" data-gen-kind="${esc(kind)}"${attributes ? ` ${attributes}` : ""}>
+      <div class="live-param-gen-head">
+        <span class="live-param-gen-tabs" role="group" aria-label="generator kind">${tabs}</span>
+      </div>
+      <div class="live-param-gen-fields">${panelFields(declaration, parsed, motion, actions)}</div>
+      <output class="live-param-gen-error" aria-live="polite"></output>
+    </div>`;
+  }
+
   // Reads the fields under `root` back into §3.2 wire args. `mode` is passed in
   // rather than scraped from a fixed element id, because the Show inspector and
   // the control-surface drawer keep their own mode control.
@@ -364,6 +386,6 @@
   window.ParamGenerator = {
     KINDS, SHAPES, fields, preview, compile, blank,
     segmentRow, unitOptions, valueAttrs, inputNumber, durationString,
-    panelFields, panelSegmentRow, previewGeometry, waveTrace,
+    panelFields, panelSegmentRow, previewGeometry, waveTrace, drawer,
   };
 })();
