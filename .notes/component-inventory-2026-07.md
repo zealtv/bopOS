@@ -108,7 +108,19 @@ fixed width the panel's `min-width`. `design-language.md` §7 already says
 
 ### Rank 2 — Target selector
 
-**Status:** two unrelated implementations, neither adequate for what Bob wants.
+**SHIPPED 2026-07-30 (`07-target-selector-component`).** One component,
+`js/target-picker.js` + `css/target-picker.css`, parameterised by domain:
+`seatSections` (All + `group:<name>`/`g<id>` chips + Seat chips, multi-select and
+mixable) and `deviceSections` (devices, single-select, no All). Consumers
+integrated: the Show inspector, the Control surface, the Assets tab.
+`seat-filter.js` is deleted, and with it its mode-exclusive model. The selection
+is **per host**; the one shared thing is the focus Seat, so the Seats-tab → Control
+workflow survives. `#patch-target` is left to `09`, which the component already
+supports. `tests/verify_target_picker.py` is its contract. The as-was analysis
+below stands as the reasoning that produced it.
+
+**Status (as found):** two unrelated implementations, neither adequate for what
+Bob wants.
 
 | implementation | file | model | selection |
 |---|---|---|---|
@@ -228,14 +240,19 @@ immediately visible) and a "controls repaint" stitch.
 ### Rank 6 — Control-tab column workspace *(new surface, not an extraction)*
 
 Today: `index.html:25-28` is a heading, a link, and **one iframe**
-(`#dashboard-live-view` → `/facilitator?embedded=1`), with `SeatFilter`'s
-All/Groups/Seat radios living inside the iframe.
+(`#dashboard-live-view` → `/facilitator?embedded=1`), with the target picker
+living inside the iframe. (As of `07` that is the unified `TargetPicker`, and
+each selected entry already renders its own card — so what `08` adds is columns
+with independent targets, not the mixable selection itself.)
 
 Bob wants N columns, each a control panel with its own pop-out target
 selector, add/remove, minimum one. Consequences worth naming now:
 
 - It retires `SeatFilter`'s mode-exclusive model in favour of the unified
-  multi-select picker (rank 2) — hence the ordering.
+  multi-select picker (rank 2) — hence the ordering. **Done in `07`.**
+  Note the per-host selection key that shipped with it: `08`'s columns each get
+  their own `bopos.target.<host>` entry, which is why the selection was not made
+  a single shared value.
 - **The iframe is the obstacle.** `control-panel.css`'s header calls out that
   the Control tab is a separate document and `localStorage` is the only
   channel the two share (CLAUDE.md Playwright gotcha 15 exists because of

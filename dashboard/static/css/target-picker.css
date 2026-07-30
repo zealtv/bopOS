@@ -1,0 +1,156 @@
+/* The target picker's face (02-component-unification/07). One component, two
+   domains: the same disclosure, chips, summary and terse closed state whether
+   the chips are Seats and groups or physical devices.
+
+   Consolidated from the two implementations it replaces: the Show inspector's
+   `.show-target-*` rules (style.css) and `SeatFilter`'s `.target-filter*` rules
+   (facilitator.css). Both are deleted — this is the only definition, loaded by
+   both documents like `value-box.css` and `param-generator.css`.
+
+   Selection chrome is PURPLE, not cyan. Design-language §1: cyan means
+   modulation first and selection second, purple is the structural accent for
+   focus and selection. A chosen target is not a modulated one. Chips are
+   near-square (§8: a latching button holds state, so it takes
+   `--radius-toggle`), which is also the shape the shipped pills were the last
+   holdout from.
+
+   Class doubling holds specificity against host base layers: `style.css`'s
+   `.show-inspector-form button` and `facilitator.css`'s bare `button` both
+   restate a button face, and this file loads last. Same idiom as
+   `value-box.css`. */
+
+.target-picker {
+  display:grid;
+  gap:var(--gap);
+  margin:0;
+}
+/* Label and terse state sit TOGETHER at the left, reading "Target  all". The
+   Show inspector's original pushed the terse to the far right with
+   `space-between`, which is invisible in a 380px sidebar and reads as two
+   unrelated labels once the same component spans a 1280px bar. */
+.target-picker > summary {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:var(--gap);
+  cursor:pointer;
+  color:var(--dim);
+  font-size:12px;
+  font-weight:700;
+}
+.target-picker > summary::marker {
+  color:var(--dim);
+}
+.target-picker-terse.target-picker-terse {
+  width:auto;
+  min-width:0;
+  min-height:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:var(--dim);
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+  text-transform:none;
+}
+.target-picker-body {
+  display:grid;
+  gap:var(--gap);
+  padding-top:var(--gap);
+}
+.target-picker-summary {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  flex-wrap:wrap;
+  min-height:var(--row-h);
+  color:var(--dim);
+  font-size:12px;
+}
+.target-picker-chips {
+  display:flex;
+  gap:5px;
+  flex-wrap:wrap;
+}
+/* The roster can be long — a venue's Seats, or every discovered device — so it
+   scrolls inside the picker rather than growing the panel that hosts it. */
+.target-picker-roster {
+  max-height:132px;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+
+.target-chip.target-chip {
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:var(--row-h);
+  padding:0 8px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--input);
+  color:var(--muted-strong);
+  font:inherit;
+  font-size:12px;
+  line-height:1.2;
+  text-transform:none;
+}
+/* A 24px chip is a small pointer target; the invisible pad gives it a comfortable
+   one without changing the layout metric. */
+.target-chip.target-chip::after {
+  content:"";
+  position:absolute;
+  inset:-4px;
+}
+.target-chip.target-chip small {
+  color:var(--dim);
+}
+.target-chip.target-chip:hover:not(:disabled) {
+  background:var(--hover);
+}
+.target-chip.target-chip.on {
+  border-color:var(--accent);
+  background:var(--selected);
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--accent);
+}
+.target-chip.target-chip:disabled {
+  opacity:.5;
+}
+.target-chip-seat.target-chip-seat {
+  min-width:var(--row-h);
+  justify-content:center;
+  font-variant-numeric:tabular-nums;
+}
+.target-chip-selected.target-chip-selected {
+  min-height:20px;
+  padding:0 6px;
+}
+/* Group identity colours, carried over from the Seats-tab rails and the Show
+   picker unchanged. These encode WHICH group, the same way the map does; they
+   are not chrome or selection (design-language §1/§11). */
+.target-chip-swatch {
+  width:10px;
+  height:10px;
+  border-radius:3px;
+  flex:none;
+}
+.target-chip-group.slot-0 .target-chip-swatch { background:#56B4E9; }
+.target-chip-group.slot-1 .target-chip-swatch { background:#E69F00; }
+.target-chip-group.slot-2 .target-chip-swatch { background:#00B98B; }
+.target-chip-group.slot-3 .target-chip-swatch { background:#CC79A7; }
+
+.target-picker-warning {
+  margin:0;
+  padding:7px 8px;
+  border:1px solid var(--status-warn-border,#87343c);
+  border-radius:var(--radius-control);
+  background:var(--status-warn-bg,var(--warning-bg));
+  color:var(--status-warn-text,var(--text));
+  font-size:12px;
+  line-height:1.4;
+}
+.target-picker-disabled {
+  opacity:.58;
+}

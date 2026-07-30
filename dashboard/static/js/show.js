@@ -238,31 +238,22 @@
     });
   }
 
+  // Targets are the shared `TargetPicker` component's selection algebra
+  // (02-component-unification/07); these are the message-shaped spellings of it.
   function targetList(message) {
-    const target = message?.target;
-    if (Array.isArray(target)) return target.length ? target : ["all"];
-    return typeof target === "string" && target ? [target] : ["all"];
+    return window.TargetPicker.list(message?.target);
   }
 
   function targetLabel(target) {
-    return String(target).startsWith("group:") ? String(target).slice(6) : String(target);
+    return window.TargetPicker.labelFor(target);
   }
 
   function terseTargets(message) {
-    const list = targetList(message);
-    return list.includes("all") ? "all" : list.map(targetLabel).join("+");
+    return window.TargetPicker.terse(targetList(message));
   }
 
   function toggledTargets(message, selector, aliases = []) {
-    if (selector === "all") return ["all"];
-    const current = targetList(message).filter(entry => entry !== "all");
-    const equivalents = [selector, ...aliases].filter(Boolean);
-    const on = equivalents.some(entry => current.includes(entry));
-    const withoutEquivalent = current.filter(entry => !equivalents.includes(entry));
-    const next = on
-      ? withoutEquivalent
-      : [...current, selector];
-    return next.length ? next : ["all"];
+    return window.TargetPicker.toggle(targetList(message), selector, {aliases});
   }
 
   function namedTargetWarnings(message) {
@@ -287,39 +278,19 @@
     return resolved.length ? resolved.join("+") : "(no resolved target)";
   }
 
+  // The seat domain of the shared picker. A Show is portable, so its group
+  // chips carry the portable `group:<name>` selector and keep `g<id>` as the
+  // alias a older document may hold.
   function renderTargetPicker(message, disabled) {
-    const selected = targetList(message);
-    const isAll = selected.includes("all");
-    const off = disabled ? " disabled" : "";
-    const groupChips = groups().map((group, index) => {
-      const value = `group:${group.name}`;
-      const legacy = `g${group.id}`;
-      const on = !isAll && (selected.includes(value) || selected.includes(legacy));
-      return `<button type="button" class="show-target-chip show-target-group slot-${index % 4}${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" data-target-legacy="${escapeHtml(legacy)}" aria-pressed="${on}"${off}><span class="show-target-swatch" aria-hidden="true"></span>${escapeHtml(group.name)}<small>g${escapeHtml(group.id)}</small></button>`;
-    }).join("");
-    const seatChips = seats().map(seat => {
-      const value = String(seat.id);
-      const on = !isAll && selected.includes(value);
-      return `<button type="button" class="show-target-chip show-target-seat${on ? " on" : ""}" data-target-toggle="${escapeHtml(value)}" aria-pressed="${on}" title="${escapeHtml(seat.name || `Seat ${seat.id}`)}"${off}>${escapeHtml(value)}</button>`;
-    }).join("");
-    const summary = isAll
-      ? '<span class="dim">every Seat</span>'
-      : selected.map(entry => `<button type="button" class="show-target-chip show-target-selected" data-target-remove="${escapeHtml(entry)}" title="Remove ${escapeHtml(targetLabel(entry))}"${off}>${escapeHtml(targetLabel(entry))}<span aria-hidden="true"> ×</span></button>`).join("");
-    const open = targetDisclosure.uid === message.uid && targetDisclosure.open ? " open" : "";
-    const warnings = namedTargetWarnings(message)
-      .map(warning => `<p class="show-target-warning">${escapeHtml(warning)}</p>`).join("");
-    return `<details class="show-inspector-section show-target-picker${disabled ? " show-disabled-field" : ""}" data-target-disclosure="${escapeHtml(message.uid)}"${open}>
-      <summary><span>Target</span><output class="show-target-terse">${escapeHtml(terseTargets(message))}</output></summary>
-      <div class="show-target-body">
-        <div class="show-target-summary">${summary}</div>
-        <div class="show-target-chips">
-          <button type="button" class="show-target-chip show-target-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${off}>All</button>
-          ${groupChips}
-        </div>
-        ${seatChips ? `<div class="show-target-chips show-target-roster">${seatChips}</div>` : ""}
-        ${warnings}
-      </div>
-    </details>`;
+    return window.TargetPicker.markup({
+      id: message.uid,
+      hostClass: "show-inspector-section",
+      selection: targetList(message),
+      sections: window.TargetPicker.seatSections({groups: groups(), seats: seats()}),
+      warnings: namedTargetWarnings(message),
+      open: targetDisclosure.uid === message.uid && targetDisclosure.open,
+      disabled,
+    });
   }
 
   function inferMessageMode(message) {
@@ -1232,9 +1203,9 @@
   root.addEventListener("pointercancel", finishRowsResize);
 
   root.addEventListener("toggle", event => {
-    const disclosure = event.target.closest?.("[data-target-disclosure]");
+    const disclosure = event.target.closest?.("[data-target-picker]");
     if (!disclosure) return;
-    targetDisclosure = {uid: disclosure.dataset.targetDisclosure, open: disclosure.open};
+    targetDisclosure = {uid: disclosure.dataset.targetPicker, open: disclosure.open};
   }, true);
 
   function paramModeDefaultArgs(declaration, mode) {
@@ -1584,15 +1555,13 @@
         const args = compileParamEditor(message, messageEditor);
         if (args) updateMessage(message.uid, {args});
       }
-      const toggle = event.target.closest("[data-target-toggle]");
-      if (toggle) {
+      const targeting = window.TargetPicker.action(event);
+      if (targeting?.kind === "toggle") {
         updateMessage(message.uid, {target: toggledTargets(
-          message, toggle.dataset.targetToggle, [toggle.dataset.targetLegacy])});
-      }
-      const removal = event.target.closest("[data-target-remove]");
-      if (removal) {
-        const remaining = targetList(message).filter(entry => entry !== removal.dataset.targetRemove);
-        updateMessage(message.uid, {target: remaining.length ? remaining : ["all"]});
+          message, targeting.value, targeting.aliases)});
+      } else if (targeting?.kind === "remove") {
+        updateMessage(message.uid, {target: window.TargetPicker.remove(
+          targetList(message), targeting.value)});
       }
       if (event.target.matches("[data-add-raw-arg]")) {
         updateMessage(message.uid, {args: [...(message.args || []), {type: "f", value: 0}]});

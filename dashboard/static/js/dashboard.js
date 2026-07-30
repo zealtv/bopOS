@@ -20,7 +20,6 @@ let fleetPatchTarget = "all";
 let patchHandoffDevice = null;
 let renderedFleetDesired = null;
 let distribution = {assets: [], patches: []};
-let assetTarget = null;
 let assetFeedback = "";
 let assetFeedbackPending = null;
 let deviceFilter = "all";
@@ -1070,9 +1069,10 @@ function select(uid) {
 }
 function selectSeat(id) {
   activateSeatSidebar("seats");
-  // The Control tab's target filter reads the same shared key, so choosing a
-  // Seat here is the choice it lands on (37/10).
-  window.SeatFilter?.selectSeat(id);
+  // The Control tab's target picker follows the same shared key, so choosing a
+  // Seat here is the target it lands on (37/10, kept by
+  // 02-component-unification/07 — everything else about a target is per host).
+  window.TargetPicker?.focusSeat(id);
   selectedSeat=id; const seat=installation.seats?.[String(id)]||installation.seats?.[id];
   const d=seat&&occupant(seat); selected=d?.uid||null;
   if(d&&!d.declared) ws.send("request_params",{uid:d.uid});
@@ -1470,7 +1470,7 @@ function bindDeviceDetailControls(d) {
   bindDeviceControl(d);
   const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
   $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
-  const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetTarget=d.uid;activateTab("assets");renderAssets();};
+  const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetPicker.set([d.uid]);activateTab("assets");};
 }
 
 function bindDeviceControl(d) {
@@ -1549,10 +1549,12 @@ function assetTargets() {
     return {device,reasons,eligible:reasons.length===0};
   }).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||Identity.primary(a.device,installation).localeCompare(Identity.primary(b.device,installation)));
 }
+// The picker prunes a stale or ineligible choice to the first eligible chip, so
+// the "did the chosen device go away" fallback that used to live here is the
+// component's (02-component-unification/07).
 function selectedAssetDevice(targets=assetTargets()) {
-  const eligible=targets.filter(target=>target.eligible);
-  if(!eligible.some(target=>target.device.uid===assetTarget)) assetTarget=eligible[0]?.device.uid||null;
-  return eligible.find(target=>target.device.uid===assetTarget)?.device||null;
+  const chosen=assetPicker.selection()[0];
+  return targets.find(target=>target.eligible&&target.device.uid===chosen)?.device||null;
 }
 function assetInventoryState(device,item) {
   if(!device||device.assets===null||!Array.isArray(device.assets)) return {label:"unknown",installed:null};
@@ -1629,16 +1631,34 @@ function resolveAssetFeedback(device) {
     : `${pending.slot} is current on ${Identity.primary(device,installation)}; confirmed by observed inventory.`;
   assetFeedbackPending=null;
 }
+// The device domain of the shared target picker: one device, no All, and every
+// discovered device present — an ineligible one is visible but disabled, wearing
+// the reason it cannot be chosen (the Assets workflow is single-device by
+// design, thread 11b).
+const assetPicker=window.TargetPicker.create({
+  host:$("#asset-target-host"), id:"assets", storageKey:"bopos.target.assets",
+  spec:()=>({
+    label:"device", allowAll:false, multiple:false,
+    emptySummary:"No devices discovered", emptyTerse:"none",
+    sections:window.TargetPicker.deviceSections(assetTargets().map(target=>({
+      uid:target.device.uid,
+      label:Identity.primary(target.device,installation),
+      sub:target.reasons.join(", ")||null,
+      title:target.reasons.length?target.reasons.join(" · "):null,
+      disabled:!target.eligible,
+    }))),
+  }),
+  onChange:()=>{assetFeedback="";renderAssets();},
+});
 function renderAssets() {
-  const select=$("#asset-target"), catalog=$("#asset-catalog"), extras=$("#asset-extras");
-  if(!select||!catalog||!extras) return;
-  const active=document.activeElement, focused=active===select, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
+  const catalog=$("#asset-catalog"), extras=$("#asset-extras");
+  if(!catalog||!extras) return;
+  const active=document.activeElement, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
+  // Render the picker first: pruning a departed or now-ineligible device is
+  // part of rendering it, and everything below reads the resolved choice.
+  assetPicker.render();
   const targets=assetTargets(), device=selectedAssetDevice(targets);
   resolveAssetFeedback(device);
-  select.innerHTML=targets.length?targets.map(target=>`<option value="${esc(target.device.uid)}" ${target.device.uid===assetTarget?'selected':''} ${target.eligible?'':`disabled`} >${esc(Identity.primary(target.device,installation))}${target.reasons.length?` — ${esc(target.reasons.join(', '))}`:''}</option>`).join(''):'<option disabled>No devices discovered</option>';
-  select.disabled=!targets.some(target=>target.eligible);
-  select.onchange=()=>{assetTarget=select.value;assetFeedback="";renderAssets();};
-  if(focused) select.focus();
   const ineligible=targets.filter(target=>!target.eligible);
   $("#asset-target-reasons").innerHTML=ineligible.length?ineligible.map(target=>`<span><strong>${esc(Identity.primary(target.device,installation))}</strong> · ${esc(target.reasons.join(' · '))}</span>`).join(''):targets.length?'<span class="dim">Every discovered device is eligible.</span>':'<span class="dim">No devices discovered.</span>';
   $("#asset-catalog-summary").textContent=`${distribution.assets.length} host slot${distribution.assets.length===1?'':'s'}${device?` · compared with ${Identity.primary(device,installation)}`:''}`;

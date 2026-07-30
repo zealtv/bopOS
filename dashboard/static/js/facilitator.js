@@ -85,12 +85,29 @@ const capturePreviews = new Map();
 let pendingPreview = null;
 let lastPresetReport = null;
 
-// All / Groups / Seat. The filter is the reusable component (37/10); this page
-// only decides which cards a chosen target implies.
-const targetFilter = window.SeatFilter.create({
-  host: $("#target-filter-host"),
-  getSeats: () => seats(),
-  label: "Control target",
+// The shared target picker's seat domain (02-component-unification/07). This
+// replaces `SeatFilter`'s mode-exclusive All/Groups/Seat tabs: a target is now
+// All, or any mixture of groups and Seats, and each selected entry gets a card.
+// This page only decides which cards a chosen target implies.
+//
+// Group chips carry the `g<id>` wire selector rather than the Show inspector's
+// portable `group:<name>`: nothing here is persisted into a portable document,
+// and an id cannot be ambiguous when two groups share a name.
+//
+// The selection is this host's own (`storageKey`), which is what lets
+// `08-control-tab-columns` give each column a target. `followFocusSeat` keeps
+// the one genuinely shared thing: choosing a Seat on the Seats tab moves this
+// picker to that Seat, across the iframe boundary.
+const targetPicker = window.TargetPicker.create({
+  host: $("#target-picker-host"),
+  id: "control",
+  storageKey: "bopos.target.control",
+  followFocusSeat: true,
+  spec: () => ({
+    label: "Control target",
+    sections: window.TargetPicker.seatSections(
+      {groups: groups(), seats: seats(), groupSelector: "id"}),
+  }),
   onChange: () => { renderCards(); $("#cards").scrollTop = 0; },
 });
 
@@ -266,14 +283,14 @@ document.addEventListener("pointerup", () => {
 
 function render() {
   $("#venue-name").textContent = installation.name || "bopOS";
-  targetFilter.render();
+  targetPicker.render();
   renderShowCapture();
   renderCards(); renderControls(); renderCommands();
 }
 
 function renderShowCapture() {
   if (!embedded) return;
-  const host = $("#target-filter-host");
+  const host = $("#target-picker-host");
   host.insertAdjacentHTML("beforeend",
     '<button type="button" class="capture-show-step" data-capture-show-step>Capture as Show step</button>');
   host.querySelector("[data-capture-show-step]").onclick = () => {
@@ -285,27 +302,45 @@ function renderShowCapture() {
   };
 }
 
+// One selected entry, one card. The picker has already pruned selectors this
+// venue no longer has, so an unresolvable entry here means a group renamed
+// between renders rather than stale state.
+function selectedCard(selector, declarations, available, patch) {
+  if (selector.startsWith("g") || selector.startsWith("group:")) {
+    const catalog = groups();
+    const group = selector.startsWith("g")
+      ? catalog.find(item => `g${item.id}` === selector)
+      : catalog.find(item => item.name === selector.slice(6));
+    return group
+      ? liveCard("group", group, groupSeats(group.id), declarations, available, patch)
+      : null;
+  }
+  const seat = seats().find(item => String(item.id) === selector);
+  return seat ? liveCard("seat", seat, [seat], declarations, available, patch) : null;
+}
+
+// "all" / "groups" / "seats" / "mixed" — what the selection is made of, for the
+// layout to key off.
+function selectionMode(selection) {
+  if (selection.includes("all")) return "all";
+  const kinds = new Set(selection.map(entry =>
+    entry.startsWith("g") || entry.startsWith("group:") ? "groups" : "seats"));
+  return kinds.size === 1 ? [...kinds][0] : "mixed";
+}
+
 function renderCards() {
   if (interacting) return;
   const schema = liveSchema();
   const declarations = schema?.declarations || [];
   const allSeats = seats();
   const available = declarations.length > 0;
-  const chosen = targetFilter ? targetFilter.target() : {mode: "all"};
-  let cards;
+  const selection = targetPicker.selection();
   const patch = schema?.patch;
-  if (chosen.mode === "seat") {
-    // The filter always resolves to a real Seat when one exists, so an empty
-    // list here means the venue has no Seats, not that none was chosen.
-    cards = chosen.seat ? [liveCard("seat", chosen.seat, [chosen.seat], declarations, available, patch)] : [];
-  } else if (chosen.mode === "groups") {
-    cards = groups().map(group => liveCard("group", group, groupSeats(group.id), declarations, available, patch));
-  } else {
-    cards = [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0, patch)];
-  }
-  $("#cards").dataset.liveView = chosen.mode;
-  $("#cards").innerHTML = cards.join("")
-    || `<p class="empty">${chosen.mode === "groups" ? "No groups" : "No Seats"}</p>`;
+  const cards = selection.includes("all") || !selection.length
+    ? [liveCard("all", {}, allSeats, declarations, available && allSeats.length > 0, patch)]
+    : selection.map(entry => selectedCard(entry, declarations, available, patch)).filter(Boolean);
+  $("#cards").dataset.liveView = selectionMode(selection);
+  $("#cards").innerHTML = cards.join("") || '<p class="empty">No Seats</p>';
   bindCards();
 }
 
@@ -338,14 +373,27 @@ function renderControls() {
   silence.classList.toggle("active", muted);
 }
 
+// Capture-as-step targets a coarse scope server-side (all / groups / one seat),
+// which a mixable selection has to be reduced to: one Seat and nothing else is
+// that Seat, anything involving a group is "groups", and everything else — All,
+// or several Seats — is the whole venue. The reduction lives here rather than
+// widening the server's vocabulary, which `41-preset-primitive` ratified.
 function presetScope() {
-  const chosen = targetFilter.target();
-  if (chosen.mode === "seat" && chosen.seat) {
-    return {scope: "seat", id: Number(chosen.seat.id),
-            label: chosen.seat.name || `Seat ${chosen.seat.id}`};
+  const selection = targetPicker.selection();
+  if (selection.includes("all") || !selection.length) {
+    return {scope: "all", id: null, label: "All Seats"};
   }
-  if (chosen.mode === "groups") return {scope: "groups", id: null, label: "Groups"};
-  return {scope: "all", id: null, label: "All Seats"};
+  const seatOnly = selection.every(entry =>
+    !entry.startsWith("g") && !entry.startsWith("group:"));
+  if (seatOnly && selection.length === 1) {
+    const seat = seats().find(item => String(item.id) === selection[0]);
+    if (seat) {
+      return {scope: "seat", id: Number(seat.id),
+              label: seat.name || `Seat ${seat.id}`};
+    }
+  }
+  if (seatOnly) return {scope: "all", id: null, label: "All Seats"};
+  return {scope: "groups", id: null, label: "Groups"};
 }
 
 const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);

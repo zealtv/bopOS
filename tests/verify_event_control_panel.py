@@ -305,7 +305,7 @@ def main():
                       and shape["syncToggles"] == 0, repr(shape))
 
                 # --- All -> /all/e/strike ---
-                click_once(page, frame.locator('[data-target-mode="all"]'))
+                click_once(page, frame.locator('[data-target-toggle="all"]'))
                 row = frame.locator(
                     '.live-card[data-live-scope="all"] '
                     '.live-param-event[data-param-path="strike"]')
@@ -322,8 +322,10 @@ def main():
                       and sorted(all_ids) == [1, 2], repr(typed))
 
                 # --- Group 7 -> /g7/e/strike ---
+                # Chips, not modes (02-component-unification/07): selecting the
+                # group chip replaces All with that one group.
                 click_once(
-                    page, frame.locator('[data-target-mode="groups"]'))
+                    page, frame.locator('[data-target-toggle="g7"]'))
                 group_row = frame.locator(
                     '.live-card[data-live-scope="group"][data-live-id="7"] '
                     '.live-param-event[data-param-path="strike"]')
@@ -340,14 +342,9 @@ def main():
                       and group_ids == [1], repr(typed))
 
                 # --- Seat 2 -> /2/e/strike ---
-                click_once(page, frame.locator('[data-target-mode="seat"]'))
-                seat_picker = frame.locator("[data-target-seat]")
-                seat_picker.wait_for(state="attached")
-                seat_picker.evaluate(
-                    """picker => {
-                      picker.value = "2";
-                      picker.dispatchEvent(new Event("change", {bubbles: true}));
-                    }""")
+                # Deselect the group and select Seat 2, leaving one Seat card.
+                click_once(page, frame.locator('[data-target-toggle="g7"]'))
+                click_once(page, frame.locator('[data-target-toggle="2"]'))
                 seat_row = frame.locator(
                     '.live-card[data-live-scope="seat"][data-live-id="2"] '
                     '.live-param-event[data-param-path="strike"]')

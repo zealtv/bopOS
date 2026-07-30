@@ -262,7 +262,28 @@ remain the authority for a particular piece of work.
 >    Those obsolete host-owned placements are deleted. A living browser check
 >    now measures the real facilitator at 480 CSS px and requires value,
 >    slider, and ∿ to share one vertical centre) →
->    `07-target-selector-component` →
+>    ~~`07-target-selector-component`~~ (tied 2026-07-30 — one
+>    `TargetPicker` component, `js/target-picker.js` + the app's third component
+>    stylesheet `css/target-picker.css`, parameterised by domain: seats/groups
+>    (multi-select and mixable) and devices (single-select, no All). `SeatFilter`
+>    is **deleted** along with its mode-exclusive model, the 20 `.show-target-*`
+>    rules, and the Assets `<select>`. Integrated into the Show inspector, the
+>    Control surface — where a mixture now renders **a card per selected entry** —
+>    and the Assets tab. The explicit ruling the stitch owed: the multi-select
+>    selection is **per host** (`bopos.target.<host>`) because `08`'s columns each
+>    need their own target, while the **focus Seat stays one shared key** so the
+>    Seats-tab → Control workflow survives; a picker adopts it when it *moves*,
+>    not on load. `#patch-target` is left to `09`. Group selectors differ by
+>    domain on purpose: portable `group:<name>` in a Show, live `g<id>` on
+>    Control, each carrying the other as a chip alias. New living guard
+>    `tests/verify_target_picker.py`, which also gives the **Assets tab its first
+>    journey**. Two gotchas for the rest of the thread: a component class is
+>    app-wide, so a bare `.target-picker` selector now resolves in two tabs —
+>    gotcha 12 in component-class form, scope to the host; and `about:blank`
+>    denies `localStorage`, so a `set_content` fixture cannot test persistence at
+>    all (use `page.route` + a fabricated origin). Unlike `05e`, this collapse
+>    **does** shrink the Remote view: 44px tabs → 34px chips and a 140px seat
+>    `<select>` → 32px chips, measured and recorded in `49`) →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
@@ -865,7 +886,19 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   control lands on an unbound node and silently sends nothing. Wait on the
   binding (`page.wait_for_function("() => !!document.querySelector(…)?.onchange")`)
   before dispatching, and match a recorded send by param name rather than by
-  position in the log.
+  position in the log. (17) **a component class is app-wide, so a bare component
+  selector is ambiguous** — gotcha 12's shape again, one level up: once
+  `07-target-selector-component` shipped, `.target-picker` resolved to both the
+  Show inspector's picker and the Assets tab's, the latter in an inactive tab and
+  so never *visible*, which times out a default wait rather than failing
+  clearly. Scope every component selector to its host (`#show-root
+  .target-picker`). Expect this for each component the unification thread
+  extracts; (18) **`about:blank` denies `localStorage`** — a `page.set_content`
+  fixture cannot test persistence, and a component that guards its storage in
+  try/catch (they all should) will silently look like it works. Use
+  `page.route` + `goto` on a fabricated origin for a real storage partition with
+  no server and no app scripts (`tests/verify_target_picker.py` is the worked
+  example).
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use

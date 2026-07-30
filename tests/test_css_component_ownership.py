@@ -42,6 +42,7 @@ COMPONENTS = {
     "value-box": [".value-box", ".precise-input", ".precise-output"],
     "patch-editor": [".params"],
     "show-inspector": [".show-inspector-section", ".show-param"],
+    "target-picker": [".target-picker", ".target-chip"],
 }
 
 # A surface legitimately PLACES what it hosts. These properties say where a

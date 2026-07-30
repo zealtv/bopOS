@@ -197,10 +197,10 @@ def main():
                         page.reload()
                 pill = page.locator('[data-show-message-focus="aaaaaaaa"]')
                 pill.click()
-                page.wait_for_selector(".show-target-picker")
-                page.locator(".show-target-picker summary").click()
+                page.wait_for_selector("#show-root .target-picker")
+                page.locator("#show-root .target-picker summary").click()
                 load_warning = page.locator(".show-warning-list").inner_text().lower()
-                author_warning = page.locator(".show-target-warning").inner_text().lower()
+                author_warning = page.locator("#show-root .target-picker-warning").inner_text().lower()
                 check("a missing named target warns at Show load and authoring time",
                       "does not exist" in load_warning
                       and "does not exist" in author_warning,
@@ -212,10 +212,10 @@ def main():
                 page.locator(
                     '[data-target-remove="group:Missing"]').click()
                 page.wait_for_function(
-                    "() => document.querySelector('.show-target-terse')?.innerText === 'all'")
+                    "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'all'")
                 named_chip.click()
                 page.wait_for_function(
-                    "() => document.querySelector('.show-target-terse')?.innerText === 'Front'")
+                    "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'Front'")
 
                 def saved_messages():
                     try:
@@ -229,12 +229,12 @@ def main():
                       repr(saved_messages()))
                 check("picker renders the portable name and current wire id",
                       "Front" in page.locator(
-                          '.show-target-summary '
+                          '#show-root .target-picker-summary '
                           '[data-target-remove="group:Front"]').inner_text()
                       and "g7" in named_chip.inner_text()
                       and "-> g7" in page.locator(
                           "#show-wire-preview").inner_text(),
-                      page.locator(".show-target-picker").inner_text())
+                      page.locator("#show-root .target-picker").inner_text())
 
                 pill = page.locator('[data-show-message-focus="aaaaaaaa"]')
                 pill.focus()

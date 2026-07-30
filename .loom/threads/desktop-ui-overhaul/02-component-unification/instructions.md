@@ -69,8 +69,10 @@ promotion of the second over the first rather than invention of a third.
    than an ownership one and became `05e`.
 6. `06-control-panel-reflow-and-editor` — atomic parameter rows, non-reflowing
    drawer, and the patch editor adopts the shared panel.
-7. `07-target-selector-component` — one picker, two domains (seats/groups and
-   devices).
+7. `07-target-selector-component` — **done, tied 2026-07-30.** One picker, two
+   domains (seats/groups and devices), `js/target-picker.js` +
+   `css/target-picker.css`; `seat-filter.js` deleted. Selection is per host, the
+   focus Seat stays shared — see its `decisions.md`, which `08` depends on.
 8. `08-control-tab-columns` — **design gate.** N control-panel columns with
    per-column targets. Carries the load-bearing iframe question.
 9. `09-patches-deploy-row` — patch, target, actions on one line.

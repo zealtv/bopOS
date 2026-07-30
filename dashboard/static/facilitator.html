@@ -14,12 +14,13 @@
 <link rel="stylesheet" href="/css/facilitator.css">
 <link rel="stylesheet" href="/css/param-generator.css"><link rel="stylesheet" href="/css/control-panel.css">
 <link rel="stylesheet" href="/css/value-box.css">
+<link rel="stylesheet" href="/css/target-picker.css">
 </head>
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
   <header><a id="technical-link" href="/">All views</a><h1 id="venue-name">bopOS Dashboard</h1><label class="theme-control">theme <select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><span id="ws-status" class="offline">connecting…</span></header>
   <output id="event-status" class="visually-hidden" role="status" aria-live="polite"></output>
-  <div id="target-filter-host" class="target-filter-host"></div>
+  <div id="target-picker-host" class="target-picker-host"></div>
   <main id="cards" role="region" aria-label="Live controls"><p class="empty">Waiting for devices…</p></main>
   <footer id="controls">
     <div id="master-row"><span class="label">Master</span><input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out"></output></div>
@@ -28,5 +29,5 @@
     </div>
     <div id="facilitator-commands"></div>
   </footer>
-  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/seat-filter.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-surface.js"></script><script src="/js/facilitator.js"></script>
+  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/target-picker.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-surface.js"></script><script src="/js/facilitator.js"></script>
 </body></html>

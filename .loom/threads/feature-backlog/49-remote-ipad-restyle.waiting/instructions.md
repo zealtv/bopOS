@@ -59,3 +59,19 @@ component — and this stitch to be about what *replaces* it:
 
 Read `.loom/tied/05c-drawer-component-ownership/decisions.md` for how the two
 base layers were found, and `05e` for the drawer's share of the collapse.
+
+## Measured collapses so far
+
+Each row is a component whose facilitator rules have already died, with what the
+Remote view actually lost. This is the list the restyle should start from.
+
+| component | stitch | measured delta on the touch surface |
+|---|---|---|
+| generator drawer | `05e` | **nothing visible.** One hidden `pointer-events:none` checkbox's `min-height`; `control-panel.css` §17b had already restated the drawer's metrics for both hosts. |
+| target picker | `07` | **real shrink.** The All/Groups/Seat tabs were `min-height:44px`/`font-size:14px`; the replacement chips measure **34px tall** (`--row-h` under `pointer:coarse`), ~42px effective hit height with the component's `::after` pad, at 12px type. The seat `<select>` (`min-height:44px`, `min-width:140px`) became a row of **32px-wide** numeric Seat chips. Measured with `touch_probe.py` in that stitch, iPad-portrait emulation. |
+
+So the "44 becomes 34" worry is now **confirmed for one component and disproven
+for another** — which is the point of measuring per collapse. Two concrete jobs
+for this stitch fall out of the `07` row: a Seat chip 32px wide is the smallest
+tap target the Remote view has, and a 34px chip in a scrolling roster is the
+densest. Both want a number with a reason, not an inherited token.

@@ -610,7 +610,7 @@ def main():
                       repr(narrow))
                 page.set_viewport_size({"width": 900, "height": 1200})
 
-                page.click('[data-target-mode="groups"]')
+                page.click('[data-target-toggle="g0"]')
                 page.wait_for_selector('.live-card[data-live-scope="group"]')
                 check("group card renders rows through the component",
                       page.locator(
@@ -618,7 +618,8 @@ def main():
                           '[data-live-param][data-param-path="density"]'
                       ).count() >= 1)
 
-                page.click('[data-target-mode="seat"]')
+                page.click('[data-target-toggle="g0"]')
+                page.click('[data-target-toggle="2"]')
                 page.wait_for_selector('.live-card[data-live-scope="seat"]')
                 check("seat cards render rows through the component",
                       page.locator(
@@ -840,10 +841,12 @@ def main():
                       and not page.locator(child).is_visible())
 
                 page.reload()
-                # The target filter persists its own mode, so the reload comes
-                # back on Seats; click it anyway rather than assume either way.
+                # The target picker persists its own selection, so the reload
+                # comes back on the Seat; assert nothing either way and simply
+                # make sure the Seat card is the one on screen.
                 page.wait_for_selector('.live-card')
-                page.click('[data-target-mode="seat"]')
+                if page.locator('.live-card[data-live-scope="seat"]').count() == 0:
+                    page.click('[data-target-toggle="2"]')
                 page.wait_for_selector('.live-card[data-live-scope="seat"]')
                 check("the collapse survives a reload",
                       page.locator(branch).get_attribute("open") is None

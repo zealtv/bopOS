@@ -6,11 +6,10 @@ Bob's rulings, each one a check:
 
   * the Dashboard tab is renamed CONTROL -- and an existing #dashboard bookmark
     still resolves, because renaming a route silently breaks links;
-  * the target filter is All / Groups / Seat, built as a REUSABLE component
-    (window.SeatFilter) rather than a widget belonging to this tab, and it
-    scopes the surface below it;
+  * the target picker is a REUSABLE component (window.TargetPicker) rather than
+    a widget belonging to this tab, and it scopes the surface below it;
   * the Seat choice is shared -- picking a Seat on the Seats tab is the Seat
-    the filter lands on;
+    the picker lands on;
   * CUES sit above the surface;
   * PRESETS follow the target filter: the shelf names the current target, and a
     save under one Seat captures that Seat rather than the whole venue.
@@ -18,7 +17,13 @@ Bob's rulings, each one a check:
 Also pins the correction that came with the ratification: the Control tab hosts
 NO patch deployment -- the picker stays on the Patches tab.
 
-Owned by code surface (seat-filter.js, facilitator.js, dashboard.js tabs).
+The All/Groups/Seat radio model this file originally pinned was retired by
+`02-component-unification/07`: Bob's unified picker is a chip disclosure where
+All, groups and Seats mix freely, so the mode tabs became chips. What survives
+unchanged is every ruling above -- a reusable component, scoping the surface,
+following the shared Seat.
+
+Owned by code surface (target-picker.js, facilitator.js, dashboard.js tabs).
 """
 
 import json
@@ -228,18 +233,18 @@ def main():
                 check("the patch picker is still on the Patches tab",
                       page.locator("#tab-patches #patch-target").count() == 1)
 
-                # --- the filter is the reusable component ---
+                # --- the picker is the reusable component ---
                 frame = surface(page)
-                frame.locator(".target-filter").wait_for()
-                check("the filter is a reusable component, not a local widget",
+                frame.locator(".target-picker").wait_for()
+                check("the picker is a reusable component, not a local widget",
                       page.frames[-1].evaluate(
-                          "() => typeof window.SeatFilter?.create"
+                          "() => typeof window.TargetPicker?.create"
                           " === 'function'"))
-                modes = frame.locator(
-                    ".target-filter [data-target-mode]").all_text_contents()
-                check("the filter offers All / Groups / Seat",
-                      [item.strip() for item in modes]
-                      == ["All", "Groups", "Seat"], repr(modes))
+                chips = frame.locator(
+                    ".target-picker [data-target-toggle]").all_text_contents()
+                check("the picker offers All, the group and both Seats as chips",
+                      [item.strip() for item in chips]
+                      == ["All", "Frontg0", "1", "2"], repr(chips))
 
                 # --- events sit above the parameters, inside the panel ---
                 # `/cue` is retired (thread 44 child 4) and the top event panel
@@ -307,14 +312,24 @@ def main():
                 check("the preset row is live, not a placeholder",
                       placement["live"] > 0, repr(placement))
 
-                frame.locator('[data-target-mode="groups"]').click()
+                # A chip selection is mixable, so each selected entry is a card:
+                # the group alone, then the group plus a Seat.
+                frame.locator('[data-target-toggle="g0"]').click()
                 frame.locator('.live-card[data-live-scope="group"]').wait_for()
-                check("Groups shows the group cards",
-                      frame.locator(
+                check("a group chip shows that group's card only",
+                      frame.locator(".live-card").count() == 1
+                      and frame.locator(
                           '.live-card[data-live-scope="group"]').count() == 1)
-                frame.locator('[data-target-mode="seat"]').click()
+                frame.locator('[data-target-toggle="2"]').click()
                 frame.locator('.live-card[data-live-scope="seat"]').wait_for()
-                check("Seat shows exactly one Seat card",
+                check("a mixed selection shows a card per entry",
+                      frame.locator(".live-card").count() == 2
+                      and frame.locator(
+                          '.live-card[data-live-scope="seat"]'
+                          '[data-live-id="2"]').count() == 1)
+                frame.locator('[data-target-toggle="all"]').click()
+                frame.locator('.live-card[data-live-scope="all"]').wait_for()
+                check("All is exclusive with everything else",
                       frame.locator(".live-card").count() == 1)
 
                 # --- the Seat choice is shared with the Seats tab ---
@@ -326,12 +341,13 @@ def main():
                 page.click('#assigned .device-row[data-seat-id="2"] small')
                 page.click("#tab-button-control")
                 frame = surface(page)
-                # The filter re-reads the shared key on its next render, which
-                # a heartbeat drives, so wait for the card rather than sampling.
+                # The picker adopts the shared key when it changes, on the
+                # storage event or the next heartbeat render — so wait for the
+                # card rather than sampling.
                 frame.locator(
                     '.live-card[data-live-scope="seat"][data-live-id="2"]'
                 ).wait_for(timeout=15000)
-                check("the filter follows the Seat chosen on the Seats tab",
+                check("the picker follows the Seat chosen on the Seats tab",
                       frame.locator('.live-card[data-live-scope="seat"]')
                       .get_attribute("data-live-id") == "2")
 
