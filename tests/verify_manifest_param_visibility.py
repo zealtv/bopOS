@@ -264,10 +264,14 @@ def main():
                           },
                           "toggleParam": {"kind": "toggle", "default": 1},
                       }, repr(kind_change))
-                check("Patch-tab checkbox is labelled Facilitator",
+                # "Facilitator" until 2026-07-30, when Bob named the standalone
+                # view **Remote** and ruled the manifest checkboxes follow it
+                # (desktop-ui-overhaul/02-component-unification). The flag still
+                # gates only that view; only its label changed.
+                check("Patch-tab checkbox is labelled Remote",
                       page.locator(
                           "#manifest-params .manifest-check").first.inner_text(
-                          ).strip() == "Facilitator")
+                          ).strip() == "Remote")
 
                 # Reordering is an ordinary dirty manifest edit. Keep the
                 # nested texture declarations together so the tree renderer's

@@ -692,7 +692,7 @@ function paramManifestRow(param, index) {
     <label>kind<select data-manifest-field="kind">${["float","int","toggle","enum","text"].map(value=>`<option value="${value}" ${kind===value?"selected":""}>${value}</option>`).join("")}</select></label>
     ${bounds}${options}
     <label>default<input data-manifest-field="default" type="${defaultType}" ${defaultType==="number"?'step="any"':""} value="${esc(param.default??"")}"></label>
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""}> Facilitator</label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""}> Remote</label>
     <button data-remove-param="${index}" class="danger">Remove</button>
   </div>`;
 }
@@ -706,7 +706,7 @@ function eventManifestRow(declaration, index) {
     <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name||"")}" autocomplete="off"></label>
     <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
     ${elements}
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard===true?"checked":""}> Facilitator</label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard===true?"checked":""}> Remote</label>
     <button data-remove-event="${index}" class="danger">Remove</button>
   </div>`;
 }
@@ -896,7 +896,7 @@ function renderManifestEditor(source) {
 }
 
 function editorControl(declaration, value) {
-  const badge=declaration.dashboard?'<b class="badge dashboard-badge">Dashboard</b>':'';
+  const badge=declaration.dashboard?'<b class="badge dashboard-badge">Remote</b>':'';
   const name=`${esc(declaration.name)} ${badge}`;
   const identity=paramIdentity(declaration);
   if (declaration.kind === "text") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;

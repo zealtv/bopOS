@@ -12,9 +12,20 @@
 
    Scope discipline: the light-theme repaint is deliberately confined to the
    control surface (`.live-card`, `.device-control`). The app-wide repaint is
-   `02-app-wide-rollout-design`, not this stitch. In DARK theme the panel
-   token values are identical to the shipping ones, so dark is a no-op here
-   and only the chrome rules below change it. */
+   `02-component-unification/02-token-promotion`, not this stitch. In DARK
+   theme the panel token values are identical to the shipping ones, so dark is
+   a no-op here and only the chrome rules below change it.
+
+   LIGHT PALETTE CORRECTED 2026-07-30 (Bob, off the mockup now stored at
+   `.lore/items/2026-07-27-.../content/mockup.png`): "the pink is a little
+   heavy on the control panel — notice how it's used in the Excalidraw mockup.
+   It's a background that panels sit on, not the colour of panels themselves."
+   Sampled from the mockup: ground `#f8f0fc`, panel `#f8f9fa`, subpanel and
+   manual fill `#e9ecef`, inputs/buttons `#ffffff`, ink `#1e1e1e` — i.e. a
+   NEUTRAL grey scale on a pale pink ground, not a pink scale. The `--cp-*`
+   light column below is that palette; `--cp-bg` is the only pink token and it
+   paints the ground, never a panel. Cyan is unchanged (ratified 2026-07-27).
+   Supersedes the light column in `design-language.md` §1. */
 
 /* ---- 1. Palette tokens (design-language §1) ------------------------------
    `--mod*`, `--value-fill` and `--hatch` are new and global: they name inks,
@@ -44,14 +55,14 @@
     --mod-fill:rgba(7,152,188,.20);
     --mod-hatch:rgba(7,152,188,.42);
     --mod-soft:rgba(7,152,188,.09);
-    --value-fill:rgba(90,60,120,.13);
-    --hatch:rgba(60,40,80,.20);
-    --cp-bg:#f4d7eb;--cp-panel:#fdf6fb;--cp-subpanel:#f6e4f0;
-    --cp-input:#fefcfe;--cp-control:#eed7e8;--cp-hover:#e5c6dd;
-    --cp-line:#9a8298;--cp-control-line:#84788a;--cp-group-line:#a586a0;
-    --cp-text:#2b2130;--cp-dim:#655a6b;--cp-accent:#7A4FC8;
-    --cp-panel-strong:#f9ecf5;--cp-panel-soft:#f6e4f0;--cp-row:#fbf1f7;
-    --cp-selected:#e5c6dd;--cp-strong-line:#84788a;
+    --value-fill:rgba(33,37,41,.10);
+    --hatch:rgba(33,37,41,.18);
+    --cp-bg:#f8f0fc;--cp-panel:#f8f9fa;--cp-subpanel:#e9ecef;
+    --cp-input:#ffffff;--cp-control:#ffffff;--cp-hover:#f1f3f5;
+    --cp-line:#ced4da;--cp-control-line:#495057;--cp-group-line:#ced4da;
+    --cp-text:#212529;--cp-dim:#868e96;--cp-accent:#7A4FC8;
+    --cp-panel-strong:#f1f3f5;--cp-panel-soft:#f1f3f5;--cp-row:#f8f9fa;
+    --cp-selected:#e9ecef;--cp-strong-line:#495057;
   }
 }
 
@@ -60,14 +71,14 @@
   --mod-fill:rgba(7,152,188,.20);
   --mod-hatch:rgba(7,152,188,.42);
   --mod-soft:rgba(7,152,188,.09);
-  --value-fill:rgba(90,60,120,.13);
-  --hatch:rgba(60,40,80,.20);
-  --cp-bg:#f4d7eb;--cp-panel:#fdf6fb;--cp-subpanel:#f6e4f0;
-  --cp-input:#fefcfe;--cp-control:#eed7e8;--cp-hover:#e5c6dd;
-  --cp-line:#9a8298;--cp-control-line:#84788a;--cp-group-line:#a586a0;
-  --cp-text:#2b2130;--cp-dim:#655a6b;--cp-accent:#7A4FC8;
-  --cp-panel-strong:#f9ecf5;--cp-panel-soft:#f6e4f0;--cp-row:#fbf1f7;
-  --cp-selected:#e5c6dd;--cp-strong-line:#84788a;
+  --value-fill:rgba(33,37,41,.10);
+  --hatch:rgba(33,37,41,.18);
+  --cp-bg:#f8f0fc;--cp-panel:#f8f9fa;--cp-subpanel:#e9ecef;
+  --cp-input:#ffffff;--cp-control:#ffffff;--cp-hover:#f1f3f5;
+  --cp-line:#ced4da;--cp-control-line:#495057;--cp-group-line:#ced4da;
+  --cp-text:#212529;--cp-dim:#868e96;--cp-accent:#7A4FC8;
+  --cp-panel-strong:#f1f3f5;--cp-panel-soft:#f1f3f5;--cp-row:#f8f9fa;
+  --cp-selected:#e9ecef;--cp-strong-line:#495057;
 }
 
 /* ---- 2. Metric tokens (design-language §4) ------------------------------

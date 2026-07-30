@@ -68,8 +68,9 @@ remain the authority for a particular piece of work.
 > only from `dashboard: true`" line below once shipped), then
 > `2-control-panel-design`, the compact grayscale/cyan mockup-driven design
 > pass (Bob ratifies). The old app-wide density stitch was renamed
-> `02-app-wide-rollout-design` and now extracts the ratified control-panel
-> language app-wide. **(2) `entity-architecture-review`** — in parallel with
+> `02-app-wide-rollout-design` and then **dropped on 2026-07-30** in favour of
+> `02-component-unification` (components first — see Tier 3).
+> **(2) `entity-architecture-review`** — in parallel with
 > or after the UI work: `1-system-map` (as-is entity/storage/coupling map for
 > devices, seats, groups, patches, presets, shows) then
 > `2-workflows-and-simplification` (workflow walkthroughs + a
@@ -148,8 +149,16 @@ remain the authority for a particular piece of work.
 >    `04-event-fire-affordance` re-passed the same surface (section order).
 > 6. `44-event-plane/5-pd-adoption` — **next**, **Bob's**: the `.pd` receiver edits plus
 >    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
-> 7. `desktop-ui-overhaul/02-app-wide-rollout-design` — unblocks once 5 ties
->    `01-control-panel`.
+> 7. `desktop-ui-overhaul/02-component-unification` — **live, and the active
+>    front of the queue as of 2026-07-30.** `02-app-wide-rollout-design` is
+>    dropped: Bob reversed the order to components-first (lore
+>    `2026-07-30-ui-unification-braindump`). Inventory is complete
+>    (`.notes/component-inventory-2026-07.md`); children run
+>    `02-token-promotion` → `03-chrome-reclamation` →
+>    `04-generator-drawer-component` → `05-value-box-component` →
+>    `06-control-panel-reflow-and-editor` → `07-target-selector-component` →
+>    `08-control-tab-columns` (`.waiting`, Bob-gated) →
+>    `09-patches-deploy-row`.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
 >    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry
@@ -300,11 +309,37 @@ a real regression hides among the drift.)
 - **`entity-architecture-review`** — `1-system-map` then
   `2-workflows-and-simplification`; gates `41-preset-primitive/1`. Parallel
   with or after the control-panel work.
-- **`desktop-ui-overhaul/02-app-wide-rollout-design`** — after
-  `01-control-panel`: extract the ratified language and propose the app-wide
-  rollout with smaller controls, tighter spacing, clearer hierarchy, and
-  better viewport use. The standalone facilitator retains its separate
-  tablet-first constraints.
+- **`desktop-ui-overhaul/02-component-unification`** — replaces the dropped
+  `02-app-wide-rollout-design` (Bob, 2026-07-30, lore
+  `2026-07-30-ui-unification-braindump`). Components first: identify the
+  reusable components, design them one at a time, integrate each into **every**
+  consumer, and extract the design language from what shipped — not a token
+  system ratified ahead of its second consumer. Evidence base is
+  `.notes/component-inventory-2026-07.md`, whose headline finding is that the
+  app carries **two disjoint token layers** (`--chrome-*` at 32px/12px in
+  `style.css`, `--row-h`/`--gap` at 24px/6px in `control-panel.css`, zero
+  files using both), so the rollout is promotion of the ratified layer rather
+  than invention of a third. The mockup is on file at
+  `.lore/items/2026-07-27-control-panel-ui-and-architecture-braindump/content/mockup.png`
+  and is the north star, qualified by `mockup-fidelity-notes.md` beside it —
+  several mockup details (per-event `sync` buttons, per-element event labels,
+  the enum kind, the toggle value-flash) were superseded by Bob's own later
+  rulings and must not be copied back in. The standalone facilitator retains
+  its separate tablet-first constraints; mobile divergence is a metric override
+  (`@media (pointer:coarse)`), not a parallel layout.
+  **Four rulings from 2026-07-30, all folded into the stitches:** (1) the
+  standalone view is named **Remote** — a right-aligned tab-bar link, and the
+  manifest tab's `dashboard` checkboxes and editor badge now read Remote (the
+  flag is unchanged, only the label; shipped); (2) **the Control-tab iframe is
+  retired** — `ControlSurface` hosts in the parent document so the tab can hold
+  N columns, and `/facilitator` becomes the standalone Remote view only (delete
+  Playwright gotcha 15 below once that lands); (3) column layout persists in
+  **localStorage**; (4) the app-wide light repaint happens, but **the pink is a
+  ground, not a panel colour** — sampled from the mockup, light is a neutral
+  grey scale (panel `#f8f9fa`, subpanel/manual-fill `#e9ecef`, inputs
+  `#ffffff`, ink `#212529`) on a pale pink ground `#f8f0fc`, and `--cp-bg` is
+  the only pink token. That repaint **shipped 2026-07-30**, so
+  `02-token-promotion` is now density and `--chrome-*` retirement only.
 
 ### Tier 4 — Bob-gated decisions / co-design / seeds (parked)
 

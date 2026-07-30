@@ -13,10 +13,17 @@ controls ambiguous or keyboard interaction fragile.
 Restructured 2026-07-27 (lore
 `2026-07-27-control-panel-ui-and-architecture-braindump`): Bob mocked up the
 compact control-panel UI and wants it built first as the reference surface.
-Order: `01-control-panel` (full-manifest visibility, then the mockup-driven
-design pass and its implementation) → `02-app-wide-rollout-design` (extract
-the language, propose the app-wide rollout, split implementation into
-coherent tab/surface slices after Bob ratifies the direction).
+`01-control-panel` (full-manifest visibility, then the mockup-driven design
+pass and its implementation) is **tied**.
+
+Restructured again 2026-07-30 (lore `2026-07-30-ui-unification-braindump`):
+Bob reversed the rollout order. `02-app-wide-rollout-design` is **dropped** —
+it would have ratified a token/pattern system top-down before the second
+consumer of each pattern existed. Its replacement is `02-component-unification`:
+identify the reusable components, design them one at a time, integrate each
+into **every** consumer, and extract the coherent design language from what
+shipped. The inventory (`.notes/component-inventory-2026-07.md`) is complete;
+its ranked ledger and dependency graph lay out that stitch's children.
 
 Added 2026-07-27 from the second braindump (lore
 `2026-07-27-events-cues-and-global-controls-braindump`):

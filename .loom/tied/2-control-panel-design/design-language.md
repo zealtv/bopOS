@@ -23,6 +23,32 @@ accent (focus, selection chrome, brand). If a new highlight is ever needed,
 it is a purple of similar saturation — never a new hue (Bob, 2026-07-27,
 ruling out the browser-default orange focus ring).
 
+> **The light column below is SUPERSEDED, Bob 2026-07-30.** Reviewing the
+> shipped panel against the mockup (now stored at
+> `.lore/items/2026-07-27-control-panel-ui-and-architecture-braindump/content/mockup.png`):
+> *"the pink is a little heavy on the control panel — notice how it's used in
+> the Excalidraw mockup. It's a background that panels sit on, not the colour
+> of panels themselves."*
+>
+> Sampled from the mockup, the light scheme is a **neutral grey scale on a
+> pale pink ground**, not a pink scale:
+>
+> | role | mockup | token |
+> |---|---|---|
+> | page ground | `#f8f0fc` | `--bg` — **the only pink token** |
+> | panel body | `#f8f9fa` | `--panel` |
+> | subpanel / drawer / manual slider fill | `#e9ecef` | `--subpanel`, `--value-fill` |
+> | value boxes, troughs, button faces | `#ffffff` | `--input`, `--control` |
+> | ink (text, borders) | `#1e1e1e` | `--text` `#212529`, `--control-line` `#495057` |
+>
+> Live values are in `control-panel.css`; that file is authority over this
+> table for light. Dark and the whole cyan/purple story are unchanged.
+>
+> One measured delta left open for the design pass: the mockup's cyan fill is
+> `#99e9f2`, noticeably more saturated than `--mod-fill` at
+> `rgba(7,152,188,.20)` renders over white. Not changed here — the cyan was
+> ratified 2026-07-27 and Bob raised no objection to it.
+
 Token values (dark / light):
 
 | token          | dark                  | light                 | role |
