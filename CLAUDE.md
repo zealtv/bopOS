@@ -228,9 +228,19 @@ remain the authority for a particular piece of work.
 >    `border-color`); focused/active/armed rows get `z-index:2` or the next
 >    row's plain border overpaints the tinted bottom edge; and
 >    `.show-step-progress` loses its radius. Divider `margin` went to 0 too.
->    **Finding, pre-existing:** in light `--surface-bar` and `--surface-alt`
->    are both `#e9ecef`, so the "first row after a divider" tint is a no-op
->    in light — arrived with `02-token-promotion`'s repaint, left for `11`) →
+>    Three follow-up rulings landed the same session: **dividers are the same
+>    height as steps whatever they contain** (measured 34/18/26 → one
+>    `--show-row-h:34px`, declared because 34 had been an accident; steps keep it
+>    as `min-height` so a row with wrapped pills can still grow), **the
+>    first-step-after-divider tint is deleted** (which also retires the
+>    light-theme no-op finding, so `11` does not inherit it), and **dividers
+>    select like steps** — their `outline` with a positive `outline-offset`
+>    painted *outside* the row, so once rows butted, neighbours and the box's
+>    scroll clipping cut the ring off on every shared edge; they now share the
+>    steps' `box-shadow: inset` ring plus `z-index:2`, which cannot be clipped.
+>    Both are pinned in `verify_show_reference_foundation.py`, the ring asserted
+>    as *inset + no outline* so a revert to `outline` fails rather than silently
+>    re-clipping) →
 >    **`06-control-panel-reflow-and-editor` (next)** →
 >    `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →

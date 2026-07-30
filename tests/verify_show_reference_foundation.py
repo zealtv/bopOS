@@ -256,6 +256,38 @@ def main():
                       wait_for(lambda: len(saved_messages()) == 1
                                and saved_messages()[0].get("reference") == reference),
                       repr(saved_messages()))
+                # 05g, Bob 2026-07-30: the step list is a spreadsheet. Rows butt
+                # against each other, a divider is the same height as a step
+                # whatever it contains, and a divider selects exactly like a
+                # step. The selection detail is load-bearing: an `outline` with a
+                # positive offset paints outside the row, so with rows butted and
+                # the list box clipping its scroll area, the ring was cut off on
+                # every shared edge. An inset ring cannot be clipped.
+                page.click('[data-edit-bar-action="add-divider"]')
+                page.wait_for_selector(".show-divider-row")
+                geometry = page.evaluate(
+                    """() => {
+                      const h = s => [...document.querySelectorAll(s)].map(
+                        e => getComputedStyle(e).height);
+                      return {steps: h('.show-step-row'),
+                              dividers: h('.show-divider-row')};
+                    }""")
+                heights = set(geometry["steps"]) | set(geometry["dividers"])
+                check("dividers are the same height as steps",
+                      len(heights) == 1 and geometry["dividers"], str(geometry))
+
+                page.click(".show-divider-row")
+                page.wait_for_selector(".show-divider-row.focused")
+                ring = page.evaluate(
+                    """() => { const e =
+                        document.querySelector('.show-divider-row.focused');
+                      const s = getComputedStyle(e);
+                      return {inset: s.boxShadow.includes('inset'),
+                              outline: s.outlineStyle, z: s.zIndex}; }""")
+                check("a selected divider rings like a step, un-clippable",
+                      ring["inset"] and ring["outline"] == "none"
+                      and ring["z"] == "2", str(ring))
+
                 check("browser emitted no page errors", not page_errors,
                       repr(page_errors))
                 browser.close()

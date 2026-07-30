@@ -45,3 +45,24 @@ still reading as breaks rather than as gaps.
   scroll edges are unchanged by inspection but untested by hand.
 - No Firefox, no touch, no physical device, no Pure Data, no audible checks. CSS
   only — no JS or markup changed.
+
+## Follow-up rulings (Bob, same session)
+
+```text
+tests/verify_show_reference_foundation.py
+[PASS] dividers are the same height as steps
+[PASS] a selected divider rings like a step, un-clippable
+
+./tools/run-tests.sh fast     → Ran 255 tests, OK
+./tools/run-tests.sh browser  → 19/19
+```
+
+Row heights before → after: steps 34/34/34…, unnamed divider **18 → 34**, named
+dividers **26 → 34**. All eleven rows now report one height.
+
+`05g-final-list-light.png` and `05g-final-list-dark.png` show a **named** divider
+selected — the worst-clipped case — with the ring complete on all four sides.
+
+This also closes part of the "state rows were not photographed" gap noted above:
+`focused` is now both measured and photographed. `active`, `paused` and the armed
+pulse remain reasoned-not-observed.
