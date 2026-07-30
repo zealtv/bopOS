@@ -178,8 +178,19 @@ remain the authority for a particular piece of work.
 >    by neither DOM nor pixel probe — `getComputedStyle(el,
 >    '::-webkit-inner-spin-button')` mirrors the host element, and headless
 >    never paints the spinner, so a pixel check passes vacuously; assert the
->    declaration instead) → **`05c-drawer-component-ownership` (next)** →
->    `05d-component-ownership-guard` → `06-control-panel-reflow-and-editor` →
+>    declaration instead) → ~~`05c-drawer-component-ownership`~~ (tied
+>    2026-07-30 — all 68 drawer rules re-anchored from
+>    `:is(.live-card,.device-control,.show-inspector-section)` to the drawer's
+>    own `.live-param-gen` root, at **exactly** preserved specificity via the
+>    `value-box.css` doubling idiom, because `style.css` and `facilitator.css`
+>    each carry a lower-specificity base layer these rules override.
+>    `cascade_probe.py` in the tied stitch measured zero rendered change across
+>    27 computed properties on every drawer element in all three real hosts ×
+>    three generator kinds, and 36–46 elements changing in a bare `<div>` —
+>    the future mount point, where the old rules reached nothing) →
+>    **`05d-component-ownership-guard` (next)** →
+>    `05e-drawer-base-layer-consolidation` →
+>    `06-control-panel-reflow-and-editor` →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
 >    `09-patches-deploy-row`. `05c`/`05d` were added 2026-07-30 after `05b`
@@ -195,6 +206,17 @@ remain the authority for a particular piece of work.
 >    narrow property allowlist for legitimate positioning. Deliberately **not**
 >    stylelint, and deliberately not a fourth prose restatement — the principle
 >    was already written in a comment directly above the rule that violated it.
+>    Two findings from `05c` bind the rest: **a host container can also be a
+>    component root** — `.live-card`/`.device-control` are the control panel's
+>    own roots as well as the drawer's hosts, so `05d`'s guard must ask whether
+>    a selector's *subject* belongs to the same component as its ancestor, not
+>    whether the selector names a container (naive matching yields ~40 false
+>    positives and a guard nobody keeps); and the drawer's **two duplicated base
+>    layers** (`style.css:335-342`, `facilitator.css:91-107`) are a DRY defect,
+>    not an ownership one, so they are `05e` and the guard should pass on them.
+>    `05e` may need Bob: unifying them means ruling whether the Remote view's
+>    hardcoded 38px/11px/9px are pre-token leftovers or a ratified tablet
+>    divergence, and guessing shrinks a live-performance control surface.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
 >    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry
