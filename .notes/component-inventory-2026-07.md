@@ -24,9 +24,9 @@ north star; see `.lore/items/2026-07-27-control-panel-ui-and-architecture-braind
 > `--header-h`, declared beside them), so the app chrome runs at 24px controls
 > and 6px rhythm — chrome above content went 118px → 73px. Off-hue
 > `--feature`/`--feature-line` are retired with it, and the light ground is one
-> `#f8f0fc`. The app-wide light *panel* scale is still purple-tinted grey rather
-> than the mockup's neutral grey; that is held for a Bob-facing pass, see the
-> stitch's `decisions.md`. The section below is the as-found record.
+> `#f8f0fc`. Bob then ruled the held item in the same day, so the app-wide light
+> panels are the mockup's **neutral** grey scale too — see the tied stitch's
+> `decisions-2-neutral-light.md`. The section below is the as-found record.
 
 The app has **two complete, non-overlapping design token layers**, and this is
 the mechanical root of every complaint in Bob's brief.
@@ -60,7 +60,8 @@ of the two values in the table survived: Bob ruled the pink is a *ground*, not
 a panel colour, and the light scheme is now a neutral grey scale (`#f8f9fa`
 panels, `#e9ecef` subpanels, `#ffffff` inputs) on a pale pink ground
 (`#f8f0fc`), sampled from the mockup. Both stylesheets carry that ground now,
-so light is no longer a source of divergence — only the metrics are.
+and since Bob's same-day ruling both carry the neutral panel scale too, so light
+is no longer a source of divergence — and neither are the metrics.
 
 ---
 
@@ -337,12 +338,14 @@ rank 0 (token promotion) — underlies everything; do it first, scoped
    including the missed `:root[data-theme="light"]` ground (the toggle had kept
    the old lavender while the OS preference got the pink).
 
-   Still to do on light: only the **app-wide grey scale** — `--panel:#fff`,
-   `--surface-bar:#e9e4ef`, `--panel-soft:#f0edf4` are purple-tinted where the
-   mockup is neutral. The pink-panel regression Bob objected to is fixed; going
-   neutral app-wide is a further visible change with no ruling behind it, so it
-   waits for a pass that shows him the light app beside the mockup.
+   **Light is DONE app-wide (2026-07-30).** Bob saw the before/after pair and
+   ruled *"I'd like to try the grey neutrals on the panels"*, so `style.css`
+   and `facilitator.css` light columns now carry the mockup's neutral scale
+   (panel `#f8f9fa`, subpanel/recessed `#e9ecef`, inputs `#ffffff`, hover
+   `#f1f3f5`, lines `#ced4da`/`#495057`, ink `#212529`), `--bg` still the only
+   pink. `--dim` is `#6c757d` app-wide for contrast, against the panel's
+   ratified `#868e96`.
 
-   Open delta, not acted on: the mockup's cyan fill `#99e9f2` is more
-   saturated than `--mod-fill` renders over white. Cyan was ratified
-   2026-07-27 and Bob raised no objection.
+   **The cyan delta is CLOSED.** It was my note, not Bob's ask; he ruled
+   *"I don't want to change the highlights. Leave `--mod-fill` as it is for
+   now."* Do not re-raise it.

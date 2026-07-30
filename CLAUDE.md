@@ -354,9 +354,18 @@ a real regression hides among the drift.)
   does not load `style.css`). App chrome above content went 118px → 73px; the
   teal `--feature`/`--feature-line` pair is retired as off-palette; and the
   light ground is one `#f8f0fc` (the repaint had missed
-  `:root[data-theme="light"]`). Held for a Bob-facing pass, deliberately: the
-  app-wide light *panel* greys are still purple-tinted rather than the mockup's
-  neutral, and the cyan-saturation delta is still open. Per-surface literals
+  `:root[data-theme="light"]`). **Bob then ruled the held item in (same day):
+  the app-wide light panels are now the mockup's NEUTRAL grey scale** — panel
+  `#f8f9fa`, subpanel/recessed `#e9ecef`, inputs/buttons `#ffffff`, hover/soft
+  `#f1f3f5`, lines `#ced4da`/`#495057`, ink `#212529`, in both light blocks of
+  `style.css` and `facilitator.css`; `--bg` `#f8f0fc` stays the only pink. Two
+  notes travel with it: `--deep` is now `#e9ecef` (it names a *recessed*
+  surface, as dark always had it, and was the lightest light value by mistake),
+  and app-wide `--dim` is `#6c757d` rather than the panel's ratified `#868e96`
+  for contrast on `#f8f9fa`. **The cyan delta is CLOSED, not open** — Bob:
+  *"I don't want to change the highlights."* `--mod-fill` stays as ratified;
+  stop carrying it as a question. Detail in the tied stitch's
+  `decisions-2-neutral-light.md`. Per-surface literals
   were left to the stitches that own them — dead headings/toolbars to `03`, the
   target filter to `07`, the Control-tab iframe to `08`. Evidence is 64 matched
   before/after shots (every tab, 1280 + 1680, light + dark, plus the Monitor
