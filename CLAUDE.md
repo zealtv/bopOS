@@ -287,15 +287,38 @@ remain the authority for a particular piece of work.
 >    `08-control-tab-columns` (**split into four on 2026-07-30**, because as one
 >    stitch it bundled a Bob-gated design gate, a cross-document refactor, a
 >    singleton→N state change, and a four-file test migration:
->    `1-columns-design` (Bob-gated proposal + mockups, and a UX consult on
->    whether capture-as-step is per column or per tab — Bob declined to default
->    it) → `2-control-column-component` (extract `ControlColumn` from
+>    ~~`1-columns-design`~~ (**TIED 2026-07-31, ratified in full by Bob.** The
+>    three-lens UX consult answered the capture question *neither*: **capture is
+>    venue-wide and takes no scope argument.** Per-column capture is not
+>    "easiest" — it is **wrong today**, because a group column sends
+>    `scope:"groups"` and `_capture_show_seats` then captures every grouped seat
+>    in the venue; three of five column shapes are unfaithful. The stitch's own
+>    warning about a "widened server vocabulary" was backwards — widening is the
+>    cost of the per-column answer, and venue-wide capture is a **removal**,
+>    because the arrangement was always rebuilt from per-seat `applied_preset`
+>    rather than carried by the picker. Nine decisions in
+>    `.loom/tied/1-columns-design/decisions.md`: fixed 342px left-aligned columns
+>    with the 1400px cap dropped on this tab, the column *is* the card, the
+>    sticky header is the column's own closed picker, no dialogs (arm → non-modal
+>    preview of the messages → commit → inline undo), derived step names,
+>    overlap needs nothing, **D7 amended by Bob to "never"** (no ambient
+>    focus-seat follow at any N — replaced by an explicit "Open in Control"),
+>    and **D8**, a ruled-in behaviour change: device commands leave the Control
+>    column (kept on Remote), preset `new`/`save`/`del` demote, `Send all` to an
+>    overflow. Mockups are generated from the **real running app** by
+>    `mockup.py`, not drawn. Two findings went to siblings: the document-wide
+>    fade animator vs one `ControlSurface` per column (`2`), and the card chrome
+>    that lives in `facilitator.css` — which `index.html` does not load, so
+>    retiring the iframe leaves the parent with none (`3`)) →
+>    `0-prune-fallback-safety` (**new, from the consult**: `prune()` falls back
+>    to `["all"]`, so a Control target that loses its seat silently widens to the
+>    whole venue — a live defect at N=1, pulled out so it does not wait behind
+>    the thread) → `2-control-column-component` (extract `ControlColumn` from
 >    `facilitator.js` to instance state, **still inside the iframe**, so the
 >    four existing frame-locating journeys guard the extraction unmodified) →
 >    `3-iframe-retirement` (mount in the parent document, `/facilitator` becomes
 >    Remote-only, the §12 ground fix, migrate the journeys, delete gotcha 15 —
->    N stays 1) → `4-n-columns` (`.waiting` on `1`). `2` and `3` are unblocked
->    and may run alongside `1`) →
+>    N stays 1) → `4-n-columns` (**unblocked**; carries the ratified design)) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,

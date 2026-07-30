@@ -1,5 +1,34 @@
 # 1-columns-design
 
+> **STATUS 2026-07-31 — work complete, `.waiting` on Bob's ratification.**
+> Read `proposal.md`; it is the ruling document and lists the nine decisions.
+> The UX consult ran with three lenses (`expert-live-operator.md`,
+> `expert-show-authoring.md`, `expert-calm-ops.md`) over the code-grounded
+> `ground-truth.md`, and `judgment.md` adjudicates them.
+>
+> **The consult question had a wrong premise.** All three lenses independently
+> answered *neither* per-column nor whole-tab: capture is **venue-wide** and
+> should take no scope argument. Per-column capture is not "easiest" — it is
+> wrong today, because `presetScope()` sends `groups` for a group column and the
+> server then captures every grouped seat in the venue. And §5's warning below
+> about a "widened server vocabulary" is backwards: widening is the cost of the
+> *per-column* answer; venue-wide capture is a removal.
+>
+> Mockups are in the `mockup-*.png` files here at 1280/1680/2560/760 plus the armed capture state,
+> dark and light. `mockup.py` generates them by booting the real dashboard and
+> composing the real rendered surface — only the column shell is drawn.
+>
+> Two findings were handed to siblings rather than settled here: the fade
+> animator's document-wide queries (`2-control-column-component`) and the card
+> chrome that lives in `facilitator.css`, which `index.html` does not load
+> (`3-iframe-retirement`). Both are written up at the end of `proposal.md`.
+>
+> One decision is a live safety defect that exists **today at N=1**: `prune()`
+> silently widens a column that lost its target to All (D5).
+>
+> On ratification: record Bob's calls as `decisions.md`, then un-`.waiting`
+> `4-n-columns` and carry the ratified calls into its instructions.
+
 Design the N-column Control tab. **Bob decision gate**: produce a written
 proposal plus mockups, mark this stitch `.waiting`, surface it to Bob, then tie
 it with the ratified design as `decisions.md`. Same pattern as

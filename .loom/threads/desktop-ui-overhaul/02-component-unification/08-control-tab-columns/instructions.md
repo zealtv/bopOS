@@ -9,12 +9,36 @@ change from singleton to N, and a four-file test migration.
 
 | | scope | gate |
 |---|---|---|
-| `1-columns-design` | proposal + mockups; the open questions; the capture-as-step UX consult | Bob |
+| `0-prune-fallback-safety` | a live target-widening defect the consult found; D5, pulled out so it does not wait on the thread | none |
+| `1-columns-design` | proposal + mockups; the open questions; the capture-as-step UX consult | **TIED 2026-07-31** |
 | `2-control-column-component` | extract `ControlColumn` from `facilitator.js` — instance state, no module globals. Still inside the iframe, zero visual change | none |
 | `3-iframe-retirement` | mount in the parent document, `/facilitator` becomes Remote-only, §12 ground fix, migrate the four journeys, delete gotcha 15. N stays 1 | none |
-| `4-n-columns` | add/remove, per-column target, persisted layout, columns as cards | `.waiting` on `1` |
+| `4-n-columns` | add/remove, per-column target, persisted layout, columns as cards | unblocked |
 
-`2` and `3` are unblocked and can run alongside `1`. Splitting `2` from `3` is
+## `1` is ratified — the design of record (Bob, 2026-07-31)
+
+`.loom/tied/1-columns-design/` holds `decisions.md` (authority), `proposal.md`,
+`judgment.md`, three `expert-*.md` consults, `ground-truth.md`, and mockups
+generated from the real running app by `mockup.py`.
+
+**The consult question had a wrong premise.** All three UX lenses independently
+answered *neither* per-column nor whole-tab: **capture is venue-wide and takes
+no scope argument**. Per-column capture is not "easiest" — it is wrong today,
+because a group column sends `scope:"groups"` and the server then captures every
+grouped seat in the venue. And the instructions' warning about a "widened server
+vocabulary" was backwards: widening is the cost of the *per-column* answer;
+venue-wide capture is a removal.
+
+Nine decisions, all ratified, D7 amended by Bob to "never" (no ambient
+focus-seat follow at any N). D5 became `0-`; D8 is a behaviour change Bob ruled
+in (device commands leave the Control column, preset authoring demotes,
+`Send all` to an overflow). Details in `4-n-columns`.
+
+Two findings went to siblings rather than being settled in the design: the
+document-wide fade animator (`2`) and the card chrome that lives in
+`facilitator.css`, which `index.html` does not load (`3`).
+
+`0`, `2` and `3` are unblocked and can run in any order. Splitting `2` from `3` is
 the load-bearing decision: it puts the singleton-to-instance extraction behind
 an unchanged iframe boundary, where the existing four journeys still guard it,
 so a break is attributable to the extraction and not to the document move.
@@ -47,11 +71,13 @@ inside it.
   Bob: *"per column seems perhaps easiest — but if an all-column
   capture-as-step workflow makes sense it's worth considering."* → `1`
 
-## Still to settle — all in `1`, none of them here
+## Settled in `1` — do not re-decide
 
-Column widths; the no-seats state; the applied-preset marker and its derived
-dirtiness (`41-preset-primitive` R5) across overlapping columns;
-`followFocusSeat` with N pickers; capture-as-step ownership.
+Column widths (fixed 342px, left-aligned, cap dropped); the no-seats state
+(inert, never widened); the applied-preset marker across overlapping columns
+(nothing needed — provenance is per seat and derived, so two columns render one
+fact twice); `followFocusSeat` (retired on Control, replaced by an explicit
+"Open in Control"); capture-as-step ownership (venue-wide, no scope).
 
 ## Ground and card (Bob's tab-by-tab review, 2026-07-30)
 
