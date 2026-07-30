@@ -334,12 +334,15 @@ class Dashboard:
             "set_room", "set_points", "set_point", "clear_point",
             "save_venue", "load_venue",
         }
-        # The editor's own preset recall is not a fleet execution control: it
-        # targets the audition engine Patch Edit owns, so it is the one apply
-        # that belongs *inside* edit mode (08-editor-save-recall).
+        # Editor-scoped writes are not fleet execution controls: they target
+        # the audition engine Patch Edit owns. Preset recall (41/08) and the
+        # shared panel's generator drawer (component-unification/06) therefore
+        # belong inside edit mode; the same verbs at every other scope remain
+        # blocked.
         editor_scoped = data.get("scope") == "editor"
         if (self.supervisor_mode == "edit" and kind in edit_blocked_mutations
-                and not (kind == "apply_preset" and editor_scoped)):
+                and not (kind in {"apply_preset", "set_live_automation"}
+                         and editor_scoped)):
             await self.ws_error(
                 ws, "That execution control is unavailable during Patch Edit.")
             return
@@ -469,7 +472,8 @@ class Dashboard:
             args = preset_application.canonicalize_args(declaration, args)
             if args == ["stop"]:
                 self.store_stopped_automation(seats, declaration)
-            self.osc.set_param(selector, declaration["identity"], args)
+            self.osc.set_param_for(
+                seats, selector, declaration["identity"], args)
             self.refresh_preset_dirtiness(seats)
             await self.broadcast("state", self.state.public())
         elif kind == "replay_live_params":
@@ -562,7 +566,8 @@ class Dashboard:
             cleaned = self.clean_editor_value(declaration, value)
             if self.supervisor_mode == "edit" and cleaned is not None:
                 editor.setdefault("params", {})[name] = cleaned
-                self.osc.set_param(0, name, cleaned)
+                self.osc.set_param_for(
+                    [self.editor_target()], 0, name, cleaned)
                 await self.broadcast("state", self.state.public())
         elif kind == "set_editor_point":
             if self.supervisor_mode != "edit":
@@ -2234,11 +2239,13 @@ class Dashboard:
     def live_scope_patch(self, scope, target_id):
         """The patch whose parameter schema owns this scope.
 
-        Only a device scope can differ from the fleet: a pinned device runs its
-        own patch, so its controls must be declared by that patch, not by the
-        fleet's. Everything else returns None and falls back to the staged
-        fleet patch.
+        A pinned device can differ from the fleet, and the patch editor always
+        names the patch owned by its audition engine. Everything else returns
+        None and falls back to the staged fleet patch.
         """
+        if scope == "editor":
+            patch = self.state.data.get("editor", {}).get("patch")
+            return patch if isinstance(patch, str) else None
         if scope != "device" or not isinstance(target_id, str):
             return None
         override = self.state.device_patch_for(target_id)

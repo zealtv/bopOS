@@ -141,6 +141,9 @@ needs more height is a drawer or a subpanel, not a taller row.
 - **∿ icon**: 18px circle at row end. Idle: `--dim` on `--input`. Active
   (generator running or drawer open): `--mod` ink, `--mod` border,
   `--mod-soft` face. Click toggles the generator drawer (§7).
+- **The row is atomic.** `[value box][slider][∿]` stays on one line as its
+  parent narrows; the flexible slider absorbs the loss. It never wraps the
+  value box or modulation icon onto another line.
 
 Label placement convention (Bob, 2026-07-27): **parameter rows put the name
 inside the control; sub-element labels sit to the left of their control.**
@@ -201,8 +204,13 @@ Rules behind the table:
 - Fade layout: curve display; side column `from` box and `curve`
   mini-slider; segment rows `to [v] in [n] [unit ▾] (remove)`; momentary
   `add segment`.
-- Arg boxes keep full 58px width — precision entry beats one-line
-  compactness; the row may wrap before boxes shrink.
+- Arg boxes keep their full 58px width. The drawer never reflows: its fixed
+  320px width defines the control panel's minimum width, and a narrower
+  viewport scrolls the intact panel instead of rearranging the drawer.
+
+  > **Supersedes the previous final sentence, Bob 2026-07-30.** “The row may
+  > wrap before boxes shrink” was the defect: neither a parameter row nor the
+  > generator drawer wraps.
 
 ## 8. Buttons
 

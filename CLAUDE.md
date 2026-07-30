@@ -241,8 +241,19 @@ remain the authority for a particular piece of work.
 >    Both are pinned in `verify_show_reference_foundation.py`, the ring asserted
 >    as *inset + no outline* so a revert to `outline` fails rather than silently
 >    re-clipping) →
->    **`06-control-panel-reflow-and-editor` (next)** →
->    `06-control-panel-reflow-and-editor` →
+>    ~~`06-control-panel-reflow-and-editor`~~ (tied 2026-07-30 — parameter
+>    rows are atomic, the 320px generator face never reflows, and its 340px
+>    card minimum was measured against a 360px phone viewport. The Patch editor
+>    deleted its hand-built parameter/event rows and now mounts the same
+>    `ControlSurface` as Control and Device, including hierarchy, precision
+>    boxes, generator authoring, event fire, and presets. Its audition engine
+>    is one solid member with automation isolated under `editor`, declared
+>    event duplication left the scratch preview, and the panel sits on a
+>    neutral card rather than transparent ground. The shared integration
+>    exposed and fixed two backend seams: editor-scoped automation is legal
+>    during Patch Edit, and resolved-target recording preserves the editor
+>    mirror instead of colliding with Seat 0. `fast` 255 and all 19 browser
+>    journeys pass; real PD/GUI and touch remain hardware adoption checks) →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.

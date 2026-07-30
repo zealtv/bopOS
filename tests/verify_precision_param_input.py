@@ -329,26 +329,48 @@ def phase_b(temp, uids):
             check("PrecisionField helper is loaded on the dashboard page",
                   page.evaluate("() => typeof window.PrecisionField?.attach === 'function'"))
 
-            # The patch-editor's control panel only stays live headlessly with a
-            # faked PD engine peer (see tests/verify_device_control_modes.py);
-            # that is disproportionate here. The editor drives the exact same
-            # window.PrecisionField helper the facilitator phase proves against
-            # the real wire, differing only in its commit callback. So we verify
-            # the editor's markup contract (its readouts are precise fields) and
-            # the shared helper's DOM behaviour (click -> type -> clamp/round ->
-            # commit; Escape -> nothing) directly on the dashboard page.
+            # The patch editor now renders the shared ControlSurface
+            # (component-unification/06), so probe that component's markup
+            # contract directly. The focused editor journey covers the real
+            # edit-mode wire; this test owns PrecisionField semantics.
             markup = page.evaluate(
-                "() => ({"
-                " float: editorControl({name:'d',kind:'float',min:0,max:1,path:['synth','voice']}, 0.2),"
-                " intRange: editorControl({name:'steps',kind:'int',min:0,max:10,path:[]}, 2),"
-                " toggle: editorControl({name:'gate',kind:'toggle',min:0,max:1,path:[]}, 0),"
-                " text: editorControl({name:'word',kind:'text',path:[]}, 'hi')})")
+                """() => {
+                  const control=(declaration,value) => {
+                    declaration={
+                      ...declaration,
+                      identity:[...(declaration.path||[]),declaration.name]
+                        .join('/'),
+                    };
+                    const state={
+                      automation:{},
+                      live_controls:{declarations:[declaration]},
+                    };
+                    const surface=window.ControlSurface.create({
+                      getState:()=>state, send:()=>{},
+                    });
+                    return surface.control(
+                      'editor',null,
+                      [{id:0,params:{[declaration.identity]:value}}],
+                      declaration,false);
+                  };
+                  return {
+                    float:control(
+                      {name:'d',kind:'float',min:0,max:1,
+                       path:['synth','voice']},0.2),
+                    intRange:control(
+                      {name:'steps',kind:'int',min:0,max:10,path:[]},2),
+                    toggle:control(
+                      {name:'gate',kind:'toggle',min:0,max:1,path:[]},0),
+                    text:control(
+                      {name:'word',kind:'text',path:[]},'hi'),
+                  };
+                }""")
             check("editor numeric readouts are precise, but toggles/strings are not",
                   'data-precise="true"' in markup["float"]
                   and 'type="range"' in markup["float"]
                   and 'data-precise="true"' in markup["intRange"]
                   and 'data-precise' not in markup["toggle"]
-                  and 'type="checkbox"' in markup["toggle"]
+                  and 'aria-pressed="false"' in markup["toggle"]
                   and 'data-precise' not in markup["text"],
                   repr(markup))
 

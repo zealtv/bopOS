@@ -490,7 +490,17 @@ class OSCBridge:
         return changed
 
     def set_param(self, selector, name, value):
-        changed = self.record_param(selector, name, value)
+        return self.set_param_for(
+            self._selector_seats(selector), selector, name, value)
+
+    def set_param_for(self, seats, selector, name, value):
+        """Send a parameter after recording already-resolved targets.
+
+        The patch editor uses OSC selector 0 but is not Seat 0, so selector
+        lookup cannot recover its isolated automation mirror. Ordinary live
+        targets delegate here with the same seats the selector resolves.
+        """
+        changed = self.record_param_for(seats, name, value)
         args = value if isinstance(value, list) else [value]
         self.send(f"/{selector}/p/{name}", args)
         if changed:

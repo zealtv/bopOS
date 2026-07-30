@@ -67,7 +67,12 @@
 
     function automationForSeat(seat, declaration) {
       if (!seat || declaration.kind === "text") return null;
-      const entry = state().automation?.[String(seat.id)]?.[declaration.identity];
+      // Most targets are real Seats, keyed by their numeric id. The patch
+      // editor is deliberately only seat-shaped: its audition selector is 0,
+      // while its runtime automation lives under the isolated `editor` key so
+      // it can never collide with a real Seat 0 (41/08).
+      const key = seat.automation_key ?? String(seat.id);
+      const entry = state().automation?.[String(key)]?.[declaration.identity];
       return entry && ["fade", "loop", "lfo"].includes(entry.kind) ? entry : null;
     }
 
@@ -93,7 +98,7 @@
     }
 
     function automationKey(seat, declaration) {
-      return `${seat?.id ?? "none"}:${declaration.identity}`;
+      return `${seat?.automation_key ?? seat?.id ?? "none"}:${declaration.identity}`;
     }
 
     function refreshAutomationAnchors(nextState) {

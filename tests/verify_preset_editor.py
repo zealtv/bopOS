@@ -2,14 +2,20 @@
 """Real-dashboard browser journey for preset save/recall in the patch editor
 (`41-preset-primitive/08-editor-save-recall`).
 
-This is the primary sculpt→save workflow, and it is deliberately the SAME row
-as the Control tab's: the editor keeps its own parameter tree, but its preset
-row is the shared, ratified one.
+This is the primary sculpt→save workflow, and it is deliberately the SAME
+ControlSurface as the Control and Device tabs.
 
 What this pins:
 
   * the editor's control panel carries the preset row for the patch being
     edited, with the ratified `new`/`save`/`del` anatomy;
+  * parameters, events, hierarchy, and the generator drawer are emitted and
+    bound by the shared ControlSurface; the audition engine is one solid
+    member, never a synthetic mixed aggregate;
+  * parameter rows stay atomic on a phone-sized viewport and the fixed-width
+    drawer sets a reasonable, scrolling panel minimum instead of reflowing;
+  * the editor panel is a neutral card, never a transparent bordered region
+    or a patch of workspace ground;
   * SAVE captures the audition engine's state -- the same selector
     `set_editor_param` writes to -- and stores it under
     `patches/<patch>/presets/`;
@@ -139,9 +145,13 @@ def make_fixture(root):
                 {"name": "density", "kind": "float", "min": 0, "max": 1,
                  "default": .2, "dashboard": True},
                 {"name": "depth", "kind": "float", "min": 0, "max": 1,
-                 "default": .4, "dashboard": True},
+                 "default": .4, "dashboard": False},
             ],
-            "events": [], "caps": [], "slots": [],
+            "events": [
+                {"name": "strike", "arity": 1, "defaults": [0.75],
+                 "dashboard": True},
+            ],
+            "caps": [], "slots": [],
         }, target)
     state = {
         "schema": 1, "name": "Editor preset rig",
@@ -191,8 +201,10 @@ def main():
                                                   "height": 1200})
                 page.set_default_timeout(15000)
                 errors = []
+                dialogs = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("dialog", lambda dialog: dialog.accept())
+                page.on("dialog", lambda dialog: (
+                    dialogs.append(dialog.message), dialog.accept()))
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
                 page.evaluate(
@@ -211,6 +223,118 @@ def main():
                       [button.strip() for button in row.locator(
                           ".live-preset-action").all_text_contents()]
                       == ["new", "save", "del"])
+
+                # --- the whole editor panel is now the shared component ----
+                density = page.locator(
+                    '#editor-params .live-param[data-param-path="density"]')
+                strike = page.locator(
+                    '#editor-params .live-param-event'
+                    '[data-param-path="strike"]')
+                check("the editor renders shared parameter rows",
+                      density.count() == 1
+                      and density.locator(".live-param-range-wrap").count() == 1)
+                check("the editor renders declared events in the same panel",
+                      strike.count() == 1
+                      and strike.locator(".live-event-send").count() == 1)
+                check("one audition engine renders as a solid member",
+                      "mixed" not in (density.get_attribute("class") or "")
+                      and density.locator(".live-param-value").inner_text()
+                      == "0.2")
+                check("Remote presentation metadata stays in manifest authoring",
+                      page.locator("#editor-params .dashboard-badge").count() == 0)
+
+                card = page.eval_on_selector("#editor-params", """node => {
+                  const style=getComputedStyle(node);
+                  return {
+                    background:style.backgroundColor,
+                    panel:style.getPropertyValue('--panel').trim(),
+                    minimum:parseFloat(style.minWidth),
+                  };
+                }""")
+                check("the editor ControlSurface sits on a neutral card",
+                      card["background"] not in (
+                          "rgba(0, 0, 0, 0)", "transparent")
+                      and card["background"]
+                      == page.evaluate(
+                          "() => {"
+                          " const probe=document.createElement('i');"
+                          " probe.style.color='var(--panel)';"
+                          " document.body.append(probe);"
+                          " const value=getComputedStyle(probe).color;"
+                          " probe.remove(); return value;"
+                          " }"),
+                      repr(card))
+
+                page.set_viewport_size({"width": 360, "height": 900})
+                phone = page.eval_on_selector(
+                    '#editor-params .live-param[data-param-path="density"]',
+                    """row => {
+                      const parts=[
+                        row.querySelector('.live-param-value'),
+                        row.querySelector('.live-param-range-wrap'),
+                        row.querySelector('.live-param-mod'),
+                      ].map(node => node.getBoundingClientRect());
+                      const panel=row.closest('#editor-params');
+                      return {
+                        centers:parts.map(rect => rect.top + rect.height / 2),
+                        panelMin:parseFloat(getComputedStyle(panel).minWidth),
+                        viewport:innerWidth,
+                      };
+                    }""")
+                check("the parameter row stays atomic on a phone",
+                      max(phone["centers"]) - min(phone["centers"]) <= 1,
+                      repr(phone))
+                check("the drawer-defined minimum is reasonable on a phone",
+                      phone["panelMin"] <= phone["viewport"],
+                      repr(phone))
+                page.set_viewport_size({"width": 1440, "height": 1200})
+
+                page.click(
+                    '#editor-params .live-param[data-param-path="density"]'
+                    ' [data-gen-toggle]')
+                page.wait_for_selector("#editor-params .live-param-gen")
+                drawer = page.eval_on_selector(
+                    "#editor-params .live-param-gen",
+                    """node => ({
+                      width:node.getBoundingClientRect().width,
+                      argsWrap:getComputedStyle(
+                        node.querySelector('.live-gen-args')).flexWrap,
+                    })""")
+                check("the shared generator drawer keeps its fixed face",
+                      abs(drawer["width"] - 320) <= 1
+                      and drawer["argsWrap"] == "nowrap", repr(drawer))
+
+                drain(engine)
+                page.wait_for_function(
+                    "() => !!document.querySelector("
+                    "'#editor-params [data-gen-apply]')?.onclick")
+                page.click("#editor-params [data-gen-apply]")
+                page.wait_for_timeout(1000)
+                running = page.evaluate(
+                    "() => installation.automation?.editor?.density || null")
+                check("the editor records its generator separately from Seat 0",
+                      running is not None, repr(dialogs))
+                frames = collect(engine, .5)
+                ticks = [float(args[0]) for address, args in frames
+                         if address.endswith("/p/density") and len(args) == 1]
+                check("the editor drawer drives its audition engine",
+                      len({round(value, 3) for value in ticks}) >= 3,
+                      repr(frames))
+                if running is not None:
+                    page.click("#editor-params [data-gen-stop]")
+                    page.wait_for_function(
+                        "() => !installation.automation?.editor?.density")
+
+                drain(engine)
+                page.click(
+                    '#editor-params .live-param-event'
+                    '[data-param-path="strike"] .live-event-send')
+                frames = collect(engine, .5)
+                check("the shared event row fires on the audition engine",
+                      any(address.endswith("/e/strike")
+                          and args
+                          and abs(float(args[0]) - .75) < 1e-5
+                          for address, args in frames), repr(frames))
 
                 # --- sculpt, then save what the audition engine is holding ---
                 page.evaluate(

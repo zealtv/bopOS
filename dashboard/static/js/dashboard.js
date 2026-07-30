@@ -895,56 +895,15 @@ function renderManifestEditor(source) {
   if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-events input, #manifest-events button").forEach(control=>{control.disabled=true;});
 }
 
-function editorControl(declaration, value) {
-  const badge=declaration.dashboard?'<b class="badge dashboard-badge">Remote</b>':'';
-  const name=`${esc(declaration.name)} ${badge}`;
-  const identity=paramIdentity(declaration);
-  if (declaration.kind === "text") return `<label><span>${name}</span><input data-editor-param="${esc(identity)}" type="text" value="${esc(value)}"></label>`;
-  if (declaration.kind === "toggle") return `<label class="toggle"><span>${name}</span><input data-editor-param="${esc(identity)}" type="checkbox" ${value?'checked':''}></label>`;
-  return `<label><span>${name}</span><output data-precise="true">${esc(value)}</output><input data-editor-param="${esc(identity)}" type="range" min="${declaration.min??0}" max="${declaration.max??1}" step="${declaration.kind==='int'||declaration.kind==='enum'?1:0.01}" value="${esc(value)}"></label>`;
-}
-function editorParamTree(declarations, values) {
-  const roots=[];
-  const branch=(siblings,name)=>{
-    let node=siblings.find(item=>item.name===name);
-    if (!node) { node={name,children:[],leaves:[]}; siblings.push(node); }
-    return node;
-  };
-  for (const declaration of declarations) {
-    const parents=Array.isArray(declaration.path)&&declaration.path.length
-      ? declaration.path : ["parameters"];
-    let siblings=roots, node=null;
-    for (const name of parents) { node=branch(siblings,name); siblings=node.children; }
-    node.leaves.push(declaration);
-  }
-  const render=(node,trail=[])=>{
-    const path=[...trail,node.name];
-    const leaves=node.leaves.map(item=>editorControl(
-      item,values?.[paramIdentity(item)]??item.default??"")).join("");
-    return `<section class="editor-param-branch" data-param-path="${esc(path.join("/"))}"><h3>${esc(node.name)}</h3>${leaves}${node.children.map(child=>render(child,path)).join("")}</section>`;
-  };
-  return roots.map(node=>render(node)).join("");
-}
 function renderEditorPreview(editor) {
   Spatial.renderEditor(editor,ws);
-  const events=$("#editor-declared-events"), free=$("#editor-event-identity"), fire=$("#editor-event-fire");
-  if (!events || !free || !fire || !editor.active) return;
-  events.innerHTML=(editor.events||[]).map(declaration=>{
-    const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-    const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
-    const elements=Array.from({length:arity},(_unused,index)=>
-      `<input data-editor-event-element="${index}" type="number" step="any" value="${esc(defaults[index]??0)}" aria-label="${esc(`${declaration.name} element ${index}`)}">`).join("");
-    return `<div class="editor-event-row" data-editor-event="${esc(declaration.name)}"><button title="Fire ${esc(declaration.name)}">${esc(declaration.name)}</button>${elements}</div>`;
-  }).join("");
+  const free=$("#editor-event-identity"), fire=$("#editor-event-fire");
+  if (!free || !fire || !editor.active) return;
   const send=(identity,elements=[])=>{
     if (!identity) return;
     ws.send("fire_editor_event",{identity,elements});
     $("#editor-event-status").value=`Firing ${identity}…`;
   };
-  events.querySelectorAll("[data-editor-event]").forEach(row=>row.querySelector("button").onclick=()=>{
-    const elements=[...row.querySelectorAll("[data-editor-event-element]")].map(input=>Number(input.value));
-    send(row.dataset.editorEvent,elements);
-  });
   fire.onclick=()=>send(free.value.trim());
   free.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();fire.click();}};
 }
@@ -1010,7 +969,14 @@ function renderEditor() {
   renderEditorPreview(editor);
   if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
       && $("#editor-panel").contains(focused)) return;
-  const controls=editorParamTree(editor.declarations||[],editor.params||{});
+  const declarations=editorControlDeclarations(editor);
+  const editorMember={
+    id:0,
+    automation_key:"editor",
+    params:editor.params||{},
+    applied_preset:editor.applied_preset||null,
+    preset_dirty:!!editor.preset_dirty,
+  };
   // The sculpt→save workflow (41-preset-primitive/08). The editor drives its
   // own audition engine on selector 0, so the row targets scope "editor" and
   // recall goes through the same server-side application core the Control tab
@@ -1018,38 +984,11 @@ function renderEditor() {
   // `patches/<patch>/presets/`, which is excluded from the patch fingerprint,
   // so a save while sculpting never restages the fleet.
   const editorPresets=editor.active
-    ? editorSurface.presetRow("editor",null,[{
-        id:0,
-        applied_preset:editor.applied_preset||null,
-        preset_dirty:!!editor.preset_dirty,
-      }],editor.patch,{key:"editor:0"})
+    ? editorSurface.presetRow("editor",null,[editorMember],editor.patch,{key:"editor:0"})
     : "";
   $("#editor-params").innerHTML=editor.active
-    ? `${editorPresets}<h3>master</h3><label><span>master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></label>${controls||'<p class="dim">No manifest parameters.</p>'}`:"";
-  editorSurface.bindPresets($("#editor-params"));
-  document.querySelectorAll("[data-editor-param]").forEach(input=>{
-    const send=()=>{const value=input.type==="checkbox"?(input.checked?1:0):(input.type==="range"?Number(input.value):input.value);editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});};
-    if(input.type==="range") {
-      let pending=null;
-      input.oninput=()=>{if(input.previousElementSibling?.tagName==="OUTPUT")input.previousElementSibling.value=input.value;if(pending===null)pending=requestAnimationFrame(()=>{pending=null;send();});};
-      input.onchange=send;
-      const output=input.previousElementSibling;
-      // Precision typed entry on the readout (40-precision-param-input). The
-      // editor re-render already bails while a number field is focused, so the
-      // guard just reconciles the readout after commit.
-      if(output?.dataset.precise==="true") window.PrecisionField.attach(output, {
-        min: input.min===""?null:Number(input.min),
-        max: input.max===""?null:Number(input.max),
-        integer: input.step==="1",
-        value: Number(input.value),
-        label: input.dataset.editorParam,
-        disabled: input.disabled,
-      }, value=>{editor.params[input.dataset.editorParam]=value;ws.send("set_editor_param",{name:input.dataset.editorParam,value});input.value=value;},
-         editing=>{if(!editing)renderEditor();});
-    } else {
-      input.onchange=send;
-    }
-  });
+    ? `${editorPresets}<div class="editor-master-row"><span>Audition master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></div><div class="promoted-controls">${declarations.length?editorSurface.tree("editor",null,[editorMember],declarations,false):'<p class="dim">No manifest controls.</p>'}</div>`:"";
+  editorSurface.bind($("#editor-params"));
   const editorMaster=$("#editor-master");
   if(editorMaster) {
     editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
@@ -1359,11 +1298,35 @@ function presetContext(rerender) {
   };
 }
 
-// The patch editor keeps its own parameter tree (it drives one audition engine
-// and predates the shared surface), but its PRESET row is the shared, ratified
-// one, so the editor and the Control tab read as one language (08).
+function editorControlDeclarations(editor=installation.editor||{}) {
+  const parameters=(editor.declarations||[]).map(item=>({
+    ...item, path:item.path||[], identity:paramIdentity(item),
+  }));
+  const events=(editor.events||[]).map(item=>({
+    ...item, kind:"event", path:item.path||[], identity:paramIdentity(item),
+  }));
+  return [...parameters,...events];
+}
+
+// The editor is a one-member ControlSurface. It has no aggregate/mixed state:
+// the member is the audition engine itself. Its automation key remains
+// `editor` (not selector 0), matching the server-side isolation from Seat 0.
 const editorSurface=window.ControlSurface.create({
-  getState:()=>installation,
+  getState:()=>({
+    ...installation,
+    live_controls:{declarations:editorControlDeclarations()},
+  }),
+  send:({name,value})=>{
+    const editor=installation.editor;
+    if(editor)editor.params[name]=value;
+    ws.send("set_editor_param",{name,value});
+  },
+  sendEvent:({identity,elements})=>{
+    ws.send("fire_editor_event",{identity,elements});
+    return 0;
+  },
+  sendAutomation:({name,args})=>
+    ws.send("set_live_automation",{scope:"editor",id:null,name,args}),
   setInteracting:editing=>{interacting=editing;},
   requestRender:()=>renderEditor(),
   ...presetContext(()=>renderEditor()),

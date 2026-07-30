@@ -142,6 +142,10 @@
   --auto:var(--mod);
   color:var(--text);
   accent-color:var(--accent);
+  /* The 320px drawer is an instrument face, not a responsive form. Its fixed
+     width plus the shared card padding defines the smallest useful panel.
+     Narrow viewports scroll this intact face instead of rearranging it. */
+  min-width:calc(320px + 2 * var(--pad-panel));
 }
 
 /* ---- 4. Focus (design-language §2) --------------------------------------
@@ -316,6 +320,7 @@
   gap:var(--gap);
   min-height:var(--row-h);
   font-size:12px;
+  white-space:nowrap;
 }
 
 /* --- the number box ---
@@ -1386,7 +1391,7 @@
   display:flex;
   align-items:end;
   gap:5px;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
   margin-top:4px;
 }
 .live-param-gen .live-gen-field {

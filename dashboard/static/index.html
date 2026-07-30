@@ -104,7 +104,7 @@
           <div id="manifest-params"></div>
           <output id="manifest-feedback" class="dim" aria-live="polite"></output>
         </section>
-        <div id="editor-params" class="params"></div>
+        <div id="editor-params" class="device-control"></div>
         <section id="editor-preview" aria-labelledby="editor-preview-title" hidden>
           <div class="section-head"><div><h3 id="editor-preview-title">Points and events</h3><p class="dim">Session-only scratch controls for the running edit instance.</p></div></div>
           <div class="editor-preview-grid">
@@ -122,8 +122,7 @@
               <svg id="editor-spatial" aria-label="Editor point preview"></svg>
             </div>
             <div class="editor-event-preview">
-              <h3>Fire events</h3>
-              <div id="editor-declared-events" class="editor-event-buttons"></div>
+              <h3>Try undeclared event</h3>
               <label class="editor-free-event">try an undeclared identity <span><input id="editor-event-identity" type="text" maxlength="64" autocomplete="off"><button id="editor-event-fire">Fire</button></span></label>
               <output id="editor-event-status" class="dim" aria-live="polite">Events fire immediately in the edit instance.</output>
             </div>
