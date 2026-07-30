@@ -45,7 +45,7 @@ and reads visibly bloated beside the 24px panel — that contrast is the cleares
 argument for this stitch and worth capturing in the before/after.
 
 Verify with before/after screenshots of every tab at 1280 and 1680, light and
-dark, retained in the stitch. A working harness is in this stitch's
-`shoot.py` (the archived `.loom/tied/3-tokens-and-chrome/shoot_control_panel.py`
+dark, retained in the stitch. A working harness is this stitch's `shoot.py`,
+with its pre-change output kept as `baseline-2026-07-30-*.png` (the archived `.loom/tied/3-tokens-and-chrome/shoot_control_panel.py`
 has rotted — it waits on a control-tab iframe selector that no longer resolves). `tools/run-tests.sh browser` must not regress
 beyond the two known-red tests.
