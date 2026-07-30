@@ -254,6 +254,14 @@ remain the authority for a particular piece of work.
 >    during Patch Edit, and resolved-target recording preserves the editor
 >    mirror instead of colliding with Seat 0. `fast` 255 and all 19 browser
 >    journeys pass; real PD/GUI and touch remain hardware adoption checks) →
+>    ~~`06b-control-panel-atomic-mobile`~~ (tied 2026-07-30 — Bob's immediate
+>    screenshot showed `06` was still reflowing in the embedded Control view.
+>    Cause: `facilitator.css`'s old `max-width:620px` host rule forced the
+>    slider and toggle/enum controls to `grid-column:1/-1`; item placement
+>    survived even though the shared three-column template won the cascade.
+>    Those obsolete host-owned placements are deleted. A living browser check
+>    now measures the real facilitator at 480 CSS px and requires value,
+>    slider, and ∿ to share one vertical centre) →
 >    `07-target-selector-component` →
 >    `08-control-tab-columns` (`.waiting`, Bob-gated) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.

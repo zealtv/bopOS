@@ -19,7 +19,8 @@ different send". These checks pin that seam:
       renderer inside the component;
   (e) the ratified row grammar and mixed/takeover presentation;
   (f) hierarchy accordions and the persistence of a collapsed branch across a
-      heartbeat re-render and a reload.
+      heartbeat re-render and a reload;
+  (g) the shared row remains atomic below the facilitator's 620px breakpoint.
 
 Owned by code surface (dashboard/static/js/control-surface.js), not by a
 stitch -- per the thread-27 durable-tests policy.
@@ -581,6 +582,33 @@ def main():
                           '.live-card[data-live-scope="all"] '
                           'button.live-toggle[data-param-path="gate"]'
                       ).count() == 1)
+
+                # --- (g) the host may not reflow the shared row -------------
+                # Bob's 2026-07-30 screenshot caught facilitator.css forcing
+                # the slider to grid-column:1/-1 below 620px. Measure the real
+                # host below that breakpoint, at one CSS pixel centre.
+                page.set_viewport_size({"width": 480, "height": 900})
+                narrow = page.eval_on_selector(
+                    '.live-card[data-live-scope="all"] '
+                    '.live-param[data-param-path="density"]',
+                    """row => {
+                      const parts=[
+                        row.querySelector('.live-param-value'),
+                        row.querySelector('.live-param-range-wrap'),
+                        row.querySelector('.live-param-mod'),
+                      ].map(node => node.getBoundingClientRect());
+                      return {
+                        centers:parts.map(rect => rect.top + rect.height / 2),
+                        columns:parts.map(node => node.left),
+                        height:row.getBoundingClientRect().height,
+                      };
+                    }""")
+                check("the facilitator keeps value, slider, and ∿ atomic "
+                      "below its narrow breakpoint",
+                      max(narrow["centers"]) - min(narrow["centers"]) <= 1
+                      and narrow["columns"] == sorted(narrow["columns"]),
+                      repr(narrow))
+                page.set_viewport_size({"width": 900, "height": 1200})
 
                 page.click('[data-target-mode="groups"]')
                 page.wait_for_selector('.live-card[data-live-scope="group"]')
