@@ -333,10 +333,25 @@ remain the authority for a particular piece of work.
 >    the Seats tab at any N) → `4-n-columns` (**unblocked and next**, and
 >    **split into three on 2026-07-31** for the same reason `08` itself was —
 >    it bundled a layout change, a cross-file backend removal, a shared-component
->    behaviour change and a test migration: `1-columns-layout` (the 342px track,
->    the tab strip, add/remove, `bopos.control.columns`, the "Open in Control"
->    replacement for the retired focus-seat follow, the multi-column journey),
->    then `2-venue-wide-capture` (D1–D3 — capture takes no scope argument, the
+>    behaviour change and a test migration: ~~`1-columns-layout`~~ (**TIED
+>    2026-07-31**, commit `31ee7a4`. The 342px left-aligned track with the cap
+>    dropped, one `bopos.control.columns` record with minted ids, the strip,
+>    add/remove/reorder, per-column scroll, one live region per column, and the
+>    explicit "Open in Control" replacing the retired focus-seat follow. Four
+>    findings carry forward. **The strip's right-hand slot is not a
+>    placeholder** — the per-column `Capture as Show step` had to go (N columns
+>    = N buttons sending N scopes, which is what D1 forbids) and deleting it
+>    would have left capture unreachable, so it moved to the strip as one
+>    venue-wide `scope:"all"` action; `2` still owns dropping `scope` from the
+>    wire, the armed preview and the derived name. **A restored column must not
+>    render before the first `state`** — it prunes every target against an empty
+>    venue and D5 then correctly reports them all lost. **A `<details>` fires
+>    `toggle` for a re-render that changed nothing**, so `TargetPicker` was
+>    persisting its open state every heartbeat, which is why a column stored as
+>    closed came back open. And gotchas **19** (a target identifier is not an
+>    element identifier) and **20** (a fragment-only `page.goto` does not
+>    reload, so it cannot test persistence) are in the Playwright list below),
+>    then `2-venue-wide-capture` (**next**; D1–D3 — capture takes no scope argument, the
 >    `preview_show_preset_capture` round trip goes away now the Control document
 >    can see `applied_preset` and `show` itself, and three dialogs become
 >    arm → preview → commit → undo), then `3-chrome-demotions` (D8 — device
