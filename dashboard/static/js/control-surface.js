@@ -57,6 +57,7 @@
     const drafts = new Map();
     let fadeAnimationFrame = null;
     let lastReducedFadeUpdate = 0;
+    let boundRoot = document;
 
     const state = () => context.getState() || {};
     const deviceForSeat = seat => context.deviceForSeat ? context.deviceForSeat(seat) : null;
@@ -761,7 +762,7 @@
 
     function animateFades() {
       fadeAnimationFrame = null;
-      const inputs = [...document.querySelectorAll('[data-fade-anchor][data-automated="true"]')];
+      const inputs = [...boundRoot.querySelectorAll('[data-fade-anchor][data-automated="true"]')];
       if (!inputs.length) return;
       const now = Date.now();
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -785,11 +786,11 @@
         updated = true;
       }
       if (reducedMotion && updated) lastReducedFadeUpdate = now;
-      if (document.querySelector('[data-fade-anchor][data-automated="true"]')) fadeAnimationFrame = requestAnimationFrame(animateFades);
+      if (boundRoot.querySelector('[data-fade-anchor][data-automated="true"]')) fadeAnimationFrame = requestAnimationFrame(animateFades);
     }
 
     function startFadeAnimator() {
-      if (fadeAnimationFrame == null && document.querySelector('[data-fade-anchor][data-automated="true"]')) {
+      if (fadeAnimationFrame == null && boundRoot.querySelector('[data-fade-anchor][data-automated="true"]')) {
         fadeAnimationFrame = requestAnimationFrame(animateFades);
       }
     }
@@ -826,6 +827,7 @@
     }
 
     function bindParams(root = document) {
+      boundRoot = root;
       root.querySelectorAll(".live-param-event").forEach(row => {
         const button = row.querySelector(".live-event-send");
         if (!button) return;

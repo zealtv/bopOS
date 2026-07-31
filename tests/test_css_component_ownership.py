@@ -43,6 +43,7 @@ COMPONENTS = {
     "patch-editor": [".params"],
     "show-inspector": [".show-inspector-section", ".show-param"],
     "target-picker": [".target-picker", ".target-chip"],
+    "control-column": [".control-column"],
 }
 
 # A surface legitimately PLACES what it hosts. These properties say where a
