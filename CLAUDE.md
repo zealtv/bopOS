@@ -330,7 +330,7 @@ remain the authority for a particular piece of work.
 >    face had to be written either way: `.live-card` is flat and the column
 >    supplies panel + padding. D7 landed too, which superseded
 >    `verify_control_tab.py`'s focus-Seat assertion — Control does not follow
->    the Seats tab at any N) → `4-n-columns` (**unblocked and next**, and
+>    the Seats tab at any N) → ~~`4-n-columns`~~ (**TIED 2026-07-31**, and
 >    **split into three on 2026-07-31** for the same reason `08` itself was —
 >    it bundled a layout change, a cross-file backend removal, a shared-component
 >    behaviour change and a test migration: ~~`1-columns-layout`~~ (**TIED
@@ -374,20 +374,43 @@ remain the authority for a particular piece of work.
 >    mutation** — `undo_show` pops the LAST mutation, so a stale offer discards
 >    an unrelated edit rather than the capture. And **`installation.current_show`
 >    is not stale for a moment, it is stale indefinitely** — see
->    `4-current-show-broadcast`), then `3-chrome-demotions` (**next**; D8 — device
->    commands, the preset actions and `Send all` leave the Control card; last of
->    the original three, because they change the shared `ControlSurface` and so
->    reach the Device tab and patch editor too), then a fourth child added
->    2026-07-31 by Bob, `4-current-show-broadcast`: `set_current_show`
->    broadcasts `shows`/`show` but never `state`, and since NO periodic
->    full-`state` broadcast exists anywhere (heartbeats are `device_update`;
->    `offline_sweep` sends only `device_offline`), `installation.current_show`
->    stays stale until some unrelated mutation fires one — measured as zero
->    `state` messages in 20s of live heartbeats. The Monitor System panel
->    therefore reads `none loaded` while a show is loaded. Not column work; the
->    stitch records that its position is an ordering call and where to lift it
->    if it holds the thread open))) →
->    `09-patches-deploy-row` → `11-ground-and-card-audit`.
+>    `4-current-show-broadcast`), then ~~`3-chrome-demotions`~~ (**TIED
+>    2026-07-31**, commit `0a17062`. D8: `Send all` moved into a per-card ⋯
+>    overflow, `new`/`save`/`del` behind one `edit` disclosure **on the shared
+>    `ControlSurface`** — so the Device panel and the patch editor got the
+>    demotion too, rather than Control forking — and device commands left the
+>    Control column for a `Device setup…` hand-off to the Devices tab, staying
+>    on Remote, which has no tab to hand off to. `shoot.py` MEASURES the claim
+>    against the real tab instead of asserting it: reachable chrome across three
+>    columns 25 → 13, a Seat card 6 → 3. Two findings carry forward.
+>    **`offsetParent` is NOT null inside a closed `<details>`** — Chromium
+>    suppresses disclosure contents with `content-visibility`, so the first
+>    counter reported the demotion as having changed nothing and a naive
+>    "is it hidden?" probe passes vacuously; ask
+>    `closest('details:not([open]) > :not(summary)')` instead. And it found a
+>    live defect in `1`: **a `device_update` heartbeat can beat the initial
+>    `state`**, render a restored column against an empty venue, and the D5
+>    prune then PERSISTS — erasing the operator's stored layout for good, not
+>    for a moment. Gated on a `venueKnown` flag in `control-host.js`), then
+>    ~~`4-current-show-broadcast`~~ (**TIED 2026-07-31**, commit `948878a`.
+>    `set_current_show` mutated `state.data` and broadcast three planes that are
+>    not `state`, and since NO periodic full-`state` broadcast exists anywhere
+>    (heartbeats are `device_update`; `offline_sweep` sends only
+>    `device_offline`), `installation.current_show` was stale indefinitely and
+>    the Monitor System panel read `none loaded` with a show loaded.
+>    `delete_show` clears the same field inline and needed the same broadcast.
+>    The ruling worth carrying: **broadcast the ENRICHED `public_state()`, not
+>    `state.public()`** — a client replaces `installation` wholesale on `state`
+>    and the bare snapshot carries no `live_controls`, so the bare form would
+>    have blanked the Control columns on every show load. Thirty of the
+>    server's thirty-three `state` broadcasts still use the bare form; that
+>    hazard is latent, unfixed, and named here rather than in a comment nobody
+>    reads. A neighbour audit found no other verb broadcasting a plane other
+>    than the one it mutated))) → `09-patches-deploy-row` →
+>    `11-ground-and-card-audit`.
+>    **`08-control-tab-columns` is TIED (2026-07-31)** — all four `4-n-columns`
+>    children and the whole thread. The Control tab is N independently targeted
+>    columns in the dashboard document, matching the ratified mockups.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,
 >    visible ONLY as gutter between cards; nothing but the page may set
@@ -1016,7 +1039,15 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   SAME-DOCUMENT navigation** — nothing reloads, no script re-runs, and a
   persistence check written that way asserts against the very objects it meant
   to throw away (it passes whether or not anything was ever stored). Use
-  `page.reload()`, as `reload_control` in `tests/verify_control_tab.py` does.
+  `page.reload()`, as `reload_control` in `tests/verify_control_tab.py` does;
+  (21) **a closed `<details>` does not hide its contents from `offsetParent`** —
+  Chromium suppresses disclosure contents with `content-visibility`, not
+  `display:none`, so every element inside a closed menu still reports an offset
+  parent and a non-zero box. `08/4/3`'s chrome counter reported a demotion as
+  having changed nothing because of it. Ask the structural question —
+  `element.closest('details:not([open]) > :not(summary), details:not([open]) >
+  :not(summary) *')` — or use Playwright's own `is_visible()`, which gets it
+  right.
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use
