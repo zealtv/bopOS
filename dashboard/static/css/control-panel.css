@@ -143,9 +143,14 @@
   color:var(--text);
   accent-color:var(--accent);
   /* The 320px drawer is an instrument face, not a responsive form. Its fixed
-     width plus the shared card padding defines the smallest useful panel.
-     Narrow viewports scroll this intact face instead of rearranging it. */
+     width plus the surrounding padding defines the smallest useful panel.
+     Narrow viewports scroll this intact face instead of rearranging it.
+     `.live-card` states its own below: since `3-iframe-retirement` the padding
+     around a card is the COLUMN's, so counting it here would count it twice. */
   min-width:calc(320px + 2 * var(--pad-panel));
+}
+.live-card {
+  min-width:320px;
 }
 
 /* ---- 4. Focus (design-language §2) --------------------------------------
@@ -1591,4 +1596,105 @@
    affordance, one appearance. */
 .show-inspector-section[data-payload-builder=param]:has(.show-param-generator-row) {
   min-width:342px;
+}
+
+/* ---- 18. The card face (08-control-tab-columns/3-iframe-retirement) -------
+   `.live-card` is the control panel's own root, so this is where its face
+   belongs. It was never here: it lived in `css/facilitator.css`, a stylesheet
+   `index.html` does not load, and that was invisible only because the Control
+   tab was an iframe of the page that does. The moment the iframe went, the
+   card had no chrome in the parent document at all. Fourth occurrence of
+   `05e`'s pattern — component rules written onto a host stylesheet — and it is
+   fixed the same way rather than by copying the values across.
+
+   THE COLUMN IS THE CARD (1-columns-design D1, ratified 2026-07-31). The card
+   therefore paints nothing itself: `.control-column` in `control-column.css`
+   supplies the panel, border, radius and padding, and consecutive cards are
+   told apart by a rule between them rather than by two nested boxes. That also
+   settles what the old `.all-card` / `.group-card` border tints were reaching
+   for — a card that draws no border has none to tint.
+
+   Metrics are desktop (`--row-h`, `--gap`), not the tablet-first 44px/19px the
+   facilitator carried; see the header of `control-column.css`. */
+
+.live-card {
+  display:grid;
+  align-content:start;
+  gap:var(--gap);
+  background:transparent;
+  border:0;
+  border-radius:0;
+  padding:0;
+}
+.live-card + .live-card {
+  padding-top:var(--gap);
+  border-top:1px solid var(--group-line);
+}
+/* An empty target is a real, chosen state — dimmed, never hidden (D2). */
+.live-card.empty-group {
+  opacity:.72;
+}
+
+.live-card-head {
+  min-height:var(--row-h);
+  display:flex;
+  align-items:center;
+  gap:var(--gap);
+}
+.live-card .name {
+  min-width:0;
+  flex:1;
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  overflow:hidden;
+  font-size:12px;
+  font-weight:700;
+}
+.live-card .name strong {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.live-card .name small {
+  color:var(--dim);
+  font-weight:400;
+  white-space:nowrap;
+}
+/* Half the app-wide 10px dot: at 12px card names a 10px dot reads as a bullet
+   rather than a health light. `.dot` is declared in `style.css` for the two
+   rosters, and not at all on Remote, so both values are stated. */
+.live-card .dot {
+  width:7px;
+  height:7px;
+  flex:none;
+  border-radius:50%;
+  background:var(--offline-mark);
+}
+.live-card .dot.ok {
+  background:var(--green);
+}
+.live-card .send-all {
+  min-width:0;
+  min-height:var(--row-h);
+  flex:none;
+  padding:var(--pad-control);
+  font-size:11px;
+  text-transform:none;
+}
+.live-card .promoted-controls {
+  display:grid;
+  gap:var(--gap);
+}
+/* The per-card live region: announced, never seen. */
+.live-param-status {
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
 }

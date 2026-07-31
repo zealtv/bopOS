@@ -239,9 +239,10 @@ immediately visible) and a "controls repaint" stitch.
 
 ### Rank 6 — Control-tab column workspace *(new surface, not an extraction)*
 
-Today: `index.html:25-28` is a heading, a link, and **one iframe**
-(`#dashboard-live-view` → `/facilitator?embedded=1`), with the target picker
-living inside the iframe. (As of `07` that is the unified `TargetPicker`, and
+Today: `index.html`'s Control tab is **one mount point**,
+`#control-column-host`, holding a single `ControlColumn`. It was an iframe of
+`/facilitator?embedded=1` until `3-iframe-retirement` (2026-07-31); the picker
+and cards now live in the dashboard document, on its own websocket and state. (As of `07` that is the unified `TargetPicker`, and
 each selected entry already renders its own card — so what `08` adds is columns
 with independent targets, not the mixable selection itself.)
 

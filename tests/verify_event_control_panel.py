@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Real-dashboard + simfleet verification for Control-panel events.
 
-The Control tab renders inside an iframe.  This journey fires one declared
-event at All, group, and Seat scope, then uses simfleet's stdout as the wire
-observer.  simfleet logs an event only after parsing the leading shared-time
+The Control tab mounts the column in the dashboard document (the iframe was
+retired in `3-iframe-retirement`).  This journey fires one declared event at
+All, group, and Seat scope, then uses simfleet's stdout as the wire observer.  simfleet logs an event only after parsing the leading shared-time
 string and validating every remaining argument as a float.
 """
 
@@ -173,8 +173,11 @@ def make_fixture(root):
 
 
 def surface(page):
-    """The Control surface is an iframe; its filter and cards live inside."""
-    return page.frame_locator("#dashboard-live-view")
+    """The Control surface is mounted in this document since
+    `3-iframe-retirement`. It is no longer a frame — but it is also no
+    longer alone in its document, so every selector must be scoped to the
+    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    return page.locator("#control-column-host")
 
 
 def click_once(page, locator):
@@ -253,13 +256,11 @@ def main():
                 page.goto(base_url + "#control")
                 page.wait_for_selector("#ws-status.online", state="attached")
                 frame = surface(page)
-                frame.locator("#ws-status.online").wait_for(state="attached")
                 frame.locator(
                     '.live-card[data-live-scope="all"]'
                 ).wait_for(state="attached")
-                live_frame = next(
-                    item for item in page.frames
-                    if "/facilitator" in item.url)
+                # One document now: the surface's frame IS the page's.
+                live_frame = page.main_frame
                 live_frame.wait_for_function(
                     "() => Object.keys(installation.devices || {}).length === 2")
 
@@ -390,7 +391,8 @@ def main():
                 live_frame.wait_for_function(
                     """() => {
                       const button = document.querySelector(
-                        '.live-card[data-live-scope="seat"]' +
+                        '#control-column-host' +
+                        ' .live-card[data-live-scope="seat"]' +
                         ' .live-param-event[data-param-path="strike"]' +
                         ' .live-event-send');
                       return button && button.classList.contains("firing");
@@ -403,7 +405,8 @@ def main():
                 live_frame.wait_for_function(
                     """() => {
                       const button = document.querySelector(
-                        '.live-card[data-live-scope="seat"]' +
+                        '#control-column-host' +
+                        ' .live-card[data-live-scope="seat"]' +
                         ' .live-param-event[data-param-path="strike"]' +
                         ' .live-event-send');
                       return button && button.classList.contains("fired");
@@ -411,7 +414,8 @@ def main():
                 live_frame.wait_for_function(
                     """() => {
                       const button = document.querySelector(
-                        '.live-card[data-live-scope="seat"]' +
+                        '#control-column-host' +
+                        ' .live-card[data-live-scope="seat"]' +
                         ' .live-param-event[data-param-path="strike"]' +
                         ' .live-event-send');
                       return button && !button.classList.contains("fired")

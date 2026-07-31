@@ -1,9 +1,17 @@
 // One independently targetable Control surface column.
 //
-// The facilitator page owns fleet state, its websocket, and page furniture.
-// This component owns the state that must not leak between columns: its target
+// The HOST page owns fleet state, its websocket, and page furniture. This
+// component owns the state that must not leak between columns: its target
 // picker, ControlSurface instance, cards, preset previews/reports, and open
 // per-device command disclosures.
+//
+// Since `3-iframe-retirement` the column also owns its own MARKUP. It is
+// mounted in two documents now — the Control tab of `index.html` and the
+// standalone Remote page — and a skeleton authored twice in HTML would be the
+// same duplication the component thread keeps deleting. Nothing inside is
+// addressed by id, so `4-n-columns` can mount several without collisions.
+// Appearance is `css/control-column.css` (the shell) plus `control-panel.css`
+// (the card face, which belongs to the control panel, not to us).
 (function () {
   "use strict";
 
@@ -35,13 +43,12 @@
   }) {
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
-    const $ = selector => host.querySelector(selector);
-    const cards = $("#cards");
-    const pickerHost = $("#target-picker-host");
-    const status = $("#event-status");
-    if (!cards || !pickerHost || !status) {
-      throw new Error("ControlColumn host is missing its cards, picker, or status element");
-    }
+    host.innerHTML = `<div class="control-column-head"><div class="control-column-picker"></div></div>
+      <div class="control-column-cards" role="region" aria-label="Live controls"><p class="empty">Waiting for devices…</p></div>
+      <output class="control-column-status" role="status" aria-live="polite"></output>`;
+    const cards = host.querySelector(".control-column-cards");
+    const pickerHost = host.querySelector(".control-column-picker");
+    const status = host.querySelector(".control-column-status");
 
     const openCommandDevices = new Set();
     const capturePreviews = new Map();
@@ -108,7 +115,10 @@
       host: pickerHost,
       id,
       storageKey,
-      followFocusSeat: true,
+      // D7 (Bob, 2026-07-31): Control never follows the focus Seat, at any N.
+      // A column that silently re-aimed itself when someone touched the Seats
+      // tab is wrong the moment there is more than one of them, and the Seats →
+      // Control workflow returns as an explicit action owned by `4-n-columns`.
       pruneFallback: "empty",
       spec: () => ({
         label: "Control target",
@@ -208,7 +218,7 @@
         : "";
       return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}>
         <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, targetId, !schemaAvailable) : ""}</div>
-        ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status visually-hidden" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
+        ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
       </article>`;
     }
 

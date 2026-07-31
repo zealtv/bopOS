@@ -1,0 +1,103 @@
+before: 55 controls   after: 55 controls
+  10:div.live-param.live-param-event
+    before {'font': '12px', 'gap': '4px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '4px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  14:span.live-param-name
+    before {'font': '12px', 'gap': 'normal', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 750}
+    after  {'font': '12px', 'gap': 'normal', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 790}
+  15:label.live-param.live-param-numeric
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  16:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 848}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 888}
+  17:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 848}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 888}
+  19:label.live-param.live-param-numeric
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  1:summary
+    before {'font': '12px', 'gap': '6px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 968}
+    after  {'font': '12px', 'gap': '6px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 972}
+  20:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 848}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 888}
+  21:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 848}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 888}
+  23:label.live-param.live-param-numeric
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  24:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 848}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 888}
+  25:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 848}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 888}
+  27:div.live-param.live-param-toggle
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  29:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 850}
+    after  {'font': '12px', 'gap': '5px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 890}
+  31:label.live-param.live-param-numeric
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  32:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 848}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 888}
+  33:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 848}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 888}
+  35:label.live-param.live-param-enum
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  37:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 812}
+    after  {'font': '12px', 'gap': '5px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 852}
+  39:summary
+    before {'font': '12px', 'gap': '6px', 'h': 20, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 20, 'pad': '0px', 'radius': '0px', 'w': 978}
+  40:label.live-param.live-param-numeric
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 926}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 966}
+  41:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 836}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 876}
+  42:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 836}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 876}
+  44:summary
+    before {'font': '12px', 'gap': '6px', 'h': 20, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '12px', 'gap': '6px', 'h': 20, 'pad': '0px', 'radius': '0px', 'w': 978}
+  45:label.live-param.live-param-numeric.mixed
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 926}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 966}
+  46:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 836}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 876}
+  47:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 836}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 876}
+  49:label.live-param.live-param-numeric.mixed
+    before {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 926}
+    after  {'font': '12px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 966}
+  50:span.live-param-name
+    before {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 836}
+    after  {'font': '12px', 'gap': '5px', 'h': 22, 'pad': '0px 6px', 'radius': '0px', 'w': 876}
+  51:input
+    before {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 836}
+    after  {'font': '13.3333px', 'gap': 'normal', 'h': 22, 'pad': '0px', 'radius': '0px', 'w': 876}
+  6:article.live-card.all-card
+    before {'font': '18px', 'gap': '14px', 'h': 516, 'pad': '18px 20px', 'radius': '12px', 'w': 980}
+    after  {'font': '18px', 'gap': '6px', 'h': 433, 'pad': '0px', 'radius': '0px', 'w': 978}
+  7:div.live-card-head
+    before {'font': '18px', 'gap': '14px', 'h': 44, 'pad': '0px', 'radius': '0px', 'w': 938}
+    after  {'font': '18px', 'gap': '6px', 'h': 24, 'pad': '0px', 'radius': '0px', 'w': 978}
+  8:span.name
+    before {'font': '19px', 'gap': 'normal', 'h': 40, 'pad': '0px', 'radius': '0px', 'w': 836}
+    after  {'font': '12px', 'gap': '6px', 'h': 15, 'pad': '0px', 'radius': '0px', 'w': 918}
+  9:button.send-all
+    before {'font': '14px', 'gap': 'normal', 'h': 44, 'pad': '9px 12px', 'radius': '7px', 'w': 88}
+    after  {'font': '11px', 'gap': 'normal', 'h': 24, 'pad': '2px 6px', 'radius': '7px', 'w': 54}

@@ -1,9 +1,16 @@
-// /facilitator hosts one ControlColumn today. The Dashboard tab embeds this
-// same document; later column-count and document-boundary work can instantiate
-// the component again without duplicating its state.
-const embedded = new URLSearchParams(location.search).get("embedded") === "1";
-if (embedded) document.body.classList.add("embedded");
-
+// The standalone Remote view: one ControlColumn, plus the page furniture that
+// only this document has (venue name, master, SILENCE ALL, fleet setup).
+//
+// Until `3-iframe-retirement` this file was BOTH hosts — the Control tab
+// embedded this same page as an iframe with `?embedded=1`, and four behaviours
+// forked on that URL parameter. The Control tab now mounts the column directly
+// in `index.html` (`js/control-host.js`), so the fork is gone: what the two
+// hosts differ about is stated by what each passes in.
+//
+// Remote is `full: false`. That means the `dashboard: true` subset of the
+// manifest rather than all of it, and NO preset affordance at all — Bob's `41`
+// Q4 ruling, removed rather than rendered inert. Capture-as-Show-step is
+// desktop-only for the same reason, so this page passes neither callback.
 const ws = new BopSocket("/ws");
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(
@@ -17,10 +24,13 @@ let master = 1.0;
 let interacting = false;
 
 const column = window.ControlColumn.create({
-  host: document.body,
-  id: "control",
-  storageKey: "bopos.target.control",
-  full: embedded,
+  host: $("#control-column-host"),
+  id: "remote",
+  // Its own key, not the Control tab's: the two documents choose targets
+  // independently, and per-host selection is what lets `4-n-columns` give
+  // every column one of its own.
+  storageKey: "bopos.target.remote",
+  full: false,
   getState: () => installation,
   isInteracting: () => interacting,
   setInteracting: editing => { interacting = editing; },
@@ -46,28 +56,6 @@ const column = window.ControlColumn.create({
     ws.send("set_live_automation", payload);
   },
   replay: payload => ws.send("replay_live_params", payload),
-  applyPreset: ({scope, id, patch, name}) => {
-    const payload = {scope, patch, name};
-    if (id != null) payload.id = Number(id);
-    ws.send("apply_preset", payload);
-  },
-  savePreset: ({scope, id, patch, name, include, revision}) => {
-    const payload = {scope, patch, name, include};
-    if (id != null) payload.id = Number(id);
-    if (revision) payload.revision = revision;
-    ws.send("save_patch_preset", payload);
-  },
-  deletePreset: ({patch, slug, revision}) =>
-    ws.send("delete_patch_preset", {patch, slug, revision}),
-  requestCapturePreview: ({scope, id, patch}) => {
-    const payload = {scope, patch};
-    if (id != null) payload.id = Number(id);
-    ws.send("preview_preset_capture", payload);
-  },
-  requestShowCapturePreview: payload =>
-    ws.send("preview_show_preset_capture", payload),
-  captureShowStep: ({scope, id}) =>
-    ws.send("capture_show_preset_step", {scope, id}),
   sendCommand: payload => ws.send("action", payload),
 });
 
@@ -110,11 +98,6 @@ ws.on("master", data => {
   master = Number(data.value);
   renderControls();
 });
-ws.on("preset_capture_preview", data => column.acceptCapturePreview(data));
-ws.on("preset_saved", data => column.reportPresetSaved(data));
-ws.on("preset_applied", data => column.reportPresetApplied(data));
-ws.on("show_preset_capture_preview", data =>
-  column.handleShowCapturePreview(data));
 ws.on("event_scheduled", data => column.reportEventScheduled(data));
 
 document.addEventListener("pointerdown", event => {

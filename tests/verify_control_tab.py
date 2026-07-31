@@ -142,8 +142,11 @@ def make_fixture(root):
 
 
 def surface(page):
-    """The Control surface is an iframe; its filter and cards live inside."""
-    return page.frame_locator("#dashboard-live-view")
+    """The Control surface is mounted in this document since
+    `3-iframe-retirement`. It is no longer a frame — but it is also no
+    longer alone in its document, so every selector must be scoped to the
+    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    return page.locator("#control-column-host")
 
 
 def main():
@@ -238,7 +241,7 @@ def main():
                 frame = surface(page)
                 frame.locator(".target-picker").wait_for()
                 check("the picker is a reusable component, not a local widget",
-                      page.frames[-1].evaluate(
+                      page.evaluate(
                           "() => typeof window.TargetPicker?.create"
                           " === 'function'"))
                 chips = frame.locator(
@@ -252,13 +255,13 @@ def main():
                 # went with it (`04-event-fire-affordance`): firing lives on the
                 # panel's own rows, and the Events section leads the card.
                 check("the retired top event panel is gone",
-                      page.frames[-1].evaluate(
+                      page.evaluate(
                           "() => !document.querySelector('#event-panel')"
                           " && !document.querySelector('#event-lead')"))
                 check("events sit above parameters in the panel",
-                      page.frames[-1].evaluate(
+                      page.evaluate(
                           "() => { const card ="
-                          " document.querySelector('.live-card');"
+                          " document.querySelector('#control-column-host .live-card');"
                           " const sections = [...card.querySelectorAll("
                           "'.live-control-section')].map(node =>"
                           " node.className.includes('-events')"
@@ -288,10 +291,11 @@ def main():
                       and [button.strip() for button in slot.locator(
                           ".live-preset-action").all_text_contents()]
                       == ["new", "save", "del"])
-                placement = page.frames[-1].evaluate(
+                placement = page.evaluate(
                     """() => {
                       const card = document.querySelector(
-                        '.live-card[data-live-scope="all"]');
+                        '#control-column-host'
+                        + ' .live-card[data-live-scope="all"]');
                       const row = card.querySelector("[data-preset-slot]");
                       const head = card.querySelector(".live-card-head");
                       const rows = card.querySelector(".promoted-controls");
@@ -333,7 +337,15 @@ def main():
                 check("All is exclusive with everything else",
                       frame.locator(".live-card").count() == 1)
 
-                # --- the Seat choice is shared with the Seats tab ---
+                # --- Control does NOT follow the Seats tab's focus Seat ---
+                # SUPERSEDED: this checked the opposite until
+                # `08-control-tab-columns/1-columns-design` D7 (Bob,
+                # 2026-07-31), which retired `followFocusSeat` on Control
+                # outright, at every N. A column that silently re-aims itself
+                # because someone selected a Seat in another tab is wrong as
+                # soon as there is more than one column, and it was ambient
+                # rather than asked for even at N=1. The Seats → Control
+                # workflow returns as an explicit action, owned by `4-n-columns`.
                 page.click("#tab-button-seats")
                 page.wait_for_selector("#tab-seats:not([hidden])")
                 # The row's centre is its name <input>, and the row's click
@@ -342,13 +354,17 @@ def main():
                 page.click('#assigned .device-row[data-seat-id="2"] small')
                 page.click("#tab-button-control")
                 frame = surface(page)
-                # The picker adopts the shared key when it changes, on the
-                # storage event or the next heartbeat render — so wait for the
-                # card rather than sampling.
+                frame.locator('.live-card[data-live-scope="all"]').wait_for()
+                check("choosing a Seat elsewhere does not re-aim Control",
+                      frame.locator(".live-card").count() == 1
+                      and frame.locator('.live-card[data-live-scope="seat"]')
+                      .count() == 0)
+                # The target moves only when the operator moves it.
+                frame.locator('[data-target-toggle="2"]').click()
                 frame.locator(
                     '.live-card[data-live-scope="seat"][data-live-id="2"]'
                 ).wait_for(timeout=15000)
-                check("the picker follows the Seat chosen on the Seats tab",
+                check("choosing a Seat chip in the column does aim it",
                       frame.locator('.live-card[data-live-scope="seat"]')
                       .get_attribute("data-live-id") == "2")
 
@@ -391,7 +407,7 @@ def main():
                       frame.locator(".live-card").count() == 1)
 
                 # The old venue-level shelf is retired. Patch presets remain
-                # on each embedded Control card (asserted above).
+                # on each Control card (asserted above).
                 check("the venue-preset shelf is absent",
                       page.locator("#preset-bar").count() == 0)
 

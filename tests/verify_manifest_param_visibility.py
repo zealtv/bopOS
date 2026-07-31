@@ -196,7 +196,8 @@ def main():
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
                 page.click("#tab-button-control")
-                frame = page.frame_locator("#dashboard-live-view")
+                # One document since `3-iframe-retirement`; scope to the Control host.
+                frame = page.locator("#control-column-host")
                 controls = frame.locator("[data-live-param]")
                 controls.first.wait_for()
                 expected = ["gain", "texture/density", "texture/rate"]

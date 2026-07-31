@@ -69,9 +69,18 @@ Remote view actually lost. This is the list the restyle should start from.
 |---|---|---|
 | generator drawer | `05e` | **nothing visible.** One hidden `pointer-events:none` checkbox's `min-height`; `control-panel.css` §17b had already restated the drawer's metrics for both hosts. |
 | target picker | `07` | **real shrink.** The All/Groups/Seat tabs were `min-height:44px`/`font-size:14px`; the replacement chips measure **34px tall** (`--row-h` under `pointer:coarse`), ~42px effective hit height with the component's `::after` pad, at 12px type. The seat `<select>` (`min-height:44px`, `min-width:140px`) became a row of **32px-wide** numeric Seat chips. Measured with `touch_probe.py` in that stitch, iPad-portrait emulation. |
+| card chrome (the whole page shell) | `08/3-iframe-retirement` | **real shrink, four elements only.** `facilitator.css` carried the entire card face — it was never in a stylesheet `index.html` loads, which is why retiring the Control iframe forced the move. Measured on the live Remote page before/after (`remote_delta.py` in that stitch, 55 controls): 30 controls changed **width only** (the page gutter went 22px → 12px), and exactly **four** changed anything else. `.live-card` 18px/20px padding + 12px radius + 14px gap → 0 padding, 0 radius, 6px gap (the column is the card now, so the padding is the column's). `.live-card-head` 44px → 24px. The card name 19px → 12px. And the one genuine tap target: **`Send all` 88 × 44 → 54 × 24**. Every parameter row measured identical, `05e`'s reason again — §17b had already restated them. |
 
-So the "44 becomes 34" worry is now **confirmed for one component and disproven
-for another** — which is the point of measuring per collapse. Two concrete jobs
-for this stitch fall out of the `07` row: a Seat chip 32px wide is the smallest
-tap target the Remote view has, and a 34px chip in a scrolling roster is the
-densest. Both want a number with a reason, not an inherited token.
+So the "44 becomes 34" worry is now **confirmed for two components and
+disproven for one** — which is the point of measuring per collapse. Three
+concrete jobs for this stitch fall out of the table: a Seat chip 32px wide is
+the smallest tap target the Remote view has, a 34px chip in a scrolling roster
+is the densest, and `Send all` at 54 × 24 is the smallest *button*. All three
+want a number with a reason, not an inherited token.
+
+The `08/3` row also changes this stitch's shape. Remote is now ONE
+`ControlColumn` between a header and a footer, mounted at
+`#control-column-host`, with `facilitator.css` down to page furniture. So the
+restyle is no longer "rewrite a 126-line divergent stylesheet" — it is a
+coarse-pointer override layer on `control-column.css` + `control-panel.css`
+§18, which both documents already load, plus this page's own header/footer.

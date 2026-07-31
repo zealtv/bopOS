@@ -1,0 +1,442 @@
+{
+ "0:select": {
+  "font": "14px",
+  "gap": "normal",
+  "h": 44,
+  "pad": "7px 30px 7px 9px",
+  "radius": "8px",
+  "w": 113
+ },
+ "10:div.live-param.live-param-event": {
+  "font": "12px",
+  "gap": "4px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "11:button.live-event-send": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "0px",
+  "radius": "7px",
+  "w": 58
+ },
+ "12:input.live-event-box.value-box": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "0px 5px",
+  "radius": "3px",
+  "w": 58
+ },
+ "13:input.live-event-box.value-box": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "0px 5px",
+  "radius": "3px",
+  "w": 58
+ },
+ "14:span.live-param-name": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 15,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 790
+ },
+ "15:label.live-param.live-param-numeric": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "16:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 888
+ },
+ "17:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 888
+ },
+ "18:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "19:label.live-param.live-param-numeric": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "1:summary": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 15,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 972
+ },
+ "20:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 888
+ },
+ "21:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 888
+ },
+ "22:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "23:label.live-param.live-param-numeric": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "24:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 888
+ },
+ "25:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 888
+ },
+ "26:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "27:div.live-param.live-param-toggle": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "28:button.live-toggle": {
+  "font": "13px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "0px",
+  "radius": "1px",
+  "w": 24
+ },
+ "29:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 15,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 890
+ },
+ "2:button.target-chip.target-chip-all.on": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px 8px",
+  "radius": "1px",
+  "w": 32
+ },
+ "30:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "31:label.live-param.live-param-numeric": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "32:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 888
+ },
+ "33:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 888
+ },
+ "34:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "35:label.live-param.live-param-enum": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "36:select.live-enum": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "0px 4px",
+  "radius": "3px",
+  "w": 96
+ },
+ "37:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 15,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 852
+ },
+ "38:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "39:summary": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 20,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "3:button.target-chip.target-chip-group.slot-0": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px 8px",
+  "radius": "1px",
+  "w": 99
+ },
+ "40:label.live-param.live-param-numeric": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 966
+ },
+ "41:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 876
+ },
+ "42:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 876
+ },
+ "43:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "44:summary": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 20,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "45:label.live-param.live-param-numeric.mixed": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 966
+ },
+ "46:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 876
+ },
+ "47:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 876
+ },
+ "48:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "49:label.live-param.live-param-numeric.mixed": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 966
+ },
+ "4:button.target-chip.target-chip-seat": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px 8px",
+  "radius": "1px",
+  "w": 26
+ },
+ "50:span.live-param-name": {
+  "font": "12px",
+  "gap": "5px",
+  "h": 22,
+  "pad": "0px 6px",
+  "radius": "0px",
+  "w": 876
+ },
+ "51:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 22,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 876
+ },
+ "52:button.live-param-mod": {
+  "font": "12px",
+  "gap": "normal",
+  "h": 18,
+  "pad": "0px",
+  "radius": "50%",
+  "w": 18
+ },
+ "53:input": {
+  "font": "13.3333px",
+  "gap": "normal",
+  "h": 44,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 819
+ },
+ "54:button.danger": {
+  "font": "17px",
+  "gap": "normal",
+  "h": 54,
+  "pad": "16px",
+  "radius": "10px",
+  "w": 980
+ },
+ "5:button.target-chip.target-chip-seat": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px 8px",
+  "radius": "1px",
+  "w": 26
+ },
+ "6:article.live-card.all-card": {
+  "font": "18px",
+  "gap": "6px",
+  "h": 433,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "7:div.live-card-head": {
+  "font": "18px",
+  "gap": "6px",
+  "h": 24,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 978
+ },
+ "8:span.name": {
+  "font": "12px",
+  "gap": "6px",
+  "h": 15,
+  "pad": "0px",
+  "radius": "0px",
+  "w": 918
+ },
+ "9:button.send-all": {
+  "font": "11px",
+  "gap": "normal",
+  "h": 24,
+  "pad": "2px 6px",
+  "radius": "7px",
+  "w": 54
+ }
+}

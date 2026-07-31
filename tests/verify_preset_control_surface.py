@@ -141,12 +141,17 @@ def make_fixture(root):
 
 
 def surface(page):
-    """The Control surface is an iframe (CLAUDE.md gotcha 15)."""
-    return page.frame_locator("#dashboard-live-view")
+    """The Control surface is mounted in this document since
+    `3-iframe-retirement`. It is no longer a frame — but it is also no
+    longer alone in its document, so every selector must be scoped to the
+    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    return page.locator("#control-column-host")
 
 
+# The Control surface shares the dashboard document now, so the socket a
+# test drives directly is the page's own.
 def inner(page):
-    return page.frames[-1]
+    return page
 
 
 def wait_catalog(page, count):
@@ -283,9 +288,8 @@ def main():
                     '.live-card[data-live-scope="all"] [data-preset-select]')
                 page.wait_for_function(
                     """() => {
-                      const select = document.querySelector(
-                        '#dashboard-live-view')?.contentDocument
-                        ?.querySelector('[data-preset-select]');
+                      const select = document
+                        .querySelector('#control-column-host [data-preset-select]');
                       return select && select.value === 'Dawn';
                     }""")
                 check("the row states the applied preset",
@@ -296,8 +300,7 @@ def main():
                 # after every heartbeat re-render) ---
                 page.wait_for_function(
                     """() => {
-                      const doc = document.querySelector('#dashboard-live-view')
-                        ?.contentDocument;
+                      const doc = document.querySelector('#control-column-host');
                       return !!doc?.querySelector(
                         '.live-card[data-live-scope="all"] [data-preset-select]')
                         ?.onchange;
@@ -325,8 +328,7 @@ def main():
                     "() => installation.seats['1'].preset_dirty === true")
                 page.wait_for_function(
                     """() => {
-                      const doc = document.querySelector('#dashboard-live-view')
-                        ?.contentDocument;
+                      const doc = document.querySelector('#control-column-host');
                       const option = doc?.querySelector(
                         '[data-preset-select] option[value="Dawn"]');
                       return !!option && option.textContent.includes('*');
@@ -345,8 +347,7 @@ def main():
                     " === 'Dawn'")
                 mixed = page.wait_for_function(
                     """() => {
-                      const doc = document.querySelector('#dashboard-live-view')
-                        ?.contentDocument;
+                      const doc = document.querySelector('#control-column-host');
                       const select = doc?.querySelector(
                         '.live-card[data-live-scope="all"] [data-preset-select]');
                       if (!select) return false;

@@ -17,25 +17,12 @@ h1{font-size:22px;margin:0;margin-right:auto}
 #technical-link{color:var(--text);border:1px solid var(--control-line);border-radius:8px;padding:8px 12px;text-decoration:none;font-size:14px}
 #ws-status.offline{color:var(--red);font-size:14px}
 #ws-status.online{color:var(--dim);font-size:14px}
-.visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-/* The bar the target picker sits in. Placement only: the picker's own face is
-   `css/target-picker.css`, and `SeatFilter`'s five `.target-filter*` rules died
-   with it (02-component-unification/07). The picker is a grid child so its
-   disclosure spans the bar, with the capture button beside it. */
-.target-picker-host{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:8px 22px;border-bottom:1px solid var(--line);background:var(--surface-bar)}
-.capture-show-step{min-height:44px;white-space:nowrap}
-main{flex:1;overflow-y:auto;padding:18px 22px;display:grid;gap:14px;align-content:start}
-.empty{color:var(--dim);text-align:center;margin-top:20vh}
-/* No target is a state, not an error: the card region says what went and offers
-   the way back, and renders no controls at all (D5, 0-prune-fallback-safety). */
-.live-unresolved{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;margin-top:20vh;color:var(--dim);text-align:center}
-.live-card{min-width:0;display:grid;align-content:start;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
-.live-card.all-card{border-color:var(--strong-line);background:var(--panel-strong)}.live-card.group-card{border-color:var(--group-line)}.live-card.empty-group{opacity:.72}
-.live-card-head{min-height:44px;display:flex;align-items:center;gap:14px}
-.live-card .name{min-width:0;flex:1;font-size:19px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.live-card .name strong,.live-card .name small{display:block;overflow:hidden;text-overflow:ellipsis}.live-card .name small{margin-top:3px;color:var(--dim);font-size:12px;font-weight:400}
-.dot{width:13px;height:13px;border-radius:50%;background:var(--offline-mark);flex:none}
-.dot.ok{background:var(--green);box-shadow:0 0 10px var(--green)}
-.badge{margin-left:auto;color:var(--dim);font-size:14px;border:1px dashed var(--line);border-radius:6px;padding:6px 10px}
+/* Placement of the one ControlColumn this page hosts. Its whole face —
+   the picker head, the cards region, the empty states and the card chrome that
+   used to sit right here — moved onto `control-column.css` and
+   `control-panel.css` §18 in `3-iframe-retirement`, so that the Control tab of
+   `index.html`, which does not load this stylesheet, gets it too. */
+#control-column-host{flex:1;min-height:0;overflow-y:auto;margin:12px}
 input[type=range]{flex:1;height:44px;accent-color:var(--accent-cyan);cursor:pointer}
 footer{border-top:1px solid var(--line);background:var(--surface-bar);padding:16px 22px;display:grid;gap:14px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
 #master-row{display:flex;align-items:center;gap:16px}
@@ -44,13 +31,11 @@ footer{border-top:1px solid var(--line);background:var(--surface-bar);padding:16
 #buttons{display:grid;grid-template-columns:1fr;gap:12px}
 #facilitator-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 #facilitator-commands:empty{display:none}
-.command-scope-label{grid-column:1/-1;color:var(--dim);font-size:13px;letter-spacing:.1em;text-transform:uppercase}.device-commands{padding-top:10px;border-top:1px solid var(--line);color:var(--dim);font-size:14px}.device-commands summary{cursor:pointer}.device-commands>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}.device-commands button{padding:11px;font-size:14px}
+.command-scope-label{grid-column:1/-1;color:var(--dim);font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 button{border:1px solid var(--control-line);background:var(--control);color:var(--text);border-radius:10px;padding:16px;font-size:17px;cursor:pointer}
 button.hold{position:relative;overflow:hidden}
 button.hold::after{content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:#ff4e5d33;pointer-events:none}
 button.hold.holding::after{transform:scaleX(1);transition:transform 1.2s linear}
-.send-all{min-width:88px;min-height:44px;padding:9px 12px;font-size:14px;text-transform:none}
-.promoted-controls{display:grid;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
 .live-param-branch{display:grid;gap:8px;margin:0;padding:9px 0 0 0;border:0;border-radius:0;background:transparent}.live-param-branch>summary{margin:0;color:var(--dim);font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:none;cursor:pointer}.live-param-branch-kids{display:grid;gap:8px;margin-left:12px}
 .live-param{min-height:44px;display:flex;align-items:center;gap:12px;color:var(--dim);font-size:15px}
 .live-param>.live-param-name{min-width:100px;text-transform:none;overflow-wrap:anywhere}
@@ -71,10 +56,8 @@ button.hold.holding::after{transform:scaleX(1);transition:transform 1.2s linear}
 .live-param.mixed output{color:var(--dim);font-size:13px}.live-param.mixed input[type=range]{opacity:.64;background:linear-gradient(90deg,transparent 48%,var(--dim) 48% 52%,transparent 52%)}
 .danger{border-color:#87343c}
 .danger.active{background:var(--red);border-color:var(--red);color:#130507;font-weight:800;box-shadow:0 0 18px #ff4e5d88}
-@media(orientation:landscape) and (min-width:900px){main{grid-template-columns:1fr 1fr}main[data-live-view=aggregate] .all-card{grid-column:1/-1}}
-body.embedded header,body.embedded #master-row,body.embedded #buttons{display:none}body.embedded main{padding-top:14px}body.embedded footer{border-top:0;padding-top:6px}body.embedded .empty,body.embedded .live-unresolved{margin-top:8vh}
 
-@media(max-width:620px){.target-picker-host{padding-inline:12px}main{padding-inline:12px}.live-card{padding:14px}.live-card-head{gap:9px}.live-card .name{font-size:17px}.send-all{min-width:82px}}
+@media(max-width:620px){#control-column-host{margin-inline:8px}}
 @media(prefers-reduced-motion:reduce){.live-param-marker{animation:none!important;animation-play-state:paused!important;opacity:0}.live-param-glyph,.live-param-marker,.live-param-range-wrap::before{transition-duration:0s!important}}
 .theme-control{display:grid;gap:2px;color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}.theme-control select{min-height:44px;border:1px solid var(--control-line);border-radius:8px;background:var(--input);color:var(--text);padding:7px 30px 7px 9px;font:inherit;font-size:14px;letter-spacing:0;text-transform:none}@media(max-width:620px){header{flex-wrap:wrap}.theme-control{order:3;margin-left:auto}}
 .initial-loading{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;background:var(--bg);color:var(--text)}.initial-loading[hidden]{display:none}.bop-loader{display:grid;justify-items:center;gap:13px}.bop-loader strong{font-size:34px;letter-spacing:-.05em}.bop-loader small{color:var(--dim);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}.bop-beats{height:32px;display:flex;align-items:end;gap:7px}.bop-beats i{width:8px;height:13px;border-radius:2px 2px 0 0;background:var(--accent);animation:bop-beat 1s cubic-bezier(.34,1.56,.64,1) infinite;transform-origin:bottom}.bop-beats i:nth-child(2){height:21px;animation-delay:.1s;background:var(--accent-cyan)}.bop-beats i:nth-child(3){height:29px;animation-delay:.2s;background:var(--accent-warm)}.bop-beats i:nth-child(4){height:17px;animation-delay:.3s;background:var(--accent-bright)}@keyframes bop-beat{0%,45%,100%{transform:scaleY(.35);opacity:.55}18%{transform:scaleY(1);opacity:1}}@media(prefers-reduced-motion:reduce){.bop-beats i{animation:none;opacity:1}}

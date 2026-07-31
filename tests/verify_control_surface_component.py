@@ -214,7 +214,7 @@ PARITY_JS = """
   const seatHtml = probe.tree("seat", seat.id, [seat], declarations, false);
   const deviceHtml = probe.tree("device", seat.bound, [seat], declarations, false);
   // Keep the probe under the same panel-scoped stylesheet as shipping rows,
-  // but outside `#cards`: facilitator heartbeats replace that container's
+  // but outside the column's cards region: heartbeats replace that container's
   // innerHTML and used to intermittently delete the probe between checks.
   const fixture = document.createElement("article");
   fixture.id = "surface-probe-card";
@@ -223,7 +223,7 @@ PARITY_JS = """
   host.id = "surface-probe";
   host.innerHTML = deviceHtml;
   fixture.appendChild(host);
-  document.getElementById("cards").after(fixture);
+  document.querySelector(".control-column-cards").after(fixture);
   probe.bind(host);
   return {
     identical: normalize(seatHtml) === normalize(deviceHtml),
@@ -240,7 +240,7 @@ PARITY_JS = """
 
 # Measures the ratified parameter-row grammar
 # (`[value box][name-in-slider][∿]`) on the probe host. PARITY_JS keeps it in
-# a dedicated `.live-card` outside the heartbeat-rendered `#cards`, so the
+# a dedicated `.live-card` outside the heartbeat-rendered cards region, so the
 # panel stylesheet applies without making the fixture disposable. `density`
 # there is generator-driven, `steps`/`filter/cutoff` are manual.
 ROW_GRAMMAR_JS = """
@@ -651,7 +651,7 @@ def main():
 
                 # --- (e) the ratified row grammar (01-control-panel/4) ---
                 # The probe host lives in a dedicated `.live-card` outside
-                # `#cards`, so the panel-scoped stylesheet applies without a
+                # the cards region, so the panel stylesheet applies without a
                 # heartbeat replacing the fixture. PARITY_JS put an LFO on
                 # `density`, alongside the manual rows measured here.
                 grammar = page.evaluate(ROW_GRAMMAR_JS)

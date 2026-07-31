@@ -310,15 +310,29 @@ remain the authority for a particular piece of work.
 >    fade animator vs one `ControlSurface` per column (`2`), and the card chrome
 >    that lives in `facilitator.css` — which `index.html` does not load, so
 >    retiring the iframe leaves the parent with none (`3`)) →
->    `0-prune-fallback-safety` (**new, from the consult**: `prune()` falls back
->    to `["all"]`, so a Control target that loses its seat silently widens to the
->    whole venue — a live defect at N=1, pulled out so it does not wait behind
->    the thread) → `2-control-column-component` (extract `ControlColumn` from
->    `facilitator.js` to instance state, **still inside the iframe**, so the
->    four existing frame-locating journeys guard the extraction unmodified) →
->    `3-iframe-retirement` (mount in the parent document, `/facilitator` becomes
->    Remote-only, the §12 ground fix, migrate the journeys, delete gotcha 15 —
->    N stays 1) → `4-n-columns` (**unblocked**; carries the ratified design)) →
+>    ~~`0-prune-fallback-safety`~~ → ~~`2-control-column-component`~~ →
+>    ~~`3-iframe-retirement`~~ (**TIED 2026-07-31.** The iframe is gone: the
+>    Control tab mounts `ControlColumn` at `#control-column-host` in the
+>    dashboard document, on `dashboard.js`'s own socket and state, and
+>    `/facilitator` is the Remote view only. `body.embedded`, the `?embedded=1`
+>    parameter and its four consumers, and the second websocket all went with
+>    it; gotcha 15 is retired above. §12 is delivered by DELETING both
+>    `#dashboard-live-view` declarations and replacing them with nothing — the
+>    column is the card, the tab paints nothing, and the panel is no longer
+>    clipped at `58vh`. Two findings worth carrying: the column now owns its own
+>    **markup** as well as its state, because a skeleton authored per host is
+>    duplication and per-host ids do not survive N; and the orphaned card face
+>    belongs to **`control-panel.css` §18**, not to the column — `.live-card` is
+>    the control panel's root in `test_css_component_ownership.py`, so
+>    `.control-column .live-card{…}` is one component restyling another and
+>    fails that guard. `css/control-column.css` (the app's fifth component
+>    stylesheet) holds only the column shell. D1 was adopted early, since the
+>    face had to be written either way: `.live-card` is flat and the column
+>    supplies panel + padding. D7 landed too, which superseded
+>    `verify_control_tab.py`'s focus-Seat assertion — Control does not follow
+>    the Seats tab at any N) → `4-n-columns` (**unblocked and next**; carries
+>    the ratified design — the 342px track, the columns row, the tab strip and
+>    D8's demotions are all still to come)) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,
@@ -333,8 +347,10 @@ remain the authority for a particular piece of work.
 >    inset border and radius with **no** background (Show). Diagnostic detail: the
 >    Show transport strip and inspector both set `--panel` and look right, so this
 >    is per-surface drift, not a theme bug. Folded into `06` (the panel's new
->    host) and `08` (delete the iframe declaration, columns are cards on the
->    ground); the Show list is `05g`; the app-wide sweep is `11`, which runs last
+>    host) and `08` — **Control's half is DONE**: `3-iframe-retirement` deleted
+>    both `#dashboard-live-view` declarations with the iframe and put nothing in
+>    their place, so the column is a card and the tab paints nothing; the Show
+>    list is `05g`; the app-wide sweep is `11`, which runs last
 >    and should consider promoting `background:var(--bg)`-outside-`html/body` to a
 >    guard the way `05d` did for ownership.
 >    `05c`/`05d` were added 2026-07-30 after `05b`
@@ -911,10 +927,12 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   the row selects nothing. Aim at the `small` (ID label) instead; (14) the
   offline sweep marks a device down **30 s** after its last heartbeat, so a
   test that kills simfleet and waits for `online === false` needs a timeout
-  longer than that; (15) the Control surface is an **iframe**
-  (`#dashboard-live-view`) — reach its filter and cards through
-  `page.frame_locator("#dashboard-live-view")`, and note that `localStorage` is
-  the only state the two documents share. (16) waiting for an *element*
+  longer than that; (15) **RETIRED 2026-07-31 by
+  `08-control-tab-columns/3-iframe-retirement`** — the Control surface is no
+  longer an iframe. It mounts in the dashboard document at
+  `#control-column-host`, so reach it with a scoped `page.locator`, not a
+  frame locator, and gotcha 17 applies to it like any other component. The
+  number is kept rather than reused so older notes still resolve. (16) waiting for an *element*
   is not waiting for its *handler*: `bindParams` reassigns `onchange`/`onclick`
   after every heartbeat re-render, so a dispatch aimed at a freshly rendered
   control lands on an unbound node and silently sends nothing. Wait on the
