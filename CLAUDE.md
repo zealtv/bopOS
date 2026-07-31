@@ -351,13 +351,42 @@ remain the authority for a particular piece of work.
 >    closed came back open. And gotchas **19** (a target identifier is not an
 >    element identifier) and **20** (a fragment-only `page.goto` does not
 >    reload, so it cannot test persistence) are in the Playwright list below),
->    then `2-venue-wide-capture` (**next**; D1–D3 — capture takes no scope argument, the
->    `preview_show_preset_capture` round trip goes away now the Control document
->    can see `applied_preset` and `show` itself, and three dialogs become
->    arm → preview → commit → undo), then `3-chrome-demotions` (D8 — device
->    commands, the preset actions and `Send all` leave the Control card; last,
->    because they change the shared `ControlSurface` and so reach the Device tab
->    and patch editor too))) →
+>    then ~~`2-venue-wide-capture`~~ (**TIED 2026-07-31**, commit `e63ccf5`.
+>    D1–D3 shipped as a **removal**: `scope`/`id` left both capture verbs,
+>    `_capture_show_seats` collapsed to every seat, and
+>    `preview_show_preset_capture` was deleted outright rather than re-shaped —
+>    it existed only because the Control tab was an iframe that could see
+>    neither the show nor the provenance. Nothing was added to the wire; the
+>    verb takes `{}`. The two `alert()`s and the `confirm()` became one
+>    component, `js/show-capture.js` + `css/show-capture.css` (the app's
+>    **sixth** component stylesheet), mounted on the Control strip AND the Show
+>    edit bar: ambient count → arm → non-modal preview → commit → inline undo.
+>    Unlike `TargetPicker` it hands back HTML rather than mounting into a host,
+>    because `show.js` rebuilds its whole root on every render and would destroy
+>    a mounted child several times a second. Three findings carry forward.
+>    **One thing WAS added to state**, deliberately: a runtime-only
+>    `preset_provenance_seen`, because D2's empty-capture state cannot name its
+>    cause otherwise — `durable()` strips `applied_preset`, so a restarted
+>    dashboard sounds identical and captures nothing. It separates "applied then
+>    cleared" from "not applied this session"; it does **not** separate a fresh
+>    venue from a restarted one, and does not need to, because both take the
+>    same action. **The undo offer must withdraw on any intervening show
+>    mutation** — `undo_show` pops the LAST mutation, so a stale offer discards
+>    an unrelated edit rather than the capture. And **`installation.current_show`
+>    is not stale for a moment, it is stale indefinitely** — see
+>    `4-current-show-broadcast`), then `3-chrome-demotions` (**next**; D8 — device
+>    commands, the preset actions and `Send all` leave the Control card; last of
+>    the original three, because they change the shared `ControlSurface` and so
+>    reach the Device tab and patch editor too), then a fourth child added
+>    2026-07-31 by Bob, `4-current-show-broadcast`: `set_current_show`
+>    broadcasts `shows`/`show` but never `state`, and since NO periodic
+>    full-`state` broadcast exists anywhere (heartbeats are `device_update`;
+>    `offline_sweep` sends only `device_offline`), `installation.current_show`
+>    stays stale until some unrelated mutation fires one — measured as zero
+>    `state` messages in 20s of live heartbeats. The Monitor System panel
+>    therefore reads `none loaded` while a show is loaded. Not column work; the
+>    stitch records that its position is an ordering call and where to lift it
+>    if it holds the thread open))) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,

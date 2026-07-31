@@ -21,8 +21,17 @@ migration — the same four-way shape that got the parent
    commit → undo. Independent of column count; second only because its
    affordance needs `1`'s strip to sit in.
 3. **`3-chrome-demotions`** — D8. Device commands, the preset actions and
-   `Send all` leave the Control card. Last because they change the **shared**
-   `ControlSurface`, which is better done once the layout has stopped moving.
+   `Send all` leave the Control card. Last of the three because they change the
+   **shared** `ControlSurface`, which is better done once the layout has
+   stopped moving.
+
+**A fourth child was added on 2026-07-31** (Bob), after the three above:
+`4-current-show-broadcast`. It is not column work — `2-venue-wide-capture`
+found that `set_current_show` never rebroadcasts `state`, and with no periodic
+full-state broadcast anywhere the Monitor System panel reads `none loaded`
+while a show is loaded. Bob queued it here rather than as a peer of `09`/`11`;
+the stitch's own instructions record that this is an ordering call and where to
+lift it to if it ever holds the thread open.
 
 ## Shared authority
 
@@ -40,6 +49,7 @@ column, and `tests/test_css_component_ownership.py` enforces it.
 
 ## Ties when
 
-All three children are tied and the tab matches the ratified mockups at
+All four children are tied and the tab matches the ratified mockups at
 1280/1680/2560. `08-control-tab-columns` has no other children, so tying this
-ties the thread.
+ties the thread. The mockup match is the test for `1`–`3` only;
+`4-current-show-broadcast` is judged by the Monitor panel telling the truth.
