@@ -1099,6 +1099,51 @@
   text-transform:none;
   letter-spacing:normal;
 }
+/* D8 demoted the three of them behind one disclosure. Like the card's ⋯ the
+   menu is absolute, so authoring never pushes the parameter rows down, and it
+   opens rightwards from a row whose left is the patch name. */
+.live-preset-authoring {
+  position:relative;
+  flex:none;
+}
+/* The ▸/▾ marker, the flex row and the pointer come from `style.css` §9's
+   app-wide disclosure base; this is the button face over the top of it. */
+.live-preset-authoring > summary {
+  min-height:20px;
+  padding:2px 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font-size:12px;
+  line-height:1;
+}
+.live-preset-authoring[open] > summary {
+  background:var(--hover);
+}
+.live-preset-authoring-menu {
+  position:absolute;
+  right:0;
+  top:calc(20px + 2px);
+  z-index:3;
+  width:190px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:var(--gap);
+  padding:var(--gap);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-control);
+  background:var(--panel-strong);
+  box-shadow:0 2px 8px rgb(0 0 0 / .28);
+}
+/* The scope note is the legibility D8 asked for: every other control in this
+   row acts on the card's target, and `del` acts on the whole installation. */
+.live-preset-authoring-menu small {
+  flex-basis:100%;
+  color:var(--dim);
+  font-size:11px;
+  line-height:1.35;
+}
 /* Disabled reads as unavailable, not as broken chrome. */
 .live-card .live-preset-row :disabled,
 .device-control .live-preset-row :disabled,
@@ -1674,13 +1719,56 @@
 .live-card .dot.ok {
   background:var(--green);
 }
-.live-card .send-all {
+/* The card's overflow (D8, `08/4/3-chrome-demotions`). `Send all` used to be a
+   permanent button in the head, and on Control a `Device setup` disclosure sat
+   at the foot as well: six chrome controls per card, times three cards in a
+   mixture, times N columns. Both now live behind one ⋯.
+
+   The menu is ABSOLUTE, so opening it cannot reflow a 342px column or push the
+   parameter rows down — the same rule the generator face works under. */
+.live-card-overflow {
+  position:relative;
+  flex:none;
+}
+.live-card-overflow > summary {
+  min-width:var(--row-h);
+  min-height:var(--row-h);
+  justify-content:center;
+  border-radius:var(--radius-momentary);
+  color:var(--dim);
+  font-size:13px;
+  line-height:1;
+}
+/* No ▸/▾ here: the markup carries `icon-menu`, `style.css` §9's own opt-out
+   for a summary that IS an icon. */
+.live-card-overflow > summary:hover,
+.live-card-overflow[open] > summary {
+  background:var(--hover);
+  color:var(--text);
+}
+.live-card-overflow-menu {
+  position:absolute;
+  right:0;
+  top:calc(var(--row-h) + 2px);
+  z-index:3;
+  min-width:120px;
+  display:grid;
+  gap:var(--gap);
+  padding:var(--gap);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-control);
+  background:var(--panel-strong);
+  box-shadow:0 2px 8px rgb(0 0 0 / .28);
+}
+.live-card .send-all,
+.live-card .open-device {
   min-width:0;
   min-height:var(--row-h);
   flex:none;
   padding:var(--pad-control);
   font-size:11px;
   text-transform:none;
+  text-align:left;
 }
 .live-card .promoted-controls {
   display:grid;

@@ -132,10 +132,12 @@
   padding: var(--pad-control);
 }
 
-/* The per-Seat device-setup disclosure the column renders inside a card. It
-   too had no declaration in `index.html`'s stylesheets. D8 demotes it off the
-   Control column and keeps it on Remote, but that is a behaviour change owned
-   by `4-n-columns`; until then both hosts draw it the same. */
+/* The per-Seat device-setup disclosure — REMOTE ONLY since D8 shipped in
+   `4-n-columns/3-chrome-demotions`. The Control column renders nothing here and
+   hands off to the Devices tab instead; Remote, an iPad away from the rack, is
+   where a per-device reboot earns its place, so the rules stay. They are still
+   in this file rather than in `index.html`'s stylesheets because that document
+   no longer draws this at all. */
 .control-column .device-commands {
   padding-top: var(--gap);
   border-top: 1px solid var(--group-line);

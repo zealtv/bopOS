@@ -131,6 +131,9 @@ def make_fixture(root):
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "staged_at": time.time(), "previous": None},
         "params_patch": "alpha",
+        # Remote keeps the per-device commands D8 took off Control, so the
+        # fixture has to declare some for that half to be testable at all.
+        "facilitator_commands": ["restart-engine", "reboot"],
         "groups": {"0": {"id": 0, "name": "Front"}},
         "seats": {"1": seat(1, "Freda", UID_A, [0]),
                   "2": seat(2, "Sparks", UID_B, [])},
@@ -318,6 +321,23 @@ def main():
                       and [button.strip() for button in slot.locator(
                           ".live-preset-action").all_text_contents()]
                       == ["new", "save", "del"])
+                # D8 (`4-n-columns/3-chrome-demotions`): the three of them are
+                # AUTHORING and sit behind one disclosure, while the `<select>`
+                # stays in the row because applying is the live act. Closed by
+                # default, and closed is what the operator sees at rest.
+                check("new/save/del are demoted behind one closed disclosure",
+                      slot.locator(".live-preset-authoring").count() == 1
+                      and slot.locator(".live-preset-authoring[open]").count()
+                      == 0
+                      and slot.locator(
+                          '.live-preset-authoring [data-preset-action]')
+                      .count() == 3
+                      and not slot.locator(
+                          '[data-preset-action="new"]').is_visible())
+                check("the select stays in the row, outside the disclosure",
+                      slot.locator(
+                          ".live-preset-authoring .live-preset-select")
+                      .count() == 0)
                 placement = page.evaluate(
                     """() => {
                       const card = document.querySelector(
@@ -396,6 +416,40 @@ def main():
                 check("choosing a Seat chip in the column does aim it",
                       frame.locator('.live-card[data-live-scope="seat"]')
                       .get_attribute("data-live-id") == "2")
+
+                # --- D8: chrome demoted off the Control card -----------------
+                # Six chrome controls per card, times three cards in a mixture,
+                # times N columns, was fifty-four before a single parameter.
+                # `Send all` is a rescue action for a returning node and moved
+                # to an overflow; device lifecycle belongs to the Devices tab
+                # and left the column entirely, replaced by a hand-off.
+                card = frame.locator('.live-card[data-live-scope="seat"]')
+                check("the Control card carries no device-command disclosure",
+                      card.locator(".device-commands").count() == 0)
+                check("Send all is behind the overflow, not in the head",
+                      card.locator(".live-card-overflow .send-all").count() == 1
+                      and not card.locator(".send-all").is_visible())
+                card.locator(".live-card-overflow > summary").click()
+                card.locator(".live-card-overflow[open]").wait_for()
+                # The hand-off is offered only once this Seat HAS a device to
+                # hand off to, so it waits for the binding rather than racing
+                # the heartbeat that carries it.
+                card.locator("[data-open-device]").wait_for()
+                check("the overflow holds Send all and the device hand-off",
+                      card.locator(".send-all").is_visible()
+                      and card.locator("[data-open-device]").is_visible())
+                # The hand-off follows `07`'s "Set patch…" pattern: it selects
+                # the device and switches tabs, rather than carrying the
+                # commands themselves back into a live parameter panel.
+                uid = card.locator("[data-open-device]").get_attribute(
+                    "data-open-device")
+                card.locator("[data-open-device]").click()
+                page.wait_for_selector("#tab-devices:not([hidden])")
+                check("the hand-off opens that device on the Devices tab",
+                      page.evaluate("() => selected") == uid,
+                      repr(page.evaluate("() => selected")))
+                page.click("#tab-button-control")
+                frame = surface(page)
 
                 # --- a target the venue loses does NOT become every Seat ---
                 # `0-prune-fallback-safety` (D5, Bob 2026-07-31): the picker is
@@ -651,6 +705,26 @@ def main():
                 check("the standalone facilitator has no preset affordance",
                       standalone.locator("#preset-section").count() == 0
                       and standalone.locator("[data-preset-slot]").count() == 0)
+                # D8's other half: the commands LEFT Control, they were not
+                # deleted. An iPad away from the rack is where a per-device
+                # reboot earns its place, so Remote still draws them — in the
+                # card, not behind a hand-off it has no tab to hand off to.
+                open_picker(standalone)
+                # Whichever Seat this rig still has by now — earlier checks
+                # reindex and delete Seats out from under the picker on purpose.
+                standalone.locator(
+                    ".target-picker-roster .target-chip").first.click()
+                standalone.locator(
+                    '.live-card[data-live-scope="seat"]').wait_for()
+                remote_card = standalone.locator(
+                    '.live-card[data-live-scope="seat"]')
+                check("Remote still carries the device-command disclosure",
+                      remote_card.locator(
+                          "details.device-commands").count() == 1
+                      and remote_card.locator(
+                          "[data-device-command]").count() == 2)
+                check("Remote offers no Devices-tab hand-off",
+                      remote_card.locator("[data-open-device]").count() == 0)
                 check("no standalone page errors", not standalone_errors,
                       repr(standalone_errors))
                 standalone.close()

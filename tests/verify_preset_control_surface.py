@@ -160,8 +160,23 @@ def wait_catalog(page, count):
         " === expected", arg=count, timeout=15000)
 
 
+def open_authoring(root):
+    """Open the preset row's authoring disclosure.
+
+    D8 (`08-control-tab-columns/4-n-columns/3-chrome-demotions`) demoted
+    `new`/`save`/`del` behind one `<details>`; the `<select>` stayed in the row
+    because applying is the live act. Assertions that only READ a button still
+    work closed — a hidden element still reports its `disabled` — but a click
+    has to open the menu, exactly as an operator does.
+    """
+    disclosure = root.locator(".live-preset-authoring").first
+    if not disclosure.evaluate("element => element.open"):
+        disclosure.locator("summary").click()
+
+
 def save_from_row(page, frame, name, exclude=()):
     """Drive the row's save drawer the way an operator does."""
+    open_authoring(frame)
     frame.locator('[data-preset-slot] [data-preset-action="new"]').click()
     drawer = frame.locator("[data-preset-drawer]")
     drawer.locator("[data-preset-name]").wait_for()
@@ -371,6 +386,7 @@ def main():
                     " {scope:'seat', id:1, name:'depth', value:0.1})")
                 page.wait_for_function(
                     "() => installation.seats['1'].params.depth === 0.1")
+                open_authoring(frame)
                 frame.locator(
                     '[data-preset-slot] [data-preset-action="new"]').click()
                 omitted = frame.locator("[data-preset-drawer] .live-preset-omitted")
@@ -393,6 +409,7 @@ def main():
                     " {scope:'all', name:'density', value:0.42})")
                 page.wait_for_function(
                     "() => installation.seats['1'].params.density === 0.42")
+                open_authoring(frame)
                 frame.locator(
                     '[data-preset-slot] [data-preset-action="save"]').click()
                 picker = frame.locator("[data-preset-drawer] [data-preset-target]")

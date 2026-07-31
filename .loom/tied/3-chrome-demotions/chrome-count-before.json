@@ -1,0 +1,31 @@
+{
+  "label": "before",
+  "cards": [
+    {
+      "target": "all:all",
+      "chrome": 5,
+      "hidden": 0
+    },
+    {
+      "target": "group:0",
+      "chrome": 4,
+      "hidden": 0
+    },
+    {
+      "target": "group:1",
+      "chrome": 4,
+      "hidden": 0
+    },
+    {
+      "target": "seat:4",
+      "chrome": 6,
+      "hidden": 0
+    },
+    {
+      "target": "seat:5",
+      "chrome": 6,
+      "hidden": 0
+    }
+  ],
+  "total_chrome": 25
+}

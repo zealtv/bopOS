@@ -165,6 +165,20 @@ def make_fixture(root):
     return state_path, patch
 
 
+def open_authoring(page):
+    """Open the editor row's preset authoring disclosure.
+
+    D8 (`08-control-tab-columns/4-n-columns/3-chrome-demotions`) demoted
+    `new`/`save`/`del` behind one `<details>` ON THE COMPONENT, so the patch
+    editor inherits the demotion along with Control and the Device panel — the
+    per-host fork this thread exists to delete. Reads still work closed; clicks
+    open the menu first, as an operator does.
+    """
+    disclosure = page.locator("#editor-params .live-preset-authoring").first
+    if not disclosure.evaluate("element => element.open"):
+        disclosure.locator("summary").click()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-editor-presets-") as temp:
         state_path, patch_dir = make_fixture(temp)
@@ -345,6 +359,7 @@ def main():
                 fingerprint_before = page.evaluate(
                     "() => installation.fleet_patch?.fingerprint")
 
+                open_authoring(page)
                 page.click('#editor-params [data-preset-action="new"]')
                 page.wait_for_selector("#editor-params [data-preset-name]")
                 page.fill("#editor-params [data-preset-name]", "Sculpt")
@@ -413,6 +428,7 @@ def main():
                       '#editor-params [data-preset-action="del"]')
                       && !document.querySelector(
                       '#editor-params [data-preset-action="del"]').disabled""")
+                open_authoring(page)
                 page.click('#editor-params [data-preset-action="del"]')
                 page.wait_for_function(
                     "() => (installation.preset_catalog?.alpha || []).length"

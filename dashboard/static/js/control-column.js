@@ -52,6 +52,11 @@
     deletePreset,
     requestCapturePreview,
     sendCommand,
+    // D8: the Devices tab owns device lifecycle, so a `full` host hands off to
+    // it rather than carrying Update bopOS / Reboot / Shutdown per card. Remote
+    // has no Devices tab and passes nothing, which is exactly why it keeps the
+    // commands themselves.
+    openDevice,
   }) {
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
@@ -77,6 +82,7 @@
     if (closeButton) closeButton.onclick = () => onRemove();
 
     const openCommandDevices = new Set();
+    const openOverflows = new Set();
     const capturePreviews = new Map();
     let pendingPreview = null;
     let lastPresetReport = null;
@@ -231,14 +237,43 @@
       return `<button class="send-all" data-replay-live data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${esc(targetId)}"`} ${disabled ? "disabled" : ""}>Send all</button>`;
     }
 
+    // D8's overflow. `Send all` is a rescue action for a returning node, not a
+    // live gesture, and on a `full` host the device hand-off keeps it company —
+    // so one ⋯ per card replaces both a permanent button and, on Control, a
+    // whole `Device setup` disclosure. A group card has neither and renders no
+    // ⋯ at all rather than an empty menu.
+    function cardOverflow(scope, targetId, device, schemaAvailable) {
+      const items = [];
+      if (scope === "all" || scope === "seat") {
+        items.push(replayButton(scope, targetId, !schemaAvailable));
+      }
+      if (full && scope === "seat" && device && openDevice) {
+        items.push(`<button type="button" class="open-device" data-open-device="${esc(device.uid)}">Device setup…</button>`);
+      }
+      if (!items.length) return "";
+      const key = `${scope}:${targetId ?? "all"}`;
+      // `icon-menu` is the app-wide opt-out from design-language §9's ▸/▾
+      // (`style.css` §9): this summary IS the icon, and a marker beside the ⋯
+      // reads as two controls.
+      return `<details class="live-card-overflow icon-menu" data-overflow-key="${esc(key)}"${
+        openOverflows.has(key) ? " open" : ""}>
+        <summary title="More actions" aria-label="More actions">⋯</summary>
+        <div class="live-card-overflow-menu">${items.join("")}</div>
+      </details>`;
+    }
+
     function commandLabel(command) {
       return command === "updatebopos"
         ? "Update bopOS"
         : command.replaceAll("-", " ").replaceAll("_", " ");
     }
 
+    // Remote only, since D8. On an iPad away from the rack a per-device reboot
+    // earns its place; inside a live parameter panel on the desk it is three
+    // hold-to-confirm buttons one disclosure from the faders, times N cards
+    // times N columns, for something the Devices tab owns.
     function deviceCommands(device) {
-      if (!device) return "";
+      if (full || !device) return "";
       const commands = (state().facilitator_commands || []).map(command =>
         `<button data-device-command="${esc(command)}" data-uid="${esc(device.uid)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("");
       if (!commands) return "";
@@ -272,7 +307,7 @@
       // rather than a member count in a `<small>` nobody reads aloud (D5).
       const emptyGroup = scope === "group" && empty;
       return `<article class="live-card ${scope}-card${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
-        <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, targetId, !schemaAvailable) : ""}</div>
+        <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
         ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}
       </article>`;
     }
@@ -363,6 +398,15 @@
             ? {}
             : {id: Number(button.dataset.liveId)}),
         });
+      });
+      cards.querySelectorAll("details[data-overflow-key]").forEach(details => {
+        details.ontoggle = () => {
+          if (details.open) openOverflows.add(details.dataset.overflowKey);
+          else openOverflows.delete(details.dataset.overflowKey);
+        };
+      });
+      cards.querySelectorAll("[data-open-device]").forEach(button => {
+        button.onclick = () => openDevice?.(button.dataset.openDevice);
       });
       cards.querySelectorAll("[data-device-command]").forEach(button =>
         bindCommandButton(button, button.dataset.uid));

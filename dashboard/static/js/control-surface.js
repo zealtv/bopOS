@@ -266,6 +266,14 @@
     // like the generator drawer's drafts.
     const openSaveDrawers = new Map();
     const saveExclusions = new Map();
+    // D8 (`08/4/3-chrome-demotions`): `new`/`save`/`del` are AUTHORING and sit
+    // behind one disclosure; the `<select>` stays in the row because applying
+    // is the live act. Which rows have that disclosure open is the same kind of
+    // heartbeat-surviving host state as the drawer above, and it belongs to the
+    // COMPONENT rather than to any one host — a per-host fork here is the thing
+    // this thread exists to delete, so Control, the Device panel and the patch
+    // editor all get the demotion.
+    const openPresetActions = new Set();
 
     const presetKey = (scope, id) => `${scope}:${id ?? "all"}`;
     const catalogFor = patch =>
@@ -403,10 +411,21 @@
       }).join("");
       const drawerMode = openSaveDrawers.get(key);
       const drawer = drawerMode && !saveOff ? saveDrawer(key, patch, drawerMode) : "";
+      // `del` is PATCH-scoped: it removes the preset from the store for the
+      // whole installation, while every other control in this row acts on this
+      // card's target. D8 asked for that to be made legible while it moved —
+      // moved, not changed, so the button still does exactly what it did.
+      const authoring = `<details class="live-preset-authoring" data-preset-authoring="${esc(key)}"${
+        openPresetActions.has(key) ? " open" : ""}>
+        <summary title="Create, overwrite or delete presets">edit</summary>
+        <div class="live-preset-authoring-menu">${actions}
+          <small>new and save capture from this target. <b>del</b> removes the preset from ${esc(patch || "the patch")} for the whole installation.</small>
+        </div>
+      </details>`;
       return `<div class="live-preset-row" data-preset-slot data-preset-key="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-preset-patch="${esc(patch || "")}">
         <span class="live-preset-patch">${esc(patch || "no patch")}</span>
         <select class="live-preset-select" data-preset-select aria-label="${esc(selectLabel)}"${off}>${placeholder}${options_}</select>
-        ${drift}${actions}
+        ${drift}${authoring}
       </div>${drawer}${presetReport(key, members || [])}`;
     }
 
@@ -441,10 +460,21 @@
               ? {kind: "save", name: (entry || fallback)?.name || ""}
               : {kind: "new", name: "", revision: null});
             saveExclusions.delete(key);
+            // The drawer supersedes the menu that opened it: leaving both open
+            // stacks two authoring surfaces on a 342px column.
+            openPresetActions.delete(key);
             context.requestCapturePreview?.({key, scope, id, patch});
             context.requestRender?.();
           };
         });
+        const authoring = row.querySelector("[data-preset-authoring]");
+        // A `<details>` fires `toggle` for a re-render that changed nothing
+        // (`08/4/1`), which is harmless here: the handler only mirrors the
+        // element's own state into the set it was rendered from.
+        if (authoring) authoring.ontoggle = () => {
+          if (authoring.open) openPresetActions.add(key);
+          else openPresetActions.delete(key);
+        };
       });
 
       root.querySelectorAll("[data-preset-drawer]").forEach(drawer => {

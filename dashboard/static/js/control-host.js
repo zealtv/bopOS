@@ -151,6 +151,16 @@
         ws.send("preview_preset_capture", payload);
       },
       sendCommand: payload => ws.send("action", payload),
+      // D8's replacement for the per-card `Device setup` disclosure: the
+      // Devices tab owns device lifecycle, so the card hands off to it the way
+      // `07`'s "Set patch…" hands off to Patches. `select` and `activateTab`
+      // are `dashboard.js`'s own top-level functions, which this file already
+      // shares a scope with.
+      openDevice: uid => {
+        if (!installation.devices?.[uid]) return;
+        select(uid);
+        activateTab("devices");
+      },
     });
     columns.push(entry);
     makeDraggable(entry);
@@ -254,11 +264,27 @@
     columnCount: () => columns.length,
   };
 
-  ws.on("state", data => columns.forEach(column => column.surface.refresh(data)));
-  ws.on("device_update", () => columns.forEach(column => column.surface.render()));
-  ws.on("params_declaration", () =>
-    columns.forEach(column => column.surface.render()));
-  ws.on("device_offline", () => columns.forEach(column => column.surface.render()));
+  // A restored column must not render before the first `state` — it would
+  // prune every stored target against an empty venue, and D5 would then
+  // correctly report them all lost. `1-columns-layout` knew that and kept
+  // `mount` from rendering; what it missed is that a `device_update` heartbeat
+  // can beat the initial `state` to the socket and render one anyway. The
+  // prune PERSISTS (`target-picker.js` resolve → persist), so that race did not
+  // just look wrong for a moment — it erased the operator's stored layout for
+  // good. Found by this thread's own `3-chrome-demotions/shoot.py`, which could
+  // not reproduce its own three columns twice running.
+  let venueKnown = false;
+  const renderAll = () => {
+    if (!venueKnown) return;
+    columns.forEach(column => column.surface.render());
+  };
+  ws.on("state", data => {
+    venueKnown = true;
+    columns.forEach(column => column.surface.refresh(data));
+  });
+  ws.on("device_update", renderAll);
+  ws.on("params_declaration", renderAll);
+  ws.on("device_offline", renderAll);
   // A capture preview belongs to whichever surface asked for it: a column
   // claims it only when its own request is outstanding, and says so, which is
   // what leaves the Device panel's and the editor's requests — and every other
