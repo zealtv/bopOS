@@ -330,9 +330,19 @@ remain the authority for a particular piece of work.
 >    face had to be written either way: `.live-card` is flat and the column
 >    supplies panel + padding. D7 landed too, which superseded
 >    `verify_control_tab.py`'s focus-Seat assertion — Control does not follow
->    the Seats tab at any N) → `4-n-columns` (**unblocked and next**; carries
->    the ratified design — the 342px track, the columns row, the tab strip and
->    D8's demotions are all still to come)) →
+>    the Seats tab at any N) → `4-n-columns` (**unblocked and next**, and
+>    **split into three on 2026-07-31** for the same reason `08` itself was —
+>    it bundled a layout change, a cross-file backend removal, a shared-component
+>    behaviour change and a test migration: `1-columns-layout` (the 342px track,
+>    the tab strip, add/remove, `bopos.control.columns`, the "Open in Control"
+>    replacement for the retired focus-seat follow, the multi-column journey),
+>    then `2-venue-wide-capture` (D1–D3 — capture takes no scope argument, the
+>    `preview_show_preset_capture` round trip goes away now the Control document
+>    can see `applied_preset` and `show` itself, and three dialogs become
+>    arm → preview → commit → undo), then `3-chrome-demotions` (D8 — device
+>    commands, the preset actions and `Send all` leave the Control card; last,
+>    because they change the shared `ControlSurface` and so reach the Device tab
+>    and patch editor too))) →
 >    `09-patches-deploy-row` → `11-ground-and-card-audit`.
 >    **Design-language §12 — ground and card (Bob, 2026-07-30, ratified from a
 >    tab-by-tab review of the shipped app).** `--bg` is the workspace ground,
