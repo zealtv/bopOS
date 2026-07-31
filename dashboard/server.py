@@ -1316,6 +1316,10 @@ class Dashboard:
                 self.show_undo.clear()
                 self.state.save_debounced()
                 await self.broadcast("show", self.show)
+                # The one transition that clears `current_show` without going
+                # through `set_current_show`, so it needs the same state
+                # broadcast for the same reason.
+                await self.broadcast("state", await self.public_state())
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                            "current": self.state.data.get("current_show")})
         elif kind == "undo_show":
@@ -1391,6 +1395,15 @@ class Dashboard:
                                        "current": name})
         await self.broadcast("show", self.show)
         await self.broadcast("show_warnings", self.show_warnings())
+        # `current_show` lives in `state.data`, and this method broadcast three
+        # planes that are not `state` -- so the fact it had just mutated never
+        # left the server. There is no periodic full-state broadcast anywhere
+        # (heartbeats are `device_update`, the offline sweep sends
+        # `device_offline`), so "late" meant "until some unrelated mutation
+        # happened to fire one", which may be never. The enriched snapshot, not
+        # the bare `state.public()`, because a client replaces `installation`
+        # wholesale on `state` and the bare one carries no `live_controls`.
+        await self.broadcast("state", await self.public_state())
 
     def show_warnings(self):
         """Derived, non-blocking authoring warnings for the loaded Show."""

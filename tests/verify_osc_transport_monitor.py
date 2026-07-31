@@ -129,6 +129,38 @@ def main():
                           and "errno 49" in text, text)
                     check("System log exposes the actionable socket message",
                           "Can't assign requested address" in text, text)
+                    # The System panel must tell the truth about the loaded
+                    # show (08/4/4-current-show-broadcast). `set_current_show`
+                    # broadcast `shows`, `show` and `show_warnings` but never
+                    # `state`, and with NO periodic full-state broadcast
+                    # anywhere the panel read `none loaded` while a show was
+                    # loaded -- indefinitely, not briefly.
+                    #
+                    # Deliberately behavioural: it asserts what the operator
+                    # reads, not that a particular message fired, so a later
+                    # change of mechanism does not have to come and edit it.
+                    page.evaluate(
+                        "() => ws.send('create_show', {name: 'opening'})")
+                    show_row = page.locator('[data-monitor-system="show"]')
+                    page.wait_for_function(
+                        """() => document.querySelector(
+                          '[data-monitor-system="show"]')?.textContent
+                          === 'opening'""")
+                    check("the System panel names the loaded show",
+                          show_row.text_content() == "opening",
+                          repr(show_row.text_content()))
+                    # And says so again when the show goes away: `delete_show`
+                    # clears `current_show` without going through
+                    # `set_current_show`, so it needed the same broadcast.
+                    page.evaluate(
+                        "() => ws.send('delete_show', {name: 'opening'})")
+                    page.wait_for_function(
+                        """() => document.querySelector(
+                          '[data-monitor-system="show"]')?.textContent
+                          === 'none loaded'""")
+                    check("deleting the loaded show empties the panel again",
+                          show_row.text_content() == "none loaded",
+                          repr(show_row.text_content()))
                     check("transport log renders without page errors",
                           errors == [], repr(errors))
                     browser.close()

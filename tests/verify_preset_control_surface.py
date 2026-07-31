@@ -170,8 +170,20 @@ def open_authoring(root):
     has to open the menu, exactly as an operator does.
     """
     disclosure = root.locator(".live-preset-authoring").first
-    if not disclosure.evaluate("element => element.open"):
-        disclosure.locator("summary").click()
+    if disclosure.evaluate("element => element.open"):
+        return
+    # Gotcha 16: waiting for the ELEMENT is not waiting for its handler.
+    # `bindPresets` reassigns `ontoggle` after every heartbeat re-render, and a
+    # click that lands on an unbound disclosure opens it without the component
+    # recording that it is open — so the next re-render closes it again and the
+    # action click that follows times out. Under full-suite load that is the
+    # difference between a green run and a `47`-family flake.
+    disclosure.locator("summary").wait_for()
+    root.page.wait_for_function(
+        """() => !!document.querySelector(
+          '.live-preset-authoring')?.ontoggle""")
+    disclosure.locator("summary").click()
+    disclosure.locator("[data-preset-action]").first.wait_for()
 
 
 def save_from_row(page, frame, name, exclude=()):
