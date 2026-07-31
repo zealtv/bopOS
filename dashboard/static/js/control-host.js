@@ -275,33 +275,30 @@
   // ---- capture as a Show step ---------------------------------------------
   // D1: capture is VENUE-WIDE and belongs to the tab, never to a column — a
   // per-column button would send that column's scope, and three of the five
-  // column shapes capture something other than what they show. It sits in the
-  // strip's right-hand slot, which `2-venue-wide-capture` takes over to drop
-  // `scope` from the wire and replace these dialogs with an armed preview.
-  const captureButton = document.querySelector("#control-capture-step");
-  if (captureButton) {
-    captureButton.onclick = () =>
-      ws.send("preview_show_preset_capture", {scope: "all"});
+  // column shapes capture something other than what they show. D2: no dialogs.
+  // The two `alert()`s and the `confirm()` that stood here are gone; the whole
+  // affordance is `ShowCapture`, mounted identically on the Show tab's edit bar.
+  const captureSlot = document.querySelector("#control-capture-slot");
+  const capturePanel = document.querySelector("#control-capture-panel");
+  if (captureSlot && capturePanel && window.ShowCapture) {
+    const capture = window.ShowCapture.create({
+      ws,
+      getState: () => installation,
+      onChange: () => renderCapture(),
+    });
+    const renderCapture = () => {
+      captureSlot.innerHTML = capture.buttonHtml();
+      capturePanel.innerHTML = capture.panelHtml();
+    };
+    captureSlot.onclick = event => capture.handle(event);
+    capturePanel.onclick = event => capture.handle(event);
+    // The count is ambient: it tracks provenance as presets are applied and
+    // cleared, with no click and no request.
+    ws.on("state", renderCapture);
+    ws.on("show", data => capture.observeShow(data));
+    ws.on("shows", data => capture.observeShows(data));
+    renderCapture();
   }
-  ws.on("show_preset_capture_preview", data => {
-    const applied = Number(data?.applied) || 0;
-    const total = Number(data?.total) || 0;
-    const omitted = Number(data?.omitted) || 0;
-    if (!data?.show_loaded) {
-      window.alert("Load or create a Show before capturing a preset arrangement.");
-      return;
-    }
-    if (!applied) {
-      window.alert(`${applied} of ${total} targets have a preset applied; there is nothing to capture.`);
-      return;
-    }
-    const noun = applied === 1 ? "target has" : "targets have";
-    const other = omitted === 1 ? "the other 1 will" : `the other ${omitted} will`;
-    const omission = omitted ? `; ${other} not be captured` : "";
-    if (window.confirm(`${applied} of ${total} ${noun} a preset applied${omission}. Add this arrangement as a Show step?`)) {
-      ws.send("capture_show_preset_step", {scope: data.scope, id: data.id});
-    }
-  });
 
   document.addEventListener("pointerdown", event => {
     if (!stage.contains(event.target)) return;

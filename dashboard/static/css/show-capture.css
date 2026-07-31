@@ -1,0 +1,73 @@
+/* ShowCapture — 08-control-tab-columns/4-n-columns/2-venue-wide-capture.
+
+   The app's SIXTH component stylesheet, after `param-generator.css`,
+   `value-box.css`, `target-picker.css` and `control-column.css`. It is loaded
+   by `index.html` only: capture is a desktop authoring action on the Control
+   tab and the Show tab, and Remote fires shows rather than writing them.
+
+   Every rule here is anchored on a `.show-capture-*` class, never on the strip
+   or the edit bar that hosts one. Two surfaces mount this component and a third
+   will if capture ever reaches the patch editor; a rule scoped to a host is the
+   defect `05c` found 68 times and `tests/test_css_component_ownership.py` now
+   catches. The hosts own placement only — `.control-tab-strip` pushes the
+   button to the right, `.show-edit-bar` sits it beside `✛ Divider`.
+
+   The visual target is `1-columns-design/mockup-armed-*.png`. */
+
+/* The trigger. Ambient, not loud: the count is the whole readout, and D2's
+   disabled reason replaces it in the same slot rather than opening a dialog —
+   which is the point of the redesign, so the reason must be legible at rest. */
+.show-capture-button{
+  min-height:var(--row-h);padding:var(--pad-control);
+  border:1px solid var(--control-line);border-radius:var(--radius-momentary);
+  background:var(--control);color:var(--text);font:inherit;text-transform:none;
+  cursor:pointer;white-space:nowrap}
+.show-capture-button:hover:not([disabled]){background:var(--hover)}
+.show-capture-button b{
+  font-weight:400;color:var(--dim);font-variant-numeric:tabular-nums}
+.show-capture-button[disabled]{opacity:.55;cursor:default}
+.show-capture-button[aria-expanded="true"]{border-color:var(--accent)}
+
+/* The committed state, in the trigger's own slot for ~8s. Not a toast: a toast
+   would leave the operator hunting for where the undo went. */
+.show-capture-done{
+  display:inline-flex;align-items:center;gap:var(--gap);
+  min-height:var(--row-h);color:var(--dim);white-space:nowrap}
+.show-capture-undo{
+  min-height:var(--row-h);padding:var(--pad-control);
+  border:1px solid var(--accent);border-radius:var(--radius-momentary);
+  background:var(--control);color:var(--text);font:inherit;text-transform:none;
+  cursor:pointer}
+
+/* The armed preview: a card on the ground beside the columns, never an overlay
+   (judgment §5). Bounded width because it is a list of short rows — a preview
+   spanning a 2560px tab reads as a page, not as a thing about to happen. */
+.show-capture-preview{
+  display:grid;gap:var(--gap);max-width:620px;padding:var(--pad-panel);
+  background:var(--panel);border:1px solid var(--accent);
+  border-radius:var(--radius-panel)}
+.show-capture-preview h2{margin:0;font-size:12px;font-weight:700}
+.show-capture-preview table{border-collapse:collapse;width:100%}
+/* The first three cells are labels — a wrapped `→ Seat 1` reads as two
+   targets. Only the notes column, which is the one carrying sentences, wraps;
+   it takes the slack so the label columns stay at their content width. */
+.show-capture-preview td{
+  padding:2px 6px 2px 0;vertical-align:top;font-size:12px;white-space:nowrap}
+.show-capture-preview td:last-child{white-space:normal;width:100%}
+.show-capture-pill{
+  display:inline-block;padding:0 4px;border:1px solid var(--mod);
+  border-radius:var(--radius-toggle);color:var(--mod);font-size:10px}
+.show-capture-note{color:var(--dim)}
+/* Cyan is "something is driving this" (04-event-fire-affordance widened §5).
+   A dirty row IS being driven — by live edits the capture will not carry. */
+.show-capture-warn{color:var(--mod)}
+.show-capture-omitted td{color:var(--dim)}
+.show-capture-preview footer{
+  display:flex;gap:var(--gap);justify-content:flex-end}
+.show-capture-preview footer button{
+  min-height:var(--row-h);padding:var(--pad-control);
+  border:1px solid var(--control-line);border-radius:var(--radius-momentary);
+  background:var(--control);color:var(--text);font:inherit;text-transform:none;
+  cursor:pointer}
+.show-capture-preview footer button:hover{background:var(--hover)}
+.show-capture-commit{border-color:var(--accent)}

@@ -856,10 +856,37 @@ def flatten_preset_message(show, uid, messages):
     return {**show, "items": items}, flattened, None
 
 
-def capture_preset_step(show, messages, alias="Captured presets"):
+CAPTURED_STEP_NAMES = 3
+
+
+def captured_step_alias(messages):
+    """Name a captured step after what it contains — `dusk + bloom + solo`.
+
+    D3 (08-control-tab-columns/1-columns-design). `"Captured presets"` was
+    never overridden by anything, so a Show accumulating arrangements read as
+    a column of identical rows. Distinct preset names in capture order, capped
+    so a sixteen-preset venue does not produce a row-width title; the step then
+    goes straight to the Show tab's click-to-edit rename, which is where an
+    operator-chosen name belongs.
+    """
+    names = []
+    for message in messages:
+        name = message.get("alias") if isinstance(message, dict) else None
+        if isinstance(name, str) and name.strip() and name.strip() not in names:
+            names.append(name.strip())
+    if not names:
+        return "Captured presets"
+    shown = names[:CAPTURED_STEP_NAMES]
+    extra = len(names) - len(shown)
+    return " + ".join(shown) + (f" +{extra}" if extra else "")
+
+
+def capture_preset_step(show, messages, alias=None):
     """Append one arrangement step, minting every uid atomically."""
     if not isinstance(messages, list) or not messages:
         return show, None, "No applied presets are available to capture."
+    if not isinstance(alias, str) or not alias.strip():
+        alias = captured_step_alias(messages)
     existing_messages = _message_uids(show)
     captured = []
     for raw in messages:
@@ -873,7 +900,7 @@ def capture_preset_step(show, messages, alias="Captured presets"):
     step = {
         "kind": "step",
         "uid": mint_uid(_item_uids(show)),
-        "alias": alias if isinstance(alias, str) else "Captured presets",
+        "alias": alias,
         "messages": captured,
         "duration_s": 5.0,
         "play_count": 1,

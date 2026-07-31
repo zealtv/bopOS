@@ -366,8 +366,43 @@ class ShowSchemaTests(unittest.TestCase):
             next_show, [{key: value for key, value in preset.items()
                          if key != "uid"}])
         self.assertIsNone(error)
+        # This fixture's message carries no alias, so there is nothing to name
+        # the step after and the old constant is still the honest fallback.
         self.assertEqual(captured["alias"], "Captured presets")
         self.assertEqual(len(captured_show["items"]), 2)
+
+    def test_captured_step_is_named_after_the_presets_it_holds(self):
+        """D3 (08-control-tab-columns): `dusk + bloom + solo`, not a constant.
+
+        Distinct names in capture order, capped so a sixteen-preset venue does
+        not mint a row-width title. An explicit alias still wins.
+        """
+        def preset(alias):
+            return {"kind": "reference", "alias": alias,
+                    "address": f"/preset/alpha/{alias}", "args": [],
+                    "target": ["all"],
+                    "reference": {"content": {"name": "alpha",
+                                              "fingerprint": "a" * 64},
+                                  "schema": "sha256:" + "b" * 64}}
+
+        self.assertEqual(
+            show_model.captured_step_alias(
+                [preset("dusk"), preset("bloom"), preset("dusk")]),
+            "dusk + bloom")
+        self.assertEqual(
+            show_model.captured_step_alias(
+                [preset(name) for name in ("a", "b", "c", "d", "e")]),
+            "a + b + c +2")
+
+        show = show_model.clean_show(document([]))
+        _next, captured, error = show_model.capture_preset_step(
+            show, [preset("dusk"), preset("bloom")])
+        self.assertIsNone(error)
+        self.assertEqual(captured["alias"], "dusk + bloom")
+        _next, captured, error = show_model.capture_preset_step(
+            show, [preset("dusk")], alias="Opening")
+        self.assertIsNone(error)
+        self.assertEqual(captured["alias"], "Opening")
 
 
 class ShowUndoTests(unittest.IsolatedAsyncioTestCase):

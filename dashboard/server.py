@@ -1356,17 +1356,13 @@ class Dashboard:
             await self.apply_show_mutation(ws, show_model.remove_message, data.get("uid"))
         elif kind == "flatten_preset_message":
             await self.flatten_show_preset(ws, data.get("uid"))
-        elif kind == "preview_show_preset_capture":
-            preview = self.show_preset_capture_preview(
-                data.get("scope"), data.get("id"))
-            if ws is not None:
-                await ws.send_json({
-                    "type": "show_preset_capture_preview",
-                    "data": preview,
-                })
         elif kind == "capture_show_preset_step":
-            await self.capture_show_preset_step(
-                ws, data.get("scope"), data.get("id"))
+            # No `scope`/`id`, and no `preview_show_preset_capture` beside it:
+            # the preview existed only because the Control tab was an iframe
+            # that could see neither the seats' provenance nor whether a show
+            # was loaded. Since `3-iframe-retirement` it sees both, so arming
+            # and previewing are local and only the commit crosses the wire.
+            await self.capture_show_preset_step(ws)
         elif kind == "step_start":
             await self.show_engine.step_start(data.get("uid"))
         elif kind == "step_stop":
@@ -1801,29 +1797,6 @@ class Dashboard:
         await self.apply_show_mutation(
             ws, show_model.flatten_preset_message, uid, flattened)
 
-    def _capture_show_seats(self, scope, target_id):
-        if scope == "seat":
-            seat_id = self.state.clean_seat_id(target_id)
-            seat = self.state.seats.get(str(seat_id))
-            return [seat] if seat is not None else []
-        if scope == "groups":
-            return [seat for seat in self.state.seats.values()
-                    if seat.get("groups")]
-        return list(self.state.seats.values())
-
-    def show_preset_capture_preview(self, scope, target_id):
-        seats = self._capture_show_seats(scope, target_id)
-        applied = sum(
-            isinstance(seat.get("applied_preset"), dict) for seat in seats)
-        return {
-            "scope": scope if scope in {"seat", "groups"} else "all",
-            "id": target_id if scope == "seat" else None,
-            "applied": applied,
-            "total": len(seats),
-            "omitted": len(seats) - applied,
-            "show_loaded": bool(self.state.data.get("current_show")),
-        }
-
     def _current_patch_fingerprint(self, patch):
         root = os.path.join(self.patches_dir, patch)
         if not os.path.isdir(root) or os.path.islink(root):
@@ -1835,8 +1808,18 @@ class Dashboard:
             raise preset_store.PresetStoreError(
                 f'patch "{patch}" is not installed') from error
 
-    def _captured_show_preset_messages(self, scope, target_id):
-        seats = self._capture_show_seats(scope, target_id)
+    def _captured_show_preset_messages(self):
+        """Every applied preset in the venue, as portable Show messages.
+
+        D1 (08-control-tab-columns/1-columns-design): capture is VENUE-WIDE and
+        takes no scope. It never carried one meaningfully — the arrangement is
+        rebuilt below from per-seat `applied_preset`, and `capture_target` then
+        derives the most portable selector for each concrete member set. The
+        old `scope`/`id` pair only narrowed which seats were consulted, and did
+        it wrongly for `groups` (every grouped seat in the venue, whatever the
+        asking surface showed).
+        """
+        seats = list(self.state.seats.values())
         grouped = {}
         for seat in seats:
             marker = seat.get("applied_preset")
@@ -1879,9 +1862,9 @@ class Dashboard:
             })
         return messages
 
-    async def capture_show_preset_step(self, ws, scope, target_id):
+    async def capture_show_preset_step(self, ws):
         try:
-            messages = self._captured_show_preset_messages(scope, target_id)
+            messages = self._captured_show_preset_messages()
         except preset_store.PresetStoreError as error:
             await self.ws_error(ws, str(error))
             return
@@ -2176,9 +2159,15 @@ class Dashboard:
         for seat in matching:
             seat["applied_preset"] = dict(provenance)
             seat["preset_dirty"] = False
+        # Sticky for the life of the process, so an empty capture can say WHY
+        # it is empty: never applied here, or applied and then forgotten across
+        # a restart. Rolled back with the params below if the save fails.
+        provenance_seen_before = self.state.data.get("preset_provenance_seen")
+        self.state.data["preset_provenance_seen"] = True
         try:
             self.state.save()
         except (OSError, TypeError, ValueError):
+            self.state.data["preset_provenance_seen"] = provenance_seen_before
             for seat in matching:
                 seat["params"] = seat_params_before[str(seat["id"])]
                 previous_marker, previous_dirty = provenance_before[str(seat["id"])]

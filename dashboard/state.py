@@ -117,6 +117,14 @@ class InstallationState:
                      # Runtime-only operator notices. Adoption messages live
                      # for this dashboard session and are never persisted.
                      "notices": [],
+                     # Has any preset been applied since this process started?
+                     # `durable()` strips applied_preset, so a restart leaves a
+                     # venue that SOUNDS applied but captures nothing. Without
+                     # this the two causes of an empty capture — "nothing has
+                     # been applied yet" and "the dashboard forgot" — are the
+                     # same observation, and the operator gets the wrong advice
+                     # for one of them (08/4/2-venue-wide-capture, D2).
+                     "preset_provenance_seen": False,
                      "simulation": {"active": False, "status": "off"},
                      "points": {}}  # /pt geometry, runtime-only (not in durable())
         self._save_task = None
@@ -1103,7 +1111,7 @@ class InstallationState:
                 rebound.append({"id": seat["id"], "uid": uid})
             rebuilt[str(seat["id"])] = seat
         keys = ("name", "room", "master", "event_lead_ms", "facilitator_commands", "groups",
-                "next_group_id",
+                "next_group_id", "preset_provenance_seen",
                 "fleet_patch", "params_patch", "listener", "seats", "simulation")
         previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
         previous_rebind = copy.deepcopy(self.last_venue_rebind)
@@ -1134,6 +1142,9 @@ class InstallationState:
             int(self.data.get("next_group_id", 0)),
             int(loaded.get("next_group_id", 0)))
         self.data["seats"] = rebuilt
+        # A loaded venue's seats carry no provenance (it is never persisted),
+        # so this session's capture history does not survive the swap either.
+        self.data["preset_provenance_seen"] = False
         self.last_venue_rebind = {"rebound": rebound, "waiting": waiting}
         try:
             self.save()
