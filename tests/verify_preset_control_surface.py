@@ -353,10 +353,17 @@ def main():
                       if (!select) return false;
                       const placeholder = select.querySelector('option');
                       return placeholder.disabled
-                        && placeholder.textContent.includes('·')
+                        && placeholder.textContent.trim() === 'Dusk +1'
                         && select.getAttribute('aria-label').includes('mixed');
                     }""")
-                check("a card whose targets disagree says mixed", bool(mixed))
+                # SUPERSEDED: this pinned the dotted `·····` placeholder until
+                # D6 (`08-control-tab-columns/1-columns-design`, Bob
+                # 2026-07-31), which ruled that mixed must CARRY ITS CONTENT —
+                # `Dusk +1` — because with N columns an All column reading
+                # `·····` beside a group column reading `Dusk` looks like a
+                # contradiction rather than an aggregate of one.
+                check("a card whose targets disagree names the mixture",
+                      bool(mixed))
 
                 # --- omitted-as-mixed is stated BEFORE the save (F8) ---
                 inner(page).evaluate(

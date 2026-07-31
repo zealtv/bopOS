@@ -1686,15 +1686,9 @@
   display:grid;
   gap:var(--gap);
 }
-/* The per-card live region: announced, never seen. */
-.live-param-status {
-  position:absolute;
-  width:1px;
-  height:1px;
-  padding:0;
-  margin:-1px;
-  overflow:hidden;
-  clip:rect(0,0,0,0);
-  white-space:nowrap;
-  border:0;
-}
+/* The per-card live region is RETIRED (08/4/1). A column announces through one
+   region of its own, prefixed with its target, because a card-level output
+   meant three announcements in a three-card column and no way to tell which of
+   two columns showing the same Seat had acted. Hosts with no region at all —
+   the Device panel, the patch editor — were already silent here; they now say
+   so by not passing `announce` rather than by rendering no element. */

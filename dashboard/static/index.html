@@ -29,8 +29,22 @@
   <div class="tab-stage">
     <section id="tab-control" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-control" data-tab-panel="control" hidden>
       <!-- The Control surface is no longer an iframe of /facilitator
-           (3-iframe-retirement). ControlColumn builds everything inside this
-           element, so `4-n-columns` adds columns by adding mount points. -->
+           (3-iframe-retirement); since `4-n-columns/1-columns-layout` the tab
+           holds N of them. `js/control-host.js` builds one <section> per
+           column inside the row below, and `js/control-column.js` builds
+           everything inside a column — nothing in there is addressed by id.
+
+           The strip carries the tab's two TAB-SCOPED actions at its two
+           furthest-apart points: `+ column` on the left, deliberately quieter
+           than the right-hand action, and capture on the right. Capture is
+           venue-wide and takes no column (D1); `2-venue-wide-capture` takes
+           that slot over to drop `scope` from the wire and replace the
+           confirm with an armed, non-modal preview reading
+           `capture step · 12/16`. -->
+      <div class="control-tab-strip">
+        <button type="button" id="control-add-column" class="add-column">+ column</button>
+        <button type="button" id="control-capture-step" class="capture">Capture as Show step</button>
+      </div>
       <div id="control-column-host"></div>
     </section>
     <section id="tab-seats" class="tab-panel seats-tab" role="tabpanel" aria-labelledby="tab-button-seats" data-tab-panel="seats" hidden>

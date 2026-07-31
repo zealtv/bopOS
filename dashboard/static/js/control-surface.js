@@ -281,7 +281,14 @@
       };
       const first = marker(members[0]);
       if (members.some(seat => marker(seat) !== first)) {
-        return {preset: null, dirty: false, mixed: true};
+        // D6 (08/1-columns-design): a mixed card CARRIES ITS CONTENT. With one
+        // card per surface the bare word was merely terse; with an All column
+        // beside a group column, two cards reading `·····` and `dusk` look
+        // like a contradiction rather than an aggregate of it.
+        const distinct = [...new Set(members.map(marker))];
+        const lead = members[0].applied_preset?.name || "none";
+        return {preset: null, dirty: false, mixed: true,
+                mixedLabel: `${lead} +${distinct.length - 1}`};
       }
       return {preset: members[0].applied_preset || null,
               dirty: members.some(seat => !!seat.preset_dirty), mixed: false};
@@ -376,9 +383,10 @@
         return `<option value="${esc(entry.slug)}"${entry.slug === appliedSlug ? " selected" : ""}>${esc(entry.name)}${marks}</option>`;
       }).join("");
       const placeholder = provenance.mixed
-        ? '<option value="" selected disabled>·····</option>'
+        ? `<option value="" selected disabled>${esc(provenance.mixedLabel || "·····")}</option>`
         : `<option value=""${appliedSlug ? "" : " selected"}>— none —</option>`;
-      const selectLabel = provenance.mixed ? "preset, mixed across targets"
+      const selectLabel = provenance.mixed
+        ? `preset, mixed across targets: ${provenance.mixedLabel || "several"}`
         : provenance.dirty ? `preset ${applied}, edited since it was applied` : "preset";
       const drift = catalog.find(entry => entry.slug === appliedSlug)?.drift
         ? '<span class="live-preset-drift" title="This preset was saved against a different parameter schema. Entries that no longer fit are dropped or clamped when it is applied.">schema changed</span>' : "";
@@ -859,8 +867,15 @@
           const key = `${card?.dataset.liveScope}:${cardId}`;
           const message = `${input.dataset.paramName} automation stopped, set to ${value}`;
           takeoverAnnouncements.set(key, message);
-          const status = card?.querySelector(".live-param-status");
-          if (status) status.value = message;
+          // A host with several cards in one region announces through the
+          // region (the Control column, 08/4/1); one with a per-card output
+          // writes into the card's own. Neither is the surface's business
+          // beyond asking.
+          if (context.announce) context.announce(message, {key});
+          else {
+            const status = card?.querySelector(".live-param-status");
+            if (status) status.value = message;
+          }
           setTimeout(() => takeoverAnnouncements.delete(key), 2000);
         };
         const send = (override) => {

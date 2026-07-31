@@ -5,6 +5,12 @@
 // picker, ControlSurface instance, cards, preset previews/reports, and open
 // per-device command disclosures.
 //
+// Since `4-n-columns/1-columns-layout` the Control tab mounts SEVERAL of these
+// side by side, so anything that used to be "the surface's" is now the
+// column's: its own labelled region, its own live region, its own ✕. Capture
+// left the column entirely — it is venue-wide and belongs to the tab (D1), so
+// N columns cannot mean N capture buttons sending N different scopes.
+//
 // Since `3-iframe-retirement` the column also owns its own MARKUP. It is
 // mounted in two documents now — the Control tab of `index.html` and the
 // standalone Remote page — and a skeleton authored twice in HTML would be the
@@ -26,6 +32,14 @@
     id = "control",
     storageKey = "bopos.target.control",
     full = false,
+    // The Control tab owns its columns' persistence itself (D9), so it passes
+    // no storage key and supplies these instead. Remote, the single-column
+    // host, keeps the picker's own key and never sees them.
+    initialTarget = null,
+    defaultOpen = true,
+    onTargetChange,
+    onOpenChange,
+    onRemove,
     getState,
     isInteracting,
     setInteracting,
@@ -37,18 +51,30 @@
     savePreset,
     deletePreset,
     requestCapturePreview,
-    requestShowCapturePreview,
-    captureShowStep,
     sendCommand,
   }) {
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
-    host.innerHTML = `<div class="control-column-head"><div class="control-column-picker"></div></div>
-      <div class="control-column-cards" role="region" aria-label="Live controls"><p class="empty">Waiting for devices…</p></div>
+    // The column IS the labelled region, and its label is its target (D4) — so
+    // region navigation reads `all`, `Left`, `Seat 7` rather than N identical
+    // "Live controls". The name is set on every render, in `nameRegion`.
+    host.setAttribute("role", "region");
+    // Head order is deliberate: picker and ✕ come FIRST in the DOM, so a
+    // keyboard operator reaches the next column's target without traversing
+    // forty parameter rows. No positive tabindex anywhere — DOM order is
+    // already the reading order.
+    host.innerHTML = `<div class="control-column-head">${onRemove
+        ? '<span class="control-column-grip" aria-hidden="true">⋮⋮</span>' : ""}<div class="control-column-picker"></div>${onRemove
+        ? '<button type="button" class="control-column-close" title="Remove column" aria-label="Remove column">✕</button>' : ""}</div>
+      <div class="control-column-cards"><p class="empty">Waiting for devices…</p></div>
       <output class="control-column-status" role="status" aria-live="polite"></output>`;
     const cards = host.querySelector(".control-column-cards");
     const pickerHost = host.querySelector(".control-column-picker");
     const status = host.querySelector(".control-column-status");
+    const closeButton = host.querySelector(".control-column-close");
+    // Momentary, not latching: no `aria-pressed`, or design-language §8 gives
+    // it the latching square radius (and announces a state it does not have).
+    if (closeButton) closeButton.onclick = () => onRemove();
 
     const openCommandDevices = new Set();
     const capturePreviews = new Map();
@@ -91,6 +117,11 @@
       sendEvent,
       sendAutomation,
       setInteracting,
+      // ONE live region per column, not one per card. A column showing three
+      // Seats used to carry three, and two columns showing the same Seat would
+      // have announced the same sentence twice with nothing to say which one
+      // acted — so the message is prefixed with the column's own target.
+      announce: message => { status.value = `${terseTarget()}: ${message}`; },
       requestRender: () => render(),
       presetCatalog: patch => state().preset_catalog?.[patch] || [],
       applyPreset,
@@ -111,28 +142,49 @@
       },
     });
 
-    const targetPicker = window.TargetPicker.create({
-      host: pickerHost,
-      id,
-      storageKey,
-      // D7 (Bob, 2026-07-31): Control never follows the focus Seat, at any N.
-      // A column that silently re-aimed itself when someone touched the Seats
-      // tab is wrong the moment there is more than one of them, and the Seats →
-      // Control workflow returns as an explicit action owned by `4-n-columns`.
-      pruneFallback: "empty",
-      spec: () => ({
+    function targetSpec() {
+      return {
         label: "Control target",
         sections: window.TargetPicker.seatSections({
           groups: groups(),
           seats: seats(),
           groupSelector: "id",
         }),
-      }),
-      onChange: () => {
+      };
+    }
+
+    // The column's own name, and the prefix on everything it announces. Terse
+    // by design (D4): the closed picker's readout IS the column's title, so a
+    // 342px column spends no height on a heading that repeats it.
+    function terseTarget() {
+      return window.TargetPicker.terse(
+        targetPicker.selection(), targetSpec().sections, {emptyTerse: "no target"});
+    }
+
+    const targetPicker = window.TargetPicker.create({
+      host: pickerHost,
+      id,
+      storageKey,
+      initialSelection: initialTarget,
+      defaultOpen,
+      onOpenChange,
+      // D7 (Bob, 2026-07-31): Control never follows the focus Seat, at any N.
+      // A column that silently re-aimed itself when someone touched the Seats
+      // tab is wrong the moment there is more than one of them, and the Seats →
+      // Control workflow returns as an explicit action owned by `4-n-columns`.
+      pruneFallback: "empty",
+      spec: targetSpec,
+      onChange: selection => {
         renderCards();
+        nameRegion();
         cards.scrollTop = 0;
+        onTargetChange?.(selection);
       },
     });
+
+    function nameRegion() {
+      host.setAttribute("aria-label", `Control column ${terseTarget()}`);
+    }
 
     function liveSchema() {
       const schema = state().live_controls;
@@ -216,26 +268,13 @@
             saveDisabled: scope === "seat" && !live,
           })
         : "";
-      return `<article class="live-card ${scope}-card${scope === "group" && empty ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}>
+      // An emptied group keeps its column and says so out loud: `aria-disabled`
+      // rather than a member count in a `<small>` nobody reads aloud (D5).
+      const emptyGroup = scope === "group" && empty;
+      return `<article class="live-card ${scope}-card${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
         <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${scope === "all" || scope === "seat" ? replayButton(scope, targetId, !schemaAvailable) : ""}</div>
-        ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}<output class="live-param-status" aria-live="polite">${esc(surface.announcement(cardKey))}</output>
+        ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}
       </article>`;
-    }
-
-    function renderShowCapture() {
-      if (!full || !targetPicker.selection().length) return;
-      pickerHost.insertAdjacentHTML(
-        "beforeend",
-        '<button type="button" class="capture-show-step" data-capture-show-step>Capture as Show step</button>',
-      );
-      pickerHost.querySelector("[data-capture-show-step]").onclick = () => {
-        const target = presetScope();
-        if (!target) return;
-        requestShowCapturePreview?.({
-          scope: target.scope,
-          ...(target.id == null ? {} : {id: target.id}),
-        });
-      };
     }
 
     function selectedCard(selector, declarations, available, patch) {
@@ -335,20 +374,6 @@
       });
     }
 
-    function presetScope() {
-      const selection = targetPicker.selection();
-      if (!selection.length) return null;
-      if (selection.includes("all")) return {scope: "all", id: null};
-      const seatOnly = selection.every(entry =>
-        !entry.startsWith("g") && !entry.startsWith("group:"));
-      if (seatOnly && selection.length === 1) {
-        const seat = seats().find(item => String(item.id) === selection[0]);
-        if (seat) return {scope: "seat", id: Number(seat.id)};
-      }
-      if (seatOnly) return {scope: "all", id: null};
-      return {scope: "groups", id: null};
-    }
-
     function bindCommandButton(button, uid) {
       const command = button.dataset.deviceCommand;
       const device = state().devices?.[uid];
@@ -382,7 +407,7 @@
 
     function render() {
       targetPicker.render();
-      renderShowCapture();
+      nameRegion();
       renderCards();
     }
 
@@ -410,26 +435,6 @@
       render();
     }
 
-    function handleShowCapturePreview(data) {
-      const applied = Number(data?.applied) || 0;
-      const total = Number(data?.total) || 0;
-      const omitted = Number(data?.omitted) || 0;
-      if (!data?.show_loaded) {
-        window.alert("Load or create a Show before capturing a preset arrangement.");
-        return;
-      }
-      if (!applied) {
-        window.alert(`${applied} of ${total} targets have a preset applied; there is nothing to capture.`);
-        return;
-      }
-      const noun = applied === 1 ? "target has" : "targets have";
-      const other = omitted === 1 ? "the other 1 will" : `the other ${omitted} will`;
-      const omission = omitted ? `; ${other} not be captured` : "";
-      if (window.confirm(`${applied} of ${total} ${noun} a preset applied${omission}. Add this arrangement as a Show step?`)) {
-        captureShowStep?.({scope: data.scope, id: data.id});
-      }
-    }
-
     function reportEventScheduled(data) {
       const declaration = (liveEventSchema()?.events || [])
         .find(item => item.identity === data.identity);
@@ -442,8 +447,22 @@
       acceptCapturePreview,
       reportPresetSaved,
       reportPresetApplied,
-      handleShowCapturePreview,
       reportEventScheduled,
+      target: () => targetPicker.selection(),
+      setTarget: next => targetPicker.set(next),
+      focus: () => {
+        host.scrollIntoView({block: "nearest", inline: "nearest"});
+        pickerHost.querySelector("summary")?.focus();
+      },
+      // At N=1 the ✕ is hidden rather than removed, so the head does not
+      // reflow the moment a second column appears.
+      setSole: sole => host.toggleAttribute("data-sole-column", !!sole),
+      destroy: () => host.remove(),
+      // Reordering is the HOST's business — it owns the row and the stored
+      // order — but the grip is the column's own markup, so it is handed over
+      // rather than reached in for by class name.
+      element: host,
+      grip: host.querySelector(".control-column-grip"),
     };
   }
 

@@ -245,9 +245,15 @@
   // (D5, Bob 2026-07-31). A host that keeps the All chip but must never be
   // widened into it behind the operator's back passes `"empty"`; it then reads
   // `dropped()` to say what was lost and renders its own unresolved state.
-  function create({host, id, storageKey, spec, onChange,
+  //
+  // A host may also own persistence itself, by passing no `storageKey` and
+  // supplying `initialSelection` / `onOpenChange` instead. That is what the
+  // Control tab's columns do: D9 puts the whole layout in ONE
+  // `bopos.control.columns` record, and a picker quietly writing a key of its
+  // own beside it would be a second authority for the same fact.
+  function create({host, id, storageKey, spec, onChange, onOpenChange,
                    followFocusSeat = false, defaultOpen = true,
-                   pruneFallback = "all"}) {
+                   initialSelection = null, pruneFallback = "all"}) {
     const openKey = storageKey ? `${storageKey}.open` : null;
     let selection = null;
     // What the last prune took away, kept for as long as nothing has replaced
@@ -331,7 +337,14 @@
     }
 
     function resolve(built) {
-      if (selection == null) selection = stored() || (built.allowAll === false ? [] : ["all"]);
+      // An explicit empty `initialSelection` is a selection of NOTHING and
+      // survives here, the same way `markup` treats one: a restored column
+      // whose target the venue has lost must not reopen aimed at every Seat.
+      if (selection == null) {
+        selection = stored() ||
+          (Array.isArray(initialSelection) ? initialSelection.slice() : null) ||
+          (built.allowAll === false ? [] : ["all"]);
+      }
       const moved = adoptFocusSeat(built);
       const pruned = settle(selection, built);
       if (pruned.join(" ") !== selection.join(" ")) {
@@ -387,11 +400,17 @@
                        built.allowAll === false ? [] : ["all"]));
         }
       });
+      // Capture phase, because `toggle` does not bubble. It also fires when a
+      // re-render REPLACES the disclosure with one carrying the same state —
+      // an echo of what we just drew, not an operator opening anything. Acting
+      // on it wrote the open state back to the host on every heartbeat, which
+      // is how a Control column restored as closed came back open.
       host.addEventListener("toggle", event => {
         const disclosure = event.target?.closest?.("[data-target-picker]");
-        if (!disclosure) return;
+        if (!disclosure || disclosure.open === open) return;
         open = disclosure.open;
         if (openKey) writeStored(openKey, open);
+        onOpenChange?.(open);
       }, true);
       // The Control surface is a separate document from the Seats tab, so the
       // focus seat arrives as a storage event rather than a function call.
@@ -408,8 +427,10 @@
       // to answer that button; opening the disclosure is the component's own
       // business, not the host's to reach in and set.
       reveal: () => {
+        const opening = !open;
         open = true;
         if (openKey) writeStored(openKey, true);
+        if (opening) onOpenChange?.(true);
         render();
         host?.querySelector("[data-target-toggle]")?.focus();
       },

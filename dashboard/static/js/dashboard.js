@@ -1177,7 +1177,8 @@ function renderSeatDetail() {
   const elementLimit=(seat.positions||[]).length>=2;
   panel.innerHTML=`<div class="seat-inspector-section"><h3>Seat workspace</h3>
     <div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat.name||'')}"></label><button id="seat-rename">Apply name</button></div>
-    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div></div>
+    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
+    <div class="assign"><button id="seat-open-control">Open in Control</button></div></div>
     <div class="seat-inspector-section"><h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add" ${elementLimit?'disabled':''}>Add element</button></div>
     <div class="seat-inspector-section"><h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small></div>
     <div class="seat-inspector-section"><h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.primary(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}${binding?.ip?` · ${esc(binding.ip)}`:''}`:'No device assigned'}</small>
@@ -1192,6 +1193,13 @@ function renderSeatDetail() {
   panel.querySelectorAll('[data-remove-element]').forEach(button=>button.onclick=()=>{const next=structuredClone(seat.positions||[]);next.splice(Number(button.dataset.removeElement),1);savePositions(next);});
   $("#seat-element-add").onclick=()=>{if((seat.positions||[]).length<2)savePositions([...(seat.positions||[]),[Number(origin[0])||0,Number(origin[1])||0]]);};
   $("#seat-rename").onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
+  // The Seats -> Control workflow, made explicit. Control used to FOLLOW this
+  // tab's selection ambiently, which D7 (Bob, 2026-07-31) retired at every N:
+  // one click here would silently re-aim a column, persist it, and with several
+  // columns destroy an arrangement with no undo. Additive instead -- focus a
+  // column already showing this Seat, else append one -- and it performs the
+  // tab switch the ambient version never did.
+  $("#seat-open-control").onclick=()=>{window.ControlHost?.openSeat(Number(seat.id));activateTab("control");};
   $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Current presets follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
   $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its current preset entries will also be removed.`))ws.send("remove_seat",{id:seat.id});};
   panel.querySelectorAll("[data-seat-group]").forEach(input=>input.onchange=()=>{const next=new Set((seat.groups||[]).map(Number));input.checked?next.add(Number(input.dataset.seatGroup)):next.delete(Number(input.dataset.seatGroup));seat.groups=[...next].sort((a,b)=>a-b);ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});renderGroups();renderGroupMap();Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());});

@@ -28,12 +28,27 @@
    standalone pass" — and the measured Remote delta is recorded in
    `feature-backlog/49-remote-ipad-restyle`. */
 
-/* The column is the card (1-columns-design D1). At N=1 it fills its host; the
-   fixed 342px track and the horizontal columns row are `4-n-columns`, which is
-   the stitch that introduces something to sit beside. */
+/* The column is the card (1-columns-design D1). The fixed 342px track belongs
+   to the Control tab that places N of them (`style.css`); what is here is what
+   a column looks like wherever it is mounted — including Remote, where it is
+   alone and fills its host.
+
+   The two rows are the head and the cards, and the cards row is the one that
+   scrolls: `minmax(0, max-content)` grows to its content when the column is
+   unconstrained and shrinks inside `max-height` when it is not, which is what
+   keeps the head in view while a forty-row manifest scrolls under it. That is
+   D4's "each column scrolls its own body under a sticky header" delivered
+   without sticky positioning — a head outside the scrollport cannot be
+   overlapped by what scrolls beneath it, and cannot lose its background.
+
+   `max-height:100%` resolves against the tab's definite row height and to
+   nothing at all on Remote, where the column's parent has no definite height —
+   so the single-column host keeps growing with the page as it always did. */
 .control-column {
   min-width: 0;
+  max-height: 100%;
   display: grid;
+  grid-template-rows: auto minmax(0, max-content);
   gap: var(--gap);
   align-content: start;
   background: var(--panel);
@@ -42,39 +57,54 @@
   padding: var(--pad-panel);
 }
 
-/* The head is the column's own closed target picker (D3) — no separate bar, no
-   heading. On Remote it replaces the full-bleed picker strip the page used to
-   draw around it. */
+/* The head is the column's own closed target picker (D4) — no separate bar, no
+   heading, because the picker's terse readout (`all`, `Left+7`) IS the title.
+   On Remote it replaces the full-bleed picker strip the page used to draw
+   around it. Picker and ✕ come first in the DOM as well as on screen, so the
+   next column's target is one Tab away rather than forty rows away. */
 .control-column-head {
   min-height: var(--row-h);
   display: flex;
   align-items: center;
   gap: var(--gap);
 }
-/* The picker's disclosure takes the width; capture sits beside it rather than
-   below, as it did on the bar this head replaced. */
+.control-column-grip {
+  flex: none;
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: -1px;
+  cursor: grab;
+}
+.control-column-close {
+  flex: none;
+  width: var(--row-h);
+  height: var(--row-h);
+  min-height: var(--row-h);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--dim);
+  text-transform: none;
+}
+/* Minimum one column: at N=1 the ✕ is HIDDEN rather than removed, so the head
+   does not reflow the moment a second column appears — and `visibility` also
+   takes it out of the tab order and the accessibility tree, which `display` on
+   a rendered-then-hidden control would not do as cleanly. */
+.control-column[data-sole-column] .control-column-close {
+  visibility: hidden;
+}
+/* The picker's disclosure takes the width. It used to share this row with a
+   per-column `Capture as Show step`; capture is venue-wide and took no column
+   even at N=1 (D1), so it left for the tab strip and the ✕ took its place. */
 .control-column-picker {
   min-width: 0;
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--gap);
-}
-/* Capture is a column-scoped affordance only while `full` is set; the
-   venue-wide tab action is `4-n-columns` (D9). `text-transform:none` because
-   the dashboard document capitalizes every button and this one is a sentence —
-   a difference that could not show while the surface was an iframe of a page
-   with no such rule. */
-.control-column-picker .capture-show-step {
-  min-height: var(--row-h);
-  padding: var(--pad-control);
-  white-space: nowrap;
-  text-transform: none;
 }
 
 .control-column-cards {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   gap: var(--gap);
   align-content: start;

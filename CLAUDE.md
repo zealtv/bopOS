@@ -960,7 +960,19 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   try/catch (they all should) will silently look like it works. Use
   `page.route` + `goto` on a fabricated origin for a real storage partition with
   no server and no app scripts (`tests/verify_target_picker.py` is the worked
-  example).
+  example); (19) **a target identifier is not an element identifier** — the
+  successor to gotchas 12 and 17, and the rule that makes N columns safe.
+  `data-live-scope`/`data-live-id` name a Seat or group, so with several
+  columns aimed at overlapping targets they are correctly non-unique and
+  selecting on them alone reaches whichever column happens to be first. Scope
+  to the column (`#control-column-host .control-column:nth-of-type(2)
+  [data-live-id="5"]`). Element identity is minted per column instead —
+  `data-target-picker="control-c3"` — and **nothing inside a column carries an
+  `id`**; (20) **`page.goto(url + "#fragment")` from that same url is a
+  SAME-DOCUMENT navigation** — nothing reloads, no script re-runs, and a
+  persistence check written that way asserts against the very objects it meant
+  to throw away (it passes whether or not anything was ever stored). Use
+  `page.reload()`, as `reload_control` in `tests/verify_control_tab.py` does.
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use

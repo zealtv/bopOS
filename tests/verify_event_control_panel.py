@@ -181,15 +181,27 @@ def surface(page):
 
 
 def click_once(page, locator):
-    """Click a freshly measured point without Playwright stability waiting."""
-    locator.wait_for(state="attached")
-    locator.evaluate(
-        "(element) => element.scrollIntoView({block: 'center', inline: 'center'})")
-    box = locator.bounding_box()
-    if box is None:
-        raise RuntimeError("attached control has no bounding box")
-    page.mouse.click(box["x"] + box["width"] / 2,
-                     box["y"] + box["height"] / 2)
+    """Click a freshly measured point without Playwright stability waiting.
+
+    Re-measured until the node survives the measurement: the surface re-renders
+    on every heartbeat, and a node resolved by one render and measured after
+    the next is DETACHED — which reports no bounding box at all, and used to
+    surface as "attached control has no bounding box" rather than as the race
+    it is. Deliberately not `expect`-style stability waiting: this file exists
+    to click controls that are never stable (47-live-param-kinds-flake).
+    """
+    for _attempt in range(20):
+        locator.wait_for(state="attached")
+        locator.evaluate(
+            "(element) => element.scrollIntoView("
+            "{block: 'center', inline: 'center'})")
+        box = locator.bounding_box()
+        if box and box["width"]:
+            page.mouse.click(box["x"] + box["width"] / 2,
+                             box["y"] + box["height"] / 2)
+            return
+        page.wait_for_timeout(100)
+    raise RuntimeError("control never held still long enough to measure")
 
 
 def set_event_values(row, values):
@@ -259,6 +271,14 @@ def main():
                 frame.locator(
                     '.live-card[data-live-scope="all"]'
                 ).wait_for(state="attached")
+                # The Control column's target picker is CLOSED by default since
+                # `4-n-columns/1-columns-layout` (D4) — its terse readout is
+                # the column's title. Chips inside a closed `<details>` still
+                # resolve, so a chip click lands on nothing and the target
+                # silently does not move. Open it once; the instance keeps that
+                # state across every re-render below.
+                frame.locator(".target-picker:not([open]) > summary").click()
+                frame.locator(".target-picker[open]").wait_for()
                 # One document now: the surface's frame IS the page's.
                 live_frame = page.main_frame
                 live_frame.wait_for_function(
@@ -367,18 +387,35 @@ def main():
                 # button sweeps for exactly the lead the host sent, flashes on
                 # arrival, then returns to rest.
                 fire = seat_row.locator(".live-event-send")
-                geometry = fire.evaluate(
-                    """button => {
+                # Both measurements come from ONE query in ONE turn (gotcha 9),
+                # and it is retried until the row it measured survived the turn.
+                # Two separate `locator.evaluate` calls put a heartbeat
+                # re-render between them: the second resolves a node the first
+                # render owned, which detaches, and a detached node reports a
+                # zero rect and an EMPTY computed style — so the check failed
+                # claiming the button had no width rather than saying it had
+                # measured a corpse.
+                geometry = live_frame.wait_for_function(
+                    """() => {
+                      const row = document.querySelector(
+                        '#control-column-host'
+                        + ' .live-card[data-live-scope="seat"]'
+                        + ' .live-param-event[data-param-path="strike"]');
+                      const button = row?.querySelector(".live-event-send");
+                      const box = row?.querySelector(".live-event-box");
+                      if (!button || !box || !row.isConnected) return null;
                       const rect = button.getBoundingClientRect();
                       const style = getComputedStyle(button);
+                      if (!rect.width || !style.borderTopLeftRadius) return null;
                       return {width: Math.round(rect.width),
                               height: Math.round(rect.height),
                               radius: style.borderTopLeftRadius,
+                              boxWidth: Math.round(
+                                box.getBoundingClientRect().width),
                               sweeps: button.querySelectorAll(
                                 ".live-event-sweep").length};
-                    }""")
-                box_width = seat_row.locator(".live-event-box").first.evaluate(
-                    "box => Math.round(box.getBoundingClientRect().width)")
+                    }""").json_value()
+                box_width = geometry["boxWidth"]
                 check("fire takes the value box's column width",
                       geometry["width"] == box_width, repr([geometry, box_width]))
                 check("fire is a momentary-shaped panel object",
