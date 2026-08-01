@@ -147,10 +147,23 @@ remain the authority for a particular piece of work.
 >    renaming" note is carried in the tied stitch's `decisions.md`.
 > 5. ~~`desktop-ui-overhaul/01-control-panel/8-manifest-reorder`~~ — done, and
 >    `04-event-fire-affordance` re-passed the same surface (section order).
-> 6. `44-event-plane/5-pd-adoption` — **next**, **Bob's**: the `.pd` receiver edits plus
->    the Finn Jet / Ciro Toast rig check. Thread 44 cannot tie without it.
-> 7. `desktop-ui-overhaul/02-component-unification` — **live, and the active
->    front of the queue as of 2026-07-30.** `02-app-wide-rollout-design` is
+> 6. ~~`44-event-plane/5-pd-adoption`~~ — **TIED 2026-08-01 on Bob's call**:
+>    *"that's tested on pd locally. good enough."* Bob made the `.pd` receiver
+>    edits from child `3`'s note in `.notes/pd-edits-for-bob.md` and exercised
+>    `/e/<identity>` in Pure Data locally. **The Finn Jet / Ciro Toast rig check
+>    did NOT run and is not claimed** — in particular **two-device forward-sync
+>    timing, the thing cues existed for, remains unmeasured on hardware**, along
+>    with arity 0/1/2/3 across the rig and the `"0"` sentinel's audible latency.
+>    Bob accepted the local result rather than hold the thread on rig
+>    availability; the split is recorded in the tied stitch's `verification.md`
+>    so nobody later reads this as a completed rig check.
+> 7. ~~`desktop-ui-overhaul/02-component-unification`~~ — **TIED 2026-08-01,
+>    and so is the whole `desktop-ui-overhaul` goal thread.** All nine children
+>    plus `11-ground-and-card-audit`. The app is unified on six component
+>    stylesheets, one metric layer, and one shared `ControlSurface` across
+>    Control, Device, Remote and the patch editor. The deliberate leftover is
+>    the Remote/iPad touch pass, parked as `feature-backlog/49` and gated on an
+>    actual iPad. History below. `02-app-wide-rollout-design` is
 >    dropped: Bob reversed the order to components-first (lore
 >    `2026-07-30-ui-unification-braindump`). Inventory is complete
 >    (`.notes/component-inventory-2026-07.md`); children run
@@ -541,8 +554,20 @@ remain the authority for a particular piece of work.
 >    venue-preset store and shelves are gone. The only remaining child is
 >    **`11-browser-test-failures`**, the final pre-existing guard cleanup before
 >    thread 41 itself ties.
-> 9. `44-event-plane/6-text-kind-control` — after 7, so it adopts the app-wide
->    text treatment rather than competing with it.
+> 9. `44-event-plane/6-text-kind-control` — **the only loose end left in the
+>    whole loom (2026-08-01).** It was ordered after 7 so it would adopt the
+>    app-wide text treatment rather than compete with it; 7 is tied, so that
+>    constraint is satisfied and this is claimable now. It is also all that
+>    stands between thread 44 and its tie. Note the measured starting state in
+>    its instructions: there is an **unstyled** control, not no control —
+>    `control-surface.js` already renders a plain `<input type="text">` for the
+>    string kind and excludes it from aggregation and automation. What is
+>    missing is the design language, which now exists.
+>
+> **Everything else in the loom is `.waiting`** on a Bob decision, a co-design
+> session, or hardware — see Tiers 4 and 5. After 9, the only remaining loose
+> end anywhere is the host-loom patch-workflow documentation/starter-kit
+> close-out at `~/repos/.loom/threads/patch-workflow-friction/`.
 >
 > Standing constraint: the system works today and must keep working; prefer
 > small ordered changes over rewrites.
