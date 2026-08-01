@@ -6,7 +6,7 @@ bopOS subsystem calls `nodelog.append(stream, values)` directly (the `/log`
 engine handler in bopos.py is the first caller; the io bridge and future
 features are others). Not one bespoke logger per feature.
 
-Design ratified 2026-07-24 (`.loom/tied/1-logging-seed-design/`):
+Design ratified 2026-07-24 (`.loom/legacy-v1/tied/1-logging-seed-design/`):
 
 - The **node** stamps every entry at call time with local civil time,
   ISO-8601 with offset and millisecond precision

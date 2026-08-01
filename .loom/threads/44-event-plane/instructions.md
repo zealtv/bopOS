@@ -89,7 +89,7 @@ thread ratifies the wire and implements engine/simfleet/relay parity.
 
 ## Ratified 2026-07-28 — `1-event-plane-design` is tied
 
-The proposal and `decisions.md` are in `.loom/tied/1-event-plane-design/`.
+The proposal and `decisions.md` are in `.loom/legacy-v1/tied/1-event-plane-design/`.
 Bob ratified the `kind` grammar, `text` as the fifth kind's name, identity
 carried in the address, no show-document migration, and pill code `EV`.
 Two additions came out of the ratification session:

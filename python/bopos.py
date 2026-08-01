@@ -270,7 +270,7 @@ node_state = NodeState()
 # The log facility resolves its destination per entry from the live node
 # config, so a `usb` choice follows a hot-inserted stick and falls back to
 # internal when it is absent -- no restart, no dropped entries (contract
-# sec 4.2 /log; log-destination design .loom/tied/1-logging-seed-design/ §3).
+# sec 4.2 /log; log-destination design .loom/legacy-v1/tied/1-logging-seed-design/ §3).
 nodelog.configure(lambda: log_config.effective_dir(node_state.config))
 
 

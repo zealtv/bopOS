@@ -28,7 +28,7 @@ would consume, so it lands purely additively.
 The mechanism was designed, adversarially reviewed twice, and repaired. Read,
 in order:
 
-1. `.loom/tied/1-preset-architecture-design/proposal.md` §4 — the ratified
+1. `.loom/legacy-v1/tied/1-preset-architecture-design/proposal.md` §4 — the ratified
    argument-vector approach (F2: morph over the mix function).
 2. `41-preset-primitive/design-addendum.md` §A1/§A2 — the repaired grammar
    (leading-option wrapper; the inner message goes verbatim to the existing

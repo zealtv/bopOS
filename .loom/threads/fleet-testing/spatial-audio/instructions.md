@@ -6,7 +6,7 @@ Brackets: start a sound simultaneously on all devices (synced clock — done,
 point → a patch parameter = falloff(distance, radius).
 
 **Model ratified 2026-07-10 by the patch-seam council** (authority:
-`.loom/tied/seam-0-council/judgment.md` + `ratification.md`; the old Stage A/B
+`.loom/legacy-v1/tied/seam-0-council/judgment.md` + `ratification.md`; the old Stage A/B
 framing is dead — Stage A was built as `spatial-0`, reverted, and overturned):
 the dashboard broadcasts point geometry (`/pt`, arbitrary count); each device
 decomposes all points locally into per-element proximity scalars 0→1; the

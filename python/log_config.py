@@ -6,7 +6,7 @@ mount. Feeds `nodelog`'s destination hook and the `/os/log-config` admin
 surface. No free paths — the operator picks `internal` or `usb`, nothing to
 type wrong from the dashboard.
 
-Ratified design: `.loom/tied/1-logging-seed-design/` §3. When `usb` is
+Ratified design: `.loom/legacy-v1/tied/1-logging-seed-design/` §3. When `usb` is
 configured but no stick is mounted, entries fall back to `internal`
 (`~/bopos-logs/`) and stay on the SD card — never dropped, never RAM-buffered,
 no copy-on-insert catch-up in v1. Hot insert/remove takes effect on the next

@@ -57,7 +57,7 @@ component — and this stitch to be about what *replaces* it:
 - Real iPad verification. Playwright's `pointer:coarse` emulation is not a
   finger; this needs the actual device, so it is hardware-gated.
 
-Read `.loom/tied/05c-drawer-component-ownership/decisions.md` for how the two
+Read `.loom/legacy-v1/tied/05c-drawer-component-ownership/decisions.md` for how the two
 base layers were found, and `05e` for the drawer's share of the collapse.
 
 ## Measured collapses so far

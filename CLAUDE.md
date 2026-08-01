@@ -31,7 +31,9 @@ installations. This file is the orientation for any agent working here.
 3. `.notes/architecture-review-2026-07-05.md` — the current architectural review and
    forward plan; the shared context every loom thread points back to.
 4. `./.loom/loom.sh status` — live task state. The loom (`.loom/`) is the task tracker;
-   read `.loom/README.md` for the protocol (claim → work → tie; split when too big).
+   read `.loom/README.md` for the protocol (claim → work → tie; split when too big)
+   and `.loom/docs/protocol-v2.md` for the exact rules. **The loom is format v2 as
+   of 2026-08-01** — see "Loom v2" under Records for what changed.
 5. `.notes/dashboard-development-context.md` — full dashboard design (stack, protocol,
    UI) if working on dashboard threads.
 
@@ -77,7 +79,7 @@ remain the authority for a particular piece of work.
 > simplicity-first proposal, Bob reviews). **Done same day — the whole
 > review thread is TIED (2026-07-27, live session with Bob).** The as-is map
 > is `.notes/entity-map-2026-07.md`; the ratified model and forks are in
-> `.loom/tied/2-workflows-and-simplification/` (proposal.md + decisions.md):
+> `.loom/legacy-v1/tied/2-workflows-and-simplification/` (proposal.md + decisions.md):
 > four layers (hardware → site → content → composition), fingerprinted
 > content references with derived non-blocking drift warnings, portable
 > shows target groups **by name**, venue presets retire when 41 lands,
@@ -310,7 +312,7 @@ remain the authority for a particular piece of work.
 >    cost of the per-column answer, and venue-wide capture is a **removal**,
 >    because the arrangement was always rebuilt from per-seat `applied_preset`
 >    rather than carried by the picker. Nine decisions in
->    `.loom/tied/1-columns-design/decisions.md`: fixed 342px left-aligned columns
+>    `.loom/legacy-v1/tied/1-columns-design/decisions.md`: fixed 342px left-aligned columns
 >    with the 1400px cap dropped on this tab, the column *is* the card, the
 >    sticky header is the column's own closed picker, no dialogs (arm → non-modal
 >    preview of the messages → commit → inline undo), derived step names,
@@ -533,7 +535,7 @@ remain the authority for a particular piece of work.
 >    `cascade_probe.py --doc facilitator` and record it in `49`, rather than
 >    inheriting either the alarm or the reassurance.
 > 8. ~~`41-preset-primitive/1`~~ — **design gate CLEARED and TIED 2026-07-28**;
->    Bob ratified all four forks (`.loom/tied/1-preset-architecture-design/`
+>    Bob ratified all four forks (`.loom/legacy-v1/tied/1-preset-architecture-design/`
 >    proposal.md + decisions.md). A preset is **not a wire concept**: an entry
 >    is the `/p/<identity>` argument list, stored sparsely in
 >    `patches/<patch>/presets/<slug>.json`, applied as an ordinary fan-out.
@@ -541,7 +543,7 @@ remain the authority for a particular piece of work.
 >    save restages the fleet patch); capture-as-step omits targets with no
 >    preset applied; the applied-preset marker stores provenance with
 >    **derived** dirtiness (R5). Two reviews followed
->    (`.loom/tied/2-proposal-review/`, `.loom/tied/3-addendum-review/`); the
+>    (`.loom/legacy-v1/tied/2-proposal-review/`, `.loom/legacy-v1/tied/3-addendum-review/`); the
 >    addendum plus `review-2.md` are authoritative over the proposal where
 >    they differ. **Bob dropped `morph` from v1 (2026-07-29)** — a timed apply
 >    fades `float`/`int` entries with the existing §3.3 form and sets every
@@ -657,10 +659,10 @@ a real regression hides among the drift.)
 8. **Complete — `27-tied-guard-rot` (2026-07-27).** Durable contracts now live
    in the code-surface-organized `tests/` suite, with
    `tools/run-tests.sh fast|browser|all` as the canonical local/pre-tie entry
-   point. The preserved `.loom/tied/` guards are historical evidence, not a
+   point. The preserved `.loom/legacy-v1/tied/` guards are historical evidence, not a
    regression suite or maintenance backlog. The assertion-level disposition
    and named hardware follow-ups are recorded in
-   `.loom/tied/08-archive-retirement-ledger/retirement-ledger.md`.
+   `.loom/legacy-v1/tied/08-archive-retirement-ledger/retirement-ledger.md`.
 9. **Complete — `20-console-dock`.** Monitor v1 shipped with
    Incoming, Outgoing, Send, Reports, System, persistence, and wide split/snap
    on 2026-07-23. Bob dropped the deferred Map placeholder on 2026-07-26, so
@@ -1225,7 +1227,7 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   reported the Show inspector shell's padding as unchanged for exactly this
   reason, and looked correct doing it.
 
-**Historical tied guards:** `.loom/tied/` is preserved authoring and decision
+**Historical tied guards:** `.loom/legacy-v1/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use
 `tools/run-tests.sh` and the living modules under `tests/`; do not sweep, copy,
 or repair archived guards merely to make the archive green. New durable checks
@@ -1236,10 +1238,10 @@ encounters and relies on a tied guard: if an assertion pins something Bob has
 since ruled away, it is **superseded, not authoritative**. Update only the
 encountered assertion, add an inline comment naming the superseding stitch, and
 record the ruling in the current stitch's `decisions.md`
-(`.loom/tied/03-divider-rule-styling/decisions.md` is the worked example).
+(`.loom/legacy-v1/tied/03-divider-rule-styling/decisions.md` is the worked example).
 Do not expand that exception into neighbour or archive maintenance. The final
 archive disposition is
-`.loom/tied/08-archive-retirement-ledger/retirement-ledger.md`.
+`.loom/legacy-v1/tied/08-archive-retirement-ledger/retirement-ledger.md`.
 
 ## Records
 
@@ -1249,7 +1251,44 @@ archive disposition is
 - `.notes/` holds current working reference (revisable); `docs/` (once created) holds
   durable specs like `OSC-CONTRACT.md`.
 - Put working artifacts (measurements, logs, decision notes) inside the stitch
-  directory — they travel with it into `tied/`. Because tie **moves** the
-  directory (different depth), stitch test scripts must locate the repo by
-  marker (walk up until `tools/simfleet.py` exists) or via an imported
-  module's path — never by a fixed number of `..` hops.
+  directory — they travel with it wherever it ends up. Stitch test scripts must
+  locate the repo by marker (walk up until `tools/simfleet.py` exists) or via an
+  imported module's path — never by a fixed number of `..` hops, because a
+  stitch's depth changes when a goal is archived and differs between an active
+  stitch and a legacy record.
+
+## Loom v2 (migrated 2026-08-01)
+
+`.loom/` is format v2 (`.loom/format-version` says `2`). `./.loom/loom.sh` is
+still the entry point and `status`/`next`/`claim`/`tie`/`drop` still mean what
+they meant. What changed:
+
+- **Tie no longer moves a child stitch.** A non-root stitch is renamed **in
+  place** to `<id>.tied` (and `<id>.dropped` for a drop), keeping it beside its
+  siblings under its parent. Only a completed **goal** moves, to `tied/<id>/` or
+  `dropped/<id>/`, carrying its whole subtree. So the tree now shows a thread's
+  own history until the goal itself ties.
+- **All 393 v1 archive records moved to `.loom/legacy-v1/tied/` and
+  `.loom/legacy-v1/dropped/`**, byte-for-byte, with each dropped record's
+  `<id>.reason.md` sidecar folded in as `reason.md` inside the record. Every
+  `.loom/tied/…` path in this file, in `python/` docstrings, and in active
+  stitch instructions was rewritten to match. Paths inside `.notes/handoff-*`
+  and `.lore/` were **left alone** — those are dated records of what was true
+  when written; read them against `legacy-v1/`.
+- **`wait` parks a whole subtree** and `resume <id>` is now the only way out —
+  `claim` no longer un-waits a stitch, it fails with a hint.
+- **Hard dependencies** are real: an empty file at `<stitch>/needs/<other-id>`
+  blocks readiness until that stitch ties. IDs resolve globally, cycles are
+  detected, and `status` exits non-zero on broken edges.
+- **A sparse preference queue** (`.loom/queue`, managed with
+  `loom.sh queue|first|before|after|unqueue`) orders `next` without inventing
+  dependencies — blocked entries are skipped rather than blocking. It is
+  **empty**: the tier ordering in this file remains Bob's hand-maintained prose
+  and was not transcribed into the queue.
+- **`map` / `map --json`** are read-only projections; the JSON is the supported
+  integration boundary for any future viewer.
+- Tie/drop now write a `completed-at` timestamp. Legacy records have none and
+  render as unknown rather than being guessed from mtimes.
+- `dashboard-bop-accents` was tied without an `instructions.md`, which v2
+  requires; a reconstructed one marked as such sits in its legacy record, with
+  `notes.md`/`proposal.md` still the authority.
