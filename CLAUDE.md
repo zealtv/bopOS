@@ -431,7 +431,22 @@ remain the authority for a particular piece of work.
 >    different tops on the same line, and the first sweep written that way
 >    reported five false positives including the row it had just fixed. Measure
 >    the row against its tallest control instead) →
->    `11-ground-and-card-audit`.
+>    ~~`11-ground-and-card-audit`~~ (**TIED 2026-08-01**, the thread's last
+>    named child. Two §12 defects across the whole app, both invisible to
+>    source: the Show tab painted a 1px rule down the ground's full right edge
+>    because `style.css` still carried a bare `aside` rule from the retired
+>    two-column `.layout` shell, and the third `<aside>` to exist was
+>    `show.js`'s **transparent** `.show-inspector-shell`, which had nothing of
+>    its own to override the inherited `border-right` with; and the Assets tab's
+>    refresh button sat alone on the pink after `03-chrome-reclamation` deleted
+>    the `h2` it used to sit beside. Re-anchoring the relic measured **0 of 14
+>    properties changed** on `.seat-sidebar` and `.device-sidebar` and exactly 5
+>    on the shell; the button moved into the head of the card it refreshes.
+>    Every other surface was audited and is CORRECT, including two deliberate
+>    non-changes — `#fleet-patch-panel`'s `--surface-alt` emphasis and
+>    `.tab-panel`'s transparency. **The proposed source guard was written, run,
+>    and rejected**: see the correction at the end of the §12 paragraph below)
+>    — the thread now has no unresolved children.
 >    **`08-control-tab-columns` is TIED (2026-07-31)** — all four `4-n-columns`
 >    children and the whole thread. The Control tab is N independently targeted
 >    columns in the dashboard document, matching the ratified mockups.
@@ -451,9 +466,22 @@ remain the authority for a particular piece of work.
 >    host) and `08` — **Control's half is DONE**: `3-iframe-retirement` deleted
 >    both `#dashboard-live-view` declarations with the iframe and put nothing in
 >    their place, so the column is a card and the tab paints nothing; the Show
->    list is `05g`; the app-wide sweep is `11`, which runs last
->    and should consider promoting `background:var(--bg)`-outside-`html/body` to a
->    guard the way `05d` did for ownership.
+>    list is `05g`; the app-wide sweep was `11`, now tied.
+>    **The "promote `background:var(--bg)`-outside-`html/body` the way `05d`
+>    did" advice this line used to give is WITHDRAWN — `11` wrote that guard and
+>    it caught NEITHER of the two defects on the tree.** One offending
+>    declaration was never written at all (a button left on the ground when the
+>    heading beside it was deleted); the other says `aside` and names neither
+>    `--bg` nor the surface it broke. §12 is not a source property — it is a
+>    question about which ancestor paints, answerable only after the cascade
+>    resolves against real markup. The companion "edge with no background"
+>    pattern is worse: 51 source hits, nearly all correct. The guard that
+>    shipped is a browser journey, `tests/verify_ground_and_card.py`, and its
+>    one non-obvious rule is that **a control paints its own face** — every
+>    button carries `background:var(--control)`, so skipping self-painted
+>    elements (right for containers, since a self-painted container IS a card)
+>    silently skips every control there is, which is how the first draft passed
+>    the Assets button.
 >    `05c`/`05d` were added 2026-07-30 after `05b`
 >    showed the pattern a fourth time: **rules that belong to a component keep
 >    getting written onto the surfaces it is mounted in.** 68 rules in
@@ -1163,7 +1191,14 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   the wait and the click must name the **same** host-scoped element, and the
   wait must be on the element **about to be clicked** — waiting on an ancestor
   bound in the same `bindPresets` sweep does not cover a re-render that happens
-  between the wait returning and the click resolving.
+  between the wait returning and the click resolving; (24) **a `set_content` or
+  `page.route` fixture that does not load `control-panel.css` measures every
+  metric as zero.** `--pad-panel`, `--row-h`, `--gap` and the rest are declared
+  at `:root` in that file — the one file BOTH documents load — so a fixture
+  linking only `style.css` leaves every `var()` invalid, and a before/after
+  comparison reads `0px -> 0px` and passes vacuously. `11`'s cascade probe
+  reported the Show inspector shell's padding as unchanged for exactly this
+  reason, and looked correct doing it.
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use
