@@ -659,27 +659,35 @@ a real regression hides among the drift.)
    hang on the regression**: the first version awaited an unbounded promise that
    never resolves on the unfixed tree and burned ten minutes instead of failing,
    which running it against the broken tree is what exposed.
-14. **`52-preset-drawer-name-discarded`** — **the browser suite is NOT green**,
-   and this is why. A preset name typed into the Control tab's save drawer is
-   **discarded by the next heartbeat re-render** (reproduced 3/3 by the stitch's
-   `probe_drawer_typing.py`, with focus still in the field and the input node
-   replaced). `commit` then reads an empty name and sends nothing, which is
-   exactly how `verify_preset_control_surface.py` fails at its *first*
-   assertion in full-suite runs 0, 4 and 5 while passing standalone. So the
-   "flaky preset journey" that `47` and `50` both circled is at least partly a
-   real operator-facing defect, not a test race — `50`'s host-scoping fix was
-   genuine but not the whole story. `control-surface.js:487` *intends* to
-   prevent this (`drawer.onfocusin` → `setInteracting(true)`, wired end to end)
-   and does not; **two hypotheses were tested and neither explains it** — the
-   gotcha-16 binding wait moved it only 0/3 → 1/3, and the one `interacting`
-   measurement came from the single anomalous surviving run. Instrument the
-   *sequence* of `setInteracting` calls against `renderCards` entries, not the
-   end state: `focusout` fires when the focused node is removed, so final-state
-   reads cannot tell the causing render from its aftermath, which is what made
-   both hypotheses look plausible. Separately, `control-surface.js:356` has no
-   `oninput` write-through into `openSaveDrawers`, so the value is unprotected
-   against any render at all — likely both fixes are needed, but establish the
-   cause first.
+14. **Complete — `52-preset-drawer-name-discarded`** (tied 2026-08-01). A preset
+   name typed into the Control tab's save drawer was discarded by the next
+   heartbeat re-render, after which `commit` read an empty name and silently
+   saved nothing. **`onfocusin`/`onfocusout` are NOT event-handler IDL
+   attributes** — `'onfocusin' in element` is `false` on a fresh element where
+   `'onfocus'` is `true` — so `drawer.onfocusin = fn` set an inert expando and
+   the render guard on **both** editable drawers (preset save at
+   `control-surface.js:487`, generator at `:1071`) had never once run since it
+   was written. Fixed with `addEventListener("focusin"/"focusout", …)`
+   (`focusin` because only it bubbles to the container) **plus** an `oninput`
+   write-through into `openSaveDrawers`, which is not belt-and-braces: the guard
+   only suppresses renders while focus is *inside* the drawer, and a render
+   provoked from elsewhere after focus left would still re-emit the field from a
+   stored `""`.
+   Three things worth carrying. **This was the browser suite's remaining red** —
+   it is why `verify_preset_control_surface.py` failed at its *first* assertion
+   in runs 0/4/5 while passing standalone, so the "flaky preset journey" that
+   `47`, `50` and `51` all circled was a real operator-facing defect the whole
+   time. **A final-state read cannot diagnose this class**: `focusout` fires when
+   the focused node is removed, so "guard released" and "guard never armed" look
+   identical afterwards — which is what made two plausible hypotheses survive.
+   A timestamped trace of `setInteracting` calls against `renderCards` entries
+   settled it in one run, showing no `focusin` and no `setInteracting` at all.
+   And **an inert assignment is invisible** — correct-looking code, a sincere
+   comment claiming the guard matched a working surface, no runtime complaint —
+   so `tests/test_dom_event_handlers.py` bans the non-IDL names in source
+   (ignoring comments, because the first version flagged its own explanation),
+   paired with a live assertion in `tests/verify_interaction_guard.py` that they
+   are still not IDL attributes, so the ban cannot outlive its reason.
 
 ### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 
@@ -1114,7 +1122,13 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   having changed nothing because of it. Ask the structural question —
   `element.closest('details:not([open]) > :not(summary), details:not([open]) >
   :not(summary) *')` — or use Playwright's own `is_visible()`, which gets it
-  right; (22) **a gotcha-16 binding wait that is not host-scoped is worse than
+  right; (23) **a `<input type="range">` cannot test whether FOCUS holds the
+  render guard.** `control-host.js`'s `pointerdown`/`pointerup` pair arms the
+  guard for a range and then deliberately releases it a tick after the gesture,
+  so clicking one proves nothing either way — `52`'s first attempt at the
+  generator-drawer assertion failed for this reason and looked like a real
+  defect. Focus a numeric argument box (`input.live-gen-num`) instead; (22) **a
+  gotcha-16 binding wait that is not host-scoped is worse than
   no wait at all.** Thread `50` found `open_authoring` in
   `verify_preset_control_surface.py` waiting on
   `document.querySelector('.live-preset-authoring')?.ontoggle` page-wide while

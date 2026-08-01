@@ -482,10 +482,29 @@
         const row = root.querySelector(`[data-preset-key="${CSS.escape(key)}"]`);
         const scope = row?.dataset.liveScope;
         const id = row?.dataset.liveId == null ? null : row.dataset.liveId;
-        // Editing a name or ticking boxes must survive the heartbeat, the same
-        // guard the generator drawer and precision field use.
-        drawer.onfocusin = () => context.setInteracting?.(true);
-        drawer.onfocusout = () => context.setInteracting?.(false);
+        // Editing a name or ticking boxes must survive the heartbeat.
+        //
+        // `focusin`/`focusout` are used rather than `focus`/`blur` because only
+        // the former bubble, and the guard belongs on the drawer rather than on
+        // each field inside it. They must be attached with `addEventListener`:
+        // `onfocusin`/`onfocusout` are NOT event-handler IDL attributes, so
+        // `drawer.onfocusin = fn` sets an inert expando that nothing ever calls
+        // and the guard silently does not exist (52). The drawer's markup is
+        // rebuilt every render, so a fresh node cannot accumulate listeners.
+        drawer.addEventListener("focusin", () => context.setInteracting?.(true));
+        drawer.addEventListener("focusout", () => context.setInteracting?.(false));
+        // The guard stops MOST renders; write-through means a render that
+        // happens anyway — one triggered from outside the drawer, or between
+        // the field being emitted and focus reaching it — cannot silently empty
+        // the field the operator already typed into. `commit` reads the field,
+        // and an empty name saves nothing at all.
+        const nameField = drawer.querySelector("[data-preset-name]");
+        if (nameField && nameField.tagName === "INPUT") {
+          nameField.oninput = () => {
+            const mode = openSaveDrawers.get(key);
+            if (mode) mode.name = nameField.value;
+          };
+        }
         drawer.querySelectorAll("[data-preset-include]").forEach(box => {
           box.onchange = () => {
             const excluded = saveExclusions.get(key) || new Set();
@@ -1047,10 +1066,12 @@
           });
         }
 
-        // Editing inside a drawer must survive the heartbeat: the host's
-        // render guard is the same one the precision field uses.
-        drawer.onfocusin = () => context.setInteracting?.(true);
-        drawer.onfocusout = () => context.setInteracting?.(false);
+        // Editing inside a drawer must survive the heartbeat. Same defect and
+        // same fix as the preset drawer above (52): `onfocusin`/`onfocusout`
+        // are not event-handler IDL attributes, so assigning them wired
+        // nothing at all and this guard had never once run.
+        drawer.addEventListener("focusin", () => context.setInteracting?.(true));
+        drawer.addEventListener("focusout", () => context.setInteracting?.(false));
 
         const compile = () => window.ParamGenerator.compile(drawer, declaration, currentKind());
         const refresh = () => {

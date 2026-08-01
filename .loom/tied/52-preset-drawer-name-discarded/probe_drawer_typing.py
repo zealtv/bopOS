@@ -187,6 +187,11 @@ def main():
             focus_after_wait = page.evaluate("() => window.__focus()")
             guard_after_wait = page.evaluate("() => window.__probeInteracting?.()")
 
+            trace = page.evaluate("() => window.__trace || []")
+            print("  --- trace (ms, event, extra, focus) ---")
+            for entry in trace:
+                print(f"    {entry['t']:>6}  {entry['what']:<16}"
+                      f" {str(entry.get('extra')):<10} focus={entry['focus']}")
             print(f"  typed into the field: {typed!r}")
             print(f"  focus right after fill: {focus_after_fill}")
             print(f"  interacting guard after fill: {guard_after_fill}")
