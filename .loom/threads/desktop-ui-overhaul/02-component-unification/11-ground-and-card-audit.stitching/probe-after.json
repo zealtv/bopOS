@@ -1,0 +1,122 @@
+{
+  "remote/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "control/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "show/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "seats/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "devices/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "patches/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "assets/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "monitor/1280/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "control/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "show/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "seats/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "devices/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "patches/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "assets/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "monitor/1680/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "remote/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "control/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "show/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "seats/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "devices/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "patches/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "assets/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "monitor/1280/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "control/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "show/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "seats/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "devices/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "patches/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "assets/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "monitor/1680/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  }
+}

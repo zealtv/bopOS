@@ -1,0 +1,168 @@
+{
+  "remote/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "control/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "show/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": [
+      {
+        "el": "aside#show-inspector.show-inspector-shell",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(248, 240, 252)",
+        "control": false,
+        "edge": true,
+        "border": "0px 1px 0px 0px",
+        "radius": "0px",
+        "self": "rgba(0, 0, 0, 0)",
+        "rect": [
+          888,
+          143,
+          376,
+          552
+        ]
+      }
+    ]
+  },
+  "seats/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "devices/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "patches/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": []
+  },
+  "assets/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": [
+      {
+        "el": "button#asset-refresh.icon-button",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(248, 240, 252)",
+        "control": true,
+        "edge": true,
+        "border": "1px 1px 1px 1px",
+        "radius": "4px",
+        "self": "rgb(255, 255, 255)",
+        "rect": [
+          1150,
+          85,
+          24,
+          24
+        ]
+      }
+    ]
+  },
+  "monitor/light": {
+    "page": "rgb(248, 240, 252)",
+    "findings": [
+      {
+        "el": "button#asset-refresh.icon-button",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(248, 240, 252)",
+        "control": true,
+        "edge": true,
+        "border": "1px 1px 1px 1px",
+        "radius": "4px",
+        "self": "rgb(255, 255, 255)",
+        "rect": [
+          1150,
+          85,
+          24,
+          24
+        ]
+      }
+    ]
+  },
+  "remote/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "control/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "show/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": [
+      {
+        "el": "aside#show-inspector.show-inspector-shell",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(16, 19, 22)",
+        "control": false,
+        "edge": true,
+        "border": "0px 1px 0px 0px",
+        "radius": "0px",
+        "self": "rgba(0, 0, 0, 0)",
+        "rect": [
+          888,
+          143,
+          376,
+          552
+        ]
+      }
+    ]
+  },
+  "seats/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "devices/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "patches/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": []
+  },
+  "assets/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": [
+      {
+        "el": "button#asset-refresh.icon-button",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(16, 19, 22)",
+        "control": true,
+        "edge": true,
+        "border": "1px 1px 1px 1px",
+        "radius": "4px",
+        "self": "rgb(39, 48, 57)",
+        "rect": [
+          1150,
+          85,
+          24,
+          24
+        ]
+      }
+    ]
+  },
+  "monitor/dark": {
+    "page": "rgb(16, 19, 22)",
+    "findings": [
+      {
+        "el": "button#asset-refresh.icon-button",
+        "host": "body.monitor-mounted",
+        "bg": "rgb(16, 19, 22)",
+        "control": true,
+        "edge": true,
+        "border": "1px 1px 1px 1px",
+        "radius": "4px",
+        "self": "rgb(39, 48, 57)",
+        "rect": [
+          1150,
+          85,
+          24,
+          24
+        ]
+      }
+    ]
+  }
+}
