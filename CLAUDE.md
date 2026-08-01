@@ -627,19 +627,59 @@ a real regression hides among the drift.)
    journeys failed across them, one run green** — and caught a clean-tree
    failure on a genuinely different mechanism, now
    **`51-control-column-first-render-flake`** (below).
-13. **`51-control-column-first-render-flake`** — `verify_show_capture.py`
-   intermittently times out waiting for the Control tab's default column to
-   paint its first card (`#control-column-host .live-card[data-live-scope="all"]`
-   never visible, 15 s, with `#ws-status.online` already satisfied). Full-suite
-   load only; passes standalone. **Not** a binding race — the element never
-   appears — so `50`'s helper fix does not address it. Two candidate gates, both
-   deliberate and both correct as written: `venueKnown` (`control-host.js:276`,
-   first render waits for `state`, and `device_update` must not substitute) and
-   `isInteracting` (`control-column.js:354`, which `47` widened to keyboard
-   focus). Instrument to tell them apart before changing anything: the first is
-   a test that needs a better wait, the second would be an operator-facing
-   defect — a Control tab that silently never paints. Do not lengthen the
-   timeout.
+13. **Complete — `51-control-column-first-render-flake`** (tied 2026-08-01).
+   It was an **operator-facing defect**, and the flake was the symptom: load
+   the dashboard on a slow enough connection and the Control tab is silently,
+   permanently blank. **`state` was not delayed — it arrived and was thrown
+   away.** `ws.js`'s `emit` buffered a message only while a type had *no*
+   handlers, so `pending` protected the **first** registrant and nobody else.
+   `dashboard.js` opens the socket and registers for `state` on line 140; the
+   server sends its snapshot burst the instant the socket opens; and
+   `control-host.js` is a **separate classic `<script>` five fetches further
+   down `index.html`**, with the event loop free to deliver messages during
+   those fetches. A `state` landing in that window went to `dashboard.js` alone,
+   `venueKnown` stayed false, and `renderAll` returned early on every heartbeat
+   forever — nothing recovers it, because heartbeats are `device_update` and
+   **no periodic full-`state` broadcast exists** (the `4-current-show-broadcast`
+   finding, load-bearing here). **Six** handlers register for `state` after
+   `dashboard.js` (two in `control-host.js`, two in `monitor.js`, one in
+   `show.js`) and the connect burst is **seven** snapshot types, so the fix is
+   in `ws.js` — keep the latest snapshot per type, replay it to late handlers,
+   leave the `pending` event queue alone — not in `control-host.js`, where it
+   would have fixed one of six symptoms and left the cause.
+   Three lessons worth carrying. **A second consumer of anything is where this
+   class of bug lives**: adding a `ws.on(<type>, …)` in a script that loads
+   after `dashboard.js` is safe *only* because the type is in `ws.js`'s
+   `SNAPSHOT_TYPES`; that list is coupled to the server's connect burst and
+   pinned from both sides by `tests/test_ws_snapshot.py`, because drift silently
+   reverts a type to first-registrant-wins with no error anywhere. **Stall one
+   script with `page.route` instead of chasing load** — it turned a
+   one-run-in-three flake into a guard that fails every time
+   (`tests/verify_ws_snapshot_replay.py`). And **a regression guard must not
+   hang on the regression**: the first version awaited an unbounded promise that
+   never resolves on the unfixed tree and burned ten minutes instead of failing,
+   which running it against the broken tree is what exposed.
+14. **`52-preset-drawer-name-discarded`** — **the browser suite is NOT green**,
+   and this is why. A preset name typed into the Control tab's save drawer is
+   **discarded by the next heartbeat re-render** (reproduced 3/3 by the stitch's
+   `probe_drawer_typing.py`, with focus still in the field and the input node
+   replaced). `commit` then reads an empty name and sends nothing, which is
+   exactly how `verify_preset_control_surface.py` fails at its *first*
+   assertion in full-suite runs 0, 4 and 5 while passing standalone. So the
+   "flaky preset journey" that `47` and `50` both circled is at least partly a
+   real operator-facing defect, not a test race — `50`'s host-scoping fix was
+   genuine but not the whole story. `control-surface.js:487` *intends* to
+   prevent this (`drawer.onfocusin` → `setInteracting(true)`, wired end to end)
+   and does not; **two hypotheses were tested and neither explains it** — the
+   gotcha-16 binding wait moved it only 0/3 → 1/3, and the one `interacting`
+   measurement came from the single anomalous surviving run. Instrument the
+   *sequence* of `setInteracting` calls against `renderCards` entries, not the
+   end state: `focusout` fires when the focused node is removed, so final-state
+   reads cannot tell the causing render from its aftermath, which is what made
+   both hypotheses look plausible. Separately, `control-surface.js:356` has no
+   `oninput` write-through into `openSaveDrawers`, so the value is unprotected
+   against any render at all — likely both fixes are needed, but establish the
+   cause first.
 
 ### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 
