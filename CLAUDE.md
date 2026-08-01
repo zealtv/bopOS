@@ -407,7 +407,30 @@ remain the authority for a particular piece of work.
 >    `0551ae2` (2026-07-14), so no call site ever chose a payload and there was
 >    no hazard to be latent. The fix itself stands — the two broadcasts were
 >    genuinely missing. A neighbour audit found no other verb broadcasting a
->    plane other than the one it mutated))) → `09-patches-deploy-row` →
+>    plane other than the one it mutated))) → ~~`09-patches-deploy-row`~~
+>    (**TIED 2026-08-01.** Patch, target and buttons on one line: the deploy row
+>    went **74px → 37px**, `.fleet-patch-choice` is deleted, and the selects are
+>    **capped at 260px and left-aligned** rather than stretched — the first cut
+>    filled the panel and gave two 486px selects to hold the word `alpha`, where
+>    `.editor-launch` directly below was already a left-aligned row of
+>    content-sized controls. The open question is **answered with measurement:
+>    keep the `<select>`s, do not mount `TargetPicker`** — its device domain is
+>    **51px closed against 37px**, so it would set the height of the very line
+>    this stitch exists to make, and it is a `<details>` that grows in place when
+>    used. Its multi-select capability is unused here (`multiple:false` with an
+>    `all`), and the Assets picker earns its size by showing ineligible devices
+>    with reasons, which this row has none of. The cost — two device-targeting
+>    UIs — is recorded, not argued away; unifying later means giving the
+>    component a compact single-line mode, which is a change to the component.
+>    The tab-wide sweep found **no other offender**: only `#fleet-patch-panel`
+>    and `#manifest-editor` still exceed their tallest control, and both are
+>    panels that should. Guarded in `verify_device_patch_targeting.py`, failing
+>    pre-change at `{'height': 74, 'tallest': 37, 'centreSpread': 43}`.
+>    **Gotcha for any later layout guard: "the controls share a `top`" is the
+>    wrong test** — shorter buttons centred against taller selects have
+>    different tops on the same line, and the first sweep written that way
+>    reported five false positives including the row it had just fixed. Measure
+>    the row against its tallest control instead) →
 >    `11-ground-and-card-audit`.
 >    **`08-control-tab-columns` is TIED (2026-07-31)** — all four `4-n-columns`
 >    children and the whole thread. The Control tab is N independently targeted

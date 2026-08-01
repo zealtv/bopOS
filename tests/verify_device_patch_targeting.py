@@ -181,6 +181,35 @@ def main():
                     "() => [...document.querySelectorAll('#patch-select option')]"
                     ".some(option => option.value === 'beta')")
 
+                # --- one line: patch, target, buttons (09) ---
+                # Bob, 2026-07-30: "it would make a lot more sense for those to
+                # be side by side so that the patch, the target, and the buttons
+                # are all in a single line." They used to stack, at 74px.
+                #
+                # Measured as "the row is no taller than its tallest control",
+                # NOT as "the three share a `top`": the buttons are shorter than
+                # the selects and are centred against them, so equal tops is the
+                # wrong test and would fail on a correct layout.
+                row = page.evaluate("""() => {
+                  const box = node => node.getBoundingClientRect();
+                  const deploy = document.querySelector('.fleet-patch-deploy');
+                  const parts = ['#patch-select', '#patch-target',
+                                 '.fleet-patch-actions']
+                    .map(selector => document.querySelector(selector));
+                  if (!deploy || parts.some(part => !part)) return null;
+                  const rect = box(deploy);
+                  const tallest = Math.max(...parts.map(part => box(part).height));
+                  const centres = parts.map(part =>
+                    Math.round(box(part).top + box(part).height / 2));
+                  return {height: Math.round(rect.height),
+                          tallest: Math.round(tallest),
+                          centreSpread: Math.max(...centres) - Math.min(...centres)};
+                }""")
+                check("the deploy row is a single line",
+                      row and row["height"] <= row["tallest"] + 2, repr(row))
+                check("patch, target and actions share one vertical centre",
+                      row and row["centreSpread"] <= 1, repr(row))
+
                 # --- target picker shape ---
                 target_options = page.evaluate(
                     "() => [...document.querySelectorAll('#patch-target option')]"
