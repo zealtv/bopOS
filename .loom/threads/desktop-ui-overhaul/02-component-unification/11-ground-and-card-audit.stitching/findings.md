@@ -153,7 +153,8 @@ Three things the probe had to get right:
   four runs). **The failing assertion was not captured before the re-run**, so
   this is a plausible attribution rather than a diagnosis — recorded as an open
   loose thread, not as cleared.
-* Screenshots: `shots-before/` and `shots-after/`, 30 each (six tabs + Monitor ×
+* Screenshots: `before-*.png` and `after-*.png`, 30 each (flat, because
+  loom reads a subdirectory as a child stitch) (six tabs + Monitor ×
   1280/1680 × light/dark, plus Remote). Pixel-diffed: Control and Remote-dark
   identical; Show and Assets changed exactly where the fixes are; Seats, Devices
   and Patches differ only in live data (RSSI values, roster ordering,
