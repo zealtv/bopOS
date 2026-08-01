@@ -231,11 +231,17 @@ class Dashboard:
             logging.getLogger("bopos.dashboard").exception(
                 "state cleanup failed during dashboard shutdown")
 
-    def queue_broadcast(self, message_type, data):
+    def queue_broadcast(self, message_type, data=None):
         asyncio.create_task(self.broadcast(message_type, data))
 
-    async def broadcast(self, message_type, data):
+    async def broadcast(self, message_type, data=None):
         if message_type == "state":
+            # A `state` broadcast has no caller-supplied payload and never has:
+            # the enriched snapshot is the only thing any client can use, so it
+            # is built here rather than trusted from 37 call sites.  Callers
+            # pass nothing; anything passed is discarded.  Thread 50 exists
+            # because the discarded argument used to be written out at most
+            # call sites and read as if it decided what got sent.
             data = await self.public_state()
         elif (message_type in {"device_update", "patches", "assets", "report",
                                "params_declaration", "rev"}
@@ -438,7 +444,7 @@ class Dashboard:
                 return
             self.osc.set_param(selector, param_identity, cleaned)
             self.refresh_preset_dirtiness(seats)
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "set_live_automation":
             # The live counterpart of set_live_param: the control surface's
             # generator drawer (37/08) authors a §3.2 argument list rather than
@@ -475,7 +481,7 @@ class Dashboard:
             self.osc.set_param_for(
                 seats, selector, declaration["identity"], args)
             self.refresh_preset_dirtiness(seats)
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "replay_live_params":
             scope = str(data.get("scope", ""))
             if scope == "all":
@@ -568,7 +574,7 @@ class Dashboard:
                 editor.setdefault("params", {})[name] = cleaned
                 self.osc.set_param_for(
                     [self.editor_target()], 0, name, cleaned)
-                await self.broadcast("state", self.state.public())
+                await self.broadcast("state")
         elif kind == "set_editor_point":
             if self.supervisor_mode != "edit":
                 return
@@ -636,7 +642,7 @@ class Dashboard:
                     self.stage_catalog_patch(item)
                     self.state.save_debounced()
                     await self.restart_simulation()
-                    await self.broadcast("state", self.state.public())
+                    await self.broadcast("state")
                     return
                 targets = self.distribution_targets(uid)
                 if uid == "all":
@@ -692,7 +698,7 @@ class Dashboard:
             if fleet_name:
                 await self.converge_device_patch(uid, fleet_name, ws)
             else:
-                await self.broadcast("state", self.state.public())
+                await self.broadcast("state")
         elif kind == "add_patch":
             user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
             selector = "all" if uid in (None, "all") else self.selector(uid)
@@ -788,7 +794,7 @@ class Dashboard:
             await self.broadcast("distribution", await self.catalog())
             # Host edits can change the live desired fingerprint without a node
             # event. Re-emit state so per-device badges immediately expose drift.
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "set_master":
             master = self.state.clean_master(data.get("value"))
             self.state.data["master"] = master
@@ -808,7 +814,7 @@ class Dashboard:
             ms = min(max(ms, 0), 10000)
             self.state.data["event_lead_ms"] = ms
             self.state.save_debounced()
-            await self.broadcast("state", await self.public_state())
+            await self.broadcast("state")
         elif kind == "fire_event":
             event, error = self.validate_event_command(data)
             if error is not None:
@@ -885,7 +891,7 @@ class Dashboard:
                 await self.ws_error(ws, str(error))
                 return
             self.refresh_preset_dirtiness()
-            await self.broadcast("state", await self.public_state())
+            await self.broadcast("state")
         elif kind == "mute_all":
             value = int(bool(data.get("value")))
             self.state.data["muted"] = bool(value)
@@ -909,7 +915,7 @@ class Dashboard:
                             ws, "Stopping a running simulation requires confirmation.")
                         return
                     await self.stop_simulation()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "set_edit":
             async with self.supervisor_lock:
                 active = bool(data.get("active"))
@@ -928,7 +934,7 @@ class Dashboard:
                     await self.start_edit(str(data.get("patch", "")).strip() or None)
                 else:
                     await self.stop_edit()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind in ("restart_edit", "relaunch_edit"):
             async with self.supervisor_lock:
                 if self.supervisor_mode == "edit":
@@ -947,7 +953,7 @@ class Dashboard:
                         self.osc.send_editor_element(point_element)
                         for point in scratch_points.values():
                             self.osc.send_editor_point(point)
-                    await self.broadcast("state", self.state.public())
+                    await self.broadcast("state")
         elif kind == "add_seat":
             seat_id = self.state.clean_seat_id(data.get("id"))
             if seat_id is None:
@@ -967,20 +973,20 @@ class Dashboard:
             if self.state.data["simulation"].get("active"):
                 if self.supervisor_mode == "simulate":
                     await self.restart_simulation()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "create_group":
             group, error = self.state.create_group(data.get("name", ""))
             if error:
                 await self.ws_error(ws, error)
                 return
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
             await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "rename_group":
             group, error = self.state.rename_group(data.get("id"), data.get("name", ""))
             if error:
                 await self.ws_error(ws, error)
                 return
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
             await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "delete_group":
             group_id = self.state.clean_group_id(data.get("id"))
@@ -992,7 +998,7 @@ class Dashboard:
                 return
             for seat in affected:
                 self.sync_seat_groups(seat)
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
             await self.broadcast("show_warnings", self.show_warnings())
         elif kind == "set_seat_groups":
             seat, error = self.state.set_seat_groups(data.get("id"), data.get("groups"))
@@ -1000,7 +1006,7 @@ class Dashboard:
                 await self.ws_error(ws, error)
                 return
             self.sync_seat_groups(seat)
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "reindex_seat":
             seat, error = self.state.reindex_seat(data.get("id"), data.get("new_id"))
             if error:
@@ -1010,7 +1016,7 @@ class Dashboard:
             if self.state.data["simulation"].get("active"):
                 if self.supervisor_mode == "simulate":
                     await self.restart_simulation()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
             await self.broadcast("seat_reindexed", {
                 "old_id": data.get("id"), "new_id": seat["id"]})
         elif kind == "update_seat":
@@ -1027,7 +1033,7 @@ class Dashboard:
             self.state.seats[str(cleaned["id"])] = cleaned
             self.assign_seat(cleaned)
             self.state.save_debounced()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "remove_seat":
             seat = self.state.seats.get(str(data.get("id")))
             if seat is None:
@@ -1043,7 +1049,7 @@ class Dashboard:
             if self.state.data["simulation"].get("active"):
                 if self.supervisor_mode == "simulate":
                     await self.restart_simulation()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "bind_seat":
             seat = self.state.seats.get(str(data.get("id")))
             bind_uid = str(data.get("uid", ""))
@@ -1079,7 +1085,7 @@ class Dashboard:
             if source is not None:
                 self.mark_offline_revoking(bind_uid)
             self.assign_seat(seat)
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "unbind_seat":
             seat = self.state.seats.get(str(data.get("id")))
             if seat is not None:
@@ -1095,20 +1101,20 @@ class Dashboard:
                     await self.ws_error(ws, "Could not save the unassignment; no changes were made.")
                     return
                 self.mark_offline_revoking(previous)
-                await self.broadcast("state", self.state.public())
+                await self.broadcast("state")
         elif kind == "set_device_alias":
             alias, error = self.state.set_device_alias(
                 str(data.get("uid", "")), data.get("alias"))
             if error:
                 await self.ws_error(ws, error)
                 return
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "reset_device_alias":
             alias, error = self.state.reset_device_alias(str(data.get("uid", "")))
             if error:
                 await self.ws_error(ws, error)
                 return
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "forget_device":
             forget_uid = str(data.get("uid", ""))
             device = self.state.devices.get(forget_uid)
@@ -1130,7 +1136,7 @@ class Dashboard:
                         self.state.device_registry[forget_uid] = registry_entry
                     await self.ws_error(ws, "Could not forget the device; no changes were made.")
                     return
-                await self.broadcast("state", self.state.public())
+                await self.broadcast("state")
         elif kind == "forget_offline_unbound":
             bound = {seat.get("bound") for seat in self.state.seats.values()}
             removed = {}
@@ -1148,7 +1154,7 @@ class Dashboard:
                             self.state.device_registry[device_uid] = registry_entry
                     await self.ws_error(ws, "Could not forget offline devices; no changes were made.")
                     return
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
         elif kind == "set_listener":
             listener = self.state.clean_listener(data)
             if listener is None:
@@ -1238,7 +1244,7 @@ class Dashboard:
                         self.assign_seat(seat)
                         self.osc.request(seat["bound"], "patches")
                 self.osc.send_audition_listener()
-                await self.broadcast("state", self.state.public())
+                await self.broadcast("state")
                 await self.broadcast("venue_rebind", self.state.last_venue_rebind)
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
@@ -1319,7 +1325,7 @@ class Dashboard:
                 # The one transition that clears `current_show` without going
                 # through `set_current_show`, so it needs the same state
                 # broadcast for the same reason.
-                await self.broadcast("state", await self.public_state())
+                await self.broadcast("state")
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                            "current": self.state.data.get("current_show")})
         elif kind == "undo_show":
@@ -1403,7 +1409,7 @@ class Dashboard:
         # happened to fire one", which may be never. The enriched snapshot, not
         # the bare `state.public()`, because a client replaces `installation`
         # wholesale on `state` and the bare one carries no `live_controls`.
-        await self.broadcast("state", await self.public_state())
+        await self.broadcast("state")
 
     def show_warnings(self):
         """Derived, non-blocking authoring warnings for the loaded Show."""
@@ -2032,7 +2038,7 @@ class Dashboard:
         # A save is not an apply: it does not claim the target now carries the
         # preset, because it captured only what the operator chose to include.
         self.refresh_preset_dirtiness()
-        await self.broadcast("state", await self.public_state())
+        await self.broadcast("state")
 
     async def apply_preset(self, patch, name, scope, target_id,
                            duration_ms=None, curve=None, _seats=None,
@@ -2050,7 +2056,7 @@ class Dashboard:
                 seat["preset_dirty"] = False
             self.publish_editor_provenance()
             report = self._preset_report(patch, None, seats)
-            await self.broadcast("state", None)
+            await self.broadcast("state")
             await self.broadcast("preset_applied", report)
             return report
 
@@ -2207,7 +2213,7 @@ class Dashboard:
         # makes, then the report. The report is additive: it says what the
         # apply DID, while `state` is how every surface learns the new values
         # and provenance (07 needs both to render a card).
-        await self.broadcast("state", None)
+        await self.broadcast("state")
         report = self._preset_report(
             patch, document["name"], seats, target_counts, resolved["verdicts"])
         await self.broadcast("preset_applied", report)
@@ -2565,7 +2571,7 @@ class Dashboard:
         if ws is not None:
             await ws.send_json({"type": "manifest_saved", "data": response})
         await self.broadcast("distribution", await self.catalog())
-        await self.broadcast("state", self.state.public())
+        await self.broadcast("state")
 
     async def create_patch(self, data, ws):
         """Create a minimal patch and copy Bob's immutable stub when present."""
@@ -2638,13 +2644,13 @@ class Dashboard:
         generation = self.supersede_fleet_operation()
         self.stage_catalog_patch(item)
         self.state.save_debounced()
-        await self.broadcast("state", self.state.public())
+        await self.broadcast("state")
         await self.broadcast("distribution", await self.catalog())
         if generation != self.fleet_generation:
             return False
         if self.state.data["simulation"].get("active"):
             await self.restart_simulation()
-            await self.broadcast("state", self.state.public())
+            await self.broadcast("state")
             return True
 
         self.fleet_operation = self.spawn(
@@ -2780,7 +2786,7 @@ class Dashboard:
                 await self.ws_error(ws, str(error))
                 return False
         generation = self._supersede_device_operation(uid)
-        await self.broadcast("state", self.state.public())
+        await self.broadcast("state")
         if self.state.data["simulation"].get("active"):
             return True
         self.device_operations[uid] = self.spawn(self.converge_fleet_patch(
@@ -2832,7 +2838,7 @@ class Dashboard:
                 return
             self.fleet_retries[uid] = self.spawn(self.converge_fleet_patch(
                 item["name"], item["fingerprint"], [uid], {uid: base_url}, generation))
-        await self.broadcast("state", self.state.public())
+        await self.broadcast("state")
 
     async def switch_fleet_device(self, uid, name, generation):
         if generation != self.fleet_generation:
@@ -3019,7 +3025,7 @@ class Dashboard:
                                               engine_alive=None)
         self.set_supervisor_mode("off")
         self.restore_live_state()
-        await self.broadcast("state", self.state.public())
+        await self.broadcast("state")
 
     async def launch_supervisor(self, command, mode):
         self.supervisor_generation += 1

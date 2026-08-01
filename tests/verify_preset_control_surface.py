@@ -140,12 +140,15 @@ def make_fixture(root):
     return state_path, patch
 
 
+CONTROL_HOST = "#control-column-host"
+
+
 def surface(page):
     """The Control surface is mounted in this document since
     `3-iframe-retirement`. It is no longer a frame — but it is also no
     longer alone in its document, so every selector must be scoped to the
     Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
-    return page.locator("#control-column-host")
+    return page.locator(CONTROL_HOST)
 
 
 # The Control surface shares the dashboard document now, so the socket a
@@ -160,7 +163,29 @@ def wait_catalog(page, count):
         " === expected", arg=count, timeout=15000)
 
 
-def open_authoring(root):
+def bound(page, selector, handler):
+    """Wait for `selector`'s first match to carry a live `handler`.
+
+    Gotcha 16: waiting for the ELEMENT is not waiting for its handler.
+    `bindPresets` reassigns `ontoggle` and every `[data-preset-action]`
+    `onclick` after each heartbeat re-render, so a click resolved against a
+    freshly replaced node can land before that pass and silently do nothing.
+
+    The selector must be HOST-SCOPED (gotcha 17). `.live-preset-authoring` is a
+    component class and the dashboard document carries several — the Control
+    column's and `#device-control`'s at least, the latter in an inactive tab
+    where it still resolves (gotcha 8). A page-wide `document.querySelector`
+    here is answered by whichever happens to be first, so the wait can pass
+    while the element actually being clicked is still unbound. That is a
+    `47`-family flake with a green-looking wait in front of it.
+    """
+    page.wait_for_function(
+        "argument => !!document.querySelector(argument.selector)"
+        "?.[argument.handler]",
+        arg={"selector": selector, "handler": handler})
+
+
+def open_authoring(root, host=CONTROL_HOST):
     """Open the preset row's authoring disclosure.
 
     D8 (`08-control-tab-columns/4-n-columns/3-chrome-demotions`) demoted
@@ -172,24 +197,31 @@ def open_authoring(root):
     disclosure = root.locator(".live-preset-authoring").first
     if disclosure.evaluate("element => element.open"):
         return
-    # Gotcha 16: waiting for the ELEMENT is not waiting for its handler.
-    # `bindPresets` reassigns `ontoggle` after every heartbeat re-render, and a
-    # click that lands on an unbound disclosure opens it without the component
-    # recording that it is open — so the next re-render closes it again and the
-    # action click that follows times out. Under full-suite load that is the
-    # difference between a green run and a `47`-family flake.
     disclosure.locator("summary").wait_for()
-    root.page.wait_for_function(
-        """() => !!document.querySelector(
-          '.live-preset-authoring')?.ontoggle""")
+    bound(root.page, f"{host} .live-preset-authoring", "ontoggle")
     disclosure.locator("summary").click()
     disclosure.locator("[data-preset-action]").first.wait_for()
 
 
+def click_action(root, action, host=CONTROL_HOST):
+    """Click one demoted preset action, once it is bound.
+
+    `open_authoring` waits for the disclosure's binding, which says nothing
+    about the state of the render AFTER it — the caller's click re-resolves the
+    selector and may reach a node from a later, not-yet-bound pass. The action
+    buttons are reassigned in the same `bindPresets` sweep, so waiting on the
+    one about to be clicked is what actually closes the window.
+    """
+    open_authoring(root, host)
+    selector = f'{host} [data-preset-slot] [data-preset-action="{action}"]'
+    bound(root.page, selector, "onclick")
+    root.locator(
+        f'[data-preset-slot] [data-preset-action="{action}"]').click()
+
+
 def save_from_row(page, frame, name, exclude=()):
     """Drive the row's save drawer the way an operator does."""
-    open_authoring(frame)
-    frame.locator('[data-preset-slot] [data-preset-action="new"]').click()
+    click_action(frame, "new")
     drawer = frame.locator("[data-preset-drawer]")
     drawer.locator("[data-preset-name]").wait_for()
     drawer.locator("[data-preset-name]").fill(name)
@@ -398,9 +430,7 @@ def main():
                     " {scope:'seat', id:1, name:'depth', value:0.1})")
                 page.wait_for_function(
                     "() => installation.seats['1'].params.depth === 0.1")
-                open_authoring(frame)
-                frame.locator(
-                    '[data-preset-slot] [data-preset-action="new"]').click()
+                click_action(frame, "new")
                 omitted = frame.locator("[data-preset-drawer] .live-preset-omitted")
                 omitted.wait_for()
                 text = omitted.inner_text()
@@ -421,9 +451,7 @@ def main():
                     " {scope:'all', name:'density', value:0.42})")
                 page.wait_for_function(
                     "() => installation.seats['1'].params.density === 0.42")
-                open_authoring(frame)
-                frame.locator(
-                    '[data-preset-slot] [data-preset-action="save"]').click()
+                click_action(frame, "save")
                 picker = frame.locator("[data-preset-drawer] [data-preset-target]")
                 picker.wait_for()
                 check("the drawer names the preset it will overwrite",

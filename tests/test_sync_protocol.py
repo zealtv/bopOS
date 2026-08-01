@@ -47,7 +47,7 @@ class SyncProtocolTests(unittest.TestCase):
         sent, broadcasts = [], []
         bridge.send = lambda address, args: sent.append((address, args))
         bridge.broadcast = (
-            lambda kind, payload: broadcasts.append((kind, payload))
+            lambda kind, payload=None: broadcasts.append((kind, payload))
         )
 
         with (

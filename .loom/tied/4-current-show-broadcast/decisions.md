@@ -9,6 +9,18 @@ Two broadcasts, both `await self.broadcast("state", await self.public_state())`:
 * the `delete_show` branch that clears `current_show` inline without going
   through `set_current_show` at all.
 
+> **SUPERSEDED by thread `50-state-broadcast-argument` (2026-08-01).** The
+> paragraph below is wrong, and the "latent hazard" it names does not exist.
+> `Dashboard.broadcast` has opened with `if message_type == "state": data =
+> await self.public_state()` since `0551ae2` (2026-07-14), so **the payload
+> argument to a `state` broadcast is discarded** — bare, enriched and `None`
+> all deliver the same enriched snapshot. Measured against a fake client, not
+> read. The FIX below is correct and was genuinely needed: the two broadcasts
+> really were missing. Only this rationale, and the invitation to go "fix" 30
+> call sites that do nothing, are retracted. Thread 50 removed the discarded
+> argument at all 37 sites so a call site can no longer be misread this way,
+> and pinned the coercion in `tests/test_state_broadcast.py`.
+
 **The enriched `public_state()`, not the bare `state.public()`.** This is the
 one real choice in the stitch. A client replaces `installation` wholesale on
 `state` (`dashboard.js:140`), and `state.public()` returns `self.data`, which

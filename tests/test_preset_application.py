@@ -78,7 +78,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.dashboard.patches_dir = str(self.patches)
         self.dashboard.preset_store = preset_store.PresetStore(self.patches)
 
-        async def broadcast(kind, data):
+        async def broadcast(kind, data=None):
             self.broadcasts.append((kind, copy.deepcopy(data)))
 
         self.dashboard.broadcast = broadcast

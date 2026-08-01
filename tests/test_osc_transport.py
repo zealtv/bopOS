@@ -45,7 +45,7 @@ class OscTransportTests(unittest.IsolatedAsyncioTestCase):
         self.events = []
         self.bridge = OSCBridge(
             self.state,
-            lambda kind, data: self.events.append((kind, data)),
+            lambda kind, data=None: self.events.append((kind, data)),
             listen_port=15550,
             send_port=16660,
             target="255.255.255.255",

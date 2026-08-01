@@ -165,6 +165,22 @@ def make_fixture(root):
     return state_path, patch
 
 
+def bound(page, selector, handler):
+    """Wait for `selector`'s first match to carry a live `handler`.
+
+    Gotcha 16: waiting for the ELEMENT is not waiting for its handler.
+    `bindPresets` reassigns `ontoggle` and every `[data-preset-action]`
+    `onclick` after each heartbeat re-render, so a click resolved against a
+    freshly replaced node can land before that pass and silently do nothing.
+    The selector stays scoped to `#editor-params` (gotcha 17): the component
+    classes it names occur several times over in this document.
+    """
+    page.wait_for_function(
+        "argument => !!document.querySelector(argument.selector)"
+        "?.[argument.handler]",
+        arg={"selector": selector, "handler": handler})
+
+
 def open_authoring(page):
     """Open the editor row's preset authoring disclosure.
 
@@ -177,18 +193,27 @@ def open_authoring(page):
     disclosure = page.locator("#editor-params .live-preset-authoring").first
     if disclosure.evaluate("element => element.open"):
         return
-    # Gotcha 16: waiting for the ELEMENT is not waiting for its handler.
-    # `bindPresets` reassigns `ontoggle` after every heartbeat re-render, and a
-    # click that lands on an unbound disclosure opens it without the component
-    # recording that it is open — so the next re-render closes it again and the
-    # action click that follows times out. Under full-suite load that is the
-    # difference between a green run and a `47`-family flake.
+    # A click landing on an unbound disclosure opens it without the component
+    # recording that it is open, so the next re-render closes it again and the
+    # action click that follows times out — see `bound`.
     disclosure.locator("summary").wait_for()
-    page.wait_for_function(
-        """() => !!document.querySelector(
-          '#editor-params .live-preset-authoring')?.ontoggle""")
+    bound(page, "#editor-params .live-preset-authoring", "ontoggle")
     disclosure.locator("summary").click()
     disclosure.locator("[data-preset-action]").first.wait_for()
+
+
+def click_action(page, action):
+    """Click one demoted preset action, once it is bound.
+
+    `open_authoring` waits for the disclosure's binding, which says nothing
+    about the render AFTER it — the click re-resolves the selector and may
+    reach a node from a later, not-yet-bound `bindPresets` pass. Waiting on the
+    button actually about to be clicked is what closes that window.
+    """
+    open_authoring(page)
+    selector = f'#editor-params [data-preset-action="{action}"]'
+    bound(page, selector, "onclick")
+    page.click(selector)
 
 
 def main():
@@ -371,8 +396,7 @@ def main():
                 fingerprint_before = page.evaluate(
                     "() => installation.fleet_patch?.fingerprint")
 
-                open_authoring(page)
-                page.click('#editor-params [data-preset-action="new"]')
+                click_action(page, "new")
                 page.wait_for_selector("#editor-params [data-preset-name]")
                 page.fill("#editor-params [data-preset-name]", "Sculpt")
                 page.click("#editor-params [data-preset-commit]")
@@ -440,8 +464,7 @@ def main():
                       '#editor-params [data-preset-action="del"]')
                       && !document.querySelector(
                       '#editor-params [data-preset-action="del"]').disabled""")
-                open_authoring(page)
-                page.click('#editor-params [data-preset-action="del"]')
+                click_action(page, "del")
                 page.wait_for_function(
                     "() => (installation.preset_catalog?.alpha || []).length"
                     " === 0")

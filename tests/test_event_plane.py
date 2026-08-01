@@ -97,7 +97,7 @@ class EventPlaneTests(unittest.TestCase):
         dashboard.osc.fire_event.side_effect = [(1234, 25), (0, 0)]
         broadcasts = []
 
-        async def broadcast(kind, data):
+        async def broadcast(kind, data=None):
             broadcasts.append((kind, data))
 
         async def public_state():

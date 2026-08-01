@@ -399,14 +399,15 @@ remain the authority for a particular piece of work.
 >    `device_offline`), `installation.current_show` was stale indefinitely and
 >    the Monitor System panel read `none loaded` with a show loaded.
 >    `delete_show` clears the same field inline and needed the same broadcast.
->    The ruling worth carrying: **broadcast the ENRICHED `public_state()`, not
->    `state.public()`** — a client replaces `installation` wholesale on `state`
->    and the bare snapshot carries no `live_controls`, so the bare form would
->    have blanked the Control columns on every show load. Thirty of the
->    server's thirty-three `state` broadcasts still use the bare form; that
->    hazard is latent, unfixed, and named here rather than in a comment nobody
->    reads. A neighbour audit found no other verb broadcasting a plane other
->    than the one it mutated))) → `09-patches-deploy-row` →
+>    Its stated ruling — "broadcast the ENRICHED `public_state()`, not
+>    `state.public()`, and thirty of thirty-three call sites still carry the
+>    latent hazard" — is **RETRACTED by `50-state-broadcast-argument`
+>    (2026-08-01)**: `broadcast()` recomputes `public_state()` for the `state`
+>    type itself and **discards whatever the caller passed**, and has since
+>    `0551ae2` (2026-07-14), so no call site ever chose a payload and there was
+>    no hazard to be latent. The fix itself stands — the two broadcasts were
+>    genuinely missing. A neighbour audit found no other verb broadcasting a
+>    plane other than the one it mutated))) → `09-patches-deploy-row` →
 >    `11-ground-and-card-audit`.
 >    **`08-control-tab-columns` is TIED (2026-07-31)** — all four `4-n-columns`
 >    children and the whole thread. The Control tab is N independently targeted
@@ -605,14 +606,40 @@ a real regression hides among the drift.)
    later session hunting a fixed bug — the note in the tied stitch's
    `decisions.md` records why it can look red on one machine and green on
    another.*
-12. **`47-live-param-kinds-flake`** — `tests/verify_live_param_kinds.py` fails
-   intermittently in `tools/run-tests.sh browser` on its two slider
-   assertions, and only under full-suite load (confirmed pre-existing on clean
-   `main`, 2026-07-28). Same family as the tied `46-control-surface-probe-race`:
-   a Playwright step racing the heartbeat re-render, suspect being gotcha (16)
-   — actionability passing is not the handler being bound. Diagnose before
-   fixing; if it turns out to be a real binding window in `control-surface.js`,
-   it is an operator-facing defect, not a test bug.
+12. **Complete — `47-live-param-kinds-flake`** (tied, commit `edb0a5f`). The
+   suspicion was right: it was an **operator-facing defect, not a test bug**.
+   `renderCards()` replaces the live-card DOM every heartbeat, and the host
+   suppressed that only from pointerdown through the click — keyboard or
+   programmatic focus has no pointerdown, so a focused range could be replaced
+   out from under the operator, losing focus and the pending key. The component
+   now holds the render guard while a live control is keyboard-focused.
+   *This entry described 47 as open and undiagnosed until 2026-08-01, long
+   after it shipped — the same stale-record pathology as item 11 above.*
+   **The `47` family is not closed as a class.** Thread `50` met another
+   instance in a helper written to fix the first one: a gotcha-16 binding wait
+   that reached page-wide (`document.querySelector('.live-preset-authoring')`)
+   while the click was host-scoped, so the wait was answerable by a *different*
+   card — gotcha 17 hiding inside a gotcha-16 fix, which is worse than no wait,
+   because it looks handled. When hardening one of these, the binding wait and
+   the click must name the **same** host-scoped element, and the wait must be on
+   the element about to be clicked, not on an ancestor bound in the same sweep.
+   `50` also measured the suite honestly — four full runs, **three different
+   journeys failed across them, one run green** — and caught a clean-tree
+   failure on a genuinely different mechanism, now
+   **`51-control-column-first-render-flake`** (below).
+13. **`51-control-column-first-render-flake`** — `verify_show_capture.py`
+   intermittently times out waiting for the Control tab's default column to
+   paint its first card (`#control-column-host .live-card[data-live-scope="all"]`
+   never visible, 15 s, with `#ws-status.online` already satisfied). Full-suite
+   load only; passes standalone. **Not** a binding race — the element never
+   appears — so `50`'s helper fix does not address it. Two candidate gates, both
+   deliberate and both correct as written: `venueKnown` (`control-host.js:276`,
+   first render waits for `state`, and `device_update` must not substitute) and
+   `isInteracting` (`control-column.js:354`, which `47` widened to keyboard
+   focus). Instrument to tell them apart before changing anything: the first is
+   a test that needs a better wait, the second would be an operator-facing
+   defect — a Control tab that silently never paints. Do not lengthen the
+   timeout.
 
 ### Tier 3 — desktop UI overhaul + architecture review (reordered to the front, 2026-07-27)
 
@@ -1047,7 +1074,19 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   having changed nothing because of it. Ask the structural question —
   `element.closest('details:not([open]) > :not(summary), details:not([open]) >
   :not(summary) *')` — or use Playwright's own `is_visible()`, which gets it
-  right.
+  right; (22) **a gotcha-16 binding wait that is not host-scoped is worse than
+  no wait at all.** Thread `50` found `open_authoring` in
+  `verify_preset_control_surface.py` waiting on
+  `document.querySelector('.live-preset-authoring')?.ontoggle` page-wide while
+  clicking an element scoped to `#control-column-host`. `.live-preset-authoring`
+  is a component class, `#device-control` carries one too, and an inactive tab
+  still resolves (gotcha 8) — so the wait was routinely satisfied by a card
+  nobody was clicking, and passed while the real target was unbound. Gotcha 17
+  *inside* a gotcha-16 fix, wearing the disguise of a handled race. Two rules:
+  the wait and the click must name the **same** host-scoped element, and the
+  wait must be on the element **about to be clicked** — waiting on an ancestor
+  bound in the same `bindPresets` sweep does not cover a re-render that happens
+  between the wait returning and the click resolving.
 
 **Historical tied guards:** `.loom/tied/` is preserved authoring and decision
 evidence, not a regression suite. Routine and pre-tie checks use

@@ -504,7 +504,7 @@ class OSCBridge:
         args = value if isinstance(value, list) else [value]
         self.send(f"/{selector}/p/{name}", args)
         if changed:
-            self.broadcast("state", self.state.public())
+            self.broadcast("state")
 
     def _selector_seats(self, selector):
         value = str(selector)
@@ -1247,7 +1247,7 @@ class OSCBridge:
                 # Converge that host-global identity state immediately so
                 # Rename/Reset semantics do not depend on discovery preceding
                 # the WebSocket connection.
-                self.broadcast("state", self.state.public())
+                self.broadcast("state")
             if first_seen or not old["online"]:
                 self.state.save_debounced()
                 # Asset inventory is useful for assigned and unassigned

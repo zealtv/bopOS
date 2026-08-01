@@ -23,7 +23,7 @@ class MonitorProbeTests(unittest.IsolatedAsyncioTestCase):
         }
         self.bridge = OSCBridge(
             SimpleNamespace(devices={"device-1": device}, data={}),
-            lambda kind, data: self.broadcasts.append((kind, data)),
+            lambda kind, data=None: self.broadcasts.append((kind, data)),
             15550, 16660, "127.0.0.1")
         self.bridge.send_physical = mock.Mock()
 
