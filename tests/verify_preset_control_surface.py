@@ -4,10 +4,10 @@ and the Device panel (`41-preset-primitive/07-control-device-ui`).
 
 What this pins, each one a ruling:
 
-  * a preset APPLIES from the row's dropdown, through the one server-side
+  * a preset APPLIES from the row's menu, through the one server-side
     application core, and the card then states its provenance;
   * moving a parameter afterwards makes the provenance derived-dirty -- the
-    `Dawn *` asterisk -- without anything being stored to say so;
+    leading `* Dawn` asterisk -- without anything being stored to say so;
   * a card whose targets carry different presets says `mixed`, the same idiom
     a mixed aggregate value uses;
   * SAVE captures everything by default, offers per-row include/exclude, and
@@ -171,7 +171,7 @@ def bound(page, selector, handler):
     `onclick` after each heartbeat re-render, so a click resolved against a
     freshly replaced node can land before that pass and silently do nothing.
 
-    The selector must be HOST-SCOPED (gotcha 17). `.live-preset-authoring` is a
+    The selector must be HOST-SCOPED (gotcha 17). `.preset-menu` is a
     component class and the dashboard document carries several — the Control
     column's and `#device-control`'s at least, the latter in an inactive tab
     where it still resolves (gotcha 8). A page-wide `document.querySelector`
@@ -185,20 +185,13 @@ def bound(page, selector, handler):
         arg={"selector": selector, "handler": handler})
 
 
-def open_authoring(root, host=CONTROL_HOST):
-    """Open the preset row's authoring disclosure.
-
-    D8 (`08-control-tab-columns/4-n-columns/3-chrome-demotions`) demoted
-    `new`/`save`/`del` behind one `<details>`; the `<select>` stayed in the row
-    because applying is the live act. Assertions that only READ a button still
-    work closed — a hidden element still reports its `disabled` — but a click
-    has to open the menu, exactly as an operator does.
-    """
-    disclosure = root.locator(".live-preset-authoring").first
+def open_menu(root, host=CONTROL_HOST):
+    """Open the host-scoped shared recall/authoring menu."""
+    disclosure = root.locator(".preset-menu").first
     if disclosure.evaluate("element => element.open"):
         return
     disclosure.locator("summary").wait_for()
-    bound(root.page, f"{host} .live-preset-authoring", "ontoggle")
+    bound(root.page, f"{host} .preset-menu", "ontoggle")
     disclosure.locator("summary").click()
     disclosure.locator("[data-preset-action]").first.wait_for()
 
@@ -206,17 +199,24 @@ def open_authoring(root, host=CONTROL_HOST):
 def click_action(root, action, host=CONTROL_HOST):
     """Click one demoted preset action, once it is bound.
 
-    `open_authoring` waits for the disclosure's binding, which says nothing
+    `open_menu` waits for the disclosure's binding, which says nothing
     about the state of the render AFTER it — the caller's click re-resolves the
     selector and may reach a node from a later, not-yet-bound pass. The action
     buttons are reassigned in the same `bindPresets` sweep, so waiting on the
     one about to be clicked is what actually closes the window.
     """
-    open_authoring(root, host)
+    open_menu(root, host)
     selector = f'{host} [data-preset-slot] [data-preset-action="{action}"]'
     bound(root.page, selector, "onclick")
     root.locator(
         f'[data-preset-slot] [data-preset-action="{action}"]').click()
+
+
+def choose_preset(root, slug, host=CONTROL_HOST):
+    open_menu(root, host)
+    selector = f'{host} [data-preset-choice="{slug}"]'
+    bound(root.page, selector, "onclick")
+    root.locator(f'[data-preset-choice="{slug}"]').first.click()
 
 
 def save_from_row(page, frame, name, exclude=()):
@@ -344,31 +344,31 @@ def main():
                       repr(summary))
 
                 selected = frame.locator(
-                    '.live-card[data-live-scope="all"] [data-preset-select]')
+                    '.live-card[data-live-scope="all"] .preset-menu-current')
                 page.wait_for_function(
                     """() => {
-                      const select = document
-                        .querySelector('#control-column-host [data-preset-select]');
-                      return select && select.value === 'Dawn';
+                      const current = document
+                        .querySelector('#control-column-host .preset-menu-current');
+                      return current?.textContent === 'Dawn';
                     }""")
                 check("the row states the applied preset",
-                      selected.input_value() == "Dawn")
+                      selected.inner_text() == "Dawn")
 
-                # --- the dropdown itself applies (gotcha 16: wait for the
-                # handler, not the element -- bindPresets reassigns `onchange`
+                # --- the menu itself applies (gotcha 16: wait for the
+                # handler, not the element -- bindPresets reassigns `onclick`
                 # after every heartbeat re-render) ---
                 page.wait_for_function(
                     """() => {
                       const doc = document.querySelector('#control-column-host');
                       return !!doc?.querySelector(
-                        '.live-card[data-live-scope="all"] [data-preset-select]')
-                        ?.onchange;
+                        '.live-card[data-live-scope="all"] [data-preset-choice="Dusk"]')
+                        ?.onclick;
                     }""")
-                selected.select_option("Dusk")
+                choose_preset(frame, "Dusk")
                 page.wait_for_function(
                     "() => installation.seats['2'].applied_preset?.name"
                     " === 'Dusk'")
-                check("choosing a preset in the dropdown applies it",
+                check("choosing a preset in the menu applies it",
                       page.evaluate(
                           "() => installation.seats['1'].applied_preset?.name")
                       == "Dusk")
@@ -388,9 +388,8 @@ def main():
                 page.wait_for_function(
                     """() => {
                       const doc = document.querySelector('#control-column-host');
-                      const option = doc?.querySelector(
-                        '[data-preset-select] option[value="Dawn"]');
-                      return !!option && option.textContent.includes('*');
+                      const current = doc?.querySelector('.preset-menu-current');
+                      return current?.textContent.startsWith('* Dawn');
                     }""")
                 check("an edited target renders the derived-dirty asterisk",
                       True)
@@ -407,13 +406,12 @@ def main():
                 mixed = page.wait_for_function(
                     """() => {
                       const doc = document.querySelector('#control-column-host');
-                      const select = doc?.querySelector(
-                        '.live-card[data-live-scope="all"] [data-preset-select]');
-                      if (!select) return false;
-                      const placeholder = select.querySelector('option');
-                      return placeholder.disabled
-                        && placeholder.textContent.trim() === 'Dusk +1'
-                        && select.getAttribute('aria-label').includes('mixed');
+                      const menu = doc?.querySelector(
+                        '.live-card[data-live-scope="all"] .preset-menu');
+                      return menu?.querySelector('.preset-menu-current')
+                        ?.textContent.trim() === 'Dusk +1'
+                        && menu.querySelector('summary').getAttribute('aria-label')
+                          .includes('mixed');
                     }""")
                 # SUPERSEDED: this pinned the dotted `·····` placeholder until
                 # D6 (`08-control-tab-columns/1-columns-design`, Bob
@@ -509,6 +507,49 @@ def main():
                       not os.path.exists(
                           os.path.join(presets_dir, "Dusk.json")))
 
+                # --- long names keep state at the visible leading edge ---
+                long_name = (
+                    "A very long preset name whose visible state must never "
+                    "be ellipsised")
+                save_from_row(page, frame, long_name)
+                wait_catalog(page, 2)
+                long_entry = page.evaluate(
+                    "name => installation.preset_catalog.alpha"
+                    ".find(item => item.name === name)", long_name)
+                choose_preset(frame, long_entry["slug"])
+                page.wait_for_function(
+                    "name => installation.seats['1'].applied_preset?.name"
+                    " === name", arg=long_name)
+                inner(page).evaluate(
+                    "() => ws.send('set_live_param',"
+                    " {scope:'all', name:'density', value:0.17})")
+                page.wait_for_function(
+                    "() => installation.seats['1'].preset_dirty"
+                    " === 'deviated'")
+                long_state = frame.locator(
+                    '.live-card[data-live-scope="all"] .preset-menu-current')
+                metrics = long_state.evaluate(
+                    "node => ({text:node.textContent, client:node.clientWidth,"
+                    " scroll:node.scrollWidth})")
+                check("a truncated long preset keeps the dirty mark visible",
+                      metrics["text"].startswith("* ")
+                      and metrics["scroll"] > metrics["client"], repr(metrics))
+
+                # A file disappearing and a value moving are different states,
+                # with different operator responses in the same menu.
+                os.remove(os.path.join(presets_dir, long_entry["slug"] + ".json"))
+                page.wait_for_function(
+                    "() => installation.seats['1'].preset_dirty === 'missing'",
+                    timeout=15000)
+                missing = frame.locator(
+                    '.live-card[data-live-scope="all"] .preset-menu-missing')
+                check("a missing applied preset is not presented as an edit",
+                      missing.count() == 1
+                      and missing.locator(".preset-menu-current")
+                          .inner_text().startswith("⚠ ")
+                      and "can no longer be read" in missing.locator(
+                          ".preset-menu-state").inner_text())
+
                 # --- the standalone facilitator has no preset affordance ---
                 tablet = browser.new_page(viewport={"width": 1024,
                                                     "height": 768})
@@ -560,7 +601,8 @@ def main():
                 check("applying stays offered offline",
                       not page.evaluate(
                           "() => document.querySelector("
-                          "'#device-control [data-preset-select]').disabled"))
+                          "'#device-control [data-preset-choice=\"Dawn\"]')"
+                          ".disabled"))
 
                 check("no page errors", not errors, repr(errors))
                 browser.close()

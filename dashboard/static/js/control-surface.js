@@ -266,9 +266,9 @@
     // like the generator drawer's drafts.
     const openSaveDrawers = new Map();
     const saveExclusions = new Map();
-    // D8 (`08/4/3-chrome-demotions`): `new`/`save`/`del` are AUTHORING and sit
-    // behind one disclosure; the `<select>` stays in the row because applying
-    // is the live act. Which rows have that disclosure open is the same kind of
+    // D8 (`08/4/3-chrome-demotions`) first put `new`/`save`/`del` behind an
+    // authoring disclosure. `53-ui-niggles/3` takes the next step and merges
+    // that disclosure with recall into one menu. Which rows have it open is the same kind of
     // heartbeat-surviving host state as the drawer above, and it belongs to the
     // COMPONENT rather than to any one host — a per-host fork here is the thing
     // this thread exists to delete, so Control, the Device panel and the patch
@@ -298,8 +298,9 @@
         return {preset: null, dirty: false, mixed: true,
                 mixedLabel: `${lead} +${distinct.length - 1}`};
       }
+      const reasons = [...new Set(members.map(seat => seat.preset_dirty).filter(Boolean))];
       return {preset: members[0].applied_preset || null,
-              dirty: members.some(seat => !!seat.preset_dirty), mixed: false};
+              dirty: reasons.length > 0, reasons, mixed: false};
     }
 
     // The apply report is one compact line with a disclosure — never a modal
@@ -382,20 +383,30 @@
       // when the node returns. Capturing from a target you cannot hear is not
       // (F8), so save/new/del follow their own gate.
       const saveOff = disabled || !!options.saveDisabled;
-      const off = disabled ? " disabled" : "";
-      const options_ = catalog.map(entry => {
-        if (!entry.valid) {
-          return `<option value="${esc(entry.slug)}" disabled>${esc(entry.slug)} — unreadable</option>`;
-        }
-        const marks = `${entry.slug === appliedSlug && provenance.dirty ? " *" : ""}${entry.drift ? " ⚠" : ""}`;
-        return `<option value="${esc(entry.slug)}"${entry.slug === appliedSlug ? " selected" : ""}>${esc(entry.name)}${marks}</option>`;
+      const reasons = new Set(provenance.reasons || []);
+      const foreign = reasons.has("foreign-patch");
+      const reason = reasons.has("missing") ? "missing"
+        : foreign ? "foreign-patch"
+        : reasons.has("deviated") ? "deviated" : "";
+      const choices = catalog.map(entry => {
+        const selected = entry.slug === appliedSlug;
+        const marks = `${selected && reason === "deviated" ? "* " : ""}${entry.drift ? "⚠ " : ""}`;
+        const inert = disabled || foreign || !entry.valid;
+        const label = entry.valid ? `${marks}${entry.name}` : `⚠ ${entry.slug} — unreadable`;
+        return `<button type="button" class="preset-menu-choice${selected ? " selected" : ""}" data-preset-choice="${esc(entry.slug)}" role="menuitemradio" aria-checked="${selected}"${inert ? " disabled" : ""}>${esc(label)}</button>`;
       }).join("");
-      const placeholder = provenance.mixed
-        ? `<option value="" selected disabled>${esc(provenance.mixedLabel || "·····")}</option>`
-        : `<option value=""${appliedSlug ? "" : " selected"}>— none —</option>`;
+      const current = provenance.mixed
+        ? provenance.mixedLabel || "·····"
+        : applied || "— none —";
+      const drifted = !!catalog.find(entry => entry.slug === appliedSlug)?.drift;
+      const currentMark = (reason === "deviated" ? "* "
+        : reason === "missing" ? "⚠ "
+        : reason === "foreign-patch" ? "↗ " : "") + (drifted ? "⚠ " : "");
       const selectLabel = provenance.mixed
         ? `preset, mixed across targets: ${provenance.mixedLabel || "several"}`
-        : provenance.dirty ? `preset ${applied}, edited since it was applied` : "preset";
+        : reason === "missing" ? `preset ${applied}, file missing or unreadable`
+        : reason === "foreign-patch" ? `preset ${applied}, target is running a different patch`
+        : reason === "deviated" ? `preset ${applied}, edited since it was applied` : "preset";
       const drift = catalog.find(entry => entry.slug === appliedSlug)?.drift
         ? '<span class="live-preset-drift" title="This preset was saved against a different parameter schema. Entries that no longer fit are dropped or clamped when it is applied.">schema changed</span>' : "";
       // `save` overwrites an EXISTING preset, so it needs one to exist -- not
@@ -405,9 +416,11 @@
       const savable = catalog.some(entry => entry.valid);
       const actions = PRESET_ACTIONS.map(action => {
         const inert = action === "del"
-          ? saveOff || !appliedSlug
-          : action === "save" ? saveOff || !savable : saveOff;
-        return `<button type="button" class="live-preset-action" data-preset-action="${action}"${inert ? " disabled" : ""}>${action}</button>`;
+          ? saveOff || foreign || !appliedSlug
+          : action === "save" ? saveOff || foreign || !savable : saveOff || foreign;
+        const icon = action === "new" ? "+" : action === "save" ? "↥" : "⌫";
+        const label = action === "del" ? "delete" : action;
+        return `<button type="button" class="live-preset-action" data-preset-action="${action}" role="menuitem"${inert ? " disabled" : ""}><span aria-hidden="true">${icon}</span>${label}</button>`;
       }).join("");
       const drawerMode = openSaveDrawers.get(key);
       const drawer = drawerMode && !saveOff ? saveDrawer(key, patch, drawerMode) : "";
@@ -415,17 +428,25 @@
       // whole installation, while every other control in this row acts on this
       // card's target. D8 asked for that to be made legible while it moved —
       // moved, not changed, so the button still does exactly what it did.
-      const authoring = `<details class="live-preset-authoring" data-preset-authoring="${esc(key)}"${
+      const stateNote = reason === "deviated" ? "Live values differ from this preset."
+        : reason === "missing" ? "This applied preset can no longer be read."
+        : reason === "foreign-patch" ? "This target is running a different patch; preset actions are unavailable."
+        : "";
+      const menu = `<details class="preset-menu icon-menu${reason ? ` preset-menu-${reason}` : ""}" data-preset-menu="${esc(key)}"${
         openPresetActions.has(key) ? " open" : ""}>
-        <summary title="Create, overwrite or delete presets">edit</summary>
-        <div class="live-preset-authoring-menu">${actions}
-          <small>new and save capture from this target. <b>del</b> removes the preset from ${esc(patch || "the patch")} for the whole installation.</small>
+        <summary aria-label="${esc(selectLabel)}" title="Choose or manage presets"><span class="preset-menu-current">${esc(currentMark + current)}</span><span class="preset-menu-caret" aria-hidden="true">▾</span></summary>
+        <div class="preset-menu-body" role="menu">
+          <div class="preset-menu-actions">${actions}</div>
+          <div class="preset-menu-divider" role="separator"></div>
+          <button type="button" class="preset-menu-choice${!provenance.mixed && !applied ? " selected" : ""}" data-preset-choice="" role="menuitemradio" aria-checked="${!provenance.mixed && !applied}"${disabled || foreign ? " disabled" : ""}>— none —</button>
+          ${choices || '<span class="preset-menu-empty">No saved presets</span>'}
+          ${stateNote ? `<small class="preset-menu-state">${esc(stateNote)}</small>` : ""}
+          <small>new and save capture from this target. <b>delete</b> removes the preset from ${esc(patch || "the patch")} for the whole installation.</small>
         </div>
       </details>`;
-      return `<div class="live-preset-row" data-preset-slot data-preset-key="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-preset-patch="${esc(patch || "")}">
+      return `<div class="live-preset-row" data-preset-slot data-preset-key="${esc(key)}" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-preset-patch="${esc(patch || "")}" data-preset-applied="${esc(appliedSlug)}">
         <span class="live-preset-patch">${esc(patch || "no patch")}</span>
-        <select class="live-preset-select" data-preset-select aria-label="${esc(selectLabel)}"${off}>${placeholder}${options_}</select>
-        ${drift}${authoring}
+        ${menu}${drift}
       </div>${drawer}${presetReport(key, members || [])}`;
     }
 
@@ -436,18 +457,20 @@
         const scope = row.dataset.liveScope;
         const id = row.dataset.liveId == null ? null : row.dataset.liveId;
         const catalog = catalogFor(patch);
-        const select = row.querySelector("[data-preset-select]");
-        const selected = () => catalog.find(entry => entry.slug === select?.value) || null;
-        if (select) select.onchange = () => {
-          const entry = selected();
+        const selected = button => catalog.find(entry => entry.slug === button?.dataset.presetChoice) || null;
+        row.querySelectorAll("[data-preset-choice]").forEach(button => {
+          button.onclick = () => {
+            const entry = selected(button);
           // The empty option is an explicit recall-none: it clears provenance
           // rather than pretending some preset is still applied.
-          context.applyPreset?.({scope, id, patch, name: entry ? entry.name : null});
-        };
+            openPresetActions.delete(key);
+            context.applyPreset?.({scope, id, patch, name: entry ? entry.name : null});
+          };
+        });
         row.querySelectorAll("[data-preset-action]").forEach(button => {
           button.onclick = () => {
             const action = button.dataset.presetAction;
-            const entry = selected();
+            const entry = catalog.find(item => item.slug === row.dataset.presetApplied) || null;
             if (action === "del") {
               if (!entry || !window.confirm(`Delete preset "${entry.name}"?`)) return;
               context.deletePreset?.({patch, slug: entry.slug, revision: entry.revision});
@@ -467,7 +490,7 @@
             context.requestRender?.();
           };
         });
-        const authoring = row.querySelector("[data-preset-authoring]");
+        const authoring = row.querySelector("[data-preset-menu]");
         // A `<details>` fires `toggle` for a re-render that changed nothing
         // (`08/4/1`), which is harmless here: the handler only mirrors the
         // element's own state into the set it was rendered from.
@@ -476,7 +499,6 @@
           else openPresetActions.delete(key);
         };
       });
-
       root.querySelectorAll("[data-preset-drawer]").forEach(drawer => {
         const key = drawer.dataset.presetDrawer;
         const row = root.querySelector(`[data-preset-key="${CSS.escape(key)}"]`);

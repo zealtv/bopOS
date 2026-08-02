@@ -1,0 +1,121 @@
+/* PresetMenu (`53-ui-niggles/3-preset-dropdown-menu`). Recall and authoring
+   share one disclosure because a native select cannot carry commands, icons,
+   or a reliable divider. The component owns its entire face; hosts only place
+   `.live-preset-row` around it in control-panel.css. */
+
+.preset-menu {
+  position:relative;
+  flex:none;
+  min-width:0;
+}
+.preset-menu > summary {
+  display:flex;
+  align-items:center;
+  gap:4px;
+  max-width:132px;
+  min-height:20px;
+  padding:1px 4px 1px 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  background:var(--input);
+  color:var(--text);
+  font-size:12px;
+  line-height:1;
+}
+.preset-menu[open] > summary,
+.preset-menu > summary:hover {
+  background:var(--hover);
+}
+.preset-menu-current {
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.preset-menu-caret {
+  flex:none;
+  color:var(--dim);
+  font-size:9px;
+}
+.preset-menu-deviated > summary,
+.preset-menu-missing > summary,
+.preset-menu-foreign-patch > summary {
+  border-color:var(--status-warn-border,var(--amber));
+  color:var(--status-warn-text,var(--amber));
+}
+.preset-menu-body {
+  position:absolute;
+  right:0;
+  top:22px;
+  z-index:4;
+  width:230px;
+  display:grid;
+  gap:2px;
+  padding:var(--gap);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-control);
+  background:var(--panel-strong);
+  box-shadow:0 2px 8px rgb(0 0 0 / .28);
+}
+.preset-menu-actions {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:var(--gap);
+}
+.preset-menu .live-preset-action,
+.preset-menu-choice {
+  min-width:0;
+  min-height:24px;
+  padding:3px 6px;
+  border:1px solid transparent;
+  border-radius:var(--radius-momentary);
+  background:transparent;
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  letter-spacing:normal;
+  text-transform:none;
+}
+.preset-menu .live-preset-action {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  border-color:var(--control-line);
+  background:var(--control);
+}
+.preset-menu-choice {
+  width:100%;
+  text-align:left;
+}
+.preset-menu-choice:hover:not(:disabled),
+.preset-menu-choice.selected {
+  background:var(--hover);
+}
+.preset-menu-choice.selected {
+  color:var(--accent-soft);
+  font-weight:700;
+}
+.preset-menu-divider {
+  height:1px;
+  margin:4px 0;
+  background:var(--group-line);
+}
+.preset-menu small,
+.preset-menu-empty {
+  display:block;
+  margin-top:4px;
+  color:var(--dim);
+  font-size:11px;
+  line-height:1.35;
+}
+.preset-menu-state {
+  padding:5px 6px;
+  border-left:2px solid var(--status-warn-border,var(--amber));
+  background:var(--status-warn-bg,var(--warning-bg));
+  color:var(--status-warn-text,var(--amber));
+}
+.preset-menu :disabled {
+  opacity:.5;
+  cursor:not-allowed;
+}

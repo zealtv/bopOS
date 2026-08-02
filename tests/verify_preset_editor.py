@@ -181,23 +181,16 @@ def bound(page, selector, handler):
         arg={"selector": selector, "handler": handler})
 
 
-def open_authoring(page):
-    """Open the editor row's preset authoring disclosure.
-
-    D8 (`08-control-tab-columns/4-n-columns/3-chrome-demotions`) demoted
-    `new`/`save`/`del` behind one `<details>` ON THE COMPONENT, so the patch
-    editor inherits the demotion along with Control and the Device panel — the
-    per-host fork this thread exists to delete. Reads still work closed; clicks
-    open the menu first, as an operator does.
-    """
-    disclosure = page.locator("#editor-params .live-preset-authoring").first
+def open_menu(page):
+    """Open the editor row's shared recall/authoring menu."""
+    disclosure = page.locator("#editor-params .preset-menu").first
     if disclosure.evaluate("element => element.open"):
         return
     # A click landing on an unbound disclosure opens it without the component
     # recording that it is open, so the next re-render closes it again and the
     # action click that follows times out — see `bound`.
     disclosure.locator("summary").wait_for()
-    bound(page, "#editor-params .live-preset-authoring", "ontoggle")
+    bound(page, "#editor-params .preset-menu", "ontoggle")
     disclosure.locator("summary").click()
     disclosure.locator("[data-preset-action]").first.wait_for()
 
@@ -205,12 +198,12 @@ def open_authoring(page):
 def click_action(page, action):
     """Click one demoted preset action, once it is bound.
 
-    `open_authoring` waits for the disclosure's binding, which says nothing
+    `open_menu` waits for the disclosure's binding, which says nothing
     about the render AFTER it — the click re-resolves the selector and may
     reach a node from a later, not-yet-bound `bindPresets` pass. Waiting on the
     button actually about to be clicked is what closes that window.
     """
-    open_authoring(page)
+    open_menu(page)
     selector = f'#editor-params [data-preset-action="{action}"]'
     bound(page, selector, "onclick")
     page.click(selector)
@@ -273,7 +266,7 @@ def main():
                 check("it is the ratified row anatomy",
                       [button.strip() for button in row.locator(
                           ".live-preset-action").all_text_contents()]
-                      == ["new", "save", "del"])
+                      == ["+new", "↥save", "⌫delete"])
 
                 # --- the whole editor panel is now the shared component ----
                 density = page.locator(
@@ -427,11 +420,10 @@ def main():
                 page.wait_for_function(
                     "() => installation.editor?.params?.density === 0.11")
                 drain(engine)
-                page.wait_for_function(
-                    """() => !!document.querySelector(
-                      '#editor-params [data-preset-select]')?.onchange""")
-                page.select_option("#editor-params [data-preset-select]",
-                                   "Sculpt")
+                open_menu(page)
+                bound(page, '#editor-params [data-preset-choice="Sculpt"]',
+                      "onclick")
+                page.click('#editor-params [data-preset-choice="Sculpt"]')
                 page.wait_for_function(
                     "() => installation.editor?.params?.density === 0.83")
                 frames = collect(engine, 1.0)

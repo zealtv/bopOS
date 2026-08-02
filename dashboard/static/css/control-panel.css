@@ -1033,7 +1033,7 @@
 
 /* ---- 16. The preset row (control-panel-design §1.2) ----------------------
    `7-preset-slot` designed it inert; `41-preset-primitive/07` and `/08` made
-   the same anatomy live. Patch name + preset dropdown + new/save/del, now on
+   the same anatomy live. Patch name + preset menu, now on
    the Control tab, the Device panel and the patch editor. The standalone
    facilitator carries no preset affordance at all (Bob's Q4 ruling).
 
@@ -1070,79 +1070,6 @@
   font-weight:700;
   white-space:nowrap;
   text-overflow:ellipsis;
-}
-.live-card .live-preset-select,
-.device-control .live-preset-select,
-#editor-params .live-preset-select {
-  max-width:110px;
-  min-height:20px;
-  padding:1px 4px;
-  border:1px solid var(--control-line);
-  border-radius:var(--radius-control);
-  background:var(--input);
-  color:var(--text);
-  font:inherit;
-  font-size:12px;
-}
-/* new/save/del act once each — momentary, so PD-bang rounded (§8). */
-.live-card .live-preset-action,
-.device-control .live-preset-action,
-#editor-params .live-preset-action {
-  min-height:20px;
-  padding:2px 6px;
-  border:1px solid var(--control-line);
-  border-radius:var(--radius-momentary);
-  background:var(--control);
-  color:var(--text);
-  font:inherit;
-  font-size:12px;
-  text-transform:none;
-  letter-spacing:normal;
-}
-/* D8 demoted the three of them behind one disclosure. Like the card's ⋯ the
-   menu is absolute, so authoring never pushes the parameter rows down, and it
-   opens rightwards from a row whose left is the patch name. */
-.live-preset-authoring {
-  position:relative;
-  flex:none;
-}
-/* The ▸/▾ marker, the flex row and the pointer come from `style.css` §9's
-   app-wide disclosure base; this is the button face over the top of it. */
-.live-preset-authoring > summary {
-  min-height:20px;
-  padding:2px 6px;
-  border:1px solid var(--control-line);
-  border-radius:var(--radius-momentary);
-  background:var(--control);
-  color:var(--text);
-  font-size:12px;
-  line-height:1;
-}
-.live-preset-authoring[open] > summary {
-  background:var(--hover);
-}
-.live-preset-authoring-menu {
-  position:absolute;
-  right:0;
-  top:calc(20px + 2px);
-  z-index:3;
-  width:190px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:var(--gap);
-  padding:var(--gap);
-  border:1px solid var(--group-line);
-  border-radius:var(--radius-control);
-  background:var(--panel-strong);
-  box-shadow:0 2px 8px rgb(0 0 0 / .28);
-}
-/* The scope note is the legibility D8 asked for: every other control in this
-   row acts on the card's target, and `del` acts on the whole installation. */
-.live-preset-authoring-menu small {
-  flex-basis:100%;
-  color:var(--dim);
-  font-size:11px;
-  line-height:1.35;
 }
 /* Disabled reads as unavailable, not as broken chrome. */
 .live-card .live-preset-row :disabled,

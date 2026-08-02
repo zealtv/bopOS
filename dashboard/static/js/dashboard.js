@@ -974,7 +974,7 @@ function renderEditor() {
     automation_key:"editor",
     params:editor.params||{},
     applied_preset:editor.applied_preset||null,
-    preset_dirty:!!editor.preset_dirty,
+    preset_dirty:editor.preset_dirty||null,
   };
   // The sculpt→save workflow (41-preset-primitive/08). The editor drives its
   // own audition engine on selector 0, so the row targets scope "editor" and

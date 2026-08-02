@@ -43,6 +43,7 @@ COMPONENTS = {
     "patch-editor": [".params"],
     "show-inspector": [".show-inspector-section", ".show-param"],
     "target-picker": [".target-picker", ".target-chip"],
+    "preset-menu": [".preset-menu"],
     "control-column": [".control-column"],
 }
 

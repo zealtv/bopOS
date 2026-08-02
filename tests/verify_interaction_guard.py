@@ -161,8 +161,8 @@ def was_replaced(page, selector):
 
 
 def open_preset_drawer(page):
-    disclosure = page.locator(f"{HOST} .live-preset-authoring").first
-    bound(page, f"{HOST} .live-preset-authoring", "ontoggle")
+    disclosure = page.locator(f"{HOST} .preset-menu").first
+    bound(page, f"{HOST} .preset-menu", "ontoggle")
     disclosure.locator("summary").click()
     bound(page, f'{HOST} [data-preset-action="new"]', "onclick")
     page.locator(f'{HOST} [data-preset-action="new"]').first.click()

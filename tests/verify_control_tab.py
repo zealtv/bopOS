@@ -316,28 +316,19 @@ def main():
                 check("the preset row names the live patch",
                       slot.locator(".live-preset-patch").inner_text().strip()
                       == "alpha")
-                check("it offers the ratified preset controls",
-                      slot.locator(".live-preset-select").count() == 1
+                check("it offers one shared recall and authoring menu",
+                      slot.locator(".preset-menu").count() == 1
                       and [button.strip() for button in slot.locator(
                           ".live-preset-action").all_text_contents()]
-                      == ["new", "save", "del"])
-                # D8 (`4-n-columns/3-chrome-demotions`): the three of them are
-                # AUTHORING and sit behind one disclosure, while the `<select>`
-                # stays in the row because applying is the live act. Closed by
-                # default, and closed is what the operator sees at rest.
-                check("new/save/del are demoted behind one closed disclosure",
-                      slot.locator(".live-preset-authoring").count() == 1
-                      and slot.locator(".live-preset-authoring[open]").count()
+                      == ["+new", "↥save", "⌫delete"])
+                check("the preset menu is closed at rest",
+                      slot.locator(".preset-menu[open]").count()
                       == 0
                       and slot.locator(
-                          '.live-preset-authoring [data-preset-action]')
+                          '.preset-menu [data-preset-action]')
                       .count() == 3
                       and not slot.locator(
                           '[data-preset-action="new"]').is_visible())
-                check("the select stays in the row, outside the disclosure",
-                      slot.locator(
-                          ".live-preset-authoring .live-preset-select")
-                      .count() == 0)
                 placement = page.evaluate(
                     """() => {
                       const card = document.querySelector(
