@@ -81,10 +81,10 @@
   padding: var(--pad-control);
 }
 
-/* The per-Seat device-setup disclosure — REMOTE ONLY since D8 shipped in
+/* The per-target device-command disclosure — REMOTE ONLY since D8 shipped in
    `4-n-columns/3-chrome-demotions`. The Control column renders nothing here and
    hands off to the Devices tab instead; Remote, an iPad away from the rack, is
-   where a per-device reboot earns its place, so the rules stay. They are still
+   where selector-targeted lifecycle verbs earn their place, so the rules stay. They are still
    in this file rather than in `index.html`'s stylesheets because that document
    no longer draws this at all. */
 .control-column .device-commands {

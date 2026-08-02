@@ -69,7 +69,7 @@
     // it the latching square radius (and announces a state it does not have).
     if (closeButton) closeButton.onclick = () => onRemove();
 
-    const openCommandDevices = new Set();
+    const openCommandTargets = new Set();
     const openOverflows = new Set();
     const capturePreviews = new Map();
     let pendingPreview = null;
@@ -304,16 +304,17 @@
         : command.replaceAll("-", " ").replaceAll("_", " ");
     }
 
-    // Remote only, since D8. On an iPad away from the rack a per-device reboot
-    // earns its place; inside a live parameter panel on the desk it is three
-    // hold-to-confirm buttons one disclosure from the faders, times N cards
-    // times N columns, for something the Devices tab owns.
-    function deviceCommands(device) {
-      if (!showDeviceCommands || !device) return "";
+    // Remote only, since D8. Framework verbs are selector-targeted just like
+    // the card's params and events: All, group and Seat each keep their own
+    // command disclosure. Desktop Control still hands exact-device lifecycle
+    // work to the Devices tab.
+    function targetCommands(scope, targetId) {
+      if (!showDeviceCommands) return "";
+      const key = `${scope}:${targetId ?? "all"}`;
       const commands = (state().facilitator_commands || []).map(command =>
-        `<button data-device-command="${esc(command)}" data-uid="${esc(device.uid)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("");
+        `<button data-target-command="${esc(command)}" data-live-scope="${esc(scope)}"${targetId == null ? "" : ` data-live-id="${esc(targetId)}"`} class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("");
       if (!commands) return "";
-      return `<details class="device-commands" data-command-uid="${esc(device.uid)}" ${openCommandDevices.has(device.uid) ? "open" : ""}><summary>Device setup</summary><div>${commands}</div></details>`;
+      return `<details class="device-commands" data-command-key="${esc(key)}" ${openCommandTargets.has(key) ? "open" : ""}><summary>Device commands</summary><div>${commands}</div></details>`;
     }
 
     function liveCard(scope, item, members, declarations, schemaAvailable, patch) {
@@ -346,7 +347,7 @@
       const identityCss = deriveAllTargets ? identityStyle(scope, targetId) : "";
       return `<article class="live-card ${scope}-card${identity}${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}"${identityCss} data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
         <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
-        ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}
+        ${presets}${controls}${targetCommands(scope, targetId)}
       </article>`;
     }
 
@@ -465,24 +466,29 @@
       cards.querySelectorAll("[data-open-device]").forEach(button => {
         button.onclick = () => openDevice?.(button.dataset.openDevice);
       });
-      cards.querySelectorAll("[data-device-command]").forEach(button =>
-        bindCommandButton(button, button.dataset.uid));
-      cards.querySelectorAll("details[data-command-uid]").forEach(details => {
+      cards.querySelectorAll("[data-target-command]").forEach(button =>
+        bindCommandButton(button));
+      cards.querySelectorAll("details[data-command-key]").forEach(details => {
         details.ontoggle = () => {
-          if (details.open) openCommandDevices.add(details.dataset.commandUid);
-          else openCommandDevices.delete(details.dataset.commandUid);
+          if (details.open) openCommandTargets.add(details.dataset.commandKey);
+          else openCommandTargets.delete(details.dataset.commandKey);
         };
       });
     }
 
-    function bindCommandButton(button, uid) {
-      const command = button.dataset.deviceCommand;
-      const device = state().devices?.[uid];
-      const target = device?.alias || "device";
+    function bindCommandButton(button) {
+      const command = button.dataset.targetCommand;
+      const card = button.closest(".live-card");
+      const target = card?.querySelector(".name strong")?.textContent || "target";
+      const payload = {
+        scope: button.dataset.liveScope,
+        ...(button.dataset.liveId == null ? {} : {id: Number(button.dataset.liveId)}),
+        verb: command,
+      };
       if (!destructiveCommands.has(command)) {
         button.onclick = () => {
           if (window.confirm(`${commandLabel(command)} ${target}?`)) {
-            sendCommand?.({uid, verb: command});
+            sendCommand?.(payload);
           }
         };
         return;
@@ -498,7 +504,7 @@
         timer = setTimeout(() => {
           timer = null;
           button.classList.remove("holding");
-          sendCommand?.({uid, verb: command});
+          sendCommand?.(payload);
         }, 1200);
       };
       button.onpointerup = cancel;

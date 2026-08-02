@@ -23,8 +23,7 @@ class RemoteLiveBarTests(unittest.TestCase):
         self.assertIn('id="silence" class="danger">MUTE</button>',
                       footer.group(1))
         self.assertNotIn("SILENCE ALL", html)
-        self.assertLess(html.index('id="facilitator-commands"'),
-                        html.index('<footer id="controls"'))
+        self.assertNotIn('id="facilitator-commands"', html)
 
     def test_bar_is_fixed_and_stacks_only_at_narrow_width(self):
         css = read("dashboard/static/css/facilitator.css")
@@ -44,6 +43,15 @@ class RemoteLiveBarTests(unittest.TestCase):
         self.assertIn('muted ? "UNMUTE" : "MUTE"', source)
         self.assertNotIn('"SILENCE ALL"', source)
         self.assertNotIn('"RESUME"', source)
+        self.assertNotIn("renderCommands", source)
+        self.assertNotIn('{uid: "all", verb: command}', source)
+
+    def test_device_commands_are_emitted_by_target_cards(self):
+        source = read("dashboard/static/js/control-column.js")
+        self.assertIn("function targetCommands(scope, targetId)", source)
+        self.assertIn('data-target-command="${esc(command)}"', source)
+        self.assertIn("scope: button.dataset.liveScope", source)
+        self.assertNotIn("data-device-command", source)
 
 
 if __name__ == "__main__":

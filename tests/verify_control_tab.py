@@ -679,17 +679,25 @@ def main():
                       and remote_layout["inline"]
                       and remote_layout["mute"] == "MUTE",
                       repr(remote_layout))
-                # D8's other half: the commands LEFT Control, they were not
-                # deleted. An iPad away from the rack is where a per-device
-                # reboot earns its place, so Remote still draws them — in the
-                # card, not behind a hand-off it has no tab to hand off to.
+                # Remote commands follow the same derived All/group/Seat card
+                # targets as params and events; there is no global strip.
+                command_shapes = [
+                    card.locator("[data-target-command]").evaluate_all(
+                        "nodes => nodes.map(node => [node.dataset.liveScope,"
+                        " node.dataset.liveId||null,node.dataset.targetCommand])")
+                    for card in remote_cards.all()
+                ]
+                check("every Remote card carries its targeted command disclosure",
+                      len(command_shapes) == 4
+                      and all(len(commands) == 2 for commands in command_shapes)
+                      and [commands[0][:2] for commands in command_shapes]
+                      == [["all", None], ["group", "0"],
+                          ["seat", "1"], ["seat", "5"]],
+                      repr(command_shapes))
                 remote_card = standalone.locator(
                     '.live-card[data-live-scope="seat"]').first
-                check("Remote still carries the device-command disclosure",
-                      remote_card.locator(
-                          "details.device-commands").count() == 1
-                      and remote_card.locator(
-                          "[data-device-command]").count() == 2)
+                check("Remote has no command strip outside target cards",
+                      standalone.locator("#facilitator-commands").count() == 0)
                 check("Remote offers no Devices-tab hand-off",
                       remote_card.locator("[data-open-device]").count() == 0)
                 check("no standalone page errors", not standalone_errors,

@@ -1,5 +1,5 @@
 // The standalone Remote view: one ControlColumn, plus the page furniture that
-// only this document has (venue name, master, mute, fleet setup).
+// only this document has (venue name, master, mute).
 //
 // Until `3-iframe-retirement` this file was BOTH hosts — the Control tab
 // embedded this same page as an iframe with `?embedded=1`, and four behaviours
@@ -13,11 +13,6 @@
 // desktop rack view.
 const ws = new BopSocket("/ws");
 const $ = selector => document.querySelector(selector);
-const esc = value => String(value ?? "—").replace(
-  /[&<>"']/g,
-  character => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"}[character]),
-);
-const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);
 let installation = {devices: {}, seats: {}, groups: {}};
 let muted = false;
 let master = 1.0;
@@ -128,7 +123,6 @@ function render() {
 function renderPageFurniture() {
   $("#venue-name").textContent = installation.name || "bopOS";
   renderControls();
-  renderCommands();
 }
 
 function renderControls() {
@@ -137,52 +131,6 @@ function renderControls() {
   const silence = $("#silence");
   silence.textContent = muted ? "UNMUTE" : "MUTE";
   silence.classList.toggle("active", muted);
-}
-
-function commandLabel(command) {
-  return command === "updatebopos"
-    ? "Update bopOS"
-    : command.replaceAll("-", " ").replaceAll("_", " ");
-}
-
-function renderCommands() {
-  const commands = installation.facilitator_commands || [];
-  $("#facilitator-commands").innerHTML = commands.length
-    ? `<span class="command-scope-label">Fleet setup</span>${commands.map(command =>
-        `<button data-command="${esc(command)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`,
-      ).join("")}`
-    : "";
-  $("#facilitator-commands").querySelectorAll("[data-command]")
-    .forEach(button => bindCommandButton(button));
-}
-
-function bindCommandButton(button) {
-  const command = button.dataset.command;
-  if (!destructiveCommands.has(command)) {
-    button.onclick = () => {
-      if (confirm(`${commandLabel(command)} all devices?`)) {
-        ws.send("action", {uid: "all", verb: command});
-      }
-    };
-    return;
-  }
-  let timer = null;
-  const cancel = () => {
-    clearTimeout(timer);
-    timer = null;
-    button.classList.remove("holding");
-  };
-  button.onpointerdown = () => {
-    button.classList.add("holding");
-    timer = setTimeout(() => {
-      timer = null;
-      button.classList.remove("holding");
-      ws.send("action", {uid: "all", verb: command});
-    }, 1200);
-  };
-  button.onpointerup = cancel;
-  button.onpointercancel = cancel;
-  button.onpointerleave = cancel;
 }
 
 {

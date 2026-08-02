@@ -31,9 +31,6 @@ footer{position:fixed;z-index:30;right:0;bottom:0;left:0;border-top:1px solid va
 #master-row .label{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 #master-row output{width:56px;text-align:right;font-variant-numeric:tabular-nums}
 #silence{min-width:120px;padding:12px 18px}
-#facilitator-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 12px 12px}
-#facilitator-commands:empty{display:none}
-.command-scope-label{grid-column:1/-1;color:var(--dim);font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 button{border:1px solid var(--control-line);background:var(--control);color:var(--text);border-radius:10px;padding:16px;font-size:17px;cursor:pointer}
 button.hold{position:relative;overflow:hidden}
 button.hold::after{content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:#ff4e5d33;pointer-events:none}

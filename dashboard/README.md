@@ -210,6 +210,6 @@ commands. The card writes the installation state, whose durable form is:
 ```
 
 Command controls are confirmation-gated, and destructive commands require a
-hold. Each promoted command has a fleet action for fleet setup/operation and a
-single-device action for onboarding/remediation. The allowlist belongs to the
+hold. Each enabled command appears on every Remote target card and uses that
+card's selector: All, one group, or one Seat. The allowlist belongs to the
 installation, never the patch manifest.

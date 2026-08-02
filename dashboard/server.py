@@ -615,7 +615,14 @@ class Dashboard:
             await self.create_patch(data, ws)
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
                                                        "updatebopos"}:
-            if uid == "all":
+            scope = data.get("scope")
+            if scope is not None:
+                selector = self.remote_action_selector(scope, data.get("id"))
+                if selector is None:
+                    await self.ws_error(ws, "That Remote command target is unavailable.")
+                    return
+                self.osc.action(selector, data["verb"])
+            elif uid == "all":
                 self.osc.action("all", data["verb"])
             elif uid in self.state.devices and not self.state.devices[uid].get("virtual"):
                 self.osc.uid_action(uid, data["verb"])
@@ -2228,6 +2235,20 @@ class Dashboard:
             seats = self.state.seats_for_group(group_id)
             return (seats, f"g{group_id}") if seats else (None, None)
         return None, None
+
+    def remote_action_selector(self, scope, target_id):
+        """Resolve a Remote target card onto the selector-addressed /os plane."""
+        if scope == "all":
+            return "all"
+        if scope == "seat":
+            seat_id = self.state.clean_seat_id(target_id)
+            return seat_id if str(seat_id) in self.state.seats else None
+        if scope == "group":
+            group_id = self.state.clean_group_id(target_id)
+            return (f"g{group_id}"
+                    if str(group_id) in self.state.data.get("groups", {})
+                    else None)
+        return None
 
     async def live_fleet_patch(self):
         staged = self.state.data.get("fleet_patch")

@@ -66,12 +66,32 @@ class RemoteVerbServerTests(unittest.IsolatedAsyncioTestCase):
         state = InstallationState(
             os.path.join(self.temp.name, "installation.json"))
         state.data["supervisor"] = {"mode": "off"}
+        state.data["groups"] = {"0": {"id": 0, "name": "Front"}}
+        state.data["seats"] = {
+            "1": {"id": 1, "name": "One", "groups": [0],
+                  "positions": [], "params": {}, "bound": "physical-1"},
+        }
+        state.data["devices"] = {
+            "physical-1": {"uid": "physical-1", "virtual": False},
+        }
         self.dashboard = Dashboard.__new__(Dashboard)
         self.dashboard.state = state
         self.dashboard.supervisor_lock = asyncio.Lock()
         self.dashboard.manifest_lock = asyncio.Lock()
         self.errors = []
         self.broadcasts = []
+
+        class OSC:
+            def __init__(osc_self):
+                osc_self.actions = []
+
+            def action(osc_self, selector, verb):
+                osc_self.actions.append(("selector", selector, verb))
+
+            def uid_action(osc_self, uid, verb):
+                osc_self.actions.append(("uid", uid, verb))
+
+        self.dashboard.osc = OSC()
 
         async def ws_error(_ws, message):
             self.errors.append(message)
@@ -127,6 +147,38 @@ class RemoteVerbServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.errors, [
             "Could not save Remote commands; the previous setting is still active.",
         ])
+
+    async def test_remote_actions_follow_all_group_and_seat_selectors(self):
+        for scope, target_id in (("all", None), ("group", 0), ("seat", 1)):
+            data = {"scope": scope, "verb": "restart-engine"}
+            if target_id is not None:
+                data["id"] = target_id
+            await self.dashboard.handle_ws({"type": "action", "data": data})
+        self.assertEqual(self.errors, [])
+        self.assertEqual(self.dashboard.osc.actions, [
+            ("selector", "all", "restart-engine"),
+            ("selector", "g0", "restart-engine"),
+            ("selector", 1, "restart-engine"),
+        ])
+
+    async def test_desktop_action_keeps_exact_uid_targeting(self):
+        await self.dashboard.handle_ws({
+            "type": "action",
+            "data": {"uid": "physical-1", "verb": "reboot"},
+        })
+        self.assertEqual(
+            self.dashboard.osc.actions,
+            [("uid", "physical-1", "reboot")],
+        )
+
+    async def test_unknown_remote_target_is_rejected(self):
+        await self.dashboard.handle_ws({
+            "type": "action",
+            "data": {"scope": "group", "id": 99, "verb": "shutdown"},
+        })
+        self.assertEqual(self.dashboard.osc.actions, [])
+        self.assertEqual(
+            self.errors, ["That Remote command target is unavailable."])
 
 
 if __name__ == "__main__":

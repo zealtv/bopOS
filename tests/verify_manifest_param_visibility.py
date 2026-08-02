@@ -280,17 +280,25 @@ def main():
                 facilitator.wait_for_function(
                     "() => (installation.facilitator_commands||[]).join(',')"
                     " === 'restart-engine,reboot,shutdown'")
-                fleet_commands = facilitator.locator(
-                    "#facilitator-commands [data-command]").evaluate_all(
-                        "nodes => nodes.map(node => node.dataset.command)")
-                seat_commands = facilitator.locator(
-                    ".device-commands").first.locator(
-                        "[data-command]").evaluate_all(
-                            "nodes => nodes.map(node => node.dataset.command)")
-                check("Remote uses the venue subset in existing setup sections",
-                      fleet_commands == ["restart-engine", "reboot", "shutdown"]
-                      and seat_commands == fleet_commands,
-                      repr([fleet_commands, seat_commands]))
+                remote_cards = facilitator.locator(".live-card")
+                card_commands = [
+                    card.locator("[data-target-command]").evaluate_all(
+                        "nodes => nodes.map(node => ({verb:node.dataset.targetCommand,"
+                        " scope:node.dataset.liveScope,id:node.dataset.liveId||null}))")
+                    for card in remote_cards.all()
+                ]
+                check("Remote puts the venue subset on every target card",
+                      len(card_commands) == 2
+                      and [entry["verb"] for entry in card_commands[0]]
+                      == ["restart-engine", "reboot", "shutdown"]
+                      and [entry["verb"] for entry in card_commands[1]]
+                      == ["restart-engine", "reboot", "shutdown"]
+                      and {entry["scope"] for entry in card_commands[0]} == {"all"}
+                      and {entry["scope"] for entry in card_commands[1]} == {"seat"}
+                      and {entry["id"] for entry in card_commands[1]} == {"1"},
+                      repr(card_commands))
+                check("Remote has no command strip outside its target cards",
+                      facilitator.locator("#facilitator-commands").count() == 0)
 
                 page.reload()
                 page.wait_for_selector("#ws-status.online")
