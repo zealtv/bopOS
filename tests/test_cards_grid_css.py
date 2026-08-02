@@ -28,6 +28,22 @@ class CardsGridCssTests(unittest.TestCase):
                       "flex:11min(340px,100%);"
                       "max-width:min(560px,100%)", css)
 
+    def test_remote_cards_region_is_an_explicit_flex_context(self):
+        css = "".join(read("dashboard/static/css/facilitator.css").split())
+        self.assertIn(
+            "#control-column-host>.control-column.control-column-derived"
+            "{display:block;flex:11100%;width:100%;max-width:none;"
+            "border:0;border-radius:0;padding:0;background:transparent;"
+            "box-shadow:none}",
+            css,
+        )
+        self.assertIn(
+            "#control-column-host>.control-column-derived>"
+            ".control-column-cards{display:flex;flex-wrap:wrap;"
+            "justify-content:flex-start",
+            css,
+        )
+
     def test_component_cards_region_is_not_a_nested_scrollport(self):
         css = read("dashboard/static/css/control-column.css")
         block = css.split("\n.control-column-cards {", 1)[1].split("}", 1)[0]

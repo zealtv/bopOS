@@ -1,6 +1,6 @@
 # 53-ui-niggles
 
-Five small, independently shippable UI corrections from Bob's 2026-08-02
+Six small, independently shippable UI corrections from Bob's 2026-08-02
 review of the shipped app. None is a design gate; each is a ratified change
 with a stated outcome.
 
@@ -43,9 +43,11 @@ ask rather than against my paraphrase:
    keep Remote's master/mute controls visible as one responsive live bar.
 5. `5-left-packed-flex-cards` — review follow-up: left-pack cards and let them
    flex between 340px and 560px without spreading sparse rows apart.
+6. `6-remote-card-flow` — screenshot follow-up: give Remote's nested cards
+   region the same explicit wrapping flex flow as Control.
 
 The first three touch different files and can be worked in any order; their
-stated order is by size. The last two followed Bob's reviews of the
+stated order is by size. The last three followed Bob's reviews of the
 subsequently shipped cards work.
 
 ## Standing constraints for all three

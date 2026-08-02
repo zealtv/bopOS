@@ -257,6 +257,7 @@ def main():
                   const rows=document.querySelectorAll('.live-param');
                   return {
                     display:getComputedStyle(host).display,
+                    cardsDisplay:getComputedStyle(cards).display,
                     hostOverflowY:getComputedStyle(host).overflowY,
                     cardsOverflowY:getComputedStyle(cards).overflowY,
                     widths:targets.map(card=>Math.round(
@@ -269,6 +270,7 @@ def main():
                 }""")
                 check("Remote derives four flexible cards",
                       remote["display"] == "flex"
+                      and remote["cardsDisplay"] == "flex"
                       and len(remote["widths"]) == 4
                       and max(remote["widths"]) - min(remote["widths"]) <= 1
                       and max(remote["widths"]) <= 560,
