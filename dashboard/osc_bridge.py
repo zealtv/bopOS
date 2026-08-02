@@ -467,10 +467,18 @@ class OSCBridge:
             for seat in seats:
                 seat_entry = dict(entry)
                 if spec.kind == "fade":
-                    # The durable param value becomes the fade destination
-                    # below, so capture the origin here — the dashboard's
-                    # last-written value is its only honest guess.
-                    prior = seat.get("params", {}).get(name)
+                    # Match GeneratorEngine.apply's implicit-origin rule: a
+                    # replacement fade starts at the live value of the slot it
+                    # displaces. Durable params already hold a running fade's
+                    # destination and predate a periodic generator, so consult
+                    # the automation mirror before falling back to that scalar.
+                    key = preset_application.automation_key(seat)
+                    prior_entry = self.automation.get(key, {}).get(name)
+                    prior = preset_application.estimate_automation(
+                        name, {"kind": "float"}, prior_entry,
+                        seat_entry["sent_at"])
+                    if prior is None:
+                        prior = seat.get("params", {}).get(name)
                     seat_entry["from"] = spec.start if spec.start is not None else prior
                 self.automation.setdefault(
                     preset_application.automation_key(seat), {})[name] = seat_entry

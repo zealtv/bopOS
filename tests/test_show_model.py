@@ -362,6 +362,39 @@ class ShowSchemaTests(unittest.TestCase):
             show["items"][0]["messages"][0]["address"],
             "/preset/alpha/Dawn")
 
+
+class ShowPlaybackOrderingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_preset_reference_finishes_before_following_param_message(self):
+        value = {"gain": None}
+
+        async def apply_preset(*_args):
+            value["gain"] = 0.25
+
+        bridge = mock.Mock()
+        bridge.set_param.side_effect = (
+            lambda _selector, _name, args: value.__setitem__("gain", args[0]))
+        engine = ShowEngine(
+            bridge, mock.AsyncMock(), apply_preset=apply_preset)
+        reference = {
+            "content": {"name": "alpha", "fingerprint": "a" * 64},
+            "schema": "sha256:" + "b" * 64,
+        }
+        engine.show = show_model.clean_show(document([
+            step(messages=[
+                message(
+                    kind="reference", address="/preset/alpha/Dawn",
+                    args=[], reference=reference),
+                message(uid="b0000002", args=[{"type": "f", "value": 0.9}]),
+            ]),
+        ]))
+
+        await engine.step_start("a0000001")
+        # Before the fix the reference is a detached task, so let it run and
+        # expose the late preset overwrite.
+        await asyncio.sleep(0)
+
+        self.assertEqual(value["gain"], 0.9)
+
 class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
     async def test_reference_update_and_undo_restore_one_persisted_snapshot(self):
         reference = {

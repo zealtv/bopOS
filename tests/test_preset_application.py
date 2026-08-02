@@ -23,6 +23,7 @@ import preset_application  # noqa: E402
 import preset_store  # noqa: E402
 import show_model  # noqa: E402
 from osc_bridge import OSCBridge  # noqa: E402
+from python.paramgen import GeneratorEngine, parse_message  # noqa: E402
 from server import Dashboard  # noqa: E402
 from state import InstallationState  # noqa: E402
 
@@ -290,6 +291,48 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.saved, 1)
         self.assertEqual(seat["params"]["gain"], 0.333333)
         self.assertEqual(self.state.devices["one"]["params"]["gain"], 0.333333)
+
+    def test_fade_takeover_origin_matches_node_live_value(self):
+        """The dashboard mirror must take over where the node generator is."""
+        declaration = self.dashboard.live_param_declaration("gain", "alpha")
+
+        for label, initial_args, elapsed_s in (
+                ("static", [0.2], 0.25),
+                ("mid-fade", [1.0, "1s"], 0.25),
+                ("mid-lfo", ["lfo", "sine", 0.0, 1.0, "1s"], 0.25)):
+            with self.subTest(label=label):
+                node_now_ns = [100_000_000_000]
+                node = GeneratorEngine(
+                    lambda *_args: None, None, now_ns=lambda: node_now_ns[0])
+                seat = self.seat(1, "one")
+                seat["params"]["gain"] = 0.2
+                self.osc.automation.clear()
+                try:
+                    node.apply("gain", parse_message([0.2], "f"), declaration)
+                    with unittest.mock.patch(
+                            "osc_bridge.time.monotonic_ns",
+                            return_value=node_now_ns[0]):
+                        self.osc.record_param_for(
+                            [seat], "gain", initial_args, sent_at=1000.0,
+                            persist=False, broadcast=False)
+                    node.apply(
+                        "gain", parse_message(initial_args, "f"), declaration)
+                    node_now_ns[0] += int(elapsed_s * 1_000_000_000)
+                    expected = node.current_value("gain")
+
+                    with unittest.mock.patch(
+                            "osc_bridge.time.monotonic_ns",
+                            return_value=node_now_ns[0]):
+                        self.osc.record_param_for(
+                            [seat], "gain", [0.8, "1s"],
+                            sent_at=1000.0 + elapsed_s,
+                            persist=False, broadcast=False)
+
+                    self.assertAlmostEqual(
+                        self.osc.automation["1"]["gain"]["from"],
+                        expected, places=6)
+                finally:
+                    node.close()
 
     def test_stop_command_survives_argument_canonicalization(self):
         declaration = self.dashboard.live_param_declaration("gain", "alpha")

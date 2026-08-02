@@ -143,9 +143,11 @@ class ShowEngine:
     # Message emission
     # ----------------------------------------------------------------
 
-    def _emit_messages(self, step):
+    async def _emit_messages(self, step):
         for message in step["messages"]:
-            self._send_message(message)
+            result = self._send_message(message)
+            if inspect.isawaitable(result):
+                await result
 
     def _send_message(self, message):
         address, target = message["address"], message["target"]
@@ -157,11 +159,9 @@ class ShowEngine:
                 result = self.apply_preset(
                     patch, slug, target, duration_ms, curve,
                     message.get("reference"))
-                # Dashboard callbacks schedule/return a Task; an async test or
-                # embedding may return a bare coroutine instead.
-                if inspect.isawaitable(result) and not isinstance(result, asyncio.Task):
-                    asyncio.create_task(result)
-                return
+                # Return the dashboard-owned Task (or an embedding's bare
+                # coroutine) so `_emit_messages` can preserve authored order.
+                return result
             # A content reference is never raw OSC. Unknown reference families
             # fail closed instead of leaking pseudo-addresses onto the network.
             log.warning("show engine: unhandled content reference %s; skipped",
@@ -224,7 +224,7 @@ class ShowEngine:
         play_count = step["play_count"]
         if play_count is None or state["iteration"] < play_count:
             state["iteration"] += 1
-            self._emit_messages(step)
+            await self._emit_messages(step)
             self._arm_timer(uid, step["duration_s"])
         else:
             await self._resolve_then_actions(uid, step, MAX_SYNCHRONOUS_RESOLUTIONS)
@@ -255,7 +255,7 @@ class ShowEngine:
         await self._run_iterations(uid, step, budget)
 
     async def _run_iterations(self, uid, step, budget):
-        self._emit_messages(step)
+        await self._emit_messages(step)
         duration = step["duration_s"]
         if duration > 0:
             self._arm_timer(uid, duration)
@@ -266,7 +266,7 @@ class ShowEngine:
         state = self.playback[uid]
         while state["iteration"] < play_count:
             state["iteration"] += 1
-            self._emit_messages(step)
+            await self._emit_messages(step)
         await self._resolve_then_actions(uid, step, budget)
 
     async def _stop_step(self, uid):
