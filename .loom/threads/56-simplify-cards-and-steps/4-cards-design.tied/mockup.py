@@ -32,14 +32,19 @@ SEATS = 6
 UIDS = [f"02:53:49:4d:00:{index + 1:02x}" for index in range(SEATS)]
 RESERVED = set()
 TARGETS = ["all", "g0", "g1", "g2", "0", "1", "2", "3", "4", "5"]
+CONTROL_TARGETS = ["all", "g0", "g2", "1", "4"]
 
 
 GRID_CSS = r"""
-.control-tab-strip { display:none !important; }
+.control-tab-strip {
+  display:flex !important;
+  justify-content:flex-end !important;
+  padding:0 16px 12px !important;
+}
 #tab-control { padding-top:12px; }
 #control-column-host, .cards-grid {
   display:grid !important;
-  grid-template-columns:repeat(auto-fill,342px) !important;
+  grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),1fr)) !important;
   align-items:start !important;
   align-content:start !important;
   gap:12px !important;
@@ -48,9 +53,11 @@ GRID_CSS = r"""
   overflow:visible !important;
 }
 #control-column-host > .control-column { display:contents !important; }
-.control-column-head, .control-column-status { display:none !important; }
+#control-column-host > .control-column > .control-column-head,
+#control-column-host > .control-column > .control-column-status { display:none !important; }
 .control-column-cards { display:contents !important; }
 .live-card {
+  position:relative !important;
   min-width:0 !important;
   display:grid !important;
   align-content:start !important;
@@ -60,6 +67,23 @@ GRID_CSS = r"""
   border-radius:var(--radius-panel) !important;
   background:var(--panel) !important;
 }
+.live-card.target-all {
+  border:3px solid #fff !important;
+  box-shadow:0 0 0 2px #071015 !important;
+}
+.live-card.target-group {
+  border:3px solid var(--group-colour) !important;
+}
+.live-card.target-group.slot-2 { border-style:dashed !important; }
+.live-card.target-group.slot-3 { border-style:dotted !important; }
+.live-card.target-group.slot-4 { border-style:double !important; }
+.card-target-head { display:block; padding-right:calc(var(--row-h) + var(--gap)); }
+.card-target-head .target-picker { min-width:0; }
+.card-target-close {
+  position:absolute; top:var(--pad-panel); right:var(--pad-panel);
+  width:var(--row-h); height:var(--row-h); padding:0;
+}
+.card-target-meta { margin-top:-3px; color:var(--dim); font-size:11px; }
 .live-card + .live-card { border-top:1px solid var(--group-line) !important; }
 @media (max-width:374px) {
   #control-column-host, .cards-grid {
@@ -69,6 +93,7 @@ GRID_CSS = r"""
 """
 
 REMOTE_CSS = GRID_CSS + r"""
+.control-tab-strip { display:none !important; }
 #control-column-host.control-column {
   display:block !important;
   margin:12px !important;
@@ -82,7 +107,7 @@ body { height:auto !important; min-height:100%; overflow-y:auto !important; }
 """
 
 
-def static_component_cards(full):
+def static_component_cards(full, selectors):
     """Render current component markup in Node when macOS blocks Chromium.
 
     This fallback still calls the shipping ControlSurface renderer; only the
@@ -116,17 +141,19 @@ def static_component_cards(full):
         })
     payload = {
         "full": full, "params": params, "seats": seats,
-        "groups": [{"id": 0, "name": "Front"},
-                   {"id": 1, "name": "Sides"},
-                   {"id": 2, "name": "Balcony"}],
+        "selectors": selectors,
+        "groups": [{"id": 0, "name": "Front", "slot": 0},
+                   {"id": 1, "name": "Sides", "slot": 1},
+                   {"id": 2, "name": "Balcony", "slot": 2}],
     }
     script = r"""
 global.window=global; global.document={};
 global.localStorage={getItem:()=>null,setItem:()=>{}};
 global.OscMessage={typedArg:(type,value)=>({type,value})};
-const fs=require('fs'), data=JSON.parse(process.argv[3]);
+const fs=require('fs'), data=JSON.parse(process.argv[4]);
 eval(fs.readFileSync(process.argv[1],'utf8'));
 eval(fs.readFileSync(process.argv[2],'utf8'));
+eval(fs.readFileSync(process.argv[3],'utf8'));
 const state={automation:{}};
 const surface=ControlSurface.create({
   getState:()=>state,
@@ -135,23 +162,33 @@ const surface=ControlSurface.create({
 });
 const declarations=data.params.filter(item=>data.full || item.dashboard);
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sections=TargetPicker.seatSections({groups:data.groups,seats:data.seats,groupSelector:'id'});
 function card(scope,item,members){
   const id=scope==='all'?null:item.id;
+  const selector=scope==='all'?'all':scope==='group'?`g${id}`:String(id);
   const name=scope==='all'?'All Seats':item.name;
   const meta=scope==='all'?`${members.length} Seats`:scope==='group'?`g${id} · ${members.length} Seats`:`Seat ${id} · online`;
   const presets=data.full?surface.presetRow(scope,id,members,'alpha',{key:`${scope}:${id??'all'}`}):'';
   const controls=surface.tree(scope,id,members,declarations,false);
-  return `<article class="live-card ${scope}-card" role="region" aria-label="${esc(name)}" data-live-scope="${scope}"${id==null?'':` data-live-id="${id}"`}><div class="live-card-head">${scope==='seat'?'<i class="dot ok" aria-hidden="true"></i>':''}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span></div>${presets}<div class="promoted-controls">${controls}</div></article>`;
+  const identity=scope==='all'?'target-all':scope==='group'?`target-group slot-${item.slot+1}`:'target-seat';
+  const style=scope==='group'?` style="--group-colour:${['#56B4E9','#E69F00','#00B98B','#CC79A7'][item.slot]}"`:'';
+  const head=data.full
+    ? `<div class="card-target-head">${TargetPicker.markup({id:`card-${selector}`,label:'Target',selection:[selector],sections,multiple:false,allLabel:'All Seats',open:false,hostClass:'control-column-picker'})}<button class="card-target-close" aria-label="Close ${esc(name)}">×</button></div><div class="card-target-meta">${esc(name)} · ${esc(meta)}</div>`
+    : `<div class="live-card-head">${scope==='seat'?'<i class="dot ok" aria-hidden="true"></i>':''}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span></div>`;
+  return `<article class="live-card ${scope}-card ${identity}"${style} role="region" aria-label="${esc(name)}" data-live-scope="${scope}"${id==null?'':` data-live-id="${id}"`}>${head}${presets}<div class="promoted-controls">${controls}</div></article>`;
 }
-const cards=[card('all',{},data.seats)];
-for(const group of data.groups) cards.push(card('group',group,data.seats.filter(seat=>seat.groups.includes(group.id))));
-for(const seat of data.seats) cards.push(card('seat',seat,[seat]));
+const bySelector=new Map();
+bySelector.set('all',card('all',{},data.seats));
+for(const group of data.groups) bySelector.set(`g${group.id}`,card('group',group,data.seats.filter(seat=>seat.groups.includes(group.id))));
+for(const seat of data.seats) bySelector.set(String(seat.id),card('seat',seat,[seat]));
+const cards=data.selectors.map(selector=>bySelector.get(selector));
 process.stdout.write(JSON.stringify(cards));
 """
     result = subprocess.run([
         "node", "-e", script,
         os.path.join(REPO, "dashboard", "static", "js", "paramspec.js"),
         os.path.join(REPO, "dashboard", "static", "js", "control-surface.js"),
+        os.path.join(REPO, "dashboard", "static", "js", "target-picker.js"),
         json.dumps(payload),
     ], check=True, capture_output=True, text=True)
     return json.loads(result.stdout)
@@ -187,6 +224,8 @@ def write_static_image(name, width, height, theme, cards, remote=False):
         shutil.copyfile(font_source, font_path)
     font = "file://" + font_path
     columns = 2 if remote else 4
+    strip = "" if remote else ('<div class="control-tab-strip">'
+                                '<button>+ card</button></div>')
     html = f"""<!doctype html><html data-theme="{theme}"><head><meta charset="utf-8">
 <style>@font-face{{font-family:MockLato;src:url('{font}');font-weight:400}}
 @font-face{{font-family:MockLato;src:url('{font}');font-weight:700}}
@@ -194,10 +233,11 @@ def write_static_image(name, width, height, theme, cards, remote=False):
 *{{font-family:MockLato!important}} body{{min-height:{height}px}}
 details>summary::before{{content:'>'!important}} details[open]>summary::before{{content:'v'!important}}
 .preset-menu:not([open]) .preset-menu-body{{display:none!important}}
-.cards-grid{{display:grid!important;grid-template-columns:repeat({columns},342px)!important;gap:12px!important;align-items:start!important}}
+.target-picker:not([open]) .target-picker-body{{display:none!important}}
+.cards-grid{{display:grid!important;grid-template-columns:repeat({columns},minmax(0,1fr))!important;gap:12px!important;align-items:start!important}}
 .mock-grid-shell{{padding:12px 16px}}
 .mock-remote-footer{{display:flex;gap:12px;align-items:center;padding:12px;border-top:1px solid var(--line)}}
-</style></head><body>{chrome}{tabs}<main class="mock-grid-shell"><div class="cards-grid">{''.join(cards)}</div></main>{footer}</body></html>"""
+</style></head><body>{chrome}{tabs}{strip}<main class="mock-grid-shell"><div class="cards-grid">{''.join(cards)}</div></main>{footer}</body></html>"""
     html = "\n".join(line.rstrip() for line in html.splitlines()) + "\n"
     html_path = os.path.join(OUT, name + ".html")
     pdf_path = os.path.join(OUT, name + ".pdf")
@@ -217,8 +257,8 @@ details>summary::before{{content:'>'!important}} details[open]>summary::before{{
 
 
 def static_fallback():
-    control = static_component_cards(True)
-    remote = static_component_cards(False)
+    control = static_component_cards(True, CONTROL_TARGETS)
+    remote = static_component_cards(False, TARGETS)
     # WeasyPrint in the managed sandbox has no system-font fallback. These
     # glyphs live only in the closed menu's hidden body in this static preview;
     # replace them there so rasterization does not crash. The preferred live
@@ -227,9 +267,9 @@ def static_fallback():
     control = ["".join(replacements.get(char, char) for char in card)
                for card in control]
     for theme in ("dark", "light"):
-        write_static_image(f"cards-control-1440-{theme}", 1440, 2200,
+        write_static_image(f"cards-control-1440-{theme}", 1440, 1500,
                            theme, control)
-        write_static_image(f"cards-remote-820-{theme}", 820, 2600,
+        write_static_image(f"cards-remote-820-{theme}", 820, 1600,
                            theme, remote, remote=True)
     os.unlink(os.path.join(OUT, "mockup-font.ttf"))
 
@@ -351,7 +391,7 @@ def control_shot(browser, base, theme):
     page.set_default_timeout(20000)
     page.goto(base + "#control")
     records = [{"id": f"m{index}", "target": [selector], "open": False}
-               for index, selector in enumerate(TARGETS)]
+               for index, selector in enumerate(CONTROL_TARGETS)]
     set_theme(page, theme)
     page.evaluate(
         "records => localStorage.setItem('bopos.control.columns',"
@@ -360,9 +400,26 @@ def control_shot(browser, base, theme):
     page.wait_for_selector("#ws-status.online")
     page.wait_for_function(
         "n => document.querySelectorAll('#control-column-host .live-card').length"
-        " === n", arg=len(TARGETS))
+        " === n", arg=len(CONTROL_TARGETS))
     seed_preset(page)
     page.add_style_tag(content=GRID_CSS)
+    page.evaluate("""() => {
+      const colours=['#56B4E9','#E69F00','#00B98B','#CC79A7'];
+      document.querySelectorAll('#control-column-host > .control-column').forEach(column => {
+        const card=column.querySelector('.live-card');
+        const head=column.querySelector(':scope > .control-column-head')?.cloneNode(true);
+        if(head){ head.querySelector('.control-column-grip')?.remove(); card.prepend(head); }
+        const scope=card.dataset.liveScope;
+        if(scope==='all') card.classList.add('target-all');
+        if(scope==='group') {
+          const slot=Number(card.dataset.liveId)%4;
+          card.classList.add('target-group',`slot-${slot+1}`);
+          card.style.setProperty('--group-colour',colours[slot]);
+        }
+      });
+      const add=document.querySelector('[data-control-add]');
+      if(add) add.textContent='+ card';
+    }""")
     page.screenshot(path=os.path.join(OUT, f"cards-control-1440-{theme}.png"),
                     full_page=True)
     page.close()
@@ -384,7 +441,16 @@ def remote_cards(browser, base, theme):
         page.wait_for_selector("#ws-status.online")
         page.wait_for_selector(".live-card")
         cards.append(page.locator(".live-card").first.evaluate(
-            "node => node.outerHTML"))
+            """(node, selector) => {
+              const colours=['#56B4E9','#E69F00','#00B98B','#CC79A7'];
+              if(selector==='all') node.classList.add('target-all');
+              if(selector.startsWith('g')) {
+                const slot=Number(selector.slice(1))%4;
+                node.classList.add('target-group',`slot-${slot+1}`);
+                node.style.setProperty('--group-colour',colours[slot]);
+              }
+              return node.outerHTML;
+            }""", selector))
         page.close()
     return cards
 
