@@ -1623,23 +1623,14 @@
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:5px;
 }
-
-.show-param-generator-row {
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:6px;
-  min-width:320px;
-  color:var(--dim);
-  font-size:12px;
-  text-transform:uppercase;
+.live-param-gen .live-param-gen-actions:has(> :only-child) {
+  grid-template-columns:1fr;
 }
-/* The ∿ is design-language §5's 18px circle HERE TOO. This surface used to
-   override it to a borderless transparent monospace glyph; Bob ruled on
-   2026-07-30 that §5's "always an 18px circle" holds and the Show inspector
-   adopts it, so the override is gone and §6's rule applies unmodified. One
-   affordance, one appearance. */
-.show-inspector-section[data-payload-builder=param]:has(.show-param-generator-row) {
+
+.show-param-control.show-param-control {
+  min-width:320px;
+}
+.show-inspector-section[data-payload-builder=param]:has(.show-param-control) {
   min-width:342px;
 }
 

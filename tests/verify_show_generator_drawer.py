@@ -211,6 +211,38 @@ def main():
                       wait_for(lambda: saved("aaaa0004")["args"][4]
                                == {"type": "s", "value": "2.5s"}),
                       repr(saved("aaaa0004")["args"]))
+                page.fill('[data-param-lfo="phase"]', "0.25")
+                page.locator('[data-param-lfo="phase"]').press("Tab")
+                check("editing LFO phase keeps the parameter value row",
+                      page.locator("#show-param-value").count() == 1
+                      and page.locator("#show-param-slider").count() == 1)
+                row = page.locator("[data-show-param-row]")
+                grid = row.evaluate(
+                    "node => getComputedStyle(node).gridTemplateColumns.split(' ')")
+                check("the Show row uses the control panel's 58px / slider / 18px grid",
+                      len(grid) >= 3 and grid[0] == "58px" and grid[-1] == "18px",
+                      repr(grid))
+                page.locator("[data-show-gen-toggle]").click()
+                mod_ink = page.locator("[data-show-gen-toggle]").evaluate(
+                    "node => { const probe=document.createElement('i');"
+                    " probe.style.color='var(--mod)'; node.append(probe);"
+                    " const value={color:getComputedStyle(node).color,"
+                    " mod:getComputedStyle(probe).color,"
+                    " automated:node.closest('.live-param').classList.contains('automated')};"
+                    " probe.remove(); return value; }")
+                check("a closed authored generator keeps the modulation indicator cyan",
+                      mod_ink["automated"] and mod_ink["color"] == mod_ink["mod"],
+                      repr(mod_ink))
+
+                focus("aaaa0003")
+                page.locator("#show-param-slider").evaluate("node => {"
+                    " node.value='0.7';"
+                    " node.dispatchEvent(new Event('input',{bubbles:true}));"
+                    " node.dispatchEvent(new Event('change',{bubbles:true}));"
+                    "}")
+                check("dragging a generated row takes over with a static value",
+                      wait_for(lambda: saved("aaaa0003")["args"]
+                               == [{"type": "f", "value": .7}]))
 
                 # One fixture message per kind: switching a kind persists.
                 focus("aaaa0002")
@@ -248,15 +280,18 @@ def main():
                 check("the explicit Stop action preserves the stop wire form",
                       wait_for(lambda: saved("aaaa0001")["args"]
                                == [{"type": "s", "value": "stop"}]))
+                check("Stop keeps the parameter row and removes the redundant Value action",
+                      page.locator("#show-param-value").count() == 1
+                      and page.locator("#show-param-slider").count() == 1
+                      and page.locator("[data-show-param-value]").count() == 0
+                      and page.locator(".show-param-stop").count() == 0)
 
                 focus("aaaa0005")
-                check("stop is stated explicitly and can return to value",
-                      "stopped" in page.locator(".show-param-stop").inner_text().lower())
-                page.locator("[data-show-gen-toggle]").click()
-                page.locator("[data-show-param-value]").click()
-                check("the explicit Value action restores a typed constant",
+                page.fill("#show-param-value", "0.6")
+                page.locator("#show-param-value").press("Tab")
+                check("typing in a stopped row takes over with a static value",
                       wait_for(lambda: saved("aaaa0005")["args"]
-                               == [{"type": "f", "value": .5}]))
+                               == [{"type": "f", "value": .6}]))
                 check("browser emitted no page errors", not page_errors,
                       repr(page_errors))
                 browser.close()

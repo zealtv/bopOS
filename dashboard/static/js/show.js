@@ -739,23 +739,18 @@
     const open = generatorDrawerState.has(message.uid)
       ? generatorDrawerState.get(message.uid) : generated;
     const fields = rawFallback ? renderParamRawFallback(message)
-      : mode === "value" ? renderParamGeneratorFields(declaration, parsed)
-      : mode === "stop"
-        ? '<p class="dim show-param-stop">Automation is stopped. Set a value or choose a generator.</p>'
-        : "";
+      : numeric ? renderShowParamRow(declaration, parsed, generated, open)
+      : renderParamGeneratorFields(declaration, parsed);
     const drawerSpec = generated ? parsed : window.ParamGenerator.blank(declaration, "lfo");
     const drawerActions = `<span class="live-param-gen-actions">
-      <button type="button" data-show-param-value aria-pressed="${mode === "value"}">Value</button>
       <button type="button" data-show-param-stop aria-pressed="${mode === "stop"}">Stop</button>
     </span>`;
-    const generator = numeric && !rawFallback ? `<div class="show-param-generator-row">
-      <span>${generated ? "generator" : escapeHtml(mode)}</span>
-      <button type="button" class="live-param-mod" data-show-gen-toggle aria-expanded="${open}" aria-label="Generator drawer">∿</button>
-    </div>${open ? window.ParamGenerator.drawer(declaration, drawerSpec, {
+    const generator = numeric && !rawFallback && open
+      ? window.ParamGenerator.drawer(declaration, drawerSpec, {
       attributes: `data-show-gen-drawer="${escapeHtml(message.uid)}"`,
       actions: drawerActions,
       activeMode: generated ? mode : null,
-    }) : ""}` : "";
+    }) : "";
     return `<section class="show-inspector-section" data-payload-builder="param">
       <label>parameter <select id="show-param-picker">${options || '<option value="">No staged params</option>'}</select></label>
       ${fields}
@@ -769,6 +764,40 @@
   const renderParamGeneratorFields = (declaration, parsed) => window.ParamGenerator.fields(declaration, parsed);
   const renderUnitOptions = selected => window.ParamGenerator.unitOptions(selected);
   const renderParamSegment = (segment, index, declaration, count) => window.ParamGenerator.panelSegmentRow(segment, index, declaration, count);
+
+  function showParamStartValue(declaration, parsed) {
+    const fallback = Number(declaration.default ?? declaration.min ?? 0);
+    let value = Number.isFinite(fallback) ? fallback : 0;
+    if (parsed?.mode === "value") value = Number(parsed.value);
+    else if (parsed?.mode === "lfo") {
+      const fraction = window.ParamSpec.shapeFraction(
+        parsed.shape, parsed.phase, parsed.curve);
+      if (Number.isFinite(fraction)) {
+        value = Number(parsed.min) + (Number(parsed.max) - Number(parsed.min)) * fraction;
+      }
+    } else if (["fade", "loop"].includes(parsed?.mode) && parsed.from != null) {
+      value = Number(parsed.from);
+    }
+    const minimum = Number(declaration.min);
+    const maximum = Number(declaration.max);
+    if (Number.isFinite(minimum)) value = Math.max(minimum, value);
+    if (Number.isFinite(maximum)) value = Math.min(maximum, value);
+    return window.ValueBox?.round(value, declaration.kind !== "float") ?? value;
+  }
+
+  function renderShowParamRow(declaration, parsed, generated, open) {
+    const value = showParamStartValue(declaration, parsed);
+    const integer = declaration.kind !== "float";
+    const attrs = `${integer ? ' data-integer="true"' : ""} min="${escapeHtml(declaration.min ?? 0)}" max="${escapeHtml(declaration.max ?? 1)}" step="${integer ? 1 : 0.01}"`;
+    const position = window.ParamSpec.position(value, declaration);
+    return `<div class="device-control show-param-control">
+      <label class="live-param live-param-numeric${generated ? " automated" : ""}" data-show-param-row>
+        <input id="show-param-value" class="live-param-value" type="number"${attrs} value="${escapeHtml(value)}" aria-label="${escapeHtml(`${declaration.name} static takeover value`)}">
+        <span class="live-param-range-wrap" style="--v:${escapeHtml(position)}"><span class="live-param-fill" aria-hidden="true"></span><span class="live-param-name">${escapeHtml(declaration.name)}</span><input id="show-param-slider" type="range"${attrs} value="${escapeHtml(value)}" aria-label="${escapeHtml(`${declaration.name} static takeover slider`)}"></span>
+        <button type="button" class="live-param-mod" data-show-gen-toggle aria-expanded="${open}" aria-label="Generator drawer">∿</button>
+      </label>
+    </div>`;
+  }
 
   function renderParamRawFallback(message) {
     const args = (message.args || []).map((arg, index) => renderRawArg(arg, index)).join("");
@@ -1391,6 +1420,10 @@
         const declaration = currentParamDeclaration(message);
         updateMessage(message.uid, {args: [typedArg(declarationWireType(declaration), event.target.value)]});
       }
+      if (event.target.id === "show-param-slider") {
+        const declaration = currentParamDeclaration(message);
+        updateMessage(message.uid, {args: [typedArg(declarationWireType(declaration), event.target.value)]});
+      }
       if (event.target.matches("[data-param-from-enabled]")) {
         const field = messageEditor.querySelector("[data-param-from]");
         if (field) {
@@ -1522,11 +1555,6 @@
         });
         return;
       }
-      if (event.target.closest("[data-show-param-value]")) {
-        const declaration = currentParamDeclaration(message);
-        updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, "value")});
-        return;
-      }
       if (event.target.closest("[data-show-param-stop]")) {
         const declaration = currentParamDeclaration(message);
         updateMessage(message.uid, {args: paramModeDefaultArgs(declaration, "stop")});
@@ -1575,6 +1603,21 @@
         ws.send("flatten_preset_message", {uid: message.uid});
       }
     }
+  });
+
+  root.addEventListener("input", event => {
+    const row = event.target.closest?.("[data-show-param-row]");
+    if (!row || !event.target.matches("#show-param-value, #show-param-slider")) return;
+    const value = event.target.value;
+    const peer = row.querySelector(event.target.id === "show-param-value"
+      ? "#show-param-slider" : "#show-param-value");
+    if (peer) peer.value = value;
+    const uid = row.closest("[data-show-message-editor]")?.dataset.showMessageEditor;
+    const {message} = messageByUid(uid);
+    if (!message) return;
+    const declaration = currentParamDeclaration(message);
+    row.querySelector(".live-param-range-wrap")?.style.setProperty(
+      "--v", String(window.ParamSpec.position(Number(value), declaration)));
   });
 
   root.addEventListener("keydown", event => {
