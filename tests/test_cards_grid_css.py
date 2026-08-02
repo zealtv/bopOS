@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser-free contract for the shared downward cards grid."""
+"""Browser-free contract for the shared downward cards layout."""
 
 import os
 import unittest
@@ -13,13 +13,20 @@ def read(relative):
 
 
 class CardsGridCssTests(unittest.TestCase):
-    def test_both_hosts_cap_tracks_and_distribute_free_space(self):
-        track = "repeat(auto-fit,minmax(min(342px,100%),480px))"
+    def test_both_hosts_left_pack_flexible_340_to_560_cards(self):
         for stylesheet in ("dashboard/static/css/style.css",
                            "dashboard/static/css/facilitator.css"):
-            css = read(stylesheet)
-            self.assertIn(track, css)
-            self.assertIn("justify-content:space-between", css)
+            css = "".join(read(stylesheet).split())
+            self.assertIn("display:flex", css)
+            self.assertIn("flex-wrap:wrap", css)
+            self.assertIn("justify-content:flex-start", css)
+
+    def test_target_card_component_owns_the_shared_bounds(self):
+        css = "".join(read(
+            "dashboard/static/css/card-identity.css").split())
+        self.assertIn(".target-card.target-card{min-width:0;"
+                      "flex:11min(340px,100%);"
+                      "max-width:min(560px,100%)", css)
 
     def test_component_cards_region_is_not_a_nested_scrollport(self):
         css = read("dashboard/static/css/control-column.css")

@@ -198,15 +198,32 @@ def main():
                     "'#control-column-host .live-param').length >= %d"
                     % (PARAM_COUNT * 4))
                 before = page.evaluate(METRICS)
-                check("Control lays four cards into a CSS grid",
-                      before and before["display"] == "grid"
+                check("Control lays four cards into a wrapping flex row",
+                      before and before["display"] == "flex"
                       and len(before["widths"]) == 4,
                       json.dumps(before))
-                check("flexible tracks share the available width evenly",
+                check("Control cards flex within the requested bounds",
                       max(before["widths"]) - min(before["widths"]) <= 1
-                      and min(before["widths"]) >= 342
-                      and max(before["widths"]) <= 480,
+                      and min(before["widths"]) >= 340
+                      and max(before["widths"]) <= 560,
                       json.dumps(before["widths"]))
+                page.set_viewport_size({"width": 1200, "height": 900})
+                sparse = page.evaluate("""() => {
+                  const cards=[...document.querySelectorAll(
+                    '#control-column-host>.control-column')];
+                  return cards.map(card => ({
+                    left:Math.round(card.getBoundingClientRect().left),
+                    top:Math.round(card.getBoundingClientRect().top),
+                    width:Math.round(card.getBoundingClientRect().width),
+                  }));
+                }""")
+                check("a sparse final Control row stays left packed",
+                      len(sparse) == 4
+                      and sparse[3]["top"] > sparse[0]["top"]
+                      and abs(sparse[3]["left"] - sparse[0]["left"]) <= 1
+                      and 340 <= sparse[3]["width"] <= 560,
+                      json.dumps(sparse))
+                page.set_viewport_size({"width": 1440, "height": 900})
                 check("Control cards and host expose no nested scrollport",
                       before["cardsOverflowY"] == "visible"
                       and before["hostOverflowY"] == "visible",
@@ -250,11 +267,11 @@ def main():
                       rows[rows.length-1].getBoundingClientRect().bottom),
                   };
                 }""")
-                check("Remote derives four flexible card tracks",
-                      remote["display"] == "grid"
+                check("Remote derives four flexible cards",
+                      remote["display"] == "flex"
                       and len(remote["widths"]) == 4
                       and max(remote["widths"]) - min(remote["widths"]) <= 1
-                      and max(remote["widths"]) <= 480,
+                      and max(remote["widths"]) <= 560,
                       json.dumps(remote))
                 check("Remote also has no nested vertical scrollport",
                       remote["hostOverflowY"] == "visible"

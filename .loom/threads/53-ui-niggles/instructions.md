@@ -1,6 +1,6 @@
 # 53-ui-niggles
 
-Four small, independently shippable UI corrections from Bob's 2026-08-02
+Five small, independently shippable UI corrections from Bob's 2026-08-02
 review of the shipped app. None is a design gate; each is a ratified change
 with a stated outcome.
 
@@ -41,10 +41,12 @@ ask rather than against my paraphrase:
 4. `4-card-strokes-and-remote-bar` — follow-up on the new target cards: make
    group identity independent of Seats-map visibility, cap card tracks, and
    keep Remote's master/mute controls visible as one responsive live bar.
+5. `5-left-packed-flex-cards` — review follow-up: left-pack cards and let them
+   flex between 340px and 560px without spreading sparse rows apart.
 
 The first three touch different files and can be worked in any order; their
-stated order is by size. The fourth followed Bob's review of the subsequently
-shipped cards work.
+stated order is by size. The last two followed Bob's reviews of the
+subsequently shipped cards work.
 
 ## Standing constraints for all three
 

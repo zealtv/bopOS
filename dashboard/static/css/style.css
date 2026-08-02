@@ -386,21 +386,23 @@ details.icon-menu>summary::before{content:none}
 .icon-glyph{font-size:14px;line-height:1}
 .fleet-actions{display:flex;align-items:center;gap:var(--gap);flex-wrap:wrap}
 
-/* ---- Control cards grid (56-simplify-cards-and-steps/5) ------------------
-   342px remains the component's proven minimum and 480px is the card ceiling.
-   Free space is distributed between tracks. The page is the sole vertical
-   scrollport; cards neither scroll sideways nor internally. */
+/* ---- Control cards layout (56-simplify-cards-and-steps/5) ----------------
+   Cards flex from 340px to 560px and wrap from the left; sparse rows leave
+   their unused space at the right edge rather than between cards. The page is
+   the sole vertical scrollport; cards neither scroll sideways nor internally. */
 #control-column-host{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),480px));
-  justify-content:space-between;
-  align-items:start;
-  align-content:start;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-start;
+  align-items:flex-start;
+  align-content:flex-start;
   gap:12px;
   height:auto;
   overflow:visible;
 }
-#control-column-host>.control-column{min-width:0}
+#control-column-host>.control-column{
+  min-width:0;
+}
 #control-column-host:empty::after{
   content:"Add a card to begin";
   color:var(--dim);

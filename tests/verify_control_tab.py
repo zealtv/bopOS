@@ -670,8 +670,8 @@ def main():
                     mute:mute.textContent,
                   };
                 }""")
-                check("Remote cards respect the 480px ceiling",
-                      max(remote_layout["widths"]) <= 480.5,
+                check("Remote cards respect the 560px ceiling",
+                      max(remote_layout["widths"]) <= 560.5,
                       repr(remote_layout["widths"]))
                 check("Remote master and MUTE stay inline in a bottom bar",
                       remote_layout["controls"] == "fixed"
