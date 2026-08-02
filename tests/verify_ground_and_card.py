@@ -245,6 +245,26 @@ def report(surface, data):
           not findings, detail)
 
 
+def report_header_controls(page, width, theme):
+    """Keep every header control inside a visibly taller chrome row."""
+    page.set_viewport_size({"width": width, "height": 950})
+    measured = page.evaluate("""
+    () => {
+      const height = selector =>
+        document.querySelector(selector).getBoundingClientRect().height;
+      const header = height("header");
+      const theme = height("#theme-select");
+      const execution = height("#execution-target");
+      return {header, theme, execution, tallest:Math.max(theme, execution)};
+    }
+    """)
+    check(
+        f"header clears its tallest control -- {width}px/{theme}",
+        measured["header"] > measured["tallest"],
+        "header={header}px, theme={theme}px, execution={execution}px".format(
+            **measured))
+
+
 def populate_show(page):
     if page.query_selector("#show-create-form"):
         page.fill("#show-create-name", "ground")
@@ -317,6 +337,9 @@ def main():
                     page = themed_page(browser, 1280, 950, theme)
                     page.goto(base_url)
                     page.wait_for_selector("#ws-status.online")
+                    for width in (1280, 900, 700):
+                        report_header_controls(page, width, theme)
+                    page.set_viewport_size({"width": 1280, "height": 950})
                     for tab in ("control", "show", "seats", "devices",
                                 "patches", "assets"):
                         page.click(f"#tab-button-{tab}")

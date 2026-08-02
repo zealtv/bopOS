@@ -97,7 +97,7 @@ header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24
 #ws-status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--offline-mark)}
 #ws-status.online::before{background:var(--green);box-shadow:0 0 6px color-mix(in srgb,var(--green) 55%,transparent)}
 #mute-all{min-height:40px;white-space:nowrap}
-.theme-control{display:flex;align-items:center;gap:7px}.theme-control select{min-height:40px}
+.theme-control{display:flex;align-items:center;gap:7px}.theme-control select{min-height:var(--row-h)}
 @media(max-width:1049px){
   header{grid-template-columns:auto minmax(0,1fr) auto;height:auto;min-height:var(--header-h);gap:9px 12px;padding:9px 20px}
   .app-header-spacer{display:none}
