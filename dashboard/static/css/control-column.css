@@ -70,6 +70,15 @@
   border-radius: var(--radius-panel);
   padding: var(--pad-panel);
 }
+.control-column-derived {
+  display: contents;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.control-column-derived > .control-column-cards {
+  display: contents;
+}
 
 /* The head is the column's own closed target picker (D4) — no separate bar, no
    heading, because the picker's terse readout (`all`, `Left+7`) IS the title.

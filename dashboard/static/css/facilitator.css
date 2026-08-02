@@ -10,8 +10,8 @@
 :root[data-theme=light]{--green:#0f6f3f;--auto:#4f7fb8}
 :root[data-theme=dark]{--green:#45d483;--auto:#7fb0e8}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}html{background:var(--bg);color:var(--text)}
-body{margin:0;background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
+html{min-height:100%;background:var(--bg);color:var(--text)}
+body{min-height:100vh;margin:0;background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
 header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--surface-bar);padding-top:max(14px,env(safe-area-inset-top))}
 h1{font-size:22px;margin:0;margin-right:auto}
 #technical-link{color:var(--text);border:1px solid var(--control-line);border-radius:8px;padding:8px 12px;text-decoration:none;font-size:14px}
@@ -22,7 +22,7 @@ h1{font-size:22px;margin:0;margin-right:auto}
    used to sit right here — moved onto `control-column.css` and
    `control-panel.css` §18 in `3-iframe-retirement`, so that the Control tab of
    `index.html`, which does not load this stylesheet, gets it too. */
-#control-column-host{flex:1;min-height:0;overflow-y:auto;margin:12px}
+#control-column-host{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),1fr));align-items:start;align-content:start;gap:12px;margin:12px;overflow:visible}
 input[type=range]{flex:1;height:44px;accent-color:var(--accent-cyan);cursor:pointer}
 footer{border-top:1px solid var(--line);background:var(--surface-bar);padding:16px 22px;display:grid;gap:14px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
 #master-row{display:flex;align-items:center;gap:16px}

@@ -21,10 +21,8 @@
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
   <header><a id="technical-link" href="/">All views</a><h1 id="venue-name">bopOS Dashboard</h1><label class="theme-control">theme <select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><span id="ws-status" class="offline">connecting…</span></header>
-  <!-- The Remote view is one ControlColumn between the header and the fleet
-       footer. The column builds its own picker, cards and status output
-       (3-iframe-retirement): this page and the Control tab mount the same
-       component rather than each authoring a skeleton for it. -->
+  <!-- Remote derives every target through the shared card component. It has
+       labels rather than Control's card pickers and no preset capability. -->
   <div id="control-column-host"></div>
   <footer id="controls">
     <div id="master-row"><span class="label">Master</span><input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out"></output></div>

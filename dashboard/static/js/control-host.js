@@ -118,7 +118,14 @@
         if (venueKnown) cards.forEach(card => card.surface.render());
       },
       onRemove: () => removeCard(entry),
-      full: true,
+      capabilities: {
+        fullManifest: true,
+        presetMenu: true,
+        targetPicker: true,
+        deriveAllTargets: false,
+        deviceCommands: false,
+        deviceHandoff: true,
+      },
       getState: () => installation,
       isInteracting: () => interacting,
       setInteracting: editing => { interacting = editing; },

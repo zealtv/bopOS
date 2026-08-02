@@ -7,10 +7,10 @@
 // in `index.html` (`js/control-host.js`), so the fork is gone: what the two
 // hosts differ about is stated by what each passes in.
 //
-// Remote is `full: false`. That means the `dashboard: true` subset of the
-// manifest rather than all of it, and NO preset affordance at all — Bob's `41`
-// Q4 ruling, removed rather than rendered inert. Capture-as-Show-step is
-// desktop-only for the same reason, so this page passes neither callback.
+// Remote derives All, every group and every Seat. It shares the card renderer
+// with Control but has no target picker or presets; dashboard:true still gates
+// its manifest subset, and it retains the device commands needed away from the
+// desktop rack view.
 const ws = new BopSocket("/ws");
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(
@@ -26,11 +26,15 @@ let interacting = false;
 const column = window.ControlColumn.create({
   host: $("#control-column-host"),
   id: "remote",
-  // Its own key, not the Control tab's: the two documents choose targets
-  // independently, and per-host selection is what lets `4-n-columns` give
-  // every column one of its own.
-  storageKey: "bopos.target.remote",
-  full: false,
+  storageKey: null,
+  capabilities: {
+    fullManifest: false,
+    presetMenu: false,
+    targetPicker: false,
+    deriveAllTargets: true,
+    deviceCommands: true,
+    deviceHandoff: false,
+  },
   getState: () => installation,
   isInteracting: () => interacting,
   setInteracting: editing => { interacting = editing; },

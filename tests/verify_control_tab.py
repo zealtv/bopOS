@@ -613,19 +613,21 @@ def main():
                 check("the standalone facilitator has no preset affordance",
                       standalone.locator("#preset-section").count() == 0
                       and standalone.locator("[data-preset-slot]").count() == 0)
+                check("Remote has labels rather than target pickers",
+                      standalone.locator(".target-picker").count() == 0)
+                remote_cards = standalone.locator(".live-card")
+                check("Remote derives All, every group and every Seat",
+                      [(card.get_attribute("data-live-scope"),
+                        card.get_attribute("data-live-id"))
+                       for card in remote_cards.all()]
+                      == [("all", None), ("group", "0"),
+                          ("seat", "1"), ("seat", "5")])
                 # D8's other half: the commands LEFT Control, they were not
                 # deleted. An iPad away from the rack is where a per-device
                 # reboot earns its place, so Remote still draws them — in the
                 # card, not behind a hand-off it has no tab to hand off to.
-                open_picker(standalone)
-                # Whichever Seat this rig still has by now — earlier checks
-                # reindex and delete Seats out from under the picker on purpose.
-                standalone.locator(
-                    ".target-picker-roster .target-chip").first.click()
-                standalone.locator(
-                    '.live-card[data-live-scope="seat"]').wait_for()
                 remote_card = standalone.locator(
-                    '.live-card[data-live-scope="seat"]')
+                    '.live-card[data-live-scope="seat"]').first
                 check("Remote still carries the device-command disclosure",
                       remote_card.locator(
                           "details.device-commands").count() == 1

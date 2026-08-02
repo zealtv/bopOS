@@ -31,7 +31,7 @@
     host,
     id = "control",
     storageKey = "bopos.target.control",
-    full = false,
+    capabilities = {},
     // The Control tab owns its columns' persistence itself (D9), so it passes
     // no storage key and supplies these instead. Remote, the single-column
     // host, keeps the picker's own key and never sees them.
@@ -54,14 +54,19 @@
     deletePreset,
     requestCapturePreview,
     sendCommand,
-    // D8: the Devices tab owns device lifecycle, so a `full` host hands off to
-    // it rather than carrying Update bopOS / Reboot / Shutdown per card. Remote
-    // has no Devices tab and passes nothing, which is exactly why it keeps the
-    // commands themselves.
+    // The desktop can hand off device lifecycle to its Devices tab; Remote
+    // instead enables the per-card commands because it has no such tab.
     openDevice,
   }) {
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
+    const fullManifest = capabilities.fullManifest ?? false;
+    const presetMenu = capabilities.presetMenu ?? false;
+    const showTargetPicker = capabilities.targetPicker ?? true;
+    const deriveAllTargets = capabilities.deriveAllTargets ?? false;
+    const showDeviceCommands = capabilities.deviceCommands ?? false;
+    const showDeviceHandoff = capabilities.deviceHandoff ?? false;
+    if (deriveAllTargets) host.classList.add("control-column-derived");
     // The column IS the labelled region, and its label is its target (D4) — so
     // region navigation reads `all`, `Left`, `Seat 7` rather than N identical
     // "Live controls". The name is set on every render, in `nameRegion`.
@@ -70,8 +75,8 @@
     // keyboard operator reaches the next column's target without traversing
     // forty parameter rows. No positive tabindex anywhere — DOM order is
     // already the reading order.
-    host.innerHTML = `<div class="control-column-head"><div class="control-column-picker"></div>${onRemove
-        ? '<button type="button" class="control-column-close" title="Remove card" aria-label="Remove card">✕</button>' : ""}</div>
+    host.innerHTML = `${showTargetPicker ? `<div class="control-column-head"><div class="control-column-picker"></div>${onRemove
+        ? '<button type="button" class="control-column-close" title="Remove card" aria-label="Remove card">✕</button>' : ""}</div>` : ""}
       <div class="control-column-cards"><p class="empty">Waiting for devices…</p></div>
       <output class="control-column-status" role="status" aria-live="polite"></output>`;
     const cards = host.querySelector(".control-column-cards");
@@ -174,33 +179,44 @@
     // by design (D4): the closed picker's readout IS the column's title, so a
     // 342px column spends no height on a heading that repeats it.
     function terseTarget() {
+      if (deriveAllTargets) return "Remote";
       return window.TargetPicker.terse(
         targetPicker.selection(), targetSpec().sections, {emptyTerse: "no target"});
     }
 
-    const targetPicker = window.TargetPicker.create({
-      host: pickerHost,
-      id,
-      storageKey,
-      initialSelection: initialTarget,
-      defaultOpen,
-      onOpenChange,
-      // D7 (Bob, 2026-07-31): Control never follows the focus Seat, at any N.
-      // A column that silently re-aimed itself when someone touched the Seats
-      // tab is wrong the moment there is more than one of them, and the Seats →
-      // Control workflow returns as an explicit action owned by `4-n-columns`.
-      pruneFallback: "empty",
-      spec: targetSpec,
-      onChange: selection => {
-        renderCards();
-        nameRegion();
-        cards.scrollTop = 0;
-        onTargetChange?.(selection);
-      },
-    });
+    const targetPicker = showTargetPicker
+      ? window.TargetPicker.create({
+          host: pickerHost,
+          id,
+          storageKey,
+          initialSelection: initialTarget,
+          defaultOpen,
+          onOpenChange,
+          pruneFallback: "empty",
+          spec: targetSpec,
+          onChange: selection => {
+            renderCards();
+            nameRegion();
+            cards.scrollTop = 0;
+            onTargetChange?.(selection);
+          },
+        })
+      : {
+          selection: () => [
+            "all",
+            ...groups().map(group => `g${group.id}`),
+            ...seats().map(seat => String(seat.id)),
+          ],
+          dropped: () => [],
+          render: () => {},
+          reveal: () => {},
+          set: () => {},
+        };
 
     function nameRegion() {
-      host.setAttribute("aria-label", `Control column ${terseTarget()}`);
+      host.setAttribute("aria-label", deriveAllTargets
+        ? "Remote controls"
+        : `Control card ${terseTarget()}`);
     }
 
     function liveSchema() {
@@ -211,7 +227,7 @@
         ...schema.declarations,
         ...(Array.isArray(schema.events) ? schema.events : []),
       ];
-      const visible = full
+      const visible = fullManifest
         ? items
         : items.filter(declaration => declaration?.dashboard === true);
       const valid = visible.every(declaration =>
@@ -240,7 +256,7 @@
           declaration &&
           typeof declaration.identity === "string" &&
           declaration.identity.length > 0 &&
-          (full || declaration.dashboard === true)),
+          (fullManifest || declaration.dashboard === true)),
       };
     }
 
@@ -249,7 +265,7 @@
     }
 
     // D8's overflow. `Send all` is a rescue action for a returning node, not a
-    // live gesture, and on a `full` host the device hand-off keeps it company —
+    // live gesture, and on a desktop host the device hand-off keeps it company —
     // so one ⋯ per card replaces both a permanent button and, on Control, a
     // whole `Device setup` disclosure. A group card has neither and renders no
     // ⋯ at all rather than an empty menu.
@@ -258,7 +274,7 @@
       if (scope === "all" || scope === "seat") {
         items.push(replayButton(scope, targetId, !schemaAvailable));
       }
-      if (full && scope === "seat" && device && openDevice) {
+      if (showDeviceHandoff && scope === "seat" && device && openDevice) {
         items.push(`<button type="button" class="open-device" data-open-device="${esc(device.uid)}">Device setup…</button>`);
       }
       if (!items.length) return "";
@@ -284,7 +300,7 @@
     // hold-to-confirm buttons one disclosure from the faders, times N cards
     // times N columns, for something the Devices tab owns.
     function deviceCommands(device) {
-      if (full || !device) return "";
+      if (!showDeviceCommands || !device) return "";
       const commands = (state().facilitator_commands || []).map(command =>
         `<button data-device-command="${esc(command)}" data-uid="${esc(device.uid)}" class="${destructiveCommands.has(command) ? "hold" : ""}">${esc(commandLabel(command))}${destructiveCommands.has(command) ? " — hold" : ""}</button>`).join("");
       if (!commands) return "";
@@ -308,7 +324,7 @@
         ? `<div class="promoted-controls">${surface.tree(scope, targetId, members, declarations, empty)}</div>`
         : "";
       const cardKey = `${scope}:${targetId ?? "all"}`;
-      const presets = full && declarations.length
+      const presets = presetMenu && declarations.length
         ? surface.presetRow(scope, targetId, members, patch, {
             key: cardKey,
             saveDisabled: scope === "seat" && !live,
@@ -376,7 +392,17 @@
           targetPicker.reveal();
         return;
       }
-      const rendered = selection.includes("all")
+      const rendered = deriveAllTargets
+        ? [
+            liveCard(
+              "all", {}, allSeats, declarations,
+              available && allSeats.length > 0, patch,
+            ),
+            ...selection.filter(entry => entry !== "all")
+              .map(entry => selectedCard(entry, declarations, available, patch))
+              .filter(Boolean),
+          ]
+        : selection.includes("all")
         ? [liveCard(
             "all", {}, allSeats, declarations,
             available && allSeats.length > 0, patch,
@@ -508,7 +534,7 @@
       revealTarget: () => targetPicker.reveal(),
       focus: () => {
         host.scrollIntoView({block: "nearest", inline: "nearest"});
-        pickerHost.querySelector("summary")?.focus();
+        pickerHost?.querySelector("summary")?.focus();
       },
       setSole: () => {},
       destroy: () => host.remove(),
