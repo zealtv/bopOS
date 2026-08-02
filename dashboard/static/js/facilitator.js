@@ -1,5 +1,5 @@
 // The standalone Remote view: one ControlColumn, plus the page furniture that
-// only this document has (venue name, master, SILENCE ALL, fleet setup).
+// only this document has (venue name, master, mute, fleet setup).
 //
 // Until `3-iframe-retirement` this file was BOTH hosts — the Control tab
 // embedded this same page as an iframe with `?embedded=1`, and four behaviours
@@ -34,7 +34,8 @@ const column = window.ControlColumn.create({
     deriveAllTargets: true,
     deviceCommands: true,
     deviceHandoff: false,
-    groupSlot: groupId => window.GroupSlots.indexOf(groupId),
+    groupSlot: groupId => window.GroupSlots.forGroup(
+      groupId, Object.values(installation.groups || {})),
   },
   getState: () => installation,
   isInteracting: () => interacting,
@@ -104,10 +105,6 @@ ws.on("master", data => {
   renderControls();
 });
 ws.on("event_scheduled", data => column.reportEventScheduled(data));
-window.addEventListener("storage", event => {
-  if (event.key === window.GroupSlots.key) render();
-});
-
 document.addEventListener("pointerdown", event => {
   if (event.target.matches(
     'input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]',
@@ -138,7 +135,7 @@ function renderControls() {
   if (!interacting) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
   const silence = $("#silence");
-  silence.textContent = muted ? "RESUME" : "SILENCE ALL";
+  silence.textContent = muted ? "UNMUTE" : "MUTE";
   silence.classList.toggle("active", muted);
 }
 

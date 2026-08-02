@@ -13,10 +13,13 @@ def read(relative):
 
 
 class CardsGridCssTests(unittest.TestCase):
-    def test_both_hosts_use_the_same_flexible_track(self):
-        track = "repeat(auto-fit,minmax(min(342px,100%),1fr))"
-        self.assertIn(track, read("dashboard/static/css/style.css"))
-        self.assertIn(track, read("dashboard/static/css/facilitator.css"))
+    def test_both_hosts_cap_tracks_and_distribute_free_space(self):
+        track = "repeat(auto-fit,minmax(min(342px,100%),480px))"
+        for stylesheet in ("dashboard/static/css/style.css",
+                           "dashboard/static/css/facilitator.css"):
+            css = read(stylesheet)
+            self.assertIn(track, css)
+            self.assertIn("justify-content:space-between", css)
 
     def test_component_cards_region_is_not_a_nested_scrollport(self):
         css = read("dashboard/static/css/control-column.css")

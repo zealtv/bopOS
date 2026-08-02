@@ -83,7 +83,8 @@
         deriveAllTargets: false,
         deviceCommands: false,
         deviceHandoff: true,
-        groupSlot: groupId => visibleGroups.indexOf(Number(groupId)),
+        groupSlot: groupId => window.GroupSlots.forGroup(
+          groupId, Object.values(installation.groups || {})),
       },
       getState: () => installation,
       isInteracting: () => interacting,
@@ -214,8 +215,6 @@
     cards.forEach(card => card.surface.reportPresetApplied(data)));
   ws.on("event_scheduled", data =>
     cards.forEach(card => card.surface.reportEventScheduled(data)));
-  window.addEventListener("group-slots-change", renderAll);
-
   document.addEventListener("pointerdown", event => {
     if (!stage.contains(event.target)) return;
     if (event.target.matches(

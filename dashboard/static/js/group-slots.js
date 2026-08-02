@@ -1,10 +1,9 @@
-// Shared identity palette and the desktop Seats map's current four slot
-// assignments. The assignment is presentation state, not venue/group data;
-// localStorage only lets the sibling Remote document observe the same view.
+// Shared group identity palette. A group's visual slot is its position in the
+// numerically sorted venue roster, modulo the four Seats-map treatments. That
+// is the same rule TargetPicker uses and does not depend on map visibility.
 (function () {
   "use strict";
 
-  const key = "bopos.group.slots";
   const palette = [
     {colour: "#56B4E9", pattern: "solid"},
     {colour: "#E69F00", pattern: "dash"},
@@ -15,29 +14,15 @@
     document.documentElement.style.setProperty(
       `--group-slot-${index + 1}`, slot.colour));
 
-  function normalise(value) {
-    return Array.from({length: 4}, (_item, index) => {
-      const id = value?.[index];
-      return id == null || !Number.isInteger(Number(id)) ? null : Number(id);
-    });
+  function forGroup(groupId, groups = []) {
+    const wanted = Number(groupId);
+    const index = Array.from(groups)
+      .map(group => Number(group?.id))
+      .filter(Number.isInteger)
+      .sort((left, right) => left - right)
+      .indexOf(wanted);
+    return index < 0 ? -1 : index % palette.length;
   }
 
-  function read() {
-    try { return normalise(JSON.parse(localStorage.getItem(key))); }
-    catch (_error) { return normalise([]); }
-  }
-
-  function write(value) {
-    const next = normalise(value);
-    if (JSON.stringify(read()) === JSON.stringify(next)) return;
-    try { localStorage.setItem(key, JSON.stringify(next)); }
-    catch (_error) { /* identity falls back to neutral in private mode */ }
-    window.dispatchEvent(new CustomEvent("group-slots-change", {detail: next}));
-  }
-
-  function indexOf(groupId, value = read()) {
-    return normalise(value).indexOf(Number(groupId));
-  }
-
-  window.GroupSlots = {key, palette, read, write, indexOf};
+  window.GroupSlots = {palette, forGroup};
 })();

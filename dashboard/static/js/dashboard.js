@@ -352,7 +352,6 @@ function reconcileGroupView() {
   if (!valid.has(Number(selectedGroup))) selectedGroup=null;
 }
 function groupView() {
-  window.GroupSlots.write(visibleGroups);
   return {visible:visibleGroupIds(),visibleSlots:[...visibleGroups],focused:focusedGroup,slots:GROUP_SLOTS};
 }
 // Adapted Lucide eye/eye-off geometry; see THIRD_PARTY_NOTICES.md.

@@ -11,7 +11,7 @@
 :root[data-theme=dark]{--green:#45d483;--auto:#7fb0e8}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{min-height:100%;background:var(--bg);color:var(--text)}
-body{min-height:100vh;margin:0;background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
+body{min-height:100vh;margin:0;padding-bottom:calc(78px + env(safe-area-inset-bottom));background:var(--bg);color:var(--text);font:18px system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;touch-action:manipulation}
 header{display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--surface-bar);padding-top:max(14px,env(safe-area-inset-top))}
 h1{font-size:22px;margin:0;margin-right:auto}
 #technical-link{color:var(--text);border:1px solid var(--control-line);border-radius:8px;padding:8px 12px;text-decoration:none;font-size:14px}
@@ -22,14 +22,14 @@ h1{font-size:22px;margin:0;margin-right:auto}
    used to sit right here — moved onto `control-column.css` and
    `control-panel.css` §18 in `3-iframe-retirement`, so that the Control tab of
    `index.html`, which does not load this stylesheet, gets it too. */
-#control-column-host{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),1fr));align-items:start;align-content:start;gap:12px;margin:12px;overflow:visible}
+#control-column-host{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),480px));justify-content:space-between;align-items:start;align-content:start;gap:12px;margin:12px;overflow:visible}
 input[type=range]{flex:1;height:44px;accent-color:var(--accent-cyan);cursor:pointer}
-footer{border-top:1px solid var(--line);background:var(--surface-bar);padding:16px 22px;display:grid;gap:14px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
-#master-row{display:flex;align-items:center;gap:16px}
+footer{position:fixed;z-index:30;right:0;bottom:0;left:0;border-top:1px solid var(--line);background:color-mix(in srgb,var(--surface-bar) 96%,transparent);padding:10px 22px max(10px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;box-shadow:0 -5px 18px #0005}
+#master-row{min-width:0;display:flex;align-items:center;gap:16px}
 #master-row .label{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 #master-row output{width:56px;text-align:right;font-variant-numeric:tabular-nums}
-#buttons{display:grid;grid-template-columns:1fr;gap:12px}
-#facilitator-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+#silence{min-width:120px;padding:12px 18px}
+#facilitator-commands{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 12px 12px}
 #facilitator-commands:empty{display:none}
 .command-scope-label{grid-column:1/-1;color:var(--dim);font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 button{border:1px solid var(--control-line);background:var(--control);color:var(--text);border-radius:10px;padding:16px;font-size:17px;cursor:pointer}
@@ -57,7 +57,7 @@ button.hold.holding::after{transform:scaleX(1);transition:transform 1.2s linear}
 .danger{border-color:#87343c}
 .danger.active{background:var(--red);border-color:var(--red);color:#130507;font-weight:800;box-shadow:0 0 18px #ff4e5d88}
 
-@media(max-width:620px){#control-column-host{margin-inline:8px}}
+@media(max-width:620px){body{padding-bottom:calc(142px + env(safe-area-inset-bottom))}#control-column-host{margin-inline:8px}footer{grid-template-columns:1fr;padding-inline:8px}#silence{width:100%}}
 @media(prefers-reduced-motion:reduce){.live-param-marker{animation:none!important;animation-play-state:paused!important;opacity:0}.live-param-glyph,.live-param-marker,.live-param-range-wrap::before{transition-duration:0s!important}}
 .theme-control{display:grid;gap:2px;color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}.theme-control select{min-height:44px;border:1px solid var(--control-line);border-radius:8px;background:var(--input);color:var(--text);padding:7px 30px 7px 9px;font:inherit;font-size:14px;letter-spacing:0;text-transform:none}@media(max-width:620px){header{flex-wrap:wrap}.theme-control{order:3;margin-left:auto}}
 .initial-loading{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;background:var(--bg);color:var(--text)}.initial-loading[hidden]{display:none}.bop-loader{display:grid;justify-items:center;gap:13px}.bop-loader strong{font-size:34px;letter-spacing:-.05em}.bop-loader small{color:var(--dim);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}.bop-beats{height:32px;display:flex;align-items:end;gap:7px}.bop-beats i{width:8px;height:13px;border-radius:2px 2px 0 0;background:var(--accent);animation:bop-beat 1s cubic-bezier(.34,1.56,.64,1) infinite;transform-origin:bottom}.bop-beats i:nth-child(2){height:21px;animation-delay:.1s;background:var(--accent-cyan)}.bop-beats i:nth-child(3){height:29px;animation-delay:.2s;background:var(--accent-warm)}.bop-beats i:nth-child(4){height:17px;animation-delay:.3s;background:var(--accent-bright)}@keyframes bop-beat{0%,45%,100%{transform:scaleY(.35);opacity:.55}18%{transform:scaleY(1);opacity:1}}@media(prefers-reduced-motion:reduce){.bop-beats i{animation:none;opacity:1}}

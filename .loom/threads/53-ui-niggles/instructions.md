@@ -1,6 +1,6 @@
 # 53-ui-niggles
 
-Three small, independently shippable UI corrections from Bob's 2026-08-02
+Four small, independently shippable UI corrections from Bob's 2026-08-02
 review of the shipped app. None is a design gate; each is a ratified change
 with a stated outcome.
 
@@ -38,9 +38,13 @@ ask rather than against my paraphrase:
    long name, and `new`/`save`/`del` sit behind an `edit` disclosure that Bob
    wants gone. This one changes a shipped component that four surfaces mount;
    read its stitch before assuming it is small.
+4. `4-card-strokes-and-remote-bar` — follow-up on the new target cards: make
+   group identity independent of Seats-map visibility, cap card tracks, and
+   keep Remote's master/mute controls visible as one responsive live bar.
 
-They touch three different files and no two of them collide, so they can be
-worked in any order. The stated order is by size.
+The first three touch different files and can be worked in any order; their
+stated order is by size. The fourth followed Bob's review of the subsequently
+shipped cards work.
 
 ## Standing constraints for all three
 

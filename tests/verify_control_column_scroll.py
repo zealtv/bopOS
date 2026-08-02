@@ -204,7 +204,8 @@ def main():
                       json.dumps(before))
                 check("flexible tracks share the available width evenly",
                       max(before["widths"]) - min(before["widths"]) <= 1
-                      and min(before["widths"]) >= 342,
+                      and min(before["widths"]) >= 342
+                      and max(before["widths"]) <= 480,
                       json.dumps(before["widths"]))
                 check("Control cards and host expose no nested scrollport",
                       before["cardsOverflowY"] == "visible"
@@ -252,7 +253,8 @@ def main():
                 check("Remote derives four flexible card tracks",
                       remote["display"] == "grid"
                       and len(remote["widths"]) == 4
-                      and max(remote["widths"]) - min(remote["widths"]) <= 1,
+                      and max(remote["widths"]) - min(remote["widths"]) <= 1
+                      and max(remote["widths"]) <= 480,
                       json.dumps(remote))
                 check("Remote also has no nested vertical scrollport",
                       remote["hostOverflowY"] == "visible"

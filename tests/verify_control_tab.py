@@ -519,8 +519,6 @@ def main():
                       and columns.nth(2).locator(
                           '.live-card[data-live-scope="seat"]'
                           '[data-live-id="5"]').count() == 1)
-                page.evaluate(
-                    "() => GroupSlots.write([0, null, null, null])")
                 page.wait_for_function(
                     "() => document.querySelector("
                     "'#control-column-host .control-column:nth-child(2)')"
@@ -536,7 +534,7 @@ def main():
                     shadow:getComputedStyle(item).boxShadow,
                   }));
                 }""")
-                check("Control paints All and active-group identity strokes",
+                check("Control paints All and stable group identity strokes",
                       "target-card-all" in identity[0]["classes"]
                       and identity[0]["width"] == "3px"
                       and identity[0]["colour"] == "rgb(255, 255, 255)"
@@ -657,6 +655,30 @@ def main():
                       .find("target-card-all") >= 0
                       and remote_cards.nth(1).get_attribute("class")
                       .find("target-card-group") >= 0)
+                remote_layout = standalone.evaluate("""() => {
+                  const cards=[...document.querySelectorAll('.live-card')];
+                  const controls=document.querySelector('#controls');
+                  const master=document.querySelector('#master-row');
+                  const mute=document.querySelector('#silence');
+                  return {
+                    widths:cards.map(card=>card.getBoundingClientRect().width),
+                    controls:getComputedStyle(controls).position,
+                    controlsBottom:Math.round(
+                      innerHeight-controls.getBoundingClientRect().bottom),
+                    inline:Math.abs(master.getBoundingClientRect().top-
+                      mute.getBoundingClientRect().top)<2,
+                    mute:mute.textContent,
+                  };
+                }""")
+                check("Remote cards respect the 480px ceiling",
+                      max(remote_layout["widths"]) <= 480.5,
+                      repr(remote_layout["widths"]))
+                check("Remote master and MUTE stay inline in a bottom bar",
+                      remote_layout["controls"] == "fixed"
+                      and abs(remote_layout["controlsBottom"]) <= 1
+                      and remote_layout["inline"]
+                      and remote_layout["mute"] == "MUTE",
+                      repr(remote_layout))
                 # D8's other half: the commands LEFT Control, they were not
                 # deleted. An iPad away from the rack is where a per-device
                 # reboot earns its place, so Remote still draws them — in the
