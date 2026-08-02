@@ -207,6 +207,18 @@ def main():
                       and min(before["widths"]) >= 340
                       and max(before["widths"]) <= 560,
                       json.dumps(before["widths"]))
+                page.set_viewport_size({"width": 1800, "height": 900})
+                wide_widths = page.eval_on_selector_all(
+                    "#control-column-host>.control-column",
+                    "cards => cards.map(card => Math.round("
+                    "card.getBoundingClientRect().width))",
+                )
+                check("wide Control cards grow beyond their minimum",
+                      len(wide_widths) == 4
+                      and min(wide_widths) >= 400
+                      and max(wide_widths) <= 560
+                      and max(wide_widths) - min(wide_widths) <= 1,
+                      json.dumps(wide_widths))
                 page.set_viewport_size({"width": 1200, "height": 900})
                 sparse = page.evaluate("""() => {
                   const cards=[...document.querySelectorAll(

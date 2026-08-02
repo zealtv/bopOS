@@ -28,6 +28,13 @@ class CardsGridCssTests(unittest.TestCase):
                       "flex:11min(340px,100%);"
                       "max-width:min(560px,100%)", css)
 
+    def test_control_direct_cards_reset_the_retired_fixed_flex(self):
+        css = "".join(read("dashboard/static/css/style.css").split())
+        active = css.rsplit("#control-column-host>.control-column{", 1)[1]
+        active = active.split("}", 1)[0]
+        self.assertIn("flex:11min(340px,100%)", active)
+        self.assertNotIn("flex:00342px", active)
+
     def test_remote_cards_region_is_an_explicit_flex_context(self):
         css = "".join(read("dashboard/static/css/facilitator.css").split())
         self.assertIn(

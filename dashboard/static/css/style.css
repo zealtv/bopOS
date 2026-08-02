@@ -402,6 +402,7 @@ details.icon-menu>summary::before{content:none}
 }
 #control-column-host>.control-column{
   min-width:0;
+  flex:1 1 min(340px,100%);
 }
 #control-column-host:empty::after{
   content:"Add a card to begin";
