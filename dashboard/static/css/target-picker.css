@@ -136,10 +136,10 @@
   border-radius:3px;
   flex:none;
 }
-.target-chip-group.slot-0 .target-chip-swatch { background:#56B4E9; }
-.target-chip-group.slot-1 .target-chip-swatch { background:#E69F00; }
-.target-chip-group.slot-2 .target-chip-swatch { background:#00B98B; }
-.target-chip-group.slot-3 .target-chip-swatch { background:#CC79A7; }
+.target-chip-group.slot-0 .target-chip-swatch { background:var(--group-slot-1); }
+.target-chip-group.slot-1 .target-chip-swatch { background:var(--group-slot-2); }
+.target-chip-group.slot-2 .target-chip-swatch { background:var(--group-slot-3); }
+.target-chip-group.slot-3 .target-chip-swatch { background:var(--group-slot-4); }
 
 .target-picker-warning {
   margin:0;

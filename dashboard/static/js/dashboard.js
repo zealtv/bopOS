@@ -51,12 +51,7 @@ async function copyFullIdentity(button) {
   if(feedback){feedback.textContent=copied?"Copied":"Copy failed";setTimeout(()=>{if(feedback.isConnected)feedback.textContent="";},1400);}
 }
 document.addEventListener("click",event=>{const button=event.target.closest("[data-copy-identity]");if(button)copyFullIdentity(button);});
-const GROUP_SLOTS = [
-  {colour:"#56B4E9", pattern:"solid"},
-  {colour:"#E69F00", pattern:"dash"},
-  {colour:"#00B98B", pattern:"dot"},
-  {colour:"#CC79A7", pattern:"dash-dot"},
-];
+const GROUP_SLOTS = window.GroupSlots.palette;
 const TAB_NAMES = ["show", "control", "seats", "devices", "patches", "assets"];
 // The Control tab was called Dashboard until 2026-07-25 (37/10). Existing
 // bookmarks and links still say #dashboard, so keep resolving it.
@@ -357,6 +352,7 @@ function reconcileGroupView() {
   if (!valid.has(Number(selectedGroup))) selectedGroup=null;
 }
 function groupView() {
+  window.GroupSlots.write(visibleGroups);
   return {visible:visibleGroupIds(),visibleSlots:[...visibleGroups],focused:focusedGroup,slots:GROUP_SLOTS};
 }
 // Adapted Lucide eye/eye-off geometry; see THIRD_PARTY_NOTICES.md.

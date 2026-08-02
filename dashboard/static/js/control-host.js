@@ -125,6 +125,7 @@
         deriveAllTargets: false,
         deviceCommands: false,
         deviceHandoff: true,
+        groupSlot: groupId => visibleGroups.indexOf(Number(groupId)),
       },
       getState: () => installation,
       isInteracting: () => interacting,
@@ -253,6 +254,7 @@
     cards.forEach(card => card.surface.reportPresetApplied(data)));
   ws.on("event_scheduled", data =>
     cards.forEach(card => card.surface.reportEventScheduled(data)));
+  window.addEventListener("group-slots-change", renderAll);
 
   document.addEventListener("pointerdown", event => {
     if (!stage.contains(event.target)) return;

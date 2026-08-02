@@ -34,6 +34,7 @@ const column = window.ControlColumn.create({
     deriveAllTargets: true,
     deviceCommands: true,
     deviceHandoff: false,
+    groupSlot: groupId => window.GroupSlots.indexOf(groupId),
   },
   getState: () => installation,
   isInteracting: () => interacting,
@@ -103,6 +104,9 @@ ws.on("master", data => {
   renderControls();
 });
 ws.on("event_scheduled", data => column.reportEventScheduled(data));
+window.addEventListener("storage", event => {
+  if (event.key === window.GroupSlots.key) render();
+});
 
 document.addEventListener("pointerdown", event => {
   if (event.target.matches(

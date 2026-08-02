@@ -65,10 +65,6 @@
   grid-template-rows: auto auto;
   gap: var(--gap);
   align-content: start;
-  background: var(--panel);
-  border: 1px solid var(--group-line);
-  border-radius: var(--radius-panel);
-  padding: var(--pad-panel);
 }
 .control-column-derived {
   display: contents;

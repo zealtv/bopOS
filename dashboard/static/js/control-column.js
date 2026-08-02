@@ -66,6 +66,8 @@
     const deriveAllTargets = capabilities.deriveAllTargets ?? false;
     const showDeviceCommands = capabilities.deviceCommands ?? false;
     const showDeviceHandoff = capabilities.deviceHandoff ?? false;
+    const groupSlot = capabilities.groupSlot || (() => -1);
+    host.classList.add("target-card");
     if (deriveAllTargets) host.classList.add("control-column-derived");
     // The column IS the labelled region, and its label is its target (D4) — so
     // region navigation reads `all`, `Left`, `Seat 7` rather than N identical
@@ -219,6 +221,39 @@
         : `Control card ${terseTarget()}`);
     }
 
+    function identityClasses(scope, targetId) {
+      if (scope === "all") return " target-card target-card-all";
+      if (scope !== "group") return " target-card";
+      const slot = Number(groupSlot(targetId));
+      return slot >= 0 && slot < window.GroupSlots.palette.length
+        ? ` target-card target-card-group group-slot-${slot + 1}`
+        : " target-card";
+    }
+
+    function identityStyle(scope, targetId) {
+      if (scope !== "group") return "";
+      const slot = Number(groupSlot(targetId));
+      return slot >= 0 && slot < window.GroupSlots.palette.length
+        ? ` style="--group-colour:var(--group-slot-${slot + 1})"`
+        : "";
+    }
+
+    function decorateHost() {
+      host.classList.remove(
+        "target-card-all", "target-card-group",
+        "group-slot-1", "group-slot-2", "group-slot-3", "group-slot-4",
+      );
+      host.style.removeProperty("--group-colour");
+      if (deriveAllTargets) return;
+      const selector = targetPicker.selection()[0];
+      if (selector === "all") host.classList.add("target-card-all");
+      if (!/^g\d+$/.test(selector || "")) return;
+      const slot = Number(groupSlot(Number(selector.slice(1))));
+      if (slot < 0 || slot >= window.GroupSlots.palette.length) return;
+      host.classList.add("target-card-group", `group-slot-${slot + 1}`);
+      host.style.setProperty("--group-colour", `var(--group-slot-${slot + 1})`);
+    }
+
     function liveSchema() {
       const schema = state().live_controls;
       if (!schema || typeof schema.patch !== "string" ||
@@ -333,7 +368,9 @@
       // An emptied group keeps its column and says so out loud: `aria-disabled`
       // rather than a member count in a `<small>` nobody reads aloud (D5).
       const emptyGroup = scope === "group" && empty;
-      return `<article class="live-card ${scope}-card${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}" data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
+      const identity = deriveAllTargets ? identityClasses(scope, targetId) : "";
+      const identityCss = deriveAllTargets ? identityStyle(scope, targetId) : "";
+      return `<article class="live-card ${scope}-card${identity}${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}"${identityCss} data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
         <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
         ${presets}${controls}${scope === "seat" ? deviceCommands(device) : ""}
       </article>`;
@@ -489,6 +526,7 @@
     function render() {
       targetPicker.render();
       nameRegion();
+      decorateHost();
       renderCards();
     }
 

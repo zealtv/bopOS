@@ -1,0 +1,21 @@
+/* Target identity shared by desktop Control cards and Remote live cards. */
+.target-card {
+  min-width:0;
+  background:var(--panel);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-panel);
+  padding:var(--pad-panel);
+}
+.target-card-all {
+  border:3px solid #fff;
+  box-shadow:0 0 0 2px #071015;
+}
+.target-card-group {
+  border:3px solid var(--group-colour);
+}
+.target-card-group.group-slot-2 { border-style:dashed; }
+.target-card-group.group-slot-3 { border-style:dotted; }
+.target-card-group.group-slot-4 { border-style:double; }
+@media(forced-colors:active){
+  .target-card-all,.target-card-group{border-color:CanvasText;box-shadow:none}
+}
