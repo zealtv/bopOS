@@ -61,6 +61,46 @@ is the *only* path, which is what promotes this from cosmetic to blocking.
   1. **Cancellation already ships.** A static value message pops the
      automation entry for that identity (`osc_bridge.py:482-489`). Nothing to
      build; the ruling ratifies existing behaviour.
+  **Bob generalised the ruling, 2026-08-02:**
+
+  > in the case of a fade taking over, if a "from" value isn't specified, the
+  > parameter should head to it's new destination from where ever that
+  > parameter happens to be - either a static value, mid-lfo, or mid-fade.
+
+  This is broader than the mid-fade case below, and re-siting it makes the fix
+  **smaller**, not larger. `record_param_for` is documented as *"Update
+  dashboard mirrors without sending"* (`osc_bridge.py:435`), so the `from`
+  discussed here is a **display guess and never reaches the wire** — the node
+  receives whatever was authored, with no start when none was written. The
+  defect is the dashboard's PICTURE of the fade, in all three of Bob's cases:
+
+  | parameter is… | mirror's `from` today | correct? |
+  |---|---|---|
+  | at a static value | the static value | ✓ already right |
+  | mid-fade | the previous fade's DESTINATION | ✗ jumps ahead |
+  | mid-lfo / mid-loop | the value from BEFORE the generator started | ✗ jumps back |
+
+  `_generator_value` (`preset_application.py:196-203`) already computes the
+  live position for all three kinds; the mirror has to ask it instead of
+  reading `prior`. No PD edit, no contract change — which **retires the
+  "exact continuity is node-side" framing** recorded a message earlier in the
+  same session, which wrongly treated the dashboard mirror as controlling.
+
+  It is not cosmetic even so: `capture_params` captures FROM the mirror and
+  `preset_dirty` compares against it, so a wrong take-over origin means a
+  preset saved mid-fade stores the wrong value. One case stays inexact by
+  design — a **free** LFO's node phase is "intentionally unknowable", so its
+  estimate uses the authored phase. That is a display estimate, not a control
+  error.
+
+  **The open question is now Bob's and it is a PD one:** when `[bopos]`
+  receives a fade with no start, does it ramp from its current output? If yes,
+  the fleet already behaves as ruled and only the dashboard was lying. If it
+  ramps from the last *received* value, the wire behaviour needs Bob's `.pd`
+  edit too, and the dashboard fix alone would make the picture right while the
+  sound stays wrong. **Ask before building** — the answer decides whether this
+  is one change or two, and agents do not edit `.pd`.
+
   2. **"Starts where the fade left off" is the OPPOSITE of today's
      behaviour**, and this is the actual work.
      `_store_fade_destination` (`osc_bridge.py:523-527`) writes the fade's
