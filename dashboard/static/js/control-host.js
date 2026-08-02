@@ -298,34 +298,6 @@
   ws.on("event_scheduled", data =>
     columns.forEach(column => column.surface.reportEventScheduled(data)));
 
-  // ---- capture as a Show step ---------------------------------------------
-  // D1: capture is VENUE-WIDE and belongs to the tab, never to a column — a
-  // per-column button would send that column's scope, and three of the five
-  // column shapes capture something other than what they show. D2: no dialogs.
-  // The two `alert()`s and the `confirm()` that stood here are gone; the whole
-  // affordance is `ShowCapture`, mounted identically on the Show tab's edit bar.
-  const captureSlot = document.querySelector("#control-capture-slot");
-  const capturePanel = document.querySelector("#control-capture-panel");
-  if (captureSlot && capturePanel && window.ShowCapture) {
-    const capture = window.ShowCapture.create({
-      ws,
-      getState: () => installation,
-      onChange: () => renderCapture(),
-    });
-    const renderCapture = () => {
-      captureSlot.innerHTML = capture.buttonHtml();
-      capturePanel.innerHTML = capture.panelHtml();
-    };
-    captureSlot.onclick = event => capture.handle(event);
-    capturePanel.onclick = event => capture.handle(event);
-    // The count is ambient: it tracks provenance as presets are applied and
-    // cleared, with no click and no request.
-    ws.on("state", renderCapture);
-    ws.on("show", data => capture.observeShow(data));
-    ws.on("shows", data => capture.observeShows(data));
-    renderCapture();
-  }
-
   document.addEventListener("pointerdown", event => {
     if (!stage.contains(event.target)) return;
     if (event.target.matches(

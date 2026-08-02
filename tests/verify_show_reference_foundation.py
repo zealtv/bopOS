@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Browser journey for portable Show targets and reference preservation."""
 
+import hashlib
 import json
 import random
 import socket
@@ -96,7 +97,7 @@ def make_fixture(root):
     assets.mkdir()
     shows.mkdir()
     (patch / "main.bin").write_bytes(b"show-reference-foundation")
-    (patch / "bopos.patch.json").write_text(json.dumps({
+    manifest = {
         "engine": "test",
         "entrypoint": "main.bin",
         "params": [
@@ -106,6 +107,22 @@ def make_fixture(root):
         "events": [],
         "caps": [],
         "slots": [],
+    }
+    (patch / "bopos.patch.json").write_text(json.dumps(manifest))
+    schema_projection = [{
+        "identity": "gain", "kind": "float", "min": 0, "max": 1,
+        "options": None,
+    }]
+    schema = "sha256:" + hashlib.sha256(json.dumps(
+        schema_projection, separators=(",", ":")).encode()).hexdigest()
+    presets = patch / "presets"
+    presets.mkdir()
+    (presets / "Dawn.json").write_text(json.dumps({
+        "bopos_preset": 1,
+        "name": "Dawn",
+        "saved": "2026-08-02T00:00:00+00:00",
+        "schema": schema,
+        "params": {"gain": [0.5]},
     }))
     state = {
         "schema": 1,
@@ -147,12 +164,12 @@ def make_fixture(root):
     show_path = shows / "opening-set.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
-    return state_path, show_path, patches, assets, reference
+    return state_path, show_path, patches, assets, reference, schema
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-show-reference-") as temporary:
-        state_path, show_path, patches, assets, reference = make_fixture(temporary)
+        state_path, show_path, patches, assets, reference, schema = make_fixture(temporary)
         http_port = free_port(socket.SOCK_STREAM)
         listen_port = free_port(socket.SOCK_DGRAM)
         send_port = free_port(socket.SOCK_DGRAM)
@@ -209,6 +226,13 @@ def main():
                 check("group picker stores a portable name selector",
                       named_chip.count() == 1
                       and named_chip.get_attribute("data-target-legacy") == "g7")
+
+                def saved_messages():
+                    try:
+                        return json.loads(show_path.read_text())["items"][0]["messages"]
+                    except (OSError, ValueError, KeyError, IndexError):
+                        return []
+
                 page.locator(
                     '[data-target-remove="group:Missing"]').click()
                 page.wait_for_function(
@@ -216,12 +240,6 @@ def main():
                 named_chip.click()
                 page.wait_for_function(
                     "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'Front'")
-
-                def saved_messages():
-                    try:
-                        return json.loads(show_path.read_text())["items"][0]["messages"]
-                    except (OSError, ValueError, KeyError, IndexError):
-                        return []
 
                 check("saved Show carries the group name, not the venue id",
                       wait_for(lambda: saved_messages()[0]["target"] == ["group:Front"]
@@ -255,6 +273,25 @@ def main():
                 check("one undo removes the paste and leaves the original reference",
                       wait_for(lambda: len(saved_messages()) == 1
                                and saved_messages()[0].get("reference") == reference),
+                      repr(saved_messages()))
+
+                # R5 retires automatic capture. Pin the smaller surviving
+                # workflow: an operator can add a message to a step and choose
+                # a stored preset from the Show inspector.
+                page.locator('[data-show-step-row="11111111"]').click()
+                page.wait_for_selector("#show-add-message")
+                page.click("#show-add-message")
+                page.wait_for_function(
+                    "() => document.querySelectorAll('[data-show-message-focus]').length === 2")
+                page.wait_for_selector("#show-message-mode")
+                page.select_option("#show-message-mode", "preset")
+                check("the Show inspector hand-authors a preset reference",
+                      wait_for(lambda: len(saved_messages()) == 2
+                               and saved_messages()[1].get("kind") == "reference"
+                               and saved_messages()[1].get("address")
+                               == "/preset/alpha/Dawn"
+                               and saved_messages()[1].get("reference", {}).get("schema")
+                               == schema),
                       repr(saved_messages()))
                 # 05g, Bob 2026-07-30: the step list is a spreadsheet. Rows butt
                 # against each other, a divider is the same height as a step

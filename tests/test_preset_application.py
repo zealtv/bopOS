@@ -330,7 +330,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             self.dashboard.preset_card_projection("group", 1)["mixed"])
 
-    async def test_flatten_and_capture_persist_as_single_undo_entries(self):
+    async def test_flatten_persists_as_single_undo_entry(self):
         record = self.save_patch_preset({"gain": [0.5], "gate": [1]})
         fingerprint = identity.fingerprint(self.patches / "alpha")
         reference = {
@@ -368,60 +368,6 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
             {"type": "f", "value": 250.0},
         ])
         self.assertEqual(flattened[1]["args"], [{"type": "i", "value": 1}])
-
-        for seat in (self.state.seats["1"], self.state.seats["2"]):
-            seat["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
-        self.state.seats["1"]["preset_dirty"] = True
-        await self.dashboard.capture_show_preset_step(None)
-
-        self.assertEqual(len(self.dashboard.show_undo), 2)
-        captured = self.dashboard.show["items"][-1]
-        self.assertEqual(len(captured["messages"]), 1)
-        self.assertEqual(captured["messages"][0]["target"], ["group:Pair A"])
-        self.assertEqual(
-            captured["messages"][0]["reference"]["content"]["fingerprint"],
-            fingerprint)
-        # D3: named after what it holds, not "Captured presets".
-        self.assertEqual(captured["alias"], "Dawn")
-
-    async def test_capture_is_venue_wide_and_follows_provenance_not_groups(self):
-        """D1: capture takes no scope, and grouping never widens what it takes.
-
-        Seats 1 and 2 are both in group `Pair A`; only Seat 1 has a preset
-        applied. The retired `scope:"groups"` path consulted every GROUPED seat
-        in the venue, so the two seats came back as one member set and the step
-        claimed `group:Pair A` — an arrangement the venue was not in. Capture
-        now reads provenance alone, so the message targets Seat 1 by id.
-        """
-        self.save_patch_preset({"gain": [0.5]}, name="Dawn")
-        self.dashboard.show = show_model.clean_show(
-            {"schema": 1, "name": "opening", "items": []})
-        self.dashboard.show_engine = SimpleNamespace(show=self.dashboard.show)
-        self.dashboard.show_edit_lock = asyncio.Lock()
-        self.dashboard.show_undo = []
-        self.dashboard.shows_dir = str(self.root / "shows")
-        self.state.data["current_show"] = "opening"
-        self.state.seats["1"]["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
-
-        await self.dashboard.capture_show_preset_step(None)
-
-        captured = self.dashboard.show["items"][-1]
-        self.assertEqual([message["target"] for message in captured["messages"]],
-                         [["1"]])
-
-    def test_applying_a_preset_marks_provenance_as_seen_this_session(self):
-        """The empty-capture states need their two causes told apart (D2).
-
-        `durable()` strips `applied_preset`, so after a restart the venue
-        sounds applied and captures nothing. This flag is the only thing that
-        distinguishes that from an arrangement genuinely cleared since the
-        dashboard came up, and it is runtime-only for the same reason.
-        """
-        self.save_patch_preset({"gain": [0.5]}, name="Dawn")
-        self.assertFalse(self.state.public()["preset_provenance_seen"])
-        self.assertNotIn("preset_provenance_seen", self.state.durable())
-        asyncio.run(self.dashboard.apply_preset("alpha", "Dawn", "all", None))
-        self.assertTrue(self.state.public()["preset_provenance_seen"])
 
     def test_provenance_is_runtime_only_and_dirty_compares_canonical_state(self):
         self.save_patch_preset({"gain": [0.123457]})

@@ -51,9 +51,9 @@ any number here, including these.
   kind table with text rather than inventing a parallel treatment. Where prose
   and the living prototype `mockup-control-panel.html` disagree, the prototype
   as last reviewed by Bob wins.
-* **The app has six component stylesheets** (`param-generator.css`,
-  `value-box.css`, `target-picker.css`, `control-column.css`, `show-capture.css`,
-  plus `control-panel.css` itself) and **one** metric layer — `--row-h`,
+* **The app has five component stylesheets** (`param-generator.css`,
+  `value-box.css`, `target-picker.css`, `control-column.css`, plus
+  `control-panel.css` itself) and **one** metric layer — `--row-h`,
   `--gap`, `--radius-*`, `--pad-control`, `--pad-panel`, `--header-h`, all at
   `:root` in `control-panel.css`, the one file both documents load. `--chrome-*`
   is gone. Do not introduce a third.

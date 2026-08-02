@@ -324,7 +324,6 @@ class Dashboard:
             "send_distribution", "sync_distribution", "drop_distribution",
             "apply_preset",
             "save_patch_preset", "delete_patch_preset",
-            "capture_show_preset_step",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
@@ -1366,13 +1365,6 @@ class Dashboard:
             await self.apply_show_mutation(ws, show_model.remove_message, data.get("uid"))
         elif kind == "flatten_preset_message":
             await self.flatten_show_preset(ws, data.get("uid"))
-        elif kind == "capture_show_preset_step":
-            # No `scope`/`id`, and no `preview_show_preset_capture` beside it:
-            # the preview existed only because the Control tab was an iframe
-            # that could see neither the seats' provenance nor whether a show
-            # was loaded. Since `3-iframe-retirement` it sees both, so arming
-            # and previewing are local and only the commit crosses the wire.
-            await self.capture_show_preset_step(ws)
         elif kind == "step_start":
             await self.show_engine.step_start(data.get("uid"))
         elif kind == "step_stop":
@@ -1827,69 +1819,6 @@ class Dashboard:
             raise preset_store.PresetStoreError(
                 f'patch "{patch}" is not installed') from error
 
-    def _captured_show_preset_messages(self):
-        """Every applied preset in the venue, as portable Show messages.
-
-        D1 (08-control-tab-columns/1-columns-design): capture is VENUE-WIDE and
-        takes no scope. It never carried one meaningfully — the arrangement is
-        rebuilt below from per-seat `applied_preset`, and `capture_target` then
-        derives the most portable selector for each concrete member set. The
-        old `scope`/`id` pair only narrowed which seats were consulted, and did
-        it wrongly for `groups` (every grouped seat in the venue, whatever the
-        asking surface showed).
-        """
-        seats = list(self.state.seats.values())
-        grouped = {}
-        for seat in seats:
-            marker = seat.get("applied_preset")
-            if not isinstance(marker, dict):
-                continue
-            key = (marker.get("patch"), marker.get("name"))
-            if not all(isinstance(value, str) and value for value in key):
-                continue
-            grouped.setdefault(key, []).append(seat)
-        messages = []
-        all_seats = list(self.state.seats.values())
-        groups = self.state.data.get("groups", {})
-        for (patch, name), members in sorted(grouped.items()):
-            record = self.preset_store.read(patch, preset_store.slugify(name))
-            target = preset_application.capture_target(
-                members, all_seats, groups)
-            if target["scope"] == "all":
-                selectors = ["all"]
-            elif target["scope"] == "group":
-                group = groups.get(str(target["id"]))
-                if not isinstance(group, dict) or not group.get("name"):
-                    raise preset_store.PresetStoreError(
-                        "captured preset group has no portable name")
-                selectors = [f'group:{group["name"]}']
-            else:
-                selectors = [str(item) for item in target["ids"]]
-            messages.append({
-                "kind": "reference",
-                "alias": name,
-                "address": f'/preset/{patch}/{record["slug"]}',
-                "args": [],
-                "target": selectors,
-                "reference": {
-                    "content": {
-                        "name": patch,
-                        "fingerprint": self._current_patch_fingerprint(patch),
-                    },
-                    "schema": record["document"]["schema"],
-                },
-            })
-        return messages
-
-    async def capture_show_preset_step(self, ws):
-        try:
-            messages = self._captured_show_preset_messages()
-        except preset_store.PresetStoreError as error:
-            await self.ws_error(ws, str(error))
-            return
-        await self.apply_show_mutation(
-            ws, show_model.capture_preset_step, messages)
-
     def preset_patches(self):
         """Every patch whose presets some visible surface can offer.
 
@@ -2178,15 +2107,9 @@ class Dashboard:
         for seat in matching:
             seat["applied_preset"] = dict(provenance)
             seat["preset_dirty"] = False
-        # Sticky for the life of the process, so an empty capture can say WHY
-        # it is empty: never applied here, or applied and then forgotten across
-        # a restart. Rolled back with the params below if the save fails.
-        provenance_seen_before = self.state.data.get("preset_provenance_seen")
-        self.state.data["preset_provenance_seen"] = True
         try:
             self.state.save()
         except (OSError, TypeError, ValueError):
-            self.state.data["preset_provenance_seen"] = provenance_seen_before
             for seat in matching:
                 seat["params"] = seat_params_before[str(seat["id"])]
                 previous_marker, previous_dirty = provenance_before[str(seat["id"])]

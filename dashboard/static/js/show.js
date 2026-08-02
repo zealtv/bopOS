@@ -26,10 +26,6 @@
   let inspectorOpen = true;
   let focusInspectorToggle = false;
   let lastSelectClick = {kind: null, uid: null, at: 0};
-  // Set when a capture — from EITHER surface — is expected to land, so the new
-  // step is focused and handed straight to click-to-edit rename (D3). The
-  // derived name is a description of the contents, not a title anyone chose.
-  let pendingCaptureRename = false;
   // The inspector is rebuilt on every heartbeat. Keep disclosure outside the
   // DOM; generator field drafts already live in the focused message args.
   const generatorDrawerState = new Map();
@@ -183,23 +179,6 @@
     try { return typeof installation === "object" && installation ? installation : {}; }
     catch (_error) { return {}; }
   }
-
-  // The same component the Control tab's strip mounts (D1: one action, two
-  // surfaces, no scope). It renders into the edit bar and the panel slot below
-  // it; `render()` is its `onChange`, since this tab rebuilds its root wholesale.
-  const capture = window.ShowCapture?.create({
-    ws,
-    getState: currentInstallation,
-    onChange: () => render(),
-  }) || null;
-  // Fires for a commit from EITHER surface — including the Control tab, whose
-  // operator is not looking at this list. The step is still handed to rename,
-  // so switching to Show lands on it with the derived name selected.
-  window.ShowCapture?.onCommit(() => {
-    pendingItemAdd = {kind: "step",
-                      known: new Set((show.items || []).map(item => item.uid))};
-    pendingCaptureRename = true;
-  });
 
   function currentDistribution() {
     try { return typeof distribution === "object" && distribution ? distribution : {}; }
@@ -538,7 +517,6 @@
       <div class="show-edit-bar-group">
         ${editBarButton("add-step", ADD_STEP_GLYPH, "Step", "Add step")}
         ${editBarButton("add-divider", ADD_DIVIDER_GLYPH, "Divider", "Add divider")}
-        ${capture ? capture.buttonHtml() : ""}
       </div>
       <div class="show-edit-bar-center" aria-hidden="true"></div>
       <div class="show-edit-bar-group">
@@ -569,7 +547,6 @@
     root.innerHTML = `${renderTransport()}${warningPanel}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
       <div class="show-list-shell">
         ${renderEditBar()}
-        ${capture ? capture.panelHtml() : ""}
         <div class="show-rows-box" style="height:${showRowsHeight}px">
           <div class="show-rows" role="table" aria-label="Show steps">${rows || '<p class="empty">This show has no steps yet.</p>'}</div>
         </div>
@@ -1488,9 +1465,6 @@
   });
 
   root.addEventListener("click", event => {
-    // Before the edit bar's own actions: the capture control lives inside that
-    // toolbar but is not one of them, and its preview sits below it.
-    if (capture?.handle(event)) return;
     const editBarAction = event.target.closest("[data-edit-bar-action]");
     if (editBarAction) {
       if (editBarAction.disabled) return;
@@ -1688,24 +1662,20 @@
 
   ws.on("shows", data => {
     shows = {names: data?.names || [], current: data?.current || null};
-    capture?.observeShows(data);
     if (!shows.current) focus = {kind: null, uid: null};
     render();
   });
   ws.on("show", data => {
     show = data || {schema: 1, name: "", items: []};
-    capture?.observeShow(show);
     if (pendingItemAdd) {
       const added = (show.items || []).find(item =>
         item.kind === pendingItemAdd.kind && !pendingItemAdd.known.has(item.uid));
       if (added) {
         focus = {kind: added.kind, uid: added.uid};
         scrollFocusedRow = true;
-        if (pendingCaptureRename) nameEdit = {kind: "step", uid: added.uid};
         pendingItemAdd = null;
       }
     }
-    pendingCaptureRename = false;
     if (pendingMessageAdd) {
       const step = stepByUid(pendingMessageAdd.step_uid);
       const added = (step?.messages || []).find(message => !pendingMessageAdd.known.has(message.uid));

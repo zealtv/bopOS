@@ -602,7 +602,10 @@ remain the authority for a particular piece of work.
 > → seats, the target picker's own ordering; **R4** Control and Remote become
 > the **same surface**, intentionally, with Remote's cards naturally shorter
 > because `dashboard:` gates Remote only; **R5** **`Capture as step` is
-> REMOVED** — steps are hand-authored.
+> REMOVED** — steps are hand-authored. `56/1-capture-retirement` completed the
+> deletion across the wire, model, runtime state, Control strip, Show edit bar,
+> component assets, and capture-only guards; preset save and hand-authored
+> preset-reference messages remain.
 >
 > R5 deletes an entire design space (reference-vs-flattened-vs-deviations,
 > `omit` lists, auto-generated presets, capture-time value picking) and the
