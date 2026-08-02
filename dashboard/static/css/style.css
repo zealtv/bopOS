@@ -385,3 +385,23 @@ details.icon-menu>summary::before{content:none}
 .icon-button{display:inline-grid;place-items:center;width:var(--row-h);height:var(--row-h);min-height:var(--row-h);padding:0;flex:none}
 .icon-glyph{font-size:14px;line-height:1}
 .fleet-actions{display:flex;align-items:center;gap:var(--gap);flex-wrap:wrap}
+
+/* ---- Control cards grid (56-simplify-cards-and-steps/5) ------------------
+   342px remains the component's proven minimum, while `1fr` shares the space
+   left after the final possible track across every visible card. The page is
+   the sole vertical scrollport; cards neither scroll sideways nor internally. */
+#control-column-host{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(342px,100%),1fr));
+  align-items:start;
+  align-content:start;
+  gap:12px;
+  height:auto;
+  overflow:visible;
+}
+#control-column-host>.control-column{min-width:0}
+#control-column-host:empty::after{
+  content:"Add a card to begin";
+  color:var(--dim);
+  padding:var(--gap) 0;
+}

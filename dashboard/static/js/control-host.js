@@ -1,109 +1,123 @@
-// The Control tab: N independently targeted columns
-// (08-control-tab-columns/4-n-columns/1-columns-layout).
-//
-// It used to be an iframe of `/facilitator?embedded=1`. That cost a second
-// websocket, a second copy of the fleet state, a document boundary every
-// browser journey had to reach through, and — because the two documents could
-// only talk via `localStorage` — a cross-document dance for the focus Seat.
-// All four are gone (`3-iframe-retirement`), which is what let this file grow
-// from mounting one column to mounting a row of them.
-//
-// This file is page wiring only: layout, persistence, the tab strip, and the
-// fan-out of socket messages to every column. All column logic is
-// `js/control-column.js`, which is the same component Remote mounts once.
-//
-// It runs AFTER `dashboard.js`, and deliberately reads that script's top-level
-// `ws` and `installation` bindings rather than opening a socket of its own —
-// one connection per document. Handler order follows registration order, so
-// every handler here sees the state `dashboard.js` has already merged.
+// The desktop Control tab: one independently targetable card per persisted
+// selector. Card membership is authored; card order is always derived from the
+// venue (All, groups, Seats) and is never persisted.
 (function () {
   "use strict";
 
   const stage = document.querySelector("#control-column-host");
   if (!stage) return;
 
-  // D9: ONE layout key, holding `{id, target, open}` per column in display
-  // order. The ids are MINTED, never indices — indices renumber on remove, and
-  // a stored record keyed by position silently re-points at whichever column
-  // slid into the gap.
-  const LAYOUT_KEY = "bopos.control.columns";
-  // Migrated once into column 1, then left alone. Remote keeps its own key.
+  const CARDS_KEY = "bopos.control.cards";
+  const LEGACY_LAYOUT_KEY = "bopos.control.columns";
   const LEGACY_TARGET_KEY = "bopos.target.control";
-
-  // The column's own freeze guard. `dashboard.js` has an `interacting` flag of
-  // its own for the Device and Patch panels; sharing one would let a drag in
-  // either surface suppress re-renders in the other. One flag covers the whole
-  // row: a drag is in exactly one column, and freezing the others for the
-  // duration of a pointer gesture costs nothing.
+  const cards = [];
   let interacting = false;
-  let minted = 0;
-  const columns = [];
+  let venueKnown = false;
+  let runtimeId = 0;
 
-  function readLayout() {
-    let stored = null;
-    try { stored = JSON.parse(localStorage.getItem(LAYOUT_KEY)); }
-    catch (_error) { stored = null; }
-    const records = Array.isArray(stored)
-      ? stored.filter(entry => entry && typeof entry.id === "string")
-      : null;
-    if (records && records.length) return records;
-    // First run on this browser — or the first run after the tab became
-    // N-column. An operator who had aimed the single column somewhere keeps
-    // that aim as column 1 rather than being reset to All.
-    let legacy = null;
-    try { legacy = JSON.parse(localStorage.getItem(LEGACY_TARGET_KEY)); }
-    catch (_error) { legacy = null; }
-    const target = Array.isArray(legacy) &&
-      legacy.every(entry => typeof entry === "string") ? legacy : ["all"];
-    let open = false;
-    try { open = localStorage.getItem(`${LEGACY_TARGET_KEY}.open`) === "true"; }
-    catch (_error) { open = false; }
-    return [{id: "c0", target, open}];
+  function strings(value) {
+    return Array.isArray(value)
+      ? value.filter(item => typeof item === "string")
+      : [];
   }
 
-  function writeLayout() {
+  function unique(values) {
+    return [...new Set(values)];
+  }
+
+  function readTargets() {
     try {
-      localStorage.setItem(LAYOUT_KEY, JSON.stringify(columns.map(column => ({
-        id: column.id, target: column.target, open: column.open,
-      }))));
-    } catch (_error) { /* private mode: the layout just doesn't persist */ }
+      const stored = JSON.parse(localStorage.getItem(CARDS_KEY));
+      if (stored?.version === 1 && Array.isArray(stored.targets)) {
+        return unique(strings(stored.targets));
+      }
+    } catch (_error) { /* try the migrations below */ }
+
+    try {
+      const columns = JSON.parse(localStorage.getItem(LEGACY_LAYOUT_KEY));
+      if (Array.isArray(columns) && columns.length) {
+        return unique(columns.flatMap(column => strings(column?.target)));
+      }
+    } catch (_error) { /* try the older single-target key */ }
+
+    try {
+      const target = JSON.parse(localStorage.getItem(LEGACY_TARGET_KEY));
+      if (Array.isArray(target)) return unique(strings(target));
+    } catch (_error) { /* use the first-run default */ }
+    return ["all"];
   }
 
-  function mintId() {
-    let id;
-    do { id = `c${minted++}`; } while (columns.some(column => column.id === id));
-    return id;
+  function committedTargets() {
+    return cards.flatMap(card => card.draft ? [] : card.target.slice(0, 1));
   }
 
-  // At N=1 the ✕ is hidden rather than removed (see `setSole`), so adding a
-  // second column does not shift the first column's picker sideways.
-  function markSole() {
-    columns.forEach(column => column.surface.setSole(columns.length === 1));
+  function writeTargets() {
+    try {
+      localStorage.setItem(CARDS_KEY, JSON.stringify({
+        version: 1,
+        targets: committedTargets(),
+      }));
+      localStorage.removeItem(LEGACY_LAYOUT_KEY);
+    } catch (_error) { /* private mode: membership remains session-only */ }
   }
 
-  function mount(record, {focus = false} = {}) {
+  function rank(selector) {
+    if (selector === "all") return [0, 0];
+    if (/^g\d+$/.test(selector)) return [1, Number(selector.slice(1))];
+    if (/^\d+$/.test(selector)) return [2, Number(selector)];
+    return [3, String(selector)];
+  }
+
+  function compare(left, right) {
+    if (left.draft !== right.draft) return left.draft ? 1 : -1;
+    const a = rank(left.target[0]);
+    const b = rank(right.target[0]);
+    return a[0] - b[0] || (typeof a[1] === "number"
+      ? a[1] - b[1]
+      : String(a[1]).localeCompare(String(b[1])));
+  }
+
+  function sortCards() {
+    cards.sort(compare);
+    cards.forEach(card => stage.appendChild(card.surface.element));
+  }
+
+  function targetsExcept(entry) {
+    return new Set(cards.flatMap(card =>
+      card === entry || card.draft ? [] : card.target.slice(0, 1)));
+  }
+
+  function mount(target, {draft = false, focus = false} = {}) {
     const element = document.createElement("section");
     element.className = "control-column";
     stage.appendChild(element);
-    const entry = {id: record.id, target: record.target, open: !!record.open};
+    const entry = {
+      id: `card-${runtimeId++}`,
+      target: strings(target).slice(0, 1),
+      draft,
+      surface: null,
+    };
     entry.surface = window.ControlColumn.create({
       host: element,
-      // Minted, so two columns' pickers never share a `data-target-picker`
-      // value. A target identifier is not an element identifier (gotcha 19).
-      id: `control-${record.id}`,
-      // No `storageKey`: the column's target and open state live in the ONE
-      // layout record above, which is what D9 asks for and what stops a
-      // second authority for the same fact appearing beside it.
+      id: `control-${entry.id}`,
       storageKey: null,
-      initialTarget: Array.isArray(record.target) ? record.target : ["all"],
-      // Closed by default (D4): an open picker costs ~180px of a 342px column,
-      // times N, for a control set once. Its terse readout is the title.
-      defaultOpen: !!record.open,
-      onTargetChange: selection => { entry.target = selection; writeLayout(); },
-      onOpenChange: open => { entry.open = open; writeLayout(); },
-      onRemove: () => removeColumn(entry.id),
-      // The desktop Control tab shows the WHOLE manifest; `dashboard: true`
-      // gates only Remote (01-control-panel/1-full-manifest-visibility).
+      initialTarget: entry.target,
+      defaultOpen: draft,
+      singleTarget: true,
+      unavailableTargets: () => targetsExcept(entry),
+      onTargetChange: selection => {
+        const next = strings(selection).slice(0, 1);
+        if (next[0] && targetsExcept(entry).has(next[0])) {
+          entry.surface.setTarget(entry.target);
+          return;
+        }
+        entry.target = next;
+        if (next.length) entry.draft = false;
+        sortCards();
+        writeTargets();
+        if (venueKnown) cards.forEach(card => card.surface.render());
+      },
+      onRemove: () => removeCard(entry),
       full: true,
       getState: () => installation,
       isInteracting: () => interacting,
@@ -113,12 +127,9 @@
         if (id != null) payload.id = Number(id);
         ws.send("set_live_param", payload);
       },
-      // Returns the lead so the row's fire button sweeps for exactly as long as
-      // the event is actually scheduled for (04-event-fire-affordance).
       sendEvent: ({scope, id, identity, elements}) => {
         const selector = scope === "all"
-          ? "all"
-          : scope === "group" ? `g${id}` : String(id);
+          ? "all" : scope === "group" ? `g${id}` : String(id);
         const leadMs = Math.min(
           10000,
           Math.max(0, Number(installation.event_lead_ms ?? 500) || 0),
@@ -151,152 +162,90 @@
         ws.send("preview_preset_capture", payload);
       },
       sendCommand: payload => ws.send("action", payload),
-      // D8's replacement for the per-card `Device setup` disclosure: the
-      // Devices tab owns device lifecycle, so the card hands off to it the way
-      // `07`'s "Set patch…" hands off to Patches. `select` and `activateTab`
-      // are `dashboard.js`'s own top-level functions, which this file already
-      // shares a scope with.
       openDevice: uid => {
         if (!installation.devices?.[uid]) return;
         select(uid);
         activateTab("devices");
       },
     });
-    columns.push(entry);
-    makeDraggable(entry);
-    markSole();
+    cards.push(entry);
+    sortCards();
+    if (venueKnown) cards.forEach(card => card.surface.render());
     if (focus) entry.surface.focus();
     return entry;
   }
 
-  // Drag to reorder, from the grip only. The column is what drags, but it is
-  // only `draggable` while the pointer is on its grip — a draggable column
-  // would make every fader inside it a drag handle, and a fader that starts a
-  // drag instead of moving is a control that stopped working.
-  let dragging = null;
-  function makeDraggable(entry) {
-    const {element, grip} = entry.surface;
-    if (!grip) return;
-    grip.onpointerdown = () => { element.draggable = true; };
-    element.ondragstart = event => {
-      dragging = entry;
-      event.dataTransfer.effectAllowed = "move";
-      // Firefox will not start a drag without data on the transfer.
-      event.dataTransfer.setData("text/plain", entry.id);
-    };
-    element.ondragend = () => {
-      element.draggable = false;
-      dragging = null;
-      writeLayout();
-    };
-    element.ondragover = event => {
-      if (!dragging || dragging === entry) return;
-      event.preventDefault();
-      const box = element.getBoundingClientRect();
-      const before = event.clientX < box.left + box.width / 2;
-      const from = columns.indexOf(dragging);
-      if (from < 0 || columns.indexOf(entry) < 0) return;
-      // Move in the DOM and in the ordered list together, so the stored order
-      // is what the operator sees rather than a second model of it.
-      stage.insertBefore(dragging.surface.element,
-                         before ? element : element.nextSibling);
-      columns.splice(from, 1);
-      columns.splice(columns.indexOf(entry) + (before ? 0 : 1), 0, dragging);
-    };
-    element.ondrop = event => event.preventDefault();
-  }
-
-  function addColumn(target) {
-    const entry = mount({id: mintId(), target: target || ["all"], open: !target},
-                        {focus: true});
-    // Rendered here and NOT in `mount`, because the columns restored on load
-    // are mounted before the first `state` message arrives. Rendering then
-    // would prune every stored target against an empty venue and — correctly,
-    // per D5 — leave every restored column reading "no longer in this venue".
-    // A column added by hand is added long after the venue is known.
-    entry.surface.render();
-    writeLayout();
-    return entry;
-  }
-
-  function removeColumn(id) {
-    // Minimum one. The ✕ is hidden at N=1 rather than removed, so this is a
-    // belt-and-braces guard for a keyboard or scripted activation.
-    if (columns.length <= 1) return;
-    const index = columns.findIndex(column => column.id === id);
+  function removeCard(entry) {
+    const index = cards.indexOf(entry);
     if (index < 0) return;
-    columns[index].surface.destroy();
-    columns.splice(index, 1);
-    markSole();
-    writeLayout();
+    entry.surface.destroy();
+    cards.splice(index, 1);
+    writeTargets();
+    if (venueKnown) cards.forEach(card => card.surface.render());
     document.querySelector("#control-add-column")?.focus();
   }
 
-  readLayout().forEach(record => mount({
-    id: typeof record.id === "string" ? record.id : mintId(),
-    target: record.target,
-    open: record.open,
-  }));
-  // Ids restored from storage may collide with what `mintId` would produce, so
-  // start minting past the highest one we already hold.
-  minted = columns.reduce((high, column) => {
-    const number = Number(String(column.id).replace(/^c/, ""));
-    return Number.isInteger(number) ? Math.max(high, number + 1) : high;
-  }, minted);
-  writeLayout();
+  function addDraft() {
+    const existing = cards.find(card => card.draft);
+    if (existing) {
+      existing.surface.focus();
+      existing.surface.revealTarget();
+      return existing;
+    }
+    return mount([], {draft: true, focus: true});
+  }
 
+  function validTargets() {
+    const valid = new Set(["all"]);
+    Object.values(installation.groups || {}).forEach(group =>
+      valid.add(`g${group.id}`));
+    Object.values(installation.seats || {}).forEach(seat =>
+      valid.add(String(seat.id)));
+    return valid;
+  }
+
+  function pruneAndRefresh(data) {
+    venueKnown = true;
+    const valid = validTargets();
+    for (const entry of cards.slice()) {
+      if (!entry.draft && !valid.has(entry.target[0])) removeCard(entry);
+    }
+    cards.forEach(card => card.surface.refresh(data));
+    sortCards();
+    writeTargets();
+  }
+
+  readTargets().forEach(target => mount([target]));
+  writeTargets();
   const addButton = document.querySelector("#control-add-column");
-  if (addButton) addButton.onclick = () => addColumn();
+  if (addButton) addButton.onclick = addDraft;
 
-  // The Seats → Control workflow, explicit at last. D7 (Bob, 2026-07-31)
-  // retired the ambient focus-Seat follow at every N: one click on the Seats
-  // tab used to re-aim the Control surface and PERSIST it, which with N
-  // columns would destroy an arrangement durably and with no undo. This is the
-  // replacement — focus a column already showing that Seat, else append one.
   window.ControlHost = {
     openSeat(seatId) {
       const selector = String(seatId);
-      const existing = columns.find(column =>
-        column.surface.target().includes(selector));
+      const existing = cards.find(card => card.target[0] === selector);
       if (existing) existing.surface.focus();
-      else addColumn([selector]);
+      else mount([selector], {focus: true});
     },
-    columnCount: () => columns.length,
+    columnCount: () => cards.length,
   };
 
-  // A restored column must not render before the first `state` — it would
-  // prune every stored target against an empty venue, and D5 would then
-  // correctly report them all lost. `1-columns-layout` knew that and kept
-  // `mount` from rendering; what it missed is that a `device_update` heartbeat
-  // can beat the initial `state` to the socket and render one anyway. The
-  // prune PERSISTS (`target-picker.js` resolve → persist), so that race did not
-  // just look wrong for a moment — it erased the operator's stored layout for
-  // good. Found by this thread's own `3-chrome-demotions/shoot.py`, which could
-  // not reproduce its own three columns twice running.
-  let venueKnown = false;
   const renderAll = () => {
     if (!venueKnown) return;
-    columns.forEach(column => column.surface.render());
+    cards.forEach(card => card.surface.render());
   };
-  ws.on("state", data => {
-    venueKnown = true;
-    columns.forEach(column => column.surface.refresh(data));
-  });
+  ws.on("state", pruneAndRefresh);
   ws.on("device_update", renderAll);
   ws.on("params_declaration", renderAll);
   ws.on("device_offline", renderAll);
-  // A capture preview belongs to whichever surface asked for it: a column
-  // claims it only when its own request is outstanding, and says so, which is
-  // what leaves the Device panel's and the editor's requests — and every other
-  // column's — alone.
   ws.on("preset_capture_preview", data =>
-    columns.some(column => column.surface.acceptCapturePreview(data)));
+    cards.some(card => card.surface.acceptCapturePreview(data)));
   ws.on("preset_saved", data =>
-    columns.forEach(column => column.surface.reportPresetSaved(data)));
+    cards.forEach(card => card.surface.reportPresetSaved(data)));
   ws.on("preset_applied", data =>
-    columns.forEach(column => column.surface.reportPresetApplied(data)));
+    cards.forEach(card => card.surface.reportPresetApplied(data)));
   ws.on("event_scheduled", data =>
-    columns.forEach(column => column.surface.reportEventScheduled(data)));
+    cards.forEach(card => card.surface.reportEventScheduled(data)));
 
   document.addEventListener("pointerdown", event => {
     if (!stage.contains(event.target)) return;
@@ -306,11 +255,9 @@
   });
   document.addEventListener("pointerup", () => {
     if (!interacting) return;
-    // Click/change follows pointerup. Keep the columns frozen through that
-    // event so a heartbeat cannot replace the control before its handler fires.
     setTimeout(() => {
       interacting = false;
-      columns.forEach(column => column.surface.render());
+      cards.forEach(card => card.surface.render());
     }, 0);
   });
 })();

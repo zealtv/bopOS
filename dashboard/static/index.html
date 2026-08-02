@@ -30,13 +30,13 @@
     <section id="tab-control" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-control" data-tab-panel="control" hidden>
       <!-- The Control surface is no longer an iframe of /facilitator
            (3-iframe-retirement); since `4-n-columns/1-columns-layout` the tab
-           holds N of them. `js/control-host.js` builds one <section> per
-           column inside the row below, and `js/control-column.js` builds
-           everything inside a column — nothing in there is addressed by id.
+           holds a persisted set of them. `js/control-host.js` builds one
+           <section> per card inside the grid below, and `js/control-column.js`
+           builds everything inside a card — nothing in there is addressed by id.
 
-           The strip carries the tab-scoped `+ column` action. -->
+           The strip carries the tab-scoped `+ card` action. -->
       <div class="control-tab-strip">
-        <button type="button" id="control-add-column" class="add-column">+ column</button>
+        <button type="button" id="control-add-column" class="add-column">+ card</button>
       </div>
       <div id="control-column-host"></div>
     </section>

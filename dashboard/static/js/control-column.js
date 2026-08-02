@@ -1,4 +1,4 @@
-// One independently targetable Control surface column.
+// One independently targetable Control surface card.
 //
 // The HOST page owns fleet state, its websocket, and page furniture. This
 // component owns the state that must not leak between columns: its target
@@ -37,6 +37,8 @@
     // host, keeps the picker's own key and never sees them.
     initialTarget = null,
     defaultOpen = true,
+    singleTarget = false,
+    unavailableTargets = () => new Set(),
     onTargetChange,
     onOpenChange,
     onRemove,
@@ -68,9 +70,8 @@
     // keyboard operator reaches the next column's target without traversing
     // forty parameter rows. No positive tabindex anywhere — DOM order is
     // already the reading order.
-    host.innerHTML = `<div class="control-column-head">${onRemove
-        ? '<span class="control-column-grip" aria-hidden="true">⋮⋮</span>' : ""}<div class="control-column-picker"></div>${onRemove
-        ? '<button type="button" class="control-column-close" title="Remove column" aria-label="Remove column">✕</button>' : ""}</div>
+    host.innerHTML = `<div class="control-column-head"><div class="control-column-picker"></div>${onRemove
+        ? '<button type="button" class="control-column-close" title="Remove card" aria-label="Remove card">✕</button>' : ""}</div>
       <div class="control-column-cards"><p class="empty">Waiting for devices…</p></div>
       <output class="control-column-status" role="status" aria-live="polite"></output>`;
     const cards = host.querySelector(".control-column-cards");
@@ -149,13 +150,23 @@
     });
 
     function targetSpec() {
+      const unavailable = unavailableTargets?.() || new Set();
+      const sections = window.TargetPicker.seatSections({
+        groups: groups(),
+        seats: seats(),
+        groupSelector: "id",
+      }).map(section => ({
+        ...section,
+        chips: (section.chips || []).map(chip => ({
+          ...chip,
+          disabled: chip.disabled || unavailable.has(chip.value),
+        })),
+      }));
       return {
         label: "Control target",
-        sections: window.TargetPicker.seatSections({
-          groups: groups(),
-          seats: seats(),
-          groupSelector: "id",
-        }),
+        sections,
+        multiple: !singleTarget,
+        allDisabled: unavailable.has("all"),
       };
     }
 
@@ -494,19 +505,14 @@
       reportEventScheduled,
       target: () => targetPicker.selection(),
       setTarget: next => targetPicker.set(next),
+      revealTarget: () => targetPicker.reveal(),
       focus: () => {
         host.scrollIntoView({block: "nearest", inline: "nearest"});
         pickerHost.querySelector("summary")?.focus();
       },
-      // At N=1 the ✕ is hidden rather than removed, so the head does not
-      // reflow the moment a second column appears.
-      setSole: sole => host.toggleAttribute("data-sole-column", !!sole),
+      setSole: () => {},
       destroy: () => host.remove(),
-      // Reordering is the HOST's business — it owns the row and the stored
-      // order — but the grip is the column's own markup, so it is handed over
-      // rather than reached in for by class name.
       element: host,
-      grip: host.querySelector(".control-column-grip"),
     };
   }
 

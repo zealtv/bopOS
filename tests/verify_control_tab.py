@@ -355,8 +355,8 @@ def main():
                 check("the preset row is live, not a placeholder",
                       placement["live"] > 0, repr(placement))
 
-                # A chip selection is mixable, so each selected entry is a card:
-                # the group alone, then the group plus a Seat.
+                # One card has one target. A second chip replaces the first;
+                # mixtures now require a second card.
                 open_picker(frame)
                 frame.locator('[data-target-toggle="g0"]').click()
                 frame.locator('.live-card[data-live-scope="group"]').wait_for()
@@ -366,11 +366,13 @@ def main():
                           '.live-card[data-live-scope="group"]').count() == 1)
                 frame.locator('[data-target-toggle="2"]').click()
                 frame.locator('.live-card[data-live-scope="seat"]').wait_for()
-                check("a mixed selection shows a card per entry",
-                      frame.locator(".live-card").count() == 2
+                check("a second target replaces rather than mixes",
+                      frame.locator(".live-card").count() == 1
                       and frame.locator(
                           '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="2"]').count() == 1)
+                          '[data-live-id="2"]').count() == 1
+                      and frame.locator(
+                          '.live-card[data-live-scope="group"]').count() == 0)
                 frame.locator('[data-target-toggle="all"]').click()
                 frame.locator('.live-card[data-live-scope="all"]').wait_for()
                 check("All is exclusive with everything else",
@@ -442,238 +444,153 @@ def main():
                 page.click("#tab-button-control")
                 frame = surface(page)
 
-                # --- a target the venue loses does NOT become every Seat ---
-                # `0-prune-fallback-safety` (D5, Bob 2026-07-31): the picker is
-                # on Seat 2; renumbering Seat 2 out from under it must leave the
-                # surface with NO target and no controls, rather than silently
-                # pointing this fader at the whole venue mid-show.
+                # A target removed from the venue removes its card; it must
+                # never widen into All behind the operator's back.
                 page.click("#tab-button-seats")
                 page.wait_for_selector("#tab-seats:not([hidden])")
                 page.fill("#seat-id", "5")
                 page.click("#seat-reindex")
                 page.click("#tab-button-control")
                 frame = surface(page)
-                # Waited for permissively so that a restored `["all"]` fallback
-                # fails as the named checks below rather than as a timeout.
-                try:
-                    frame.locator(".live-unresolved").wait_for(timeout=15000)
-                except PlaywrightTimeout:
-                    pass
-                unresolved = frame.locator(".live-unresolved")
-                # Storage moved in `4-n-columns/1-columns-layout`: the Control
-                # tab keeps ONE `bopos.control.columns` record per D9, and a
-                # column that loses its target keeps its slot AND its dead
-                # selector rather than being rewritten. So the thing to assert
-                # is that the record was not widened to All and that nothing
-                # renders — the same safety property, one key along.
+                page.wait_for_function(
+                    "() => document.querySelectorAll("
+                    "'#control-column-host .control-column').length === 0")
+                stored_cards = json.loads(page.evaluate(
+                    "() => localStorage.getItem('bopos.control.cards')"))
                 check("a lost target is never widened to every Seat",
-                      [entry["target"] for entry in json.loads(page.evaluate(
-                          "() => localStorage.getItem('bopos.control.columns')"))]
-                      == [["2"]])
-                check("a lost target renders no controls at all",
+                      stored_cards == {"version": 1, "targets": []},
+                      repr(stored_cards))
+                check("the removed target removes its card and controls",
                       frame.locator(".live-card").count() == 0)
-                check("the surface names what went and offers the way back",
-                      unresolved.count() == 1
-                      and "Seat 2 is no longer in this venue"
-                      in unresolved.inner_text()
-                      and frame.locator("[data-choose-target]").count() == 1)
-                # All is still offerable — it was never the problem — and
-                # choosing it is how the operator leaves this state.
-                if unresolved.count():
-                    frame.locator("[data-choose-target]").click()
-                frame.locator('[data-target-toggle="all"]').click()
-                frame.locator('.live-card[data-live-scope="all"]').wait_for()
-                check("choosing All from the unresolved state restores the card",
-                      frame.locator(".live-card").count() == 1)
 
-                # --- N columns (08-control-tab-columns/4-n-columns/1) ---
-                # Everything above holds at N=1, which is what the tab shipped
-                # as. From here the tab holds a ROW of independently targeted
-                # columns, and the properties worth pinning are the ones that
-                # go silently wrong: two columns must not share a target, a
-                # send in one must not disturb the other, the layout must come
-                # back, and a column that loses its Seat must go inert WITHOUT
-                # taking its neighbours with it.
+                # --- authored card set, derived order ----------------------
                 columns = page.locator("#control-column-host .control-column")
                 page.evaluate(
-                    "() => localStorage.setItem('bopos.control.columns',"
-                    " JSON.stringify([{id:'c0', target:['all'], open:false}]))")
+                    """() => {
+                      localStorage.removeItem('bopos.control.cards');
+                      localStorage.setItem('bopos.control.columns', JSON.stringify([
+                        {id:'old-seat', target:['5'], open:true},
+                        {id:'old-all', target:['all'], open:false},
+                        {id:'duplicate', target:['5'], open:false}
+                      ]));
+                    }""")
                 reload_control(page, base_url)
                 columns.first.locator(".live-card").wait_for()
-                check("the tab restores its stored layout",
-                      columns.count() == 1)
-                check("the sole column's picker is closed, and IS its title",
-                      columns.first.locator(".target-picker[open]").count() == 0
-                      and columns.first.locator(".target-picker-terse")
-                      .inner_text().strip() == "all")
-                # Hidden rather than removed, so the head does not reflow the
-                # moment a second column appears.
-                check("at N=1 the remove control is hidden, not absent",
-                      columns.first.locator(".control-column-close").count() == 1
-                      and page.evaluate(
-                          "() => getComputedStyle(document.querySelector("
-                          "'#control-column-host .control-column"
-                          " .control-column-close')).visibility") == "hidden")
+                stored_cards = json.loads(page.evaluate(
+                    "() => localStorage.getItem('bopos.control.cards')"))
+                check("legacy columns migrate to a unique target set",
+                      stored_cards == {"version": 1,
+                                       "targets": ["all", "5"]},
+                      repr(stored_cards))
+                check("migration discards authored order and sorts All first",
+                      columns.count() == 2
+                      and columns.nth(0).locator(
+                          '.live-card[data-live-scope="all"]').count() == 1
+                      and columns.nth(1).locator(
+                          '.live-card[data-live-scope="seat"]'
+                          '[data-live-id="5"]').count() == 1)
+                check("every committed card can be closed, including the last",
+                      columns.first.locator(".control-column-close")
+                      .is_visible())
 
                 page.click("#control-add-column")
                 page.wait_for_function(
                     "() => document.querySelectorAll("
-                    "'#control-column-host .control-column').length === 2")
-                check("a new column arrives with its picker open to be aimed",
-                      columns.nth(1).locator(".target-picker[open]").count()
-                      == 1)
-                check("with two columns the remove control is offered",
-                      page.evaluate(
-                          "() => getComputedStyle(document.querySelector("
-                          "'#control-column-host .control-column"
-                          " .control-column-close')).visibility") == "visible")
-                # Gotcha 17 at full strength: `.target-picker` now resolves
-                # twice in this tab alone, so every selector is column-scoped.
-                columns.nth(1).locator('[data-target-toggle="1"]').click()
+                    "'#control-column-host .control-column').length === 3")
+                draft = columns.nth(2)
+                check("+ card creates one transient open picker",
+                      draft.locator(".target-picker[open]").count() == 1)
+                page.click("#control-add-column")
+                check("a second + focuses rather than duplicates the draft",
+                      columns.count() == 3)
+                check("targets already represented by cards are disabled",
+                      draft.locator('[data-target-toggle="all"]').is_disabled()
+                      and draft.locator('[data-target-toggle="5"]')
+                      .is_disabled())
+                draft.locator('[data-target-toggle="g0"]').click()
                 columns.nth(1).locator(
-                    '.live-card[data-live-scope="seat"]').wait_for()
-                check("each column carries its own target",
-                      columns.first.locator(
+                    '.live-card[data-live-scope="group"]').wait_for()
+                check("committing a draft re-sorts it between All and Seats",
+                      columns.nth(0).locator(
                           '.live-card[data-live-scope="all"]').count() == 1
                       and columns.nth(1).locator(
+                          '.live-card[data-live-scope="group"]'
+                          '[data-live-id="0"]').count() == 1
+                      and columns.nth(2).locator(
                           '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="1"]').count() == 1)
-                check("the two columns' pickers have distinct ids",
-                      page.evaluate(
-                          "() => new Set([...document.querySelectorAll("
-                          "'#control-column-host [data-target-picker]')].map("
-                          "node => node.dataset.targetPicker)).size") == 2)
-                # A send from the seat column must not re-render the All column
-                # out from under an operator holding its fader.
+                          '[data-live-id="5"]').count() == 1)
+                stored_cards = json.loads(page.evaluate(
+                    "() => localStorage.getItem('bopos.control.cards')"))
+                check("only target membership is persisted",
+                      stored_cards == {"version": 1,
+                                       "targets": ["all", "g0", "5"]},
+                      repr(stored_cards))
+
                 before = columns.first.locator(".live-card").inner_html()
-                slider = columns.nth(1).locator('input[type="range"]').first
+                slider = columns.nth(2).locator('input[type="range"]').first
                 slider.wait_for()
-                page.wait_for_function(
-                    "() => !!document.querySelector('#control-column-host"
-                    " .control-column:nth-of-type(2)"
-                    " input[type=\"range\"]')?.onchange")
+                page.wait_for_function("() => [...document.querySelectorAll("
+                                       "'#control-column-host input[type=\"range\"]')"
+                                       "].at(-1)?.onchange != null")
                 slider.fill("0.8")
                 slider.dispatch_event("change")
                 page.wait_for_timeout(500)
-                check("a send in one column leaves the other's cards alone",
+                check("a send in one card leaves the others alone",
                       columns.first.locator(".live-card").count() == 1
                       and columns.first.locator(
                           '.live-card[data-live-scope="all"]').count() == 1
                       and columns.first.locator(".live-card").inner_html()
                       == before)
-                check("one live region per column, not one per card",
+                check("one live region per card",
                       page.locator("#control-column-host .live-param-status")
                       .count() == 0
                       and page.locator(
                           "#control-column-host .control-column-status")
-                      .count() == 2)
+                      .count() == 3)
 
                 reload_control(page, base_url)
-                columns.nth(1).locator(".live-card").wait_for()
-                check("the layout comes back after a reload",
-                      columns.count() == 2
-                      and [entry["target"] for entry in json.loads(page.evaluate(
-                          "() => localStorage.getItem("
-                          "'bopos.control.columns')"))] == [["all"], ["1"]])
-                check("the restored ids are minted, never positional",
-                      len({entry["id"] for entry in json.loads(page.evaluate(
-                          "() => localStorage.getItem("
-                          "'bopos.control.columns')"))}) == 2)
+                columns.nth(2).locator(".live-card").wait_for()
+                check("the target set and derived order survive reload",
+                      columns.count() == 3
+                      and [card.get_attribute("data-live-scope")
+                           for card in columns.locator(".live-card").all()]
+                      == ["all", "group", "seat"])
 
                 # --- the explicit replacement for the retired ambient follow ---
                 page.click("#tab-button-seats")
                 page.wait_for_selector("#tab-seats:not([hidden])")
-                page.click('#assigned .device-row[data-seat-id="5"] small')
+                page.click('#assigned .device-row[data-seat-id="1"] small')
                 page.click("#seat-open-control")
                 page.wait_for_selector("#tab-control:not([hidden])")
                 page.wait_for_function(
                     "() => document.querySelectorAll("
-                    "'#control-column-host .control-column').length === 3")
-                check("Open in Control appends a column for that Seat",
-                      columns.nth(2).locator(
+                    "'#control-column-host .control-column').length === 4")
+                check("Open in Control adds a card for that Seat",
+                      columns.nth(3).locator(
                           '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="5"]').count() == 1)
+                          '[data-live-id="1"]').count() == 1)
                 # Asked for twice, it FOCUSES rather than duplicating.
                 page.click("#tab-button-seats")
-                page.click('#assigned .device-row[data-seat-id="5"] small')
+                page.click('#assigned .device-row[data-seat-id="1"] small')
                 page.click("#seat-open-control")
                 page.wait_for_selector("#tab-control:not([hidden])")
                 page.wait_for_timeout(400)
-                check("asked twice, it focuses the column it already opened",
-                      columns.count() == 3)
-
-                # --- D5 at N>1: inert column, untouched neighbours ---
-                page.click("#tab-button-seats")
-                page.wait_for_selector("#tab-seats:not([hidden])")
-                page.click('#assigned .device-row[data-seat-id="1"] small')
-                page.click("#seat-remove")
-                page.click("#tab-button-control")
-                try:
-                    columns.nth(1).locator(".live-unresolved").wait_for(
-                        timeout=15000)
-                except PlaywrightTimeout:
-                    pass
-                check("the column that lost its Seat goes inert",
-                      columns.nth(1).locator(".live-unresolved").count() == 1
-                      and columns.nth(1).locator(".live-card").count() == 0)
-                check("its neighbours are untouched",
-                      columns.count() == 3
-                      and columns.first.locator(
-                          '.live-card[data-live-scope="all"]').count() == 1
-                      and columns.nth(2).locator(
-                          '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="5"]').count() == 1)
+                check("asked twice, it focuses the card it already opened",
+                      columns.count() == 4)
 
                 columns.nth(1).locator(".control-column-close").click()
                 page.wait_for_function(
                     "() => document.querySelectorAll("
-                    "'#control-column-host .control-column').length === 2")
-                check("removing a column removes that one",
-                      columns.count() == 2
-                      and columns.nth(1).locator(
-                          '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="5"]').count() == 1)
+                    "'#control-column-host .control-column').length === 3")
+                check("closing a card removes its target",
+                      columns.count() == 3
+                      and columns.locator(
+                          '.live-card[data-live-scope="group"]').count() == 0)
                 reload_control(page, base_url)
-                columns.nth(1).locator(".live-card").wait_for()
-                check("the removal persists",
-                      columns.count() == 2
-                      and [entry["target"] for entry in json.loads(page.evaluate(
-                          "() => localStorage.getItem("
-                          "'bopos.control.columns')"))] == [["all"], ["5"]])
-
-                # The grip reorders, and the order IS the stored layout — one
-                # ordered list, not a second model of it. Dragging is armed by
-                # the grip alone: a draggable column would make every fader
-                # inside it a drag handle.
-                # Synthetic HTML5 drag events rather than `drag_to`: a
-                # CDP-driven mouse drag does not reliably start a native drag
-                # headlessly, and this is the handler under test either way.
-                page.evaluate(
-                    """() => {
-                      const cols = [...document.querySelectorAll(
-                        '#control-column-host .control-column')];
-                      const [first, second] = cols;
-                      second.querySelector('.control-column-grip')
-                        .dispatchEvent(new PointerEvent('pointerdown',
-                                                        {bubbles: true}));
-                      const data = new DataTransfer();
-                      const drag = (node, type, extra = {}) =>
-                        node.dispatchEvent(new DragEvent(type, {
-                          bubbles: true, cancelable: true,
-                          dataTransfer: data, ...extra}));
-                      drag(second, 'dragstart');
-                      const box = first.getBoundingClientRect();
-                      drag(first, 'dragover', {clientX: box.left + 4});
-                      drag(second, 'dragend');
-                    }""")
-                page.wait_for_timeout(400)
-                check("the grip reorders the columns, and the order persists",
-                      [entry["target"] for entry in json.loads(page.evaluate(
-                          "() => localStorage.getItem("
-                          "'bopos.control.columns')"))] == [["5"], ["all"]],
-                      page.evaluate(
-                          "() => localStorage.getItem("
-                          "'bopos.control.columns')"))
+                columns.nth(2).locator(".live-card").wait_for()
+                check("closing persists and no drag affordance remains",
+                      columns.count() == 3
+                      and page.locator(".control-column-grip").count() == 0)
 
                 # The old venue-level shelf is retired. Patch presets remain
                 # on each Control card (asserted above).

@@ -61,9 +61,8 @@
    looking code with a sincere comment describing a guarantee it never gave. */
 .control-column {
   min-width: 0;
-  max-height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: var(--gap);
   align-content: start;
   background: var(--panel);
@@ -83,13 +82,6 @@
   align-items: center;
   gap: var(--gap);
 }
-.control-column-grip {
-  flex: none;
-  color: var(--dim);
-  font-size: 10px;
-  letter-spacing: -1px;
-  cursor: grab;
-}
 .control-column-close {
   flex: none;
   width: var(--row-h);
@@ -100,13 +92,6 @@
   padding: 0;
   color: var(--dim);
   text-transform: none;
-}
-/* Minimum one column: at N=1 the ✕ is HIDDEN rather than removed, so the head
-   does not reflow the moment a second column appears — and `visibility` also
-   takes it out of the tab order and the accessibility tree, which `display` on
-   a rendered-then-hidden control would not do as cleanly. */
-.control-column[data-sole-column] .control-column-close {
-  visibility: hidden;
 }
 /* The picker's disclosure takes the width. It used to share this row with a
    per-column `Capture as Show step`; capture is venue-wide and took no column
@@ -119,7 +104,7 @@
 .control-column-cards {
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
   display: grid;
   gap: var(--gap);
   align-content: start;

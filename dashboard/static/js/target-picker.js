@@ -169,7 +169,7 @@
     const {
       id, label = "Target", sections = [], multiple = true, allowAll = true,
       allLabel = "All", allSummary = "every Seat", emptySummary = "No target",
-      open = false, disabled = false, hostClass = "", warnings = [],
+      open = false, disabled = false, allDisabled = false, hostClass = "", warnings = [],
       allTerse = "all", emptyTerse = "none",
     } = spec;
     // An explicit empty array is a selection of NOTHING and renders as such —
@@ -183,7 +183,7 @@
     const labels = labelsFrom(sections);
 
     const head = allowAll
-      ? [`<button type="button" class="target-chip target-chip-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${off}>${esc(allLabel)}</button>`]
+      ? [`<button type="button" class="target-chip target-chip-all${isAll ? " on" : ""}" data-target-toggle="all" aria-pressed="${isAll}"${allDisabled || disabled ? " disabled" : ""}>${esc(allLabel)}</button>`]
       : [];
     const rows = [];
     for (const section of sections) {
@@ -304,10 +304,10 @@
         }
       }
       const kept = current.filter(entry =>
-        (entry === "all" && built.allowAll !== false) || known.has(entry));
+        (entry === "all" && built.allowAll !== false && built.allDisabled !== true) || known.has(entry));
       if (kept.length) return built.multiple === false ? [kept[0]] : kept;
       if (pruneFallback === "empty") return [];
-      if (built.allowAll !== false) return ["all"];
+      if (built.allowAll !== false && built.allDisabled !== true) return ["all"];
       const first = (built.sections || []).flatMap(section => section.chips || [])
         .find(chip => !chip.disabled);
       return first ? [first.value] : [];
