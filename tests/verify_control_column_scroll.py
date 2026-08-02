@@ -1,35 +1,10 @@
 #!/usr/bin/env python3
-"""Real-dashboard + simfleet verification that a Control column SCROLLS its
-body, and that Remote still grows with the page (55-control-column-targeting/
-1-column-scroll).
+"""Real-dashboard verification of the downward, page-scrolling cards grid.
 
-The defect this guards: `.control-column`'s cards row was
-`minmax(0, max-content)` with `align-content: start`, so the track took its
-growth limit -- full content height -- however hard `max-height` clamped the
-column. The cards element had `overflow-y: auto` throughout and it meant
-nothing: its client height WAS its scroll height, so there was nothing to
-scroll, and the overflow escaped the column and was clipped silently by
-`#control-column-host`'s `overflow-y: hidden`. No scrollbar, no cue, ~698px of
-a forty-row manifest permanently unreachable.
-
-So the assertion here is deliberately NOT "the cards element has
-`overflow-y: auto`" -- that was true all along and is exactly what made the bug
-survive review. It is the measurable consequence: scrollHeight exceeds
-clientHeight, scrollTop actually moves, and the last parameter row can be
-brought inside the host's box.
-
-Both hosts are pinned, because the fix is a grid-track change and the two hosts
-resolve `max-height:100%` differently:
-
-  * the Control tab gives the column a definite height, so it must scroll
-    internally and must NOT overflow its host;
-  * Remote (/facilitator) mounts one column in a parent with no definite
-    height, where the column has always grown with the document and the PAGE
-    scrolls. A fix that makes Remote clamp to the viewport is a worse
-    regression than the bug, so it is asserted in the same file rather than
-    reasoned about.
-
-Owned by code surface (css/control-column.css, control-host.js).
+This deliberately supersedes `1-column-scroll`: neither host may clamp a card
+or make `.control-column-cards` a nested scrollport. Four cards share flexible
+tracks on desktop; both Control and Remote grow the document downward, and the
+last manifest row is reached by scrolling the page.
 """
 
 import json
@@ -143,17 +118,20 @@ def make_fixture(root):
 
 METRICS = """() => {
   const host = document.querySelector('#control-column-host');
-  const column = document.querySelector('.control-column');
+  const columns = [...document.querySelectorAll('.control-column')];
   const cards = document.querySelector('.control-column-cards');
-  if (!host || !column || !cards) return null;
-  const rows = cards.querySelectorAll('.live-param');
+  if (!host || !columns.length || !cards) return null;
+  const widths = columns.map(column =>
+    Math.round(column.getBoundingClientRect().width));
+  const rows = document.querySelectorAll('.live-param');
   return {
-    hostHeight: Math.round(host.getBoundingClientRect().height),
-    hostBottom: Math.round(host.getBoundingClientRect().bottom),
-    columnHeight: Math.round(column.getBoundingClientRect().height),
-    cardsClient: cards.clientHeight,
-    cardsScroll: cards.scrollHeight,
-    scrollTop: Math.round(cards.scrollTop),
+    display: getComputedStyle(host).display,
+    hostOverflowY: getComputedStyle(host).overflowY,
+    cardsOverflowY: getComputedStyle(cards).overflowY,
+    widths,
+    docScroll: document.documentElement.scrollHeight,
+    viewport: window.innerHeight,
+    pageY: Math.round(window.scrollY),
     rows: rows.length,
     lastRowBottom: rows.length
       ? Math.round(rows[rows.length - 1].getBoundingClientRect().bottom)
@@ -208,91 +186,89 @@ def main():
                 page.on("dialog", lambda dialog: dialog.accept())
 
                 # ---------------- the Control tab ----------------
+                page.add_init_script("""() => localStorage.setItem(
+                  'bopos.control.cards', JSON.stringify({
+                    version:1, targets:['2','g0','all','1']
+                  }))""")
                 page.goto(base_url + "#control")
                 page.wait_for_selector("#ws-status.online")
                 page.wait_for_selector("#control-column-host .live-param")
                 page.wait_for_function(
                     "() => document.querySelectorAll("
                     "'#control-column-host .live-param').length >= %d"
-                    % PARAM_COUNT)
+                    % (PARAM_COUNT * 4))
                 before = page.evaluate(METRICS)
-                check("the rig actually overflows the column",
-                      before and before["cardsScroll"] > before["hostHeight"],
+                check("Control lays four cards into a CSS grid",
+                      before and before["display"] == "grid"
+                      and len(before["widths"]) == 4,
                       json.dumps(before))
-
-                # The defect, stated as its consequence. Pre-fix this reports
-                # equal values (1408 === 1408) and the guard fails.
-                check("the cards body is a real scrollport "
-                      "(scrollHeight > clientHeight)",
-                      before["cardsScroll"] > before["cardsClient"],
-                      "client {} === scroll {}".format(
-                          before["cardsClient"], before["cardsScroll"]))
-
-                check("the column does not overflow its host",
-                      before["columnHeight"] <= before["hostHeight"] + 1,
-                      "column {} > host {}".format(
-                          before["columnHeight"], before["hostHeight"]))
-
-                # Scrolling has to MOVE it, not merely be permitted.
+                check("flexible tracks share the available width evenly",
+                      max(before["widths"]) - min(before["widths"]) <= 1
+                      and min(before["widths"]) >= 342,
+                      json.dumps(before["widths"]))
+                check("Control cards and host expose no nested scrollport",
+                      before["cardsOverflowY"] == "visible"
+                      and before["hostOverflowY"] == "visible",
+                      json.dumps(before))
+                check("the long cards grow the document below the viewport",
+                      before["docScroll"] > before["viewport"],
+                      json.dumps(before))
                 page.evaluate(
-                    "() => { const cards = document.querySelector("
-                    "'.control-column-cards');"
-                    " cards.scrollTop = cards.scrollHeight; }")
+                    "() => window.scrollTo(0, document.documentElement.scrollHeight)")
                 page.wait_for_timeout(120)
                 after = page.evaluate(METRICS)
-                check("scrolling the body moves it",
-                      after["scrollTop"] > 0,
-                      "scrollTop stayed at {}".format(after["scrollTop"]))
-                check("the last parameter row is reachable inside the host",
+                check("Control scrolls the page",
+                      after["pageY"] > 0,
+                      "pageY stayed at {}".format(after["pageY"]))
+                check("the final Control row is reachable in the viewport",
                       after["lastRowBottom"] is not None
-                      and after["lastRowBottom"] <= after["hostBottom"] + 2,
-                      "last row bottom {} vs host bottom {}".format(
-                          after["lastRowBottom"], after["hostBottom"]))
+                      and after["lastRowBottom"] <= after["viewport"] + 2,
+                      json.dumps(after))
 
                 # ---------------- Remote ----------------
-                # MEASURED, not inherited from the comment. `control-column.css`
-                # claims Remote "keeps growing with the page as it always did";
-                # it does not, and never did. `facilitator.css:25` makes
-                # `#control-column-host` itself a flex scrollport
-                # (`flex:1; min-height:0; overflow-y:auto`) inside a
-                # `height:100%` body, so the column clamps and its body already
-                # scrolls correctly here. This half is therefore a REGRESSION
-                # guard on behaviour that works today -- the risk of the grid
-                # fix is that it breaks Remote, not that Remote is broken.
                 page.goto(base_url + "/facilitator")
                 page.wait_for_selector("#ws-status", state="attached")
                 page.wait_for_selector(".live-param")
                 page.wait_for_function(
                     "() => document.querySelectorAll('.live-param').length"
-                    " >= %d" % PARAM_COUNT)
+                    " >= %d" % (PARAM_COUNT * 4))
                 remote = page.evaluate("""() => {
-                  const cards =
-                    document.querySelector('.control-column-cards');
-                  const column = document.querySelector('.control-column');
+                  const host=document.querySelector('#control-column-host');
+                  const cards=document.querySelector('.control-column-cards');
+                  const targets=[...document.querySelectorAll('.live-card')];
+                  const rows=document.querySelectorAll('.live-param');
                   return {
-                    cardsClient: cards.clientHeight,
-                    cardsScroll: cards.scrollHeight,
-                    columnHeight:
-                      Math.round(column.getBoundingClientRect().height),
+                    display:getComputedStyle(host).display,
+                    hostOverflowY:getComputedStyle(host).overflowY,
+                    cardsOverflowY:getComputedStyle(cards).overflowY,
+                    widths:targets.map(card=>Math.round(
+                      card.getBoundingClientRect().width)),
                     docScroll: document.documentElement.scrollHeight,
                     viewport: window.innerHeight,
+                    lastRowBottom:Math.round(
+                      rows[rows.length-1].getBoundingClientRect().bottom),
                   };
                 }""")
-                check("Remote's column body is a real scrollport",
-                      remote["cardsScroll"] > remote["cardsClient"],
+                check("Remote derives four flexible card tracks",
+                      remote["display"] == "grid"
+                      and len(remote["widths"]) == 4
+                      and max(remote["widths"]) - min(remote["widths"]) <= 1,
                       json.dumps(remote))
-                check("Remote's column stays within the viewport",
-                      remote["columnHeight"] <= remote["viewport"],
+                check("Remote also has no nested vertical scrollport",
+                      remote["hostOverflowY"] == "visible"
+                      and remote["cardsOverflowY"] == "visible",
+                      json.dumps(remote))
+                check("Remote grows the document below the viewport",
+                      remote["docScroll"] > remote["viewport"],
                       json.dumps(remote))
                 page.evaluate(
-                    "() => { const cards = document.querySelector("
-                    "'.control-column-cards');"
-                    " cards.scrollTop = cards.scrollHeight; }")
+                    "() => window.scrollTo(0, document.documentElement.scrollHeight)")
                 page.wait_for_timeout(120)
-                check("Remote scrolls its body, not the document",
+                check("Remote reaches its final row through page scroll",
                       page.evaluate(
-                          "() => document.querySelector("
-                          "'.control-column-cards').scrollTop > 0"))
+                          "() => window.scrollY > 0 && [...document.querySelectorAll("
+                          "'.live-param')].at(-1).getBoundingClientRect().bottom"
+                          " <= window.innerHeight + 2"))
 
                 check("no page errors", not errors, "; ".join(errors[:3]))
                 browser.close()

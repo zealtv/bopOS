@@ -1,64 +1,8 @@
-/* ControlColumn's shell — desktop-ui-overhaul/02-component-unification,
-   08-control-tab-columns/3-iframe-retirement.
-
-   The app's FIFTH component stylesheet, after `param-generator.css`,
-   `value-box.css` and `target-picker.css`. Loaded by BOTH documents, for the
-   same reason they are: the column is mounted in the Control tab of
-   `index.html` and on the standalone Remote page, and a face duplicated per
-   host is the defect `05e` existed to delete.
-
-   WHAT IS AND IS NOT HERE. This file holds the column SHELL: the card the
-   column paints on the ground, its head, its cards region, and the two states
-   that region can be in with nothing to show. The card FACE — `.live-card` and
-   everything under it — belongs to the control panel and lives in
-   `control-panel.css` §18. That split is not stylistic: `.live-card` is the
-   control panel's own root in `tests/test_css_component_ownership.py`, so
-   anchoring its appearance on `.control-column` would be one component
-   restyling another from its host, which is exactly what that guard catches.
-
-   DESIGN-LANGUAGE §12 (Bob, 2026-07-30). `--bg` is the workspace ground and
-   shows ONLY as gutter. The retired iframe painted `background:var(--bg)` plus
-   a border — §12's named mistake, and why Bob said the Control panel "is
-   swimming in empty space". The column is a card; the tab paints nothing.
-
-   METRICS ARE DESKTOP. The values here derive from `--row-h`/`--gap`/
-   `--pad-panel`, not from the tablet-first 44px/19px/22px that
-   `facilitator.css` used to carry for this surface. That is Bob's 2026-07-30
-   ruling — "let facilitator collapse — we will restyle remote for iPad as a
-   standalone pass" — and the measured Remote delta is recorded in
-   `feature-backlog/49-remote-ipad-restyle`. */
-
-/* The column is the card (1-columns-design D1). The fixed 342px track belongs
-   to the Control tab that places N of them (`style.css`); what is here is what
-   a column looks like wherever it is mounted — including Remote, where it is
-   alone and fills its host.
-
-   The two rows are the head and the cards, and the cards row is the one that
-   scrolls. That is D4's "each column scrolls its own body under a sticky
-   header" delivered without sticky positioning — a head outside the scrollport
-   cannot be overlapped by what scrolls beneath it, and cannot lose its
-   background.
-
-   The track is `minmax(0, 1fr)`, and the `1fr` is load-bearing. It was
-   `minmax(0, max-content)` until `1-column-scroll` (2026-08-02), which never
-   worked: with `align-content: start` there is no compression step, so the
-   track took its GROWTH LIMIT — full content height — however hard
-   `max-height` clamped the column. The body's `overflow-y: auto` therefore had
-   nothing to scroll (clientHeight === scrollHeight === 1408 measured), and the
-   overflow escaped the column to be clipped silently by the host's
-   `overflow-y: hidden`: no scrollbar, no cue, ~698px of a forty-row manifest
-   permanently unreachable. `1fr` is a share of the free space, so the track
-   shrinks below its content and the body becomes a real scrollport.
-
-   Both hosts are pinned by `tests/verify_control_column_scroll.py`, because
-   they give the column its height by different routes and only measurement
-   tells them apart. The Control tab's `#control-column-host` has a definite
-   height, so `max-height:100%` resolves against it. Remote's host is a flex
-   scrollport (`facilitator.css`: `flex:1; min-height:0; overflow-y:auto`)
-   inside a `height:100%` body, which is also definite. The comment that used
-   to sit here claimed Remote "keeps growing with the page as it always did" —
-   that was never true of either host, and is the `52` pathology: correct-
-   looking code with a sincere comment describing a guarantee it never gave. */
+/* Shared target-card renderer shell. Control mounts one shell per authored
+   target and uses its picker head; Remote derives every target through one
+   `display:contents` shell and renders label-headed `.live-card` grid items.
+   `card-identity.css` owns the common painted face. Both hosts use page scroll,
+   so this component has no height clamp or nested scrollport. */
 .control-column {
   min-width: 0;
   display: grid;

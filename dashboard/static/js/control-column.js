@@ -1,23 +1,8 @@
-// One independently targetable Control surface card.
-//
-// The HOST page owns fleet state, its websocket, and page furniture. This
-// component owns the state that must not leak between columns: its target
-// picker, ControlSurface instance, cards, preset previews/reports, and open
-// per-device command disclosures.
-//
-// Since `4-n-columns/1-columns-layout` the Control tab mounts SEVERAL of these
-// side by side, so anything that used to be "the surface's" is now the
-// column's: its own labelled region, its own live region, its own ✕. Capture
-// left the column entirely — it is venue-wide and belongs to the tab (D1), so
-// N columns cannot mean N capture buttons sending N different scopes.
-//
-// Since `3-iframe-retirement` the column also owns its own MARKUP. It is
-// mounted in two documents now — the Control tab of `index.html` and the
-// standalone Remote page — and a skeleton authored twice in HTML would be the
-// same duplication the component thread keeps deleting. Nothing inside is
-// addressed by id, so `4-n-columns` can mount several without collisions.
-// Appearance is `css/control-column.css` (the shell) plus `control-panel.css`
-// (the card face, which belongs to the control panel, not to us).
+// Shared target-card renderer. Desktop Control mounts one instance per
+// authored selector with a single-select picker; Remote mounts one derived
+// instance that emits All, every group and every Seat without picker chrome.
+// The host owns fleet state, transport and page furniture. This component owns
+// card markup, ControlSurface state, preset reports and Remote command state.
 (function () {
   "use strict";
 
@@ -32,9 +17,7 @@
     id = "control",
     storageKey = "bopos.target.control",
     capabilities = {},
-    // The Control tab owns its columns' persistence itself (D9), so it passes
-    // no storage key and supplies these instead. Remote, the single-column
-    // host, keeps the picker's own key and never sees them.
+    // Control owns card membership persistence, so its picker has no key.
     initialTarget = null,
     defaultOpen = true,
     singleTarget = false,
@@ -69,14 +52,9 @@
     const groupSlot = capabilities.groupSlot || (() => -1);
     host.classList.add("target-card");
     if (deriveAllTargets) host.classList.add("control-column-derived");
-    // The column IS the labelled region, and its label is its target (D4) — so
-    // region navigation reads `all`, `Left`, `Seat 7` rather than N identical
-    // "Live controls". The name is set on every render, in `nameRegion`.
+    // The shell is the labelled region. Its name is refreshed with its target.
     host.setAttribute("role", "region");
-    // Head order is deliberate: picker and ✕ come FIRST in the DOM, so a
-    // keyboard operator reaches the next column's target without traversing
-    // forty parameter rows. No positive tabindex anywhere — DOM order is
-    // already the reading order.
+    // Control's picker and close action precede its controls in DOM order.
     host.innerHTML = `${showTargetPicker ? `<div class="control-column-head"><div class="control-column-picker"></div>${onRemove
         ? '<button type="button" class="control-column-close" title="Remove card" aria-label="Remove card">✕</button>' : ""}</div>` : ""}
       <div class="control-column-cards"><p class="empty">Waiting for devices…</p></div>
@@ -131,10 +109,7 @@
       sendEvent,
       sendAutomation,
       setInteracting,
-      // ONE live region per column, not one per card. A column showing three
-      // Seats used to carry three, and two columns showing the same Seat would
-      // have announced the same sentence twice with nothing to say which one
-      // acted — so the message is prefixed with the column's own target.
+      // One live region per authored Control card, or one for derived Remote.
       announce: message => { status.value = `${terseTarget()}: ${message}`; },
       requestRender: () => render(),
       presetCatalog: patch => state().preset_catalog?.[patch] || [],
@@ -177,9 +152,7 @@
       };
     }
 
-    // The column's own name, and the prefix on everything it announces. Terse
-    // by design (D4): the closed picker's readout IS the column's title, so a
-    // 342px column spends no height on a heading that repeats it.
+    // The closed Control picker is the card title; Remote uses a document label.
     function terseTarget() {
       if (deriveAllTargets) return "Remote";
       return window.TargetPicker.terse(
@@ -199,7 +172,6 @@
           onChange: selection => {
             renderCards();
             nameRegion();
-            cards.scrollTop = 0;
             onTargetChange?.(selection);
           },
         })

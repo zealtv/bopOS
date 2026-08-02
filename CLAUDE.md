@@ -363,9 +363,10 @@ remain the authority for a particular piece of work.
 >    venue and D5 then correctly reports them all lost. **A `<details>` fires
 >    `toggle` for a re-render that changed nothing**, so `TargetPicker` was
 >    persisting its open state every heartbeat, which is why a column stored as
->    closed came back open. And gotchas **19** (a target identifier is not an
->    element identifier) and **20** (a fragment-only `page.goto` does not
->    reload, so it cannot test persistence) are in the Playwright list below),
+>    closed came back open. Gotcha **19** was later superseded for Control by
+>    `56/5`: one card now has one unique target and persisted minted column ids
+>    are gone. Gotcha **20** (a fragment-only `page.goto` does not reload, so it
+>    cannot test persistence) remains in the Playwright list below),
 >    then ~~`2-venue-wide-capture`~~ (**TIED 2026-07-31**, commit `e63ccf5`.
 >    D1–D3 shipped as a **removal**: `scope`/`id` left both capture verbs,
 >    `_capture_show_seats` collapsed to every seat, and
@@ -1304,15 +1305,13 @@ Cross-repo: spool-scoped siblings live in `kite-choir-brains/.loom`
   try/catch (they all should) will silently look like it works. Use
   `page.route` + `goto` on a fabricated origin for a real storage partition with
   no server and no app scripts (`tests/verify_target_picker.py` is the worked
-  example); (19) **a target identifier is not an element identifier** — the
-  successor to gotchas 12 and 17, and the rule that makes N columns safe.
-  `data-live-scope`/`data-live-id` name a Seat or group, so with several
-  columns aimed at overlapping targets they are correctly non-unique and
-  selecting on them alone reaches whichever column happens to be first. Scope
-  to the column (`#control-column-host .control-column:nth-of-type(2)
-  [data-live-id="5"]`). Element identity is minted per column instead —
-  `data-target-picker="control-c3"` — and **nothing inside a column carries an
-  `id`**; (20) **`page.goto(url + "#fragment")` from that same url is a
+  example); (19) **superseded for Control by the one-card/one-target model** —
+  this was the rule that made overlapping N-column selections safe. `56/5`
+  removed overlap, stored order, and persisted minted ids: a Control target is
+  now unique card membership, while the picker's runtime id is ephemeral DOM
+  identity only. The general locator lesson remains for exhaustive Remote and
+  any repeated component: scope `data-live-scope`/`data-live-id` to the host or
+  card whose behavior is under test; (20) **`page.goto(url + "#fragment")` from that same url is a
   SAME-DOCUMENT navigation** — nothing reloads, no script re-runs, and a
   persistence check written that way asserts against the very objects it meant
   to throw away (it passes whether or not anything was ever stored). Use

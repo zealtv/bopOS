@@ -32,7 +32,7 @@ class CardIdentityTests(unittest.TestCase):
 
     def test_card_patterns_and_all_keyline_are_explicit(self):
         css = read("dashboard/static/css/card-identity.css")
-        self.assertRegex(css, r"\.target-card-all\s*\{[^}]*border:3px solid #fff")
+        self.assertRegex(css, r"\.target-card\.target-card-all\s*\{[^}]*border:3px solid #fff")
         self.assertIn("box-shadow:0 0 0 2px #071015", css)
         self.assertIn(".target-card-group.group-slot-2 { border-style:dashed; }", css)
         self.assertIn(".target-card-group.group-slot-3 { border-style:dotted; }", css)

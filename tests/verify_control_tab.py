@@ -519,6 +519,36 @@ def main():
                       and columns.nth(2).locator(
                           '.live-card[data-live-scope="seat"]'
                           '[data-live-id="5"]').count() == 1)
+                page.evaluate(
+                    "() => GroupSlots.write([0, null, null, null])")
+                page.wait_for_function(
+                    "() => document.querySelector("
+                    "'#control-column-host .control-column:nth-child(2)')"
+                    "?.classList.contains('target-card-group')")
+                identity = page.evaluate("""() => {
+                  const items=[...document.querySelectorAll(
+                    '#control-column-host>.control-column')];
+                  return items.map(item => ({
+                    classes:item.className,
+                    width:getComputedStyle(item).borderTopWidth,
+                    style:getComputedStyle(item).borderTopStyle,
+                    colour:getComputedStyle(item).borderTopColor,
+                    shadow:getComputedStyle(item).boxShadow,
+                  }));
+                }""")
+                check("Control paints All and active-group identity strokes",
+                      "target-card-all" in identity[0]["classes"]
+                      and identity[0]["width"] == "3px"
+                      and identity[0]["colour"] == "rgb(255, 255, 255)"
+                      and identity[0]["shadow"] != "none"
+                      and "target-card-group" in identity[1]["classes"]
+                      and identity[1]["colour"] == "rgb(86, 180, 233)"
+                      and identity[1]["style"] == "solid",
+                      repr(identity))
+                check("Seat cards retain the neutral one-pixel face",
+                      identity[2]["width"] == "1px"
+                      and "target-card-group" not in identity[2]["classes"],
+                      repr(identity[2]))
                 stored_cards = json.loads(page.evaluate(
                     "() => localStorage.getItem('bopos.control.cards')"))
                 check("only target membership is persisted",
@@ -622,6 +652,11 @@ def main():
                        for card in remote_cards.all()]
                       == [("all", None), ("group", "0"),
                           ("seat", "1"), ("seat", "5")])
+                check("Remote consumes the same All and group strokes",
+                      remote_cards.nth(0).get_attribute("class")
+                      .find("target-card-all") >= 0
+                      and remote_cards.nth(1).get_attribute("class")
+                      .find("target-card-group") >= 0)
                 # D8's other half: the commands LEFT Control, they were not
                 # deleted. An iPad away from the rack is where a per-device
                 # reboot earns its place, so Remote still draws them — in the

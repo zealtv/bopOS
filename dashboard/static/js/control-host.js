@@ -14,38 +14,7 @@
   let interacting = false;
   let venueKnown = false;
   let runtimeId = 0;
-
-  function strings(value) {
-    return Array.isArray(value)
-      ? value.filter(item => typeof item === "string")
-      : [];
-  }
-
-  function unique(values) {
-    return [...new Set(values)];
-  }
-
-  function readTargets() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(CARDS_KEY));
-      if (stored?.version === 1 && Array.isArray(stored.targets)) {
-        return unique(strings(stored.targets));
-      }
-    } catch (_error) { /* try the migrations below */ }
-
-    try {
-      const columns = JSON.parse(localStorage.getItem(LEGACY_LAYOUT_KEY));
-      if (Array.isArray(columns) && columns.length) {
-        return unique(columns.flatMap(column => strings(column?.target)));
-      }
-    } catch (_error) { /* try the older single-target key */ }
-
-    try {
-      const target = JSON.parse(localStorage.getItem(LEGACY_TARGET_KEY));
-      if (Array.isArray(target)) return unique(strings(target));
-    } catch (_error) { /* use the first-run default */ }
-    return ["all"];
-  }
+  const {strings, readTargets, compareSelectors} = window.ControlCardsModel;
 
   function committedTargets() {
     return cards.flatMap(card => card.draft ? [] : card.target.slice(0, 1));
@@ -61,20 +30,9 @@
     } catch (_error) { /* private mode: membership remains session-only */ }
   }
 
-  function rank(selector) {
-    if (selector === "all") return [0, 0];
-    if (/^g\d+$/.test(selector)) return [1, Number(selector.slice(1))];
-    if (/^\d+$/.test(selector)) return [2, Number(selector)];
-    return [3, String(selector)];
-  }
-
   function compare(left, right) {
     if (left.draft !== right.draft) return left.draft ? 1 : -1;
-    const a = rank(left.target[0]);
-    const b = rank(right.target[0]);
-    return a[0] - b[0] || (typeof a[1] === "number"
-      ? a[1] - b[1]
-      : String(a[1]).localeCompare(String(b[1])));
+    return compareSelectors(left.target[0], right.target[0]);
   }
 
   function sortCards() {
@@ -223,7 +181,9 @@
     writeTargets();
   }
 
-  readTargets().forEach(target => mount([target]));
+  readTargets(
+    localStorage, CARDS_KEY, LEGACY_LAYOUT_KEY, LEGACY_TARGET_KEY,
+  ).forEach(target => mount([target]));
   writeTargets();
   const addButton = document.querySelector("#control-add-column");
   if (addButton) addButton.onclick = addDraft;
