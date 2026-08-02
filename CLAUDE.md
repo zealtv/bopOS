@@ -568,6 +568,68 @@ remain the authority for a particular piece of work.
 >    *This entry read "the only loose end left in the whole loom" until
 >    2026-08-02, when Bob's UI review intake added four more — see below.*
 >
+> **Update 2026-08-02b (the simplification pass — supersedes the intake below
+> for threads 55 and 53/3).** Bob answered both open questions from the intake,
+> and the answer was smaller than any of the options on the table. Standing
+> instruction for what follows: *"I want to fix and simplify things before
+> making them more complicated."*
+>
+> **`55-control-column-targeting` is TIED**, all three children. The
+> cross-column preset report **did not reproduce and is not a bug** — it was
+> overlap (an `all` column and a group column share seats, so a preset applied
+> from the wider one genuinely lands on the narrower one's seats). Bob:
+> *"this was a misinterpretation on my behalf … this makes sense."*
+> `1-column-scroll` is fixed (commit `a99e982`): the cards track went
+> `minmax(0, max-content)` → `minmax(0, 1fr)`, because with `align-content:
+> start` there is no compression step and the track took its growth limit
+> however hard `max-height` clamped it — so `overflow-y:auto` was inert
+> (`clientHeight === scrollHeight`) and ~700px was clipped silently by the
+> host's `overflow-y:hidden`. **The stitch's own stated constraint was false**:
+> it said Remote "keeps growing with the page" and told the implementer to
+> protect that. Remote has never done it — `facilitator.css` makes its host a
+> flex scrollport inside a `height:100%` body, definite by a different route —
+> and it measures identically before and after. Lesson worth carrying: the
+> second half of a comment already proven unreliable does not inherit
+> credibility from having been quoted approvingly.
+>
+> `2-multi-target-model` is tied by **ruling, not implementation**, after a
+> three-lens UX consult (interaction / workflow / systems, briefed and
+> preserved at `.loom/legacy-v1/tied/2-multi-target-model/`). Five rulings,
+> now the authority for **`56-simplify-cards-and-steps`**:
+> **R1** a column becomes a **card** targeting exactly **one** thing (all /
+> group / seat) — multi-select retires here; **R2** cards sit in a grid that
+> overflows **downward**; **R3** **no drag** — order is derived `all` → groups
+> → seats, the target picker's own ordering; **R4** Control and Remote become
+> the **same surface**, intentionally, with Remote's cards naturally shorter
+> because `dashboard:` gates Remote only; **R5** **`Capture as step` is
+> REMOVED** — steps are hand-authored.
+>
+> R5 deletes an entire design space (reference-vs-flattened-vs-deviations,
+> `omit` lists, auto-generated presets, capture-time value picking) and the
+> "hand-dialled state captures as nothing" bug with it. R1 **dissolves** the
+> conflict Bob raised mid-session — *"remote works and i like that it separates
+> each target"* — because one target per card IS that separation, made
+> universal.
+>
+> **Two verified defects survive R5 and are queued ahead of the design**, both
+> confirmed in code rather than taken from the consult: (1) a step holding a
+> preset reference AND a `/p/*` message applies them in the wrong order —
+> `_emit_messages` (`show_engine.py:146`) is synchronous, a `reference` calls
+> `queue_show_preset` which **spawns a task and returns**, an `osc` message
+> sends **synchronously in the same turn**, so the param lands first and the
+> preset overwrites it, and a `duration_ms` fade keeps writing for its whole
+> duration so no authored order survives. This breaks "a preset with
+> modifications", the workflow Bob kept. (2) `preset_dirty` conflates **three**
+> unrelated causes into one appended `*` — a value moved, the preset file could
+> not be read (`server.py:1979-1981`), or the seat is on a foreign patch
+> (`preset_application.py:269-271`).
+>
+> **Correction to a claim made in-session:** there IS a way to choose which
+> params a preset stores — a checkbox per identity in the save drawer
+> (`control-surface.js:336`) honoured by an `include` allowlist
+> (`server.py:2008`). Two consultants caught it independently. Anything
+> reasoning from "that affordance doesn't exist" is wrong.
+>
 > **Update 2026-08-02 (Bob's UI review intake).** Three new threads, all from
 > one review of the shipped app. Order relative to item 9 is Bob's call; none
 > of them blocks it.
@@ -596,7 +658,10 @@ remain the authority for a particular piece of work.
 >   and putting verbs in a distributed, fingerprinted document has portability
 >   and restaging costs. One ruling: where does the venue-level allowlist get
 >   edited?
-> * **`55-control-column-targeting`** — `1-column-scroll` is claimable now and
+> * **`55-control-column-targeting`** — **ALL TIED 2026-08-02, superseded by
+>   `56-simplify-cards-and-steps`. The 2026-08-02b update above is authoritative;
+>   the rest of this bullet is kept as the record of what was believed at
+>   intake.** `1-column-scroll` is claimable now and
 >   is a plain defect: **the Control column has never scrolled vertically.**
 >   Measured on the real app — one card, one target, 40 params: column clamped
 >   to 710, cards element `clientHeight === scrollHeight === 1408`, so its
@@ -1342,18 +1407,27 @@ they meant. What changed:
   the 2026-08-02 UI-review intake, in Bob's stated order** (`loom.sh status`
   prints it with each entry's readiness):
 
-  1. `3-cross-column-preset-report` — question, ready
-  2. `2-multi-target-model` — question, `.waiting`
-  3. `54-remote-verb-promotion` — question, `.waiting`
-  4. `1-column-scroll` · 5. `1-theme-control-height` ·
-     6. `2-show-inspector-param-row` · 7. `3-preset-dropdown-menu`
+  **Rebuilt 2026-08-02** after Bob answered both open questions (see the
+  simplification-pass update below). The three questions are gone — two answered
+  and tied, one still `.waiting`:
 
-  Bob asked for the questions at the top. Entries 2 and 3 stay `.waiting`
-  because each carries implementation guidance behind its gate, so `next` skips
-  them until he rules and they are `resume`d; entry 1 is a question with no
-  implementation to guard, so it is plain and `next` serves it first. Nothing
-  else is queued — the tier ordering elsewhere in this file remains Bob's
-  hand-maintained prose and was not transcribed.
+  1. `1-capture-retirement` · 2. `2-step-preset-ordering` ·
+     3. `3-preset-dirty-reasons` (all `56-simplify-cards-and-steps`)
+  4. `1-theme-control-height` · 5. `2-show-inspector-param-row` (`53-ui-niggles`)
+  6. `3-preset-dropdown-menu` — blocked on `3-preset-dirty-reasons`
+  7. `4-cards-design` — blocked on `1-capture-retirement`
+  8. `5-cards-implementation` — blocked on `4-cards-design`
+  9. `6-text-kind-control` (`44-event-plane`)
+  10. `54-remote-verb-promotion` — question, still `.waiting` on Bob
+
+  Bob's ordering principle, stated when he set it: *"I want to fix and simplify
+  things before making them more complicated."* So the deletion and the two
+  verified defects come first, the cheap independent niggles next, and the
+  design gate last. Entries 6–8 are the loom's **first real use of hard
+  dependencies** (`needs/`) rather than queue position — they are blocked, not
+  merely later, and `status` prints the unresolved edges. Nothing else is
+  queued; the tier ordering elsewhere in this file remains Bob's hand-maintained
+  prose and was not transcribed.
 - **`map` / `map --json`** are read-only projections; the JSON is the supported
   integration boundary for any future viewer.
 - Tie/drop now write a `completed-at` timestamp. Legacy records have none and

@@ -60,6 +60,41 @@ expect `test_css_component_ownership.py` to hold you to it.
 Measure the closed height of whatever you build against the row it replaces
 before committing to the pattern.
 
+## Amended 2026-08-02 — this stitch now also owns the dirty/drift TREATMENT
+
+Two things landed after this stitch was written, and both change its scope.
+
+**It has a hard dependency on `56-simplify-cards-and-steps/3-preset-dirty-reasons`**
+(recorded in `needs/`). That stitch splits `preset_dirty` from a boolean into a
+*reason*, because three unrelated causes currently render as the same appended
+`*`: a value moved, the preset file could not be read (`server.py:1979-1981`),
+or the seat is on a foreign patch (`preset_application.py:269-271`). Moving the
+`*` to the front of a label that means three different things only relocates the
+ambiguity — so consume the reasons and give the distinct causes distinct
+treatment. This is why the ordering is enforced: the menu would otherwise be
+rebuilt twice.
+
+**The design of that treatment is yours**, handed over from the 2026-08-02 UX
+consult (three lenses, at `.loom/legacy-v1/tied/2-multi-target-model/`). What it
+gives you:
+
+* Both the interaction and systems consults **decline Bob's suggested
+  card/column border** for provenance state, on the same grounds — §18/D1 made
+  the column *be* the card and deleted exactly that kind of tint. Under R1 a
+  card is one target, so a card-level treatment is at least truthful now, but
+  Bob has **not ruled** either way. Put it to him.
+* **No new colour meanings.** `cyan = modulation` is ratified and was
+  unanimously held to be off-limits for fault states. `--amber` is already this
+  row's warn ink.
+* The glanceable question the consults converged on is *"is what I'm hearing
+  what this preset says?"* — not *"is a flag set?"*
+
+**R1/R4 also change the mount list below.** Under
+`56-simplify-cards-and-steps`, a card targets exactly one thing and Remote
+becomes the same surface as Control. The note that "Remote does not call it at
+all" is true today and may not survive `56/5`; re-measure rather than trusting
+it if `56` has landed first.
+
 ## Every mount point changes at once
 
 `presetRow` is called from `control-column.js:301` (Control tab column, Remote
