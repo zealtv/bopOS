@@ -105,6 +105,17 @@
         <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
         <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>
         <p id="editor-engine-note" class="dim" hidden></p>
+        <section id="remote-command-editor" aria-labelledby="remote-command-title">
+          <div class="section-head"><div><h3 id="remote-command-title">Remote device commands</h3><p class="dim">Venue setting · not saved in the patch and not deployed to devices.</p></div><button id="remote-command-save">Save venue setting</button></div>
+          <fieldset id="remote-command-options">
+            <legend>Framework commands available from Remote</legend>
+            <label><input type="checkbox" data-remote-command="restart-engine"> Restart engine</label>
+            <label><input type="checkbox" data-remote-command="updatebopos"> Update bopOS</label>
+            <label><input type="checkbox" data-remote-command="reboot"> Reboot</label>
+            <label><input type="checkbox" data-remote-command="shutdown"> Shutdown</label>
+          </fieldset>
+          <output id="remote-command-feedback" class="dim" aria-live="polite"></output>
+        </section>
         <section id="manifest-editor" aria-labelledby="manifest-editor-title">
           <div class="section-head"><h3 id="manifest-editor-title">Manifest</h3><button id="manifest-save">Save manifest</button></div>
           <div id="manifest-readonly"></div>

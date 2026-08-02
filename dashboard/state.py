@@ -14,7 +14,7 @@ except ImportError:
 
 
 SCHEMA = 1
-FACILITATOR_COMMANDS = frozenset(("restart-engine", "updatebopos", "reboot", "shutdown"))
+FACILITATOR_COMMANDS = ("restart-engine", "updatebopos", "reboot", "shutdown")
 FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
 MAX_GROUP_ID = 0x7fffffff
 
@@ -937,11 +937,21 @@ class InstallationState:
     def clean_facilitator_commands(value):
         if not isinstance(value, list):
             return []
-        cleaned = []
-        for command in value:
-            if command in FACILITATOR_COMMANDS and command not in cleaned:
-                cleaned.append(command)
-        return cleaned
+        # Venue files written by hand may list commands in any order. Publish
+        # and persist one fixed order so the Remote controls never shuffle.
+        return [command for command in FACILITATOR_COMMANDS
+                if command in value]
+
+    def set_facilitator_commands(self, value):
+        """Persist the venue's Remote verb allowlist transactionally."""
+        previous = list(self.data.get("facilitator_commands", ()))
+        self.data["facilitator_commands"] = self.clean_facilitator_commands(value)
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["facilitator_commands"] = previous
+            return False
+        return True
 
     @staticmethod
     def clean_master(value):

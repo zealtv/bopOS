@@ -33,7 +33,7 @@ import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from python.paramgen import ParamGrammarError, parse_message
-from state import (InstallationState, observed_active_patch, patch_badge,
+from state import (FACILITATOR_COMMANDS, InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
 from python import identity
 from python import asset_slots
@@ -329,6 +329,7 @@ class Dashboard:
             "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room", "set_points",
             "set_point", "clear_point", "save_venue", "load_venue",
+            "set_facilitator_commands",
             "monitor_send", "monitor_probe",
         }
         edit_blocked_mutations = {
@@ -813,6 +814,20 @@ class Dashboard:
             ms = min(max(ms, 0), 10000)
             self.state.data["event_lead_ms"] = ms
             self.state.save_debounced()
+            await self.broadcast("state")
+        elif kind == "set_facilitator_commands":
+            commands = data.get("commands")
+            if (not isinstance(commands, list)
+                    or any(not isinstance(command, str)
+                           or command not in FACILITATOR_COMMANDS
+                           for command in commands)):
+                await self.ws_error(
+                    ws, "Remote commands must be recognized framework verbs.")
+                return
+            if not self.state.set_facilitator_commands(commands):
+                await self.ws_error(
+                    ws, "Could not save Remote commands; the previous setting is still active.")
+                return
             await self.broadcast("state")
         elif kind == "fire_event":
             event, error = self.validate_event_command(data)

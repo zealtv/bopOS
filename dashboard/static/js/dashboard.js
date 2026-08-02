@@ -29,6 +29,12 @@ let manifestBaseline = null;
 let manifestDirty = false;
 let manifestFeedback = "";
 let manifestDrag = null;
+const REMOTE_COMMANDS = ["restart-engine", "updatebopos", "reboot", "shutdown"];
+let remoteCommandDraft = null;
+let remoteCommandBaseline = null;
+let remoteCommandDirty = false;
+let remoteCommandSaving = false;
+let remoteCommandFeedback = "";
 let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -213,6 +219,12 @@ ws.on("editor_event_fired", data => {
   status.value = `${data.identity} fired`;
 });
 ws.on("error", data => {
+  if (remoteCommandSaving) {
+    remoteCommandSaving=false;
+    remoteCommandFeedback=`Not saved: ${data.message}`;
+    renderRemoteCommandEditor();
+    return;
+  }
   if (manifestFeedback.endsWith("…")) {
     manifestFeedback=`Not saved: ${data.message}`;
     const feedback=$("#manifest-feedback"); if (feedback) feedback.textContent=manifestFeedback;
@@ -889,6 +901,49 @@ function renderManifestEditor(source) {
   if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-events input, #manifest-events button").forEach(control=>{control.disabled=true;});
 }
 
+function canonicalRemoteCommands(value) {
+  const selected=new Set(Array.isArray(value)?value:[]);
+  return REMOTE_COMMANDS.filter(command=>selected.has(command));
+}
+function sameRemoteCommands(left,right) {
+  return JSON.stringify(left)===JSON.stringify(right);
+}
+function renderRemoteCommandEditor() {
+  const current=canonicalRemoteCommands(installation.facilitator_commands);
+  if (remoteCommandDraft===null
+      || (!remoteCommandDirty && !sameRemoteCommands(current,remoteCommandBaseline))) {
+    remoteCommandDraft=[...current];
+    remoteCommandBaseline=[...current];
+  }
+  if (remoteCommandSaving && sameRemoteCommands(current,remoteCommandDraft)) {
+    remoteCommandSaving=false;
+    remoteCommandDirty=false;
+    remoteCommandBaseline=[...current];
+    remoteCommandFeedback="Saved venue setting.";
+  }
+  document.querySelectorAll("[data-remote-command]").forEach(input=>{
+    input.checked=remoteCommandDraft.includes(input.dataset.remoteCommand);
+    input.onchange=()=>{
+      remoteCommandDraft=REMOTE_COMMANDS.filter(command=>{
+        const option=document.querySelector(`[data-remote-command="${command}"]`);
+        return option?.checked;
+      });
+      remoteCommandDirty=!sameRemoteCommands(remoteCommandDraft,remoteCommandBaseline);
+      remoteCommandFeedback=remoteCommandDirty?"Unsaved venue setting.":"";
+      renderRemoteCommandEditor();
+    };
+  });
+  const save=$("#remote-command-save");
+  save.disabled=!remoteCommandDirty || remoteCommandSaving;
+  save.onclick=()=>{
+    remoteCommandSaving=true;
+    remoteCommandFeedback="Saving venue setting…";
+    ws.send("set_facilitator_commands",{commands:[...remoteCommandDraft]});
+    renderRemoteCommandEditor();
+  };
+  $("#remote-command-feedback").textContent=remoteCommandFeedback;
+}
+
 function renderEditorPreview(editor) {
   Spatial.renderEditor(editor,ws);
   const free=$("#editor-event-identity"), fire=$("#editor-event-fire");
@@ -902,6 +957,7 @@ function renderEditorPreview(editor) {
   free.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();fire.click();}};
 }
 function renderEditor() {
+  renderRemoteCommandEditor();
   const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}}, mode=installation.supervisor?.mode||"off";
   const patches=(distribution.patches||[]).filter(item=>item.valid);
   const select=$("#editor-patch"), launch=$("#editor-launch");

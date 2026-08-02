@@ -113,6 +113,7 @@ def write_fixture(temp):
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump({
             "schema": 1, "name": "Manifest visibility rig",
+            "facilitator_commands": ["restart-engine"],
             "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                             "staged_at": time.time(), "previous": None},
             "params_patch": "alpha",
@@ -237,8 +238,70 @@ def main():
                 check("Device control shows every manifest parameter",
                       identities(device_controls) == expected,
                       repr(identities(device_controls)))
+                desktop_actions = page.locator("#detail [data-action]")
+                check("desktop Device Actions ignore the Remote allowlist",
+                      sorted(desktop_actions.evaluate_all(
+                          "nodes => nodes.map(node => node.dataset.action)"))
+                      == ["reboot", "restart-engine", "shutdown", "updatebopos"])
 
                 page.click("#tab-button-patches")
+                remote_editor = page.locator("#remote-command-editor")
+                check("Remote command editor is a visible venue sibling",
+                      remote_editor.is_visible()
+                      and remote_editor.locator("text=Venue setting").count() == 1
+                      and page.evaluate(
+                          "() => !document.querySelector('#remote-command-editor')"
+                          ".closest('#manifest-editor')"))
+                check("venue command choices reflect installation state",
+                      remote_editor.locator(
+                          '[data-remote-command="restart-engine"]'
+                      ).is_checked()
+                      and not remote_editor.locator(
+                          '[data-remote-command="reboot"]'
+                      ).is_checked())
+                remote_editor.locator(
+                    '[data-remote-command="reboot"]').check()
+                remote_editor.locator(
+                    '[data-remote-command="shutdown"]').check()
+                remote_editor.locator("#remote-command-save").click()
+                page.wait_for_function(
+                    "() => (installation.facilitator_commands||[]).join(',')"
+                    " === 'restart-engine,reboot,shutdown'")
+                page.wait_for_function(
+                    "() => document.querySelector('#remote-command-feedback')"
+                    "?.textContent === 'Saved venue setting.'")
+                check("venue command save does not dirty or rewrite the manifest",
+                      page.evaluate("() => manifestDirty === false"))
+                with open(manifest, encoding="utf-8") as source:
+                    before_manifest_edit = json.load(source)
+                check("venue command save leaves patch content untouched",
+                      before_manifest_edit["params"] == PARAMS
+                      and before_manifest_edit["events"] == EVENTS)
+                facilitator.wait_for_function(
+                    "() => (installation.facilitator_commands||[]).join(',')"
+                    " === 'restart-engine,reboot,shutdown'")
+                fleet_commands = facilitator.locator(
+                    "#facilitator-commands [data-command]").evaluate_all(
+                        "nodes => nodes.map(node => node.dataset.command)")
+                seat_commands = facilitator.locator(
+                    ".device-commands").first.locator(
+                        "[data-command]").evaluate_all(
+                            "nodes => nodes.map(node => node.dataset.command)")
+                check("Remote uses the venue subset in existing setup sections",
+                      fleet_commands == ["restart-engine", "reboot", "shutdown"]
+                      and seat_commands == fleet_commands,
+                      repr([fleet_commands, seat_commands]))
+
+                page.reload()
+                page.wait_for_selector("#ws-status.online")
+                page.wait_for_selector("#remote-command-editor")
+                check("venue command choices survive dashboard reload",
+                      page.locator(
+                          '#remote-command-editor [data-remote-command="shutdown"]'
+                      ).is_checked()
+                      and not page.locator(
+                          '#remote-command-editor [data-remote-command="updatebopos"]'
+                      ).is_checked())
                 page.wait_for_selector("#manifest-params .manifest-check")
                 kind_options = page.locator(
                     '#manifest-params select[data-manifest-field="kind"]'
