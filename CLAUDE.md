@@ -556,20 +556,76 @@ remain the authority for a particular piece of work.
 >    venue-preset store and shelves are gone. The only remaining child is
 >    **`11-browser-test-failures`**, the final pre-existing guard cleanup before
 >    thread 41 itself ties.
-> 9. `44-event-plane/6-text-kind-control` — **the only loose end left in the
->    whole loom (2026-08-01).** It was ordered after 7 so it would adopt the
->    app-wide text treatment rather than compete with it; 7 is tied, so that
->    constraint is satisfied and this is claimable now. It is also all that
->    stands between thread 44 and its tie. Note the measured starting state in
->    its instructions: there is an **unstyled** control, not no control —
+> 9. `44-event-plane/6-text-kind-control` — it was ordered after 7 so it would
+>    adopt the app-wide text treatment rather than compete with it; 7 is tied,
+>    so that constraint is satisfied and this is claimable now. It is also all
+>    that stands between thread 44 and its tie. Note the measured starting state
+>    in its instructions: there is an **unstyled** control, not no control —
 >    `control-surface.js` already renders a plain `<input type="text">` for the
 >    string kind and excludes it from aggregation and automation. What is
 >    missing is the design language, which now exists.
 >
+>    *This entry read "the only loose end left in the whole loom" until
+>    2026-08-02, when Bob's UI review intake added four more — see below.*
+>
+> **Update 2026-08-02 (Bob's UI review intake).** Three new threads, all from
+> one review of the shipped app. Order relative to item 9 is Bob's call; none
+> of them blocks it.
+>
+> * **`53-ui-niggles`** — three ratified, independently shippable corrections:
+>   `1-theme-control-height` (the header's theme `<select>` is measured at
+>   exactly `--header-h`, so it has zero vertical padding),
+>   `2-show-inspector-param-row` (the Show inspector's parameter value entry is
+>   **not rendered at all** for `fade`/`loop`/`lfo` — one line at
+>   `show.js:764`; mount the shared `ControlSurface` row instead, with Bob's
+>   own stated fallback of "generator icon stays cyan" if live automation
+>   visualisation is messy in an authoring context), and
+>   `3-preset-dropdown-menu` (dirty `*` and drift `⚠` are **appended**, so a
+>   native `<select>` ellipsises exactly the marks that matter; they move to
+>   the front, and `new`/`save`/`del` merge into the dropdown, retiring D8's
+>   `edit` disclosure). The third is the big one: a `<select>` cannot carry
+>   icons, a divider, or commands-that-are-not-values, so it becomes a
+>   disclosure menu and the app's seventh component stylesheet — and it changes
+>   Control, Device and the patch editor at once.
+> * **`54-remote-verb-promotion`** — `.waiting`. Bob wants reboot/shutdown
+>   settable as Remote items from the manifest editor. The capability already
+>   ships (`installation.json`'s `facilitator_commands`, rendered on Remote,
+>   hold-to-confirm); **nothing in the app edits it**, which is almost certainly
+>   the real request. But the contract says verb promotion is *never* a manifest
+>   concern (§"The patch promotes its params; the venue promotes its verbs"),
+>   and putting verbs in a distributed, fingerprinted document has portability
+>   and restaging costs. One ruling: where does the venue-level allowlist get
+>   edited?
+> * **`55-control-column-targeting`** — `1-column-scroll` is claimable now and
+>   is a plain defect: **the Control column has never scrolled vertically.**
+>   Measured on the real app — one card, one target, 40 params: column clamped
+>   to 710, cards element `clientHeight === scrollHeight === 1408`, so its
+>   `overflow-y:auto` has nothing to scroll and 698px is clipped by the host's
+>   `overflow-y:hidden` with no scrollbar and no cue. Cause is
+>   `grid-template-rows: auto minmax(0, max-content)` with `align-content:start`
+>   — the track takes its growth limit whatever the container's `max-height`.
+>   `minmax(0, 1fr)` measures clean (client 658, scroll 1408, scrollable) but
+>   **must be measured on Remote too**, where the column's parent has no
+>   definite height and `max-content` was chosen for that reason.
+>   `control-column.css:36-46` claims the opposite of what ships and must be
+>   corrected with the fix. `2-multi-target-model` is `.waiting`: Bob asks
+>   whether a multi-target column should be one aggregate panel rather than
+>   today's card-per-target, which reverses `07-target-selector-component`'s
+>   ruling and touches `4-n-columns/2`'s argument-free capture. His second
+>   report — "a preset in either column effects all columns" — **did not
+>   reproduce** with disjoint group targets (apply is correctly scoped end to
+>   end); it reproduces exactly when a column is still on `addColumn()`'s
+>   `["all"]` default, which is a usability defect, not a scoping one. Confirm
+>   with Bob before treating it as a bug — that confirmation is its own stitch,
+>   `3-cross-column-preset-report`, which is a question and nothing else and
+>   sits at the head of the queue. Evidence harness:
+>   `.loom/threads/55-control-column-targeting/repro-columns.py`.
+>
 > **Everything else in the loom is `.waiting`** on a Bob decision, a co-design
-> session, or hardware — see Tiers 4 and 5. After 9, the only remaining loose
-> end anywhere is the host-loom patch-workflow documentation/starter-kit
-> close-out at `~/repos/.loom/threads/patch-workflow-friction/`.
+> session, or hardware — see Tiers 4 and 5. After item 9 and the 2026-08-02
+> intake, the only remaining loose end anywhere is the host-loom patch-workflow
+> documentation/starter-kit close-out at
+> `~/repos/.loom/threads/patch-workflow-friction/`.
 >
 > Standing constraint: the system works today and must keep working; prefer
 > small ordered changes over rewrites.
@@ -1282,9 +1338,22 @@ they meant. What changed:
   detected, and `status` exits non-zero on broken edges.
 - **A sparse preference queue** (`.loom/queue`, managed with
   `loom.sh queue|first|before|after|unqueue`) orders `next` without inventing
-  dependencies — blocked entries are skipped rather than blocking. It is
-  **empty**: the tier ordering in this file remains Bob's hand-maintained prose
-  and was not transcribed into the queue.
+  dependencies — blocked entries are skipped rather than blocking. **It holds
+  the 2026-08-02 UI-review intake, in Bob's stated order** (`loom.sh status`
+  prints it with each entry's readiness):
+
+  1. `3-cross-column-preset-report` — question, ready
+  2. `2-multi-target-model` — question, `.waiting`
+  3. `54-remote-verb-promotion` — question, `.waiting`
+  4. `1-column-scroll` · 5. `1-theme-control-height` ·
+     6. `2-show-inspector-param-row` · 7. `3-preset-dropdown-menu`
+
+  Bob asked for the questions at the top. Entries 2 and 3 stay `.waiting`
+  because each carries implementation guidance behind its gate, so `next` skips
+  them until he rules and they are `resume`d; entry 1 is a question with no
+  implementation to guard, so it is plain and `next` serves it first. Nothing
+  else is queued — the tier ordering elsewhere in this file remains Bob's
+  hand-maintained prose and was not transcribed.
 - **`map` / `map --json`** are read-only projections; the JSON is the supported
   integration boundary for any future viewer.
 - Tie/drop now write a `completed-at` timestamp. Legacy records have none and
