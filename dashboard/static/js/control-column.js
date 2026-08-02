@@ -11,6 +11,8 @@
     character => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"}[character]),
   );
   const destructiveCommands = new Set(["updatebopos", "reboot", "shutdown"]);
+  const CARD_MAX_WIDTH = 560;
+  const CARD_GAP = 12;
 
   function create({
     host,
@@ -396,6 +398,7 @@
       const patch = schema?.patch;
       cards.dataset.liveView = selectionMode(selection);
       if (!selection.length) {
+        cards.style.removeProperty("--target-grid-max");
         cards.innerHTML = unresolvedTarget();
         cards.querySelector("[data-choose-target]").onclick = () =>
           targetPicker.reveal();
@@ -419,6 +422,14 @@
         : selection
             .map(entry => selectedCard(entry, declarations, available, patch))
             .filter(Boolean);
+      if (deriveAllTargets && rendered.length) {
+        cards.style.setProperty(
+          "--target-grid-max",
+          `${rendered.length * CARD_MAX_WIDTH + (rendered.length - 1) * CARD_GAP}px`,
+        );
+      } else {
+        cards.style.removeProperty("--target-grid-max");
+      }
       cards.innerHTML = rendered.join("") || '<p class="empty">No Seats</p>';
       bindCards();
     }

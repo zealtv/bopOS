@@ -387,14 +387,14 @@ details.icon-menu>summary::before{content:none}
 .fleet-actions{display:flex;align-items:center;gap:var(--gap);flex-wrap:wrap}
 
 /* ---- Control cards layout (56-simplify-cards-and-steps/5) ----------------
-   Cards flex from 340px to 560px and wrap from the left; sparse rows leave
-   their unused space at the right edge rather than between cards. The page is
-   the sole vertical scrollport; cards neither scroll sideways nor internally. */
+   Equal 340–560px tracks keep incomplete final rows the same width as every
+   card above. JS caps the grid from its current card count so sparse sets stay
+   left aligned instead of stretching across the viewport. */
 #control-column-host{
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:flex-start;
-  align-items:flex-start;
+  display:grid;
+  width:min(100%,var(--target-grid-max,100%));
+  grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));
+  align-items:start;
   align-content:flex-start;
   gap:12px;
   height:auto;
@@ -402,7 +402,6 @@ details.icon-menu>summary::before{content:none}
 }
 #control-column-host>.control-column{
   min-width:0;
-  flex:1 1 min(340px,100%);
 }
 #control-column-host:empty::after{
   content:"Add a card to begin";

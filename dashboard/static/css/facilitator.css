@@ -22,9 +22,9 @@ h1{font-size:22px;margin:0;margin-right:auto}
    used to sit right here — moved onto `control-column.css` and
    `control-panel.css` §18 in `3-iframe-retirement`, so that the Control tab of
    `index.html`, which does not load this stylesheet, gets it too. */
-#control-column-host{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:flex-start;align-content:flex-start;gap:12px;margin:12px;overflow:visible}
+#control-column-host{margin:12px;overflow:visible}
 #control-column-host.control-column.control-column-derived{display:block;width:auto;max-width:none;border:0;border-radius:0;padding:0;background:transparent;box-shadow:none}
-#control-column-host.control-column-derived>.control-column-cards{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:flex-start;align-content:flex-start;gap:12px}
+#control-column-host.control-column-derived>.control-column-cards{display:grid;width:min(100%,var(--target-grid-max,100%));grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));align-items:start;align-content:start;gap:12px}
 input[type=range]{flex:1;height:44px;accent-color:var(--accent-cyan);cursor:pointer}
 footer{position:fixed;z-index:30;right:0;bottom:0;left:0;border-top:1px solid var(--line);background:color-mix(in srgb,var(--surface-bar) 96%,transparent);padding:10px 22px max(10px,env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;box-shadow:0 -5px 18px #0005}
 #master-row{min-width:0;display:flex;align-items:center;gap:16px}

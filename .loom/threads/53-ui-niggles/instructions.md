@@ -1,6 +1,6 @@
 # 53-ui-niggles
 
-Eight small, independently shippable UI corrections from Bob's 2026-08-02
+Nine small, independently shippable UI corrections from Bob's 2026-08-02
 review of the shipped app. None is a design gate; each is a ratified change
 with a stated outcome.
 
@@ -49,9 +49,11 @@ ask rather than against my paraphrase:
    same-element host/component structure.
 8. `8-remove-control-width-lock` — reset the retired 342px direct-child flex
    rule that prevents Control cards from growing.
+9. `9-equal-card-tracks` — use equal tracks so incomplete final rows retain the
+   same card width as every preceding row.
 
 The first three touch different files and can be worked in any order; their
-stated order is by size. The last five followed Bob's reviews of the
+stated order is by size. The last six followed Bob's reviews of the
 subsequently shipped cards work.
 
 ## Standing constraints for all three

@@ -198,8 +198,8 @@ def main():
                     "'#control-column-host .live-param').length >= %d"
                     % (PARAM_COUNT * 4))
                 before = page.evaluate(METRICS)
-                check("Control lays four cards into a wrapping flex row",
-                      before and before["display"] == "flex"
+                check("Control lays four cards into equal grid tracks",
+                      before and before["display"] == "grid"
                       and len(before["widths"]) == 4,
                       json.dumps(before))
                 check("Control cards flex within the requested bounds",
@@ -233,7 +233,9 @@ def main():
                       len(sparse) == 4
                       and sparse[3]["top"] > sparse[0]["top"]
                       and abs(sparse[3]["left"] - sparse[0]["left"]) <= 1
-                      and 340 <= sparse[3]["width"] <= 560,
+                      and 340 <= sparse[3]["width"] <= 560
+                      and max(card["width"] for card in sparse)
+                      - min(card["width"] for card in sparse) <= 1,
                       json.dumps(sparse))
                 page.set_viewport_size({"width": 1440, "height": 900})
                 check("Control cards and host expose no nested scrollport",
@@ -280,13 +282,30 @@ def main():
                       rows[rows.length-1].getBoundingClientRect().bottom),
                   };
                 }""")
-                check("Remote derives four flexible cards",
-                      remote["display"] == "flex"
-                      and remote["cardsDisplay"] == "flex"
+                check("Remote derives four equal-width cards",
+                      remote["display"] == "block"
+                      and remote["cardsDisplay"] == "grid"
                       and len(remote["widths"]) == 4
                       and max(remote["widths"]) - min(remote["widths"]) <= 1
                       and max(remote["widths"]) <= 560,
                       json.dumps(remote))
+                page.set_viewport_size({"width": 1200, "height": 900})
+                remote_sparse = page.eval_on_selector_all(
+                    ".live-card",
+                    "cards => cards.map(card => ({"
+                    "left: Math.round(card.getBoundingClientRect().left),"
+                    "top: Math.round(card.getBoundingClientRect().top),"
+                    "width: Math.round(card.getBoundingClientRect().width)"
+                    "}))",
+                )
+                check("Remote's final-row card keeps the shared track width",
+                      len(remote_sparse) == 4
+                      and remote_sparse[3]["top"] > remote_sparse[0]["top"]
+                      and abs(remote_sparse[3]["left"]
+                              - remote_sparse[0]["left"]) <= 1
+                      and max(card["width"] for card in remote_sparse)
+                      - min(card["width"] for card in remote_sparse) <= 1,
+                      json.dumps(remote_sparse))
                 check("Remote also has no nested vertical scrollport",
                       remote["hostOverflowY"] == "visible"
                       and remote["cardsOverflowY"] == "visible",

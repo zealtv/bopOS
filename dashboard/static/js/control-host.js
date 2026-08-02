@@ -10,6 +10,8 @@
   const CARDS_KEY = "bopos.control.cards";
   const LEGACY_LAYOUT_KEY = "bopos.control.columns";
   const LEGACY_TARGET_KEY = "bopos.target.control";
+  const CARD_MAX_WIDTH = 560;
+  const CARD_GAP = 12;
   const cards = [];
   let interacting = false;
   let venueKnown = false;
@@ -38,6 +40,14 @@
   function sortCards() {
     cards.sort(compare);
     cards.forEach(card => stage.appendChild(card.surface.element));
+    if (cards.length) {
+      stage.style.setProperty(
+        "--target-grid-max",
+        `${cards.length * CARD_MAX_WIDTH + (cards.length - 1) * CARD_GAP}px`,
+      );
+    } else {
+      stage.style.removeProperty("--target-grid-max");
+    }
   }
 
   function targetsExcept(entry) {
@@ -147,6 +157,7 @@
     if (index < 0) return;
     entry.surface.destroy();
     cards.splice(index, 1);
+    sortCards();
     writeTargets();
     if (venueKnown) cards.forEach(card => card.surface.render());
     document.querySelector("#control-add-column")?.focus();

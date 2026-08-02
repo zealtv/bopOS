@@ -13,29 +13,35 @@ def read(relative):
 
 
 class CardsGridCssTests(unittest.TestCase):
-    def test_both_hosts_left_pack_flexible_340_to_560_cards(self):
+    def test_both_hosts_use_equal_responsive_tracks(self):
+        track = "repeat(auto-fit,minmax(min(340px,100%),1fr))"
         for stylesheet in ("dashboard/static/css/style.css",
                            "dashboard/static/css/facilitator.css"):
             css = "".join(read(stylesheet).split())
-            self.assertIn("display:flex", css)
-            self.assertIn("flex-wrap:wrap", css)
-            self.assertIn("justify-content:flex-start", css)
+            self.assertIn("display:grid", css)
+            self.assertIn(track, css)
+            self.assertIn("width:min(100%,var(--target-grid-max,100%))", css)
 
-    def test_target_card_component_owns_the_shared_bounds(self):
+    def test_target_card_component_owns_the_shared_ceiling(self):
         css = "".join(read(
             "dashboard/static/css/card-identity.css").split())
         self.assertIn(".target-card.target-card{min-width:0;"
-                      "flex:11min(340px,100%);"
                       "max-width:min(560px,100%)", css)
 
-    def test_control_direct_cards_reset_the_retired_fixed_flex(self):
-        css = "".join(read("dashboard/static/css/style.css").split())
-        active = css.rsplit("#control-column-host>.control-column{", 1)[1]
-        active = active.split("}", 1)[0]
-        self.assertIn("flex:11min(340px,100%)", active)
-        self.assertNotIn("flex:00342px", active)
+    def test_both_hosts_cap_the_grid_from_card_count(self):
+        control = read("dashboard/static/js/control-host.js")
+        self.assertIn('const CARD_MAX_WIDTH = 560', control)
+        self.assertIn('const CARD_GAP = 12', control)
+        self.assertIn('"--target-grid-max"', control)
+        self.assertIn('cards.length * CARD_MAX_WIDTH', control)
 
-    def test_remote_cards_region_is_an_explicit_flex_context(self):
+        remote = read("dashboard/static/js/control-column.js")
+        self.assertIn('const CARD_MAX_WIDTH = 560', remote)
+        self.assertIn('const CARD_GAP = 12', remote)
+        self.assertIn('"--target-grid-max"', remote)
+        self.assertIn('rendered.length * CARD_MAX_WIDTH', remote)
+
+    def test_remote_cards_region_is_an_explicit_grid_context(self):
         css = "".join(read("dashboard/static/css/facilitator.css").split())
         self.assertIn(
             "#control-column-host.control-column.control-column-derived"
@@ -46,8 +52,8 @@ class CardsGridCssTests(unittest.TestCase):
         )
         self.assertIn(
             "#control-column-host.control-column-derived>"
-            ".control-column-cards{display:flex;flex-wrap:wrap;"
-            "justify-content:flex-start",
+            ".control-column-cards{display:grid;width:min(100%,"
+            "var(--target-grid-max,100%));grid-template-columns:repeat(",
             css,
         )
         self.assertNotIn(
