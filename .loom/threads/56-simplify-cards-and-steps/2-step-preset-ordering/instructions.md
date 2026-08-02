@@ -48,11 +48,46 @@ is the *only* path, which is what promotes this from cosmetic to blocking.
   takes `supervisor_lock`, and `_emit_messages` is called from
   `show_engine.py:227` inside step start — a step that blocks on a slow apply
   may delay its own timer arm.
-* **The fade case is not an ordering problem** and probably cannot be solved by
-  ordering. A param message that lands on top of an in-flight fade for the same
-  identity has to either cancel the fade for that identity or lose. Decide
-  which, and say so; the §3.3 generator-slot grammar already has a `stop` form
-  worth looking at first.
+* **The fade case is not an ordering problem** and cannot be solved by
+  ordering. **Bob ruled it 2026-08-02:**
+
+  > it cancels the fade - if it lands via a preset with interpolation,
+  > interpolation starts where the fade left off - which i assume is how lfos
+  > and loops also behave?
+
+  Three things were then verified in code, and the ruling lands differently
+  against each:
+
+  1. **Cancellation already ships.** A static value message pops the
+     automation entry for that identity (`osc_bridge.py:482-489`). Nothing to
+     build; the ruling ratifies existing behaviour.
+  2. **"Starts where the fade left off" is the OPPOSITE of today's
+     behaviour**, and this is the actual work.
+     `_store_fade_destination` (`osc_bridge.py:523-527`) writes the fade's
+     **destination** into the seat's durable `params[identity]` the moment the
+     fade starts, and a new fade's origin is
+     `spec.start if spec.start is not None else prior` where `prior` is that
+     durable value (`osc_bridge.py:474`). So a fade taking over an in-flight
+     fade starts from where its predecessor was *heading*: it jumps forward,
+     then interpolates. **Open question for Bob, do not decide alone:** the
+     dashboard can compute the live position (`_fade_value` already does,
+     from `from` + segments + `sent_at`) and author an explicit `start`, but
+     the NODE runs the interpolation, so a dashboard-authored origin is off by
+     roughly the network latency and the take-over carries a small
+     discontinuity. Exact continuity is node-side, which is PD and therefore
+     Bob's. Put the two options to him with the size of the error measured, not
+     estimated.
+  3. **LFOs and loops do NOT behave this way, deliberately — Bob's assumption
+     is the one part to drop.** A non-free LFO records `phase_at_send_ms` from
+     **leader monotonic time** (`osc_bridge.py:458-465`) and `_lfo_value`
+     derives position from that absolute clock; loops share the same path
+     (`preset_application.py:196-203`). The point is fleet phase-lock — every
+     device must sit at the same point in the cycle, so a periodic generator
+     cannot continue from a predecessor's *value* without breaking sync. The
+     code calls free-LFO node phase "intentionally unknowable."
+
+  So the system carries **two** take-over semantics on purpose: fades are
+  value-continuous, periodic generators are phase-locked. Do not unify them.
 * Whether a step should be *allowed* to hold both a reference and a param
   message for the same identity, or whether the inspector should refuse it.
   Bob's stated workflow says allow.
