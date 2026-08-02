@@ -1885,14 +1885,14 @@ class Dashboard:
             return
         marker = self._editor_seat.get("applied_preset")
         editor["applied_preset"] = copy.deepcopy(marker) if marker else None
-        editor["preset_dirty"] = bool(self._editor_seat.get("preset_dirty"))
+        editor["preset_dirty"] = self._editor_seat.get("preset_dirty")
 
     def preset_card_projection(self, scope, target_id):
         seats, _selector = self.live_param_target(scope, target_id)
         return preset_application.card_preset_projection(seats or [])
 
     def refresh_preset_dirtiness(self, seats=None, now=None):
-        """Derive dirty flags; preset bodies remain server-side."""
+        """Derive dirty reasons; preset bodies remain server-side."""
         now = time.time() if now is None else float(now)
         if seats is None:
             seats = list(self.state.seats.values())
@@ -1901,13 +1901,13 @@ class Dashboard:
         for seat in seats:
             marker = seat.get("applied_preset")
             if not isinstance(marker, dict):
-                seat["preset_dirty"] = False
+                seat["preset_dirty"] = None
                 continue
             try:
                 record = self.preset_store.read(
                     marker["patch"], preset_store.slugify(marker["name"]))
             except (KeyError, preset_store.PresetStoreError):
-                seat["preset_dirty"] = True
+                seat["preset_dirty"] = "missing"
                 continue
             document = dict(record["document"], _patch=marker["patch"])
             declarations = self.live_control_declarations(marker["patch"])
@@ -1982,7 +1982,7 @@ class Dashboard:
         if name is None:
             for seat in seats:
                 seat.pop("applied_preset", None)
-                seat["preset_dirty"] = False
+                seat["preset_dirty"] = None
             self.publish_editor_provenance()
             report = self._preset_report(patch, None, seats)
             await self.broadcast("state")
@@ -2106,7 +2106,7 @@ class Dashboard:
         provenance = {"patch": patch, "name": document["name"]}
         for seat in matching:
             seat["applied_preset"] = dict(provenance)
-            seat["preset_dirty"] = False
+            seat["preset_dirty"] = None
         try:
             self.state.save()
         except (OSError, TypeError, ValueError):
@@ -3073,7 +3073,7 @@ class Dashboard:
         # A new session starts with no applied preset: provenance is runtime
         # state about values this engine is currently holding (08).
         self._editor_seat.pop("applied_preset", None)
-        self._editor_seat["preset_dirty"] = False
+        self._editor_seat["preset_dirty"] = None
         editor.clear()
         editor.update(active=True, status="starting", patch=patch_name,
                       engine_alive=None, generation=generation,

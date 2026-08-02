@@ -262,19 +262,19 @@ def capture_target(seats, all_seats, groups):
 
 
 def preset_dirty(document, seat, declarations, automation, effective_patch, now):
-    """Derive whether one seat has moved away from its provenance preset."""
+    """Derive why one seat differs from its provenance preset, if at all."""
     marker = seat.get("applied_preset")
     if not isinstance(marker, dict):
-        return False
+        return None
     if marker.get("patch") != effective_patch:
-        return True
+        return "foreign-patch"
     if marker.get("patch") != document.get("_patch"):
-        return True
+        return "foreign-patch"
     by_identity = {item["identity"]: item for item in declarations}
     for identity, expected in document.get("params", {}).items():
         declaration = by_identity.get(identity)
         if declaration is None:
-            return True
+            return "deviated"
         entry = automation.get(automation_key(seat), {}).get(identity)
         spec = automation_spec(entry, declaration)
         if len(expected) > 1:
@@ -288,5 +288,5 @@ def preset_dirty(document, seat, declarations, automation, effective_patch, now)
                 declaration, seat.get("params", {}).get(identity))
             actual = [value] if value is not None else None
         if actual != canonicalize_args(declaration, expected):
-            return True
-    return False
+            return "deviated"
+    return None

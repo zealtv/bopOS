@@ -384,7 +384,7 @@ def main():
                     "() => ws.send('set_live_param',"
                     " {scope:'all', name:'density', value:0.7})")
                 page.wait_for_function(
-                    "() => installation.seats['1'].preset_dirty === true")
+                    "() => installation.seats['1'].preset_dirty === 'deviated'")
                 page.wait_for_function(
                     """() => {
                       const doc = document.querySelector('#control-column-host');

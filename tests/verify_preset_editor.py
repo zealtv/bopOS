@@ -455,7 +455,7 @@ def main():
                     "() => ws.send('set_editor_param',"
                     " {name:'depth', value:0.05})")
                 page.wait_for_function(
-                    "() => installation.editor?.preset_dirty === true")
+                    "() => installation.editor?.preset_dirty === 'deviated'")
                 check("moving a value after a recall reads as dirty", True)
 
                 # --- delete ---

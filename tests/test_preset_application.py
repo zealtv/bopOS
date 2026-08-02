@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -309,7 +310,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
                 self.osc.automation.clear()
                 try:
                     node.apply("gain", parse_message([0.2], "f"), declaration)
-                    with unittest.mock.patch(
+                    with mock.patch(
                             "osc_bridge.time.monotonic_ns",
                             return_value=node_now_ns[0]):
                         self.osc.record_param_for(
@@ -320,7 +321,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
                     node_now_ns[0] += int(elapsed_s * 1_000_000_000)
                     expected = node.current_value("gain")
 
-                    with unittest.mock.patch(
+                    with mock.patch(
                             "osc_bridge.time.monotonic_ns",
                             return_value=node_now_ns[0]):
                         self.osc.record_param_for(
@@ -346,7 +347,7 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         for seat in seats:
             seat["params"].update(gain=0.12345678, voice="aah", count=3)
             seat["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
-            seat["preset_dirty"] = False
+            seat["preset_dirty"] = None
         self.state.seats["1"]["params"]["gate"] = 0
         self.state.seats["2"]["params"]["gate"] = 1
         now = 200.0
@@ -412,16 +413,28 @@ class PresetApplicationTests(unittest.IsolatedAsyncioTestCase):
         ])
         self.assertEqual(flattened[1]["args"], [{"type": "i", "value": 1}])
 
-    def test_provenance_is_runtime_only_and_dirty_compares_canonical_state(self):
+    def test_provenance_is_runtime_only_and_dirty_reports_distinct_reasons(self):
         self.save_patch_preset({"gain": [0.123457]})
         seat = self.state.seats["1"]
         seat["params"]["gain"] = 0.12345678
         seat["applied_preset"] = {"patch": "alpha", "name": "Dawn"}
         self.dashboard.refresh_preset_dirtiness([seat], now=100)
-        self.assertFalse(seat["preset_dirty"])
+        self.assertIsNone(seat["preset_dirty"])
+
         seat["params"]["gain"] = 0.2
         self.dashboard.refresh_preset_dirtiness([seat], now=100)
-        self.assertTrue(seat["preset_dirty"])
+        self.assertEqual(seat["preset_dirty"], "deviated")
+
+        self.state.device_registry["one"]["desired_patch"] = {
+            "name": "beta", "fingerprint": None}
+        self.dashboard.refresh_preset_dirtiness([seat], now=100)
+        self.assertEqual(seat["preset_dirty"], "foreign-patch")
+
+        self.state.device_registry["one"].pop("desired_patch")
+        (self.patches / "alpha" / "presets" / "Dawn.json").unlink()
+        self.dashboard.refresh_preset_dirtiness([seat], now=100)
+        self.assertEqual(seat["preset_dirty"], "missing")
+
         durable = self.state.durable()["seats"]["1"]
         self.assertNotIn("applied_preset", durable)
         self.assertNotIn("preset_dirty", durable)
