@@ -1,6 +1,6 @@
 # 53-ui-niggles
 
-Six small, independently shippable UI corrections from Bob's 2026-08-02
+Seven small, independently shippable UI corrections from Bob's 2026-08-02
 review of the shipped app. None is a design gate; each is a ratified change
 with a stated outcome.
 
@@ -45,9 +45,11 @@ ask rather than against my paraphrase:
    flex between 340px and 560px without spreading sparse rows apart.
 6. `6-remote-card-flow` — screenshot follow-up: give Remote's nested cards
    region the same explicit wrapping flex flow as Control.
+7. `7-remote-host-selector` — correct stitch 6's selector to Remote's actual
+   same-element host/component structure.
 
 The first three touch different files and can be worked in any order; their
-stated order is by size. The last three followed Bob's reviews of the
+stated order is by size. The last four followed Bob's reviews of the
 subsequently shipped cards work.
 
 ## Standing constraints for all three

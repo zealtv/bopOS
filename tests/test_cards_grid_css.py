@@ -31,16 +31,20 @@ class CardsGridCssTests(unittest.TestCase):
     def test_remote_cards_region_is_an_explicit_flex_context(self):
         css = "".join(read("dashboard/static/css/facilitator.css").split())
         self.assertIn(
-            "#control-column-host>.control-column.control-column-derived"
-            "{display:block;flex:11100%;width:100%;max-width:none;"
+            "#control-column-host.control-column.control-column-derived"
+            "{display:block;width:auto;max-width:none;"
             "border:0;border-radius:0;padding:0;background:transparent;"
             "box-shadow:none}",
             css,
         )
         self.assertIn(
-            "#control-column-host>.control-column-derived>"
+            "#control-column-host.control-column-derived>"
             ".control-column-cards{display:flex;flex-wrap:wrap;"
             "justify-content:flex-start",
+            css,
+        )
+        self.assertNotIn(
+            "#control-column-host>.control-column.control-column-derived",
             css,
         )
 
