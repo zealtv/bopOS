@@ -48,86 +48,70 @@ is the *only* path, which is what promotes this from cosmetic to blocking.
   takes `supervisor_lock`, and `_emit_messages` is called from
   `show_engine.py:227` inside step start — a step that blocks on a slow apply
   may delay its own timer arm.
-* **The fade case is not an ordering problem** and cannot be solved by
-  ordering. **Bob ruled it 2026-08-02:**
+* **The fade take-over is a SEPARATE defect, and a smaller one than it looked.**
+  Bob ruled it across two messages on 2026-08-02:
 
   > it cancels the fade - if it lands via a preset with interpolation,
-  > interpolation starts where the fade left off - which i assume is how lfos
-  > and loops also behave?
+  > interpolation starts where the fade left off
 
-  Three things were then verified in code, and the ruling lands differently
-  against each:
+  > if a "from" value isn't specified, the parameter should head to it's new
+  > destination from where ever that parameter happens to be - either a static
+  > value, mid-lfo, or mid-fade.
 
-  1. **Cancellation already ships.** A static value message pops the
-     automation entry for that identity (`osc_bridge.py:482-489`). Nothing to
-     build; the ruling ratifies existing behaviour.
-  **Bob generalised the ruling, 2026-08-02:**
+  **The node already does exactly this, and always has.** `GeneratorEngine.apply`
+  (`python/paramgen.py:188-212`) evaluates the live position of whatever slot is
+  running and uses it as the origin:
 
-  > in the case of a fade taking over, if a "from" value isn't specified, the
-  > parameter should head to it's new destination from where ever that
-  > parameter happens to be - either a static value, mid-lfo, or mid-fade.
+  ```python
+  current = self._current_locked(identity, now)
+  ...
+  elif spec.kind in ("fade", "loop"):
+      start = spec.start if spec.start is not None else current
+  ```
 
-  This is broader than the mid-fade case below, and re-siting it makes the fix
-  **smaller**, not larger. `record_param_for` is documented as *"Update
-  dashboard mirrors without sending"* (`osc_bridge.py:435`), so the `from`
-  discussed here is a **display guess and never reaches the wire** — the node
-  receives whatever was authored, with no start when none was written. The
-  defect is the dashboard's PICTURE of the fade, in all three of Bob's cases:
+  `_current_locked` evaluates the running slot at `now`, so a constant, an
+  in-flight fade and a mid-cycle LFO all answer correctly. `stop` freezes to the
+  same `current`. Cancellation is likewise already shipped: a static `set`
+  installs a `constant` slot and displaces the generator.
 
-  | parameter is… | mirror's `from` today | correct? |
-  |---|---|---|
-  | at a static value | the static value | ✓ already right |
-  | mid-fade | the previous fade's DESTINATION | ✗ jumps ahead |
-  | mid-lfo / mid-loop | the value from BEFORE the generator started | ✗ jumps back |
+  **So there is nothing to change on the node, on the wire, or in PD.** Bob,
+  correcting an assumption made earlier in this session: *"the pd side of bopos
+  doesn't do anything to do with ramps. that's all python. bopos~.pd just
+  receives precomputed osc parameters."* Interpolation is node-side Python;
+  `[bopos~]` receives precomputed values. **Do not open a `.pd` question here.**
 
-  `_generator_value` (`preset_application.py:196-203`) already computes the
-  live position for all three kinds; the mirror has to ask it instead of
-  reading `prior`. No PD edit, no contract change — which **retires the
-  "exact continuity is node-side" framing** recorded a message earlier in the
-  same session, which wrongly treated the dashboard mirror as controlling.
+  **The defect is the DASHBOARD MIRROR only.** `record_param_for` is documented
+  as *"Update dashboard mirrors without sending"* (`osc_bridge.py:435`), so its
+  `from` never reaches the wire — it is what the dashboard *draws*. It reads a
+  stale durable value instead of the live position:
 
-  It is not cosmetic even so: `capture_params` captures FROM the mirror and
-  `preset_dirty` compares against it, so a wrong take-over origin means a
-  preset saved mid-fade stores the wrong value. One case stays inexact by
-  design — a **free** LFO's node phase is "intentionally unknowable", so its
-  estimate uses the authored phase. That is a display estimate, not a control
-  error.
+  | parameter is… | mirror's `from` | node's origin | mirror correct? |
+  |---|---|---|---|
+  | at a static value | the static value | same | ✓ |
+  | mid-fade | previous fade's DESTINATION | live position | ✗ jumps ahead |
+  | mid-lfo / mid-loop | value from BEFORE the generator | live position | ✗ jumps back |
 
-  **The open question is now Bob's and it is a PD one:** when `[bopos]`
-  receives a fade with no start, does it ramp from its current output? If yes,
-  the fleet already behaves as ruled and only the dashboard was lying. If it
-  ramps from the last *received* value, the wire behaviour needs Bob's `.pd`
-  edit too, and the dashboard fix alone would make the picture right while the
-  sound stays wrong. **Ask before building** — the answer decides whether this
-  is one change or two, and agents do not edit `.pd`.
+  Mid-fade is wrong because `_store_fade_destination` (`osc_bridge.py:523-527`)
+  writes the destination into durable `params[identity]` at fade start; mid-LFO
+  is wrong because periodic generators never write durable values at all.
 
-  2. **"Starts where the fade left off" is the OPPOSITE of today's
-     behaviour**, and this is the actual work.
-     `_store_fade_destination` (`osc_bridge.py:523-527`) writes the fade's
-     **destination** into the seat's durable `params[identity]` the moment the
-     fade starts, and a new fade's origin is
-     `spec.start if spec.start is not None else prior` where `prior` is that
-     durable value (`osc_bridge.py:474`). So a fade taking over an in-flight
-     fade starts from where its predecessor was *heading*: it jumps forward,
-     then interpolates. **Open question for Bob, do not decide alone:** the
-     dashboard can compute the live position (`_fade_value` already does,
-     from `from` + segments + `sent_at`) and author an explicit `start`, but
-     the NODE runs the interpolation, so a dashboard-authored origin is off by
-     roughly the network latency and the take-over carries a small
-     discontinuity. Exact continuity is node-side, which is PD and therefore
-     Bob's. Put the two options to him with the size of the error measured, not
-     estimated.
-  3. **LFOs and loops do NOT behave this way, deliberately — Bob's assumption
-     is the one part to drop.** A non-free LFO records `phase_at_send_ms` from
-     **leader monotonic time** (`osc_bridge.py:458-465`) and `_lfo_value`
-     derives position from that absolute clock; loops share the same path
-     (`preset_application.py:196-203`). The point is fleet phase-lock — every
-     device must sit at the same point in the cycle, so a periodic generator
-     cannot continue from a predecessor's *value* without breaking sync. The
-     code calls free-LFO node phase "intentionally unknowable."
+  The fix is to compute the live position the way the node does.
+  `_generator_value` (`preset_application.py:196-203`) already does it —
+  `python/paramgen.py`'s `_current_locked` is the reference implementation, and
+  the two should agree. **It is not cosmetic**: `capture_params` captures FROM
+  the mirror and `preset_dirty` compares against it, so a preset saved mid-fade
+  currently stores the wrong value.
 
-  So the system carries **two** take-over semantics on purpose: fades are
-  value-continuous, periodic generators are phase-locked. Do not unify them.
+  **Ruled acceptable — do not engineer around it.** A *free* LFO's node phase is
+  "intentionally unknowable" to the dashboard, so the mirror's origin for that
+  one case stays an estimate. Bob: *"i don't care - that variation is expected
+  and musically useful."*
+
+  **Periodic generators keep their own take-over semantics.** A non-free LFO is
+  phase-locked to leader monotonic time (`osc_bridge.py:458-465`) so the fleet
+  stays in step; it does not resume from a predecessor's value, and must not be
+  made to. Value-continuity applies to a fade's ORIGIN, not to an LFO's phase.
+  Two semantics, both deliberate — do not unify them.
 * Whether a step should be *allowed* to hold both a reference and a param
   message for the same identity, or whether the inspector should refuse it.
   Bob's stated workflow says allow.
@@ -137,5 +121,9 @@ is the *only* path, which is what promotes this from cosmetic to blocking.
 A living browser or engine-level guard that authors a step with a reference
 plus a param message for the same identity, plays it, and asserts the param
 value survives. Fail it against the current tree first — pre-fix it should show
-the preset's value, not the authored one. Cover the `duration_ms` case
-separately; it may need a different answer.
+the preset's value, not the authored one.
+
+For the mirror half, assert the dashboard's computed origin against
+`GeneratorEngine`'s for the same spec and elapsed time, in all three take-over
+cases. That is browser-free and pins the two implementations together, which
+matters because they are now required to agree and live in different trees.
