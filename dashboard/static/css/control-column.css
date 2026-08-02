@@ -34,21 +34,36 @@
    alone and fills its host.
 
    The two rows are the head and the cards, and the cards row is the one that
-   scrolls: `minmax(0, max-content)` grows to its content when the column is
-   unconstrained and shrinks inside `max-height` when it is not, which is what
-   keeps the head in view while a forty-row manifest scrolls under it. That is
-   D4's "each column scrolls its own body under a sticky header" delivered
-   without sticky positioning — a head outside the scrollport cannot be
-   overlapped by what scrolls beneath it, and cannot lose its background.
+   scrolls. That is D4's "each column scrolls its own body under a sticky
+   header" delivered without sticky positioning — a head outside the scrollport
+   cannot be overlapped by what scrolls beneath it, and cannot lose its
+   background.
 
-   `max-height:100%` resolves against the tab's definite row height and to
-   nothing at all on Remote, where the column's parent has no definite height —
-   so the single-column host keeps growing with the page as it always did. */
+   The track is `minmax(0, 1fr)`, and the `1fr` is load-bearing. It was
+   `minmax(0, max-content)` until `1-column-scroll` (2026-08-02), which never
+   worked: with `align-content: start` there is no compression step, so the
+   track took its GROWTH LIMIT — full content height — however hard
+   `max-height` clamped the column. The body's `overflow-y: auto` therefore had
+   nothing to scroll (clientHeight === scrollHeight === 1408 measured), and the
+   overflow escaped the column to be clipped silently by the host's
+   `overflow-y: hidden`: no scrollbar, no cue, ~698px of a forty-row manifest
+   permanently unreachable. `1fr` is a share of the free space, so the track
+   shrinks below its content and the body becomes a real scrollport.
+
+   Both hosts are pinned by `tests/verify_control_column_scroll.py`, because
+   they give the column its height by different routes and only measurement
+   tells them apart. The Control tab's `#control-column-host` has a definite
+   height, so `max-height:100%` resolves against it. Remote's host is a flex
+   scrollport (`facilitator.css`: `flex:1; min-height:0; overflow-y:auto`)
+   inside a `height:100%` body, which is also definite. The comment that used
+   to sit here claimed Remote "keeps growing with the page as it always did" —
+   that was never true of either host, and is the `52` pathology: correct-
+   looking code with a sincere comment describing a guarantee it never gave. */
 .control-column {
   min-width: 0;
   max-height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, max-content);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--gap);
   align-content: start;
   background: var(--panel);
