@@ -249,19 +249,12 @@
    modulation and there is no third hue. (The numeric range track no longer
    paints itself at all — §12 replaces it with the `--value-fill` fill +
    marker line, and the 0/1 checkbox that used to be painted warm amber here
-   became the §15 latching button.) The facilitator's text param reads `--bg`
-   for its field, which is now the saturated page pink — a value box is
-   `--input`. */
+   became the §15 latching button.) Text-entry appearance belongs to the text
+   row itself in §17, so it travels to every host. */
 
 .live-card .live-param input[type=range],
 .device-control .live-param input[type=range] {
   accent-color:var(--accent);
-}
-.live-card .live-param input[type=text],
-.device-control .live-param input[type=text] {
-  background:var(--input);
-  border-color:var(--control-line);
-  border-radius:var(--radius-small);
 }
 
 /* ---- 8. Generator drawer chrome (design-language §7) --------------------
@@ -968,9 +961,10 @@
   text-transform:uppercase;
 }
 
-/* --- the string row: a text box at row height, name to its left --- */
-.live-card .live-param-string,
-.device-control .live-param-string {
+/* --- the text row: a text box at row height, name to its left ---
+   Component-owned: this row appears in Control, Device, Remote and the patch
+   editor, so its face is anchored on what it is rather than where it mounts. */
+.live-param-text {
   display:grid;
   grid-template-columns:minmax(58px,auto) minmax(0,1fr);
   align-items:center;
@@ -978,20 +972,31 @@
   min-height:var(--row-h);
   font-size:12px;
 }
-.live-card .live-param-string > .live-param-name,
-.device-control .live-param-string > .live-param-name {
+.live-param-text > .live-param-name {
   color:var(--text);
   white-space:nowrap;
 }
-/* The hosts size this field for their own chrome (44px on the tablet-first
-   facilitator); inside the panel every row is one height. */
-.live-card .live-param-string input[type=text],
-.device-control .live-param-string input[type=text] {
+.live-param-text input[type=text] {
   box-sizing:border-box;
+  width:100%;
+  min-width:0;
   height:var(--row-h);
   min-height:0;
   padding:0 6px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  color:var(--text);
+  font:inherit;
   font-size:12px;
+}
+.live-param-text.mixed input[type=text] {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+}
+.live-param-text.mixed input[type=text]::placeholder {
+  color:var(--dim);
+  opacity:1;
 }
 
 /* --- the pulse: "modulated, value not shown" (Bob, 2026-07-27) -----------

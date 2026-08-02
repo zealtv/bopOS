@@ -583,7 +583,7 @@
     // not the range — that says "this integer names its values".
     function paramKind(declaration) {
       if (declaration.kind === "event") return "event";
-      if (declaration.kind === "text") return "string";
+      if (declaration.kind === "text") return "text";
       if (declaration.kind === "enum") return "enum";
       if (declaration.kind === "toggle") return "toggle";
       return "numeric";
@@ -652,7 +652,7 @@
       const pulsing = !!model && !tracksValue &&
         (kind === "toggle" || kind === "enum" || kind === "numeric");
       let input;
-      if (kind === "string") {
+      if (kind === "text") {
         input = `${nameSpan}<input ${common} type="text" value="${mixed ? "" : esc(value)}" ${mixed ? 'placeholder="mixed" data-mixed="true"' : ""}>`;
       } else if (kind === "toggle") {
         // A PD toggle box with its label beside it: a latching `aria-pressed`
@@ -925,6 +925,7 @@
       root.querySelectorAll("[data-live-param]").forEach(input => {
         const toggle = input.tagName === "BUTTON";
         const select = input.tagName === "SELECT";
+        const text = input.type === "text";
         let last = 0, timer = null, takingOver = false, takeoverSent = false;
         const beginTakeover = () => {
           if (input.dataset.automated !== "true") return;
@@ -1040,6 +1041,25 @@
                context.setInteracting?.(editing);
                if (!editing) context.requestRender?.();
              });
+        } else if (text) {
+          // Text entry follows the precision-field idiom: Enter is an
+          // explicit commit, while leaving the field commits a changed value.
+          // Remember the last committed value so Enter -> blur cannot emit the
+          // same OSC string twice. The mixed aggregate is the one exception:
+          // even an empty edit is a real unifying value.
+          let committedValue = input.value;
+          const commit = () => {
+            if (input.value === committedValue && input.dataset.mixed !== "true") return;
+            send();
+            committedValue = input.value;
+          };
+          input.onchange = commit;
+          input.onkeydown = event => {
+            if (event.key !== "Enter" || event.isComposing) return;
+            event.preventDefault();
+            commit();
+            input.blur();
+          };
         } else input.onchange = () => send();
       });
       bindBranches(root);

@@ -100,6 +100,19 @@ def wait_http(url, process):
     raise RuntimeError("dashboard did not serve HTTP")
 
 
+def wait_file_occurrences(path, needle, count, timeout=5):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with open(path, encoding="utf-8") as source:
+                if source.read().count(needle) >= count:
+                    return True
+        except OSError:
+            pass
+        time.sleep(.05)
+    return False
+
+
 UIDS = ["02:53:49:4d:00:01", "02:53:49:4d:00:02"]
 
 
@@ -328,6 +341,38 @@ MIXED_TAKEOVER_JS = """
         .style.getPropertyValue("--v"),
     },
     sent: window.__mixedSent || [],
+  };
+}
+"""
+
+
+# A text aggregate keeps the word "mixed" because a free-form string has no
+# numeric dots idiom, but carries the same hatch as every other mixed value.
+TEXT_MIXED_JS = """
+() => {
+  const [first, second] = Object.values(installation.seats);
+  const disagreeing = {...second, params: {...second.params, label: "world"}};
+  const declarations = installation.live_controls.declarations
+    .map(d => ({...d, path: d.path || []}));
+  const probe = window.ControlSurface.create({
+    getState: () => installation,
+    deviceForSeat: () => ({online: true, engine_alive: 1,
+                           device_enabled: true, output_enabled: true}),
+    send: () => {},
+  });
+  const host = document.createElement("div");
+  host.className = "live-card";
+  host.innerHTML = probe.tree("all", null, [first, disagreeing],
+                              declarations, false);
+  document.body.appendChild(host);
+  probe.bind(host);
+  const row = host.querySelector('.live-param[data-param-path="label"]');
+  const input = row.querySelector('input[type="text"]');
+  return {
+    mixed: row.classList.contains("mixed"),
+    placeholder: input.placeholder,
+    hatch: getComputedStyle(input).backgroundImage,
+    noGenerator: !row.querySelector(".live-param-mod"),
   };
 }
 """
@@ -583,6 +628,49 @@ def main():
                           'button.live-toggle[data-param-path="gate"]'
                       ).count() == 1)
 
+                # A focused text edit must outlive the 0.5s heartbeat that
+                # normally replaces the card DOM. Enter commits one OSC string
+                # to the real simfleet and releases the render guard.
+                text_selector = ('.live-card[data-live-scope="all"] '
+                                 'input[type="text"]'
+                                 '[data-param-path="label"]')
+                page.wait_for_function(
+                    "selector => !!document.querySelector(selector)?.onkeydown",
+                    arg=text_selector)
+                text_field = page.locator(text_selector)
+                text_field.focus()
+                text_field.evaluate("node => { node.dataset.editProbe = '1'; }")
+                text_field.fill("stage left")
+                time.sleep(1.1)
+                held_edit = page.eval_on_selector(
+                    text_selector,
+                    "node => ({probe:node.dataset.editProbe, value:node.value, "
+                    "active:document.activeElement===node})")
+                check("a focused text draft survives a heartbeat re-render",
+                      held_edit == {"probe": "1", "value": "stage left",
+                                    "active": True}, repr(held_edit))
+                text_field.press("Enter")
+                fleet_log.flush()
+                check("Enter commits the text value through the real simfleet",
+                      wait_file_occurrences(os.path.join(temp, "fleet.log"),
+                                            "p/label=stage left", 2),
+                      "expected one receipt on each simulated device")
+                page.wait_for_function(
+                    "selector => document.querySelector(selector)?.value"
+                    " === 'stage left'",
+                    arg=text_selector)
+
+                # Blur is the secondary commit path, matching PrecisionField.
+                text_field = page.locator(text_selector)
+                text_field.focus()
+                text_field.fill("stage right")
+                text_field.evaluate("node => node.blur()")
+                fleet_log.flush()
+                check("blur commits a changed text value through simfleet",
+                      wait_file_occurrences(os.path.join(temp, "fleet.log"),
+                                            "p/label=stage right", 2),
+                      "expected one receipt on each simulated device")
+
                 # --- (g) the host may not reflow the shared row -------------
                 # Bob's 2026-07-30 screenshot caught facilitator.css forcing
                 # the slider to grid-column:1/-1 below 620px. Measure the real
@@ -710,6 +798,14 @@ def main():
                       and kinds["stringFieldHeight"] == kinds["rowHeight"],
                       repr([kinds["stringHeight"], kinds["stringFieldHeight"],
                             kinds["rowHeight"]]))
+                text_mixed = page.evaluate(TEXT_MIXED_JS)
+                check("a mixed text aggregate keeps its word and shared hatch",
+                      text_mixed["mixed"]
+                      and text_mixed["placeholder"] == "mixed"
+                      and "repeating-linear-gradient" in text_mixed["hatch"],
+                      repr(text_mixed))
+                check("text rows offer no generator",
+                      text_mixed["noGenerator"], repr(text_mixed))
                 check("a toggle carries the ∿ icon like any numeric row",
                       kinds["toggleHasMod"] and kinds["enumHasMod"],
                       repr([kinds["toggleHasMod"], kinds["enumHasMod"]]))
