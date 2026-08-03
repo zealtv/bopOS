@@ -569,6 +569,64 @@ remain the authority for a particular piece of work.
 >    *This entry read "the only loose end left in the whole loom" until
 >    2026-08-02, when Bob's UI review intake added four more — see below.*
 >
+> **Update 2026-08-03 (preset drift honesty — `57-preset-drift-honesty`).**
+> Bob edited a patch, deployed it, and an existing Show met a wall of
+> `Patch "bonks-pd" has changed since this preset message was authored.` —
+> twice over, twice each. Three defects, not one. (a) **The wall**:
+> `show_reference_warnings` (`show_model.py:315`) emits one object per preset
+> *message* × two codes and `show.js:542` renders them with no dedupe, so N
+> preset messages give 2N identical paragraphs. (b) **`patch_drift` warns about
+> the wrong thing** — it hashes the whole patch directory, which contract §8.1
+> says in as many words is *not* the applicability check ("editing `main.pd` or
+> adding a sample does not invalidate a preset; only changing what is
+> controllable does"), so it fires on every `.pd` edit by construction. (c)
+> **`schema_drift` cannot tell "added a param" from "deleted a param"**,
+> because it compares a whole-projection hash — which is exactly Bob's *"in
+> some cases i might have just added a parameter and so the show is not
+> impacted"*. The authority §8.1 names already exists and this path never
+> called it: `preset_store.resolve_entries` / `resolve_drift`
+> (`preset_store.py:209`) gives per-identity `applied`/`clamped`/`dropped`.
+>
+> Three rulings from Bob, same session: **`patch_drift` demotes to a quiet
+> notice** (off the panel, onto the pill, fingerprint still stored);
+> **"dismiss" means re-stamping the reference**, a persisted acknowledgement
+> that survives reload and undoes in one step, not a transient `[x]`; and the
+> treatment is **a pill mark plus an inspector action**, with the panel staying
+> non-interactive.
+>
+> **The correction that shapes the whole thread: applicability is computed
+> unconditionally from the preset body and the manifest, never gated on the
+> schema hash.** The tempting "hash is the cheap screen, resolve only when it
+> trips" design becomes silent data loss the moment Accept exists — re-stamping
+> makes the hash match, the screen stops tripping, and a genuinely `dropped`
+> entry goes invisible forever. Because applicability never reads the
+> reference, Accept **structurally cannot** hide a broken parameter;
+> `4-accept-restamp` carries the test whose only job is to stop a later
+> optimiser re-merging the two axes. Ungating also catches a case the gated
+> version misses: `PresetStore.save` validates without consulting the manifest,
+> so an out-of-range stored entry is reachable today and hash-gating calls it
+> clean.
+>
+> **Second finding, and it is why the stitches are ordered as they are:**
+> `reference.schema` is stamped with one meaning and compared with another.
+> `presetReference()` (`show.js:691`) stamps the schema the **preset file** was
+> saved against; `show_reference_warnings` compares it against the **patch's
+> current** schema. So authoring a message against an already-drifted preset
+> warns instantly with no remedy, and an Accept button would stamp a value the
+> dropdown never produces — silently undone by the next touch of the picker.
+> Hence `2-reference-schema-meaning` is a hard `needs/` edge of `4`, not a
+> nice-to-have. Related: `preset_patches()` (`server.py:1844`) covers only the
+> fleet patch, the editor patch and device pins, so the re-stamp must be
+> computed server-side.
+>
+> Queue order `1-resolution-authority` → `2-reference-schema-meaning` →
+> `3-drift-marks` → `4-accept-restamp`; `5-missing-preset-warning` is
+> `.waiting` on Bob (a step pointing at a deleted preset warns *nothing* today
+> and fails silently at playback — free to detect once `1` lands, but it adds a
+> warning during a pass that exists to remove false ones). **Found and
+> deliberately not scoped:** `show_target_warnings` fans out identically, same
+> defect one path over, on a path that works and has a passing guard.
+>
 > **Update 2026-08-02b (the simplification pass — supersedes the intake below
 > for threads 55 and 53/3).** Bob answered both open questions from the intake,
 > and the answer was smaller than any of the options on the table. Standing
@@ -1409,27 +1467,27 @@ they meant. What changed:
   the 2026-08-02 UI-review intake, in Bob's stated order** (`loom.sh status`
   prints it with each entry's readiness):
 
-  **Rebuilt 2026-08-02** after Bob answered both open questions (see the
-  simplification-pass update below). The three questions are gone — two answered
-  and tied, one still `.waiting`:
+  **Rebuilt 2026-08-03** for `57-preset-drift-honesty`. The whole 2026-08-02
+  intake it previously held is tied — threads `55` and `56` complete,
+  `53-ui-niggles` down to its own goal tie, `54-remote-verb-promotion` still
+  `.waiting` on Bob:
 
-  1. `1-capture-retirement` · 2. `2-step-preset-ordering` ·
-     3. `3-preset-dirty-reasons` (all `56-simplify-cards-and-steps`)
-  4. `1-theme-control-height` · 5. `2-show-inspector-param-row` (`53-ui-niggles`)
-  6. `3-preset-dropdown-menu` — blocked on `3-preset-dirty-reasons`
-  7. `4-cards-design` — blocked on `1-capture-retirement`
-  8. `5-cards-implementation` — blocked on `4-cards-design`
-  9. `6-text-kind-control` (`44-event-plane`)
-  10. `54-remote-verb-promotion` — question, still `.waiting` on Bob
+  1. `1-resolution-authority` · 2. `2-reference-schema-meaning`
+  3. `3-drift-marks` — blocked on `1-resolution-authority`
+  4. `4-accept-restamp` — blocked on `2-reference-schema-meaning` and
+     `3-drift-marks`
 
-  Bob's ordering principle, stated when he set it: *"I want to fix and simplify
-  things before making them more complicated."* So the deletion and the two
-  verified defects come first, the cheap independent niggles next, and the
-  design gate last. Entries 6–8 are the loom's **first real use of hard
-  dependencies** (`needs/`) rather than queue position — they are blocked, not
-  merely later, and `status` prints the unresolved edges. Nothing else is
-  queued; the tier ordering elsewhere in this file remains Bob's hand-maintained
-  prose and was not transcribed.
+  (all `57-preset-drift-honesty`; `5-missing-preset-warning` is `.waiting` and
+  unqueued.)
+
+  Bob's ordering principle, stated when he set the previous queue and still in
+  force: *"I want to fix and simplify things before making them more
+  complicated."* So the panel-tells-the-truth fix comes first — it ships alone
+  and resolves the reported symptom — then the stamp/compare defect, then the
+  new affordance. Entries 3–4 use hard dependencies (`needs/`) rather than
+  queue position; they are blocked, not merely later, and `status` prints the
+  unresolved edges. Nothing else is queued; the tier ordering elsewhere in this
+  file remains Bob's hand-maintained prose and was not transcribed.
 - **`map` / `map --json`** are read-only projections; the JSON is the supported
   integration boundary for any future viewer.
 - Tie/drop now write a `completed-at` timestamp. Legacy records have none and
