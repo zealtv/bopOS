@@ -1,6 +1,6 @@
 # Loom filesystem protocol v2
 
-Status: released as Loom v2.0.1.
+Status: released as Loom v2.1.0.
 
 This document defines the authoritative on-disk protocol and observable CLI
 behaviour for Loom format version 2. The filesystem is authoritative. Command
@@ -67,6 +67,19 @@ a tray entry, and is never swept.
 Read-only commands never repair a missing tray. They report it: see the
 `missing_tray` diagnostic.
 
+### Cheap change detection
+
+`revision` prints one deterministic checksum token derived from the recognised
+stitch paths and protocol files, including instruction text, completion and
+drop metadata, dependency entries, the format marker, and exact queue bytes.
+The token changes whenever the state exposed to a viewer changes. It may be
+polled to decide whether a full `map --json` projection is necessary.
+
+`revision` is strictly read-only: it never repairs trays or changes bytes,
+paths, or mtimes. The token is opaque and scoped to one Loom implementation;
+consumers compare it for equality and must not parse or persist its checksum
+algorithm as protocol state.
+
 A goal stitch is an immediate child directory of `threads/`, `tied/`, or
 `dropped/` that contains a regular `instructions.md`. A child stitch is only
 an immediate child directory of a recognised stitch that itself contains a
@@ -121,7 +134,7 @@ Commands resolve IDs globally and fail on missing or duplicate recognised
 IDs. State-changing commands use same-directory renames so their visible state
 transition is atomic.
 
-### `new <id> [parent-id]`
+### `new [--json] <id> [parent-id]`
 
 With no parent, create a plain goal under `threads/`. With a parent, create an
 immediate child of an active recognised stitch. Archived or terminal parents
@@ -265,6 +278,19 @@ deterministically. Each strongly connected cyclic component appears once,
 with member IDs in bytewise order; a self-edge is both an invalid self-edge
 and a one-member cycle. Cycle members are not ready.
 
+`anchor [--json] <stitch-id> <target-id>` creates an edge through the canonical
+boundary. The dependent must be active and the target must resolve uniquely;
+a tied target is allowed because the edge is immediately satisfied, while a
+dropped or abandoned target is rejected. The command validates before writing
+and refuses a self-edge or any edge that would close a dependency cycle. Edge
+creation uses an atomic rename and anchoring an existing edge is a no-op.
+
+`unanchor [--json] <stitch-id> <target-id>` removes that one edge without
+touching the target stitch. It also removes an empty `needs/` directory so the
+result is indistinguishable from a stitch that never had dependencies.
+Unanchoring an absent edge is a no-op, and a missing target may be named so a
+broken edge can be repaired.
+
 `status` separates ordinary blocked edges from broken edges. It names the
 dependent, target, and `missing`, `dropped`, or `ambiguous` cause. It exits
 non-zero for malformed records, duplicate IDs, broken dependencies, or
@@ -282,6 +308,7 @@ Queue order is a soft preference, never a dependency. Commands are:
 
 ```text
 loom queue <id>
+loom queue --set <id>...
 loom first <id>
 loom before <id> <anchor-id>
 loom after <id> <anchor-id>
@@ -296,6 +323,16 @@ result as running it once.
 
 `unqueue` accepts any syntactically valid ID so it can repair a manually stale
 queue. It removes every occurrence and is successful when none exists.
+
+`queue --set` validates the entire existing queue and every requested ID, then
+replaces the effective ID order in one atomic rename. Duplicate requested IDs
+are removed, retaining their first occurrence. Existing blank and comment
+records are preserved byte-for-byte in relative order: requested IDs fill the
+existing ID slots from top to bottom, surplus slots disappear, and surplus IDs
+are appended. An empty set clears every ID while retaining comments and blanks.
+Repeating the same set is a filesystem no-op. Batch replacement is
+human-output-only; the single-ID queue verbs retain the versioned mutation
+result shape.
 
 A mutation validates all records other than duplicate occurrences, removes
 duplicates while retaining their first occurrence, performs the requested
@@ -316,6 +353,12 @@ stitches in bytewise relative-path order. `loose-ends` lists all ready
 stitches in that same effective preference order. Queue position is
 one-based among ID records and is shown even when the item is currently
 blocked.
+
+`status` and `map --json` warn when a queued stitch has an unsatisfied direct
+dependency that is either queued below it (`queue_dependency_inversion`) or
+not queued (`queue_dependency_unqueued`). These are preference diagnostics:
+they never change command health or prevent a deliberately unusual order.
+Satisfied and transitive dependencies do not produce these warnings.
 
 ## Explicit v1 migration
 
@@ -428,6 +471,8 @@ The codes in use are:
 | `broken_dependency` | error | a `needs/` target is missing, dropped, ambiguous, or invalid |
 | `dependency_cycle` | error | a dependency cycle, reported once per cycle |
 | `missing_tray` | warning | `tied/` or `dropped/` is absent; the next tie or drop recreates it |
+| `queue_dependency_inversion` | warning | a queued stitch precedes its unsatisfied direct dependency |
+| `queue_dependency_unqueued` | warning | a queued stitch has an unqueued unsatisfied direct dependency |
 | `queue_error` | error | a malformed or unresolvable `queue` entry |
 | `structural_error` | error | a malformed stitch, duplicate ID, or invalid `completed-at` |
 
@@ -439,3 +484,102 @@ therefore not a `schema_version` change; adding or removing a *field* is.
 The JSON snapshot is the sole supported integration boundary for future
 viewers. A viewer reads this projection and performs mutations only by
 invoking Loom commands; it owns no protocol state.
+
+`map --json --active` emits the same schema restricted to records in the
+active `threads/` tray, including terminal children retained beneath an active
+goal. Goal archives and migrated legacy records are omitted from `stitches`,
+`decomposition_edges`, `dependency_edges`, and `recently_completed`; an edge
+to an omitted terminal target remains visible in its active stitch's nested
+`dependencies` array. `--active` is a projection option, not a schema change,
+and may also be used with the plain map.
+
+## Structured mutation results
+
+Every lifecycle, dependency, and queue mutation accepts `--json`: `new`,
+`claim`, `tend`, `anchor`, `unanchor`,
+`release`, `wait`, `resume`, `tie`, `drop`, `queue`, `first`, `before`,
+`after`, and `unqueue`. The flag is recognised only before the first
+positional argument, so a `drop` reason remains literal and may itself contain
+`--json`.
+
+The flag is additive. Without it every command's output is byte-for-byte what
+it always was, which the agent loop and existing scripts depend on. With it,
+that command's stdout is exactly one JSON object and nothing else, including
+the read-before-edit hint `drop` prints when given no reason.
+
+A successful mutation emits:
+
+```text
+schema_version       integer, currently 1
+format_version       integer, currently 2
+command              the command name as invoked
+ok                   true
+changed              false when the command was an accepted no-op
+id                   the affected stitch ID
+state                its state after the mutation, or null
+path                 its path after the mutation, relative to .loom, or null
+tray                 its tray after the mutation, or null
+queue_position       its one-based queue position afterwards, or null
+completed_at         ISO-8601 string for a tie or drop, otherwise null
+```
+
+`state`, `path`, and `tray` use the same vocabulary as a `map --json` stitch
+object and are the mutation's own authoritative result, not a re-derived
+projection: a viewer applies them directly instead of re-running `map`. They
+are null only where the ID is not a stitch on disk, which just `unqueue`'s
+repair path reaches. `queue_position` is recomputed from the queue file after
+the write, so a tie or drop that evicts its ID reports null.
+
+The idempotent cases — claiming a claimed stitch, tying a tied one, unqueueing
+an absent record — are successes with `changed: false`. A queue mutation that
+leaves the file byte-identical is likewise unchanged.
+
+A failed mutation emits, on stdout, exit status non-zero:
+
+```text
+schema_version       integer, currently 1
+format_version       integer, currently 2
+command              the command name as invoked
+ok                   false
+id                   the target stitch ID, or null if none was parsed
+error                {code, message, stitch_ids}
+```
+
+`message` is the same text the command writes to stderr, which it still writes
+unchanged. `stitch_ids` names the other stitches implicated in the failure —
+the unresolved children, the claimed descendants, the blocking waiting
+ancestor — and is otherwise empty.
+
+The codes in use are:
+
+| Code | Meaning |
+| --- | --- |
+| `usage` | wrong argument count, or an unknown option |
+| `format` | the loom is not v2, or a migration is unfinished |
+| `invalid_id` | the ID is syntactically invalid |
+| `not_found` | no stitch with that ID |
+| `ambiguous` | more than one stitch with that ID |
+| `not_under_threads` | the target is archived, not active |
+| `terminal` | the target or an ancestor is tied or dropped |
+| `waiting` | the target or an ancestor is parked |
+| `tended` | the target has a steward; release it first |
+| `not_tended` | the target is not tended |
+| `not_waiting` | the target is not directly waiting |
+| `not_ready` | dependency blockage, broken dependency, or cycle |
+| `not_loose_end` | the target has unresolved children |
+| `not_child_bearing` | the target has no children requiring work |
+| `unresolved_children` | a tie whose children are not all terminal |
+| `claimed_descendants` | a wait over a claimed descendant |
+| `destination_exists` | the rename target already exists |
+| `queue_anchor` | the `before`/`after` anchor is not in the queue |
+| `queue_locked` | another queue mutation held the lock too long |
+| `queue_records` | an unrelated queue record is invalid or stale |
+| `write_failed` | an atomic queue or dependency write failed before rename |
+| `dependency_cycle` | an anchor would create a dependency cycle |
+| `structural` | dependency storage is not canonical |
+| `failed` | the fallback for a failure with no more specific code |
+
+Like diagnostic codes, this set is open: a consumer must tolerate an
+unrecognised `code` rather than treat it as a parse failure. Adding a code is
+not a `schema_version` change; adding or removing a *field* is. The mutation
+result carries its own `schema_version`, independent of the map projection's.

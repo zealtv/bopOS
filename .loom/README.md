@@ -20,7 +20,7 @@ Install the released v2 files into the current repository:
 
 ```sh
 loom_source="$(mktemp -d)"
-git clone --depth 1 --branch v2.0.1 https://github.com/zealtv/loom.git "$loom_source"
+git clone --depth 1 --branch v2.1.0 https://github.com/zealtv/loom.git "$loom_source"
 "$loom_source/install.sh" "$PWD"
 ```
 
@@ -157,6 +157,16 @@ an empty regular file named for A's globally unique ID:
 <B>/needs/<A>
 ```
 
+Or use the canonical mutation boundary:
+
+```sh
+./loom.sh anchor B A
+./loom.sh unanchor B A
+```
+
+`anchor` validates both ends and refuses dependency cycles. `unanchor` removes
+the last empty `needs/` directory as well as the edge.
+
 The file contents are reserved and ignored. A tied child or tied archived goal
 satisfies the dependency. Active or waiting targets block B; missing, dropped,
 or ambiguous targets are broken and reported by `status`. Dependency cycles
@@ -183,6 +193,7 @@ For softer preference, keep only the IDs that matter in `.loom/queue`:
 ./loom.sh before publish-report parse-catalog
 ./loom.sh after fetch-source urgent-repair
 ./loom.sh unqueue urgent-repair
+./loom.sh queue --set parse-catalog urgent-repair publish-report
 ```
 
 The first argument to `before` and `after` is the ID being moved. A queued
@@ -191,6 +202,11 @@ prevents later ready work. Unqueued ready stitches follow in lexical path
 order. Reprioritising therefore never requires renaming an ID or repairing
 dependency references.
 
+`queue --set` validates and replaces the whole effective ID order atomically,
+while retaining existing comment and blank records. `status` and `map --json`
+also warn when queued work precedes an unsatisfied dependency or leaves that
+dependency unqueued; those preference warnings never make the loom unhealthy.
+
 ## Read-only map
 
 `loom.sh map` gives a compact human view of recently completed work, the
@@ -198,10 +214,38 @@ current ready frontier, coming or blocked work, and the complete decomposition
 tree. `loom.sh map --json` emits the deterministic schema documented in
 [`docs/protocol-v2.md`](docs/protocol-v2.md).
 
+Use `map --json --active` to omit goal archives and migrated legacy records.
+For polling, `revision` provides a cheap opaque change token so a consumer only
+pays for a map when viewer-relevant filesystem state has changed.
+
 The JSON snapshot is the sole supported integration boundary for a future
 browser, TUI, or other viewer. Viewers derive their display from that snapshot
 and perform mutations by invoking Loom commands; they never edit or maintain a
 second state model. Both map forms are strictly read-only.
+
+## Structured mutation results
+
+Every lifecycle, dependency, and single-ID queue command takes `--json` before
+its stitch ID and then reports its own result as one object instead of prose.
+That includes `new`, whose result carries the created path:
+
+```sh
+./loom.sh tie --json http-server
+```
+
+```json
+{"schema_version":1,"format_version":2,"command":"tie","ok":true,
+ "changed":true,"id":"http-server","state":"tied","path":"tied/http-server",
+ "tray":"tied","queue_position":null,"completed_at":"2026-08-03T17:29:18+10:00"}
+```
+
+A failure emits an object with `ok:false` and a stable `error.code`, so a
+viewer can tell "not ready" from "not found" without reading prose. That is
+enough to apply the change locally instead of re-running a whole `map --json`
+for a mutation that renamed one directory. The schema is in
+[`docs/protocol-v2.md`](docs/protocol-v2.md).
+
+Human output is the default and is unchanged; `--json` is purely additive.
 
 ## Artifacts
 
@@ -285,32 +329,37 @@ It can contain:
 
 ```text
 ./loom.sh init
-./loom.sh new <stitch-id> [parent-stitch-id]
-./loom.sh claim <stitch-id>
-./loom.sh tend <stitch-id>
-./loom.sh release <stitch-id>
-./loom.sh wait <stitch-id>
-./loom.sh resume <stitch-id>
-./loom.sh tie <stitch-id>
-./loom.sh drop <stitch-id> [reason...]
-./loom.sh queue <stitch-id>
-./loom.sh first <stitch-id>
-./loom.sh before <stitch-id> <anchor-stitch-id>
-./loom.sh after <stitch-id> <anchor-stitch-id>
-./loom.sh unqueue <stitch-id>
+./loom.sh new [--json] <stitch-id> [parent-stitch-id]
+./loom.sh claim [--json] <stitch-id>
+./loom.sh tend [--json] <stitch-id>
+./loom.sh release [--json] <stitch-id>
+./loom.sh wait [--json] <stitch-id>
+./loom.sh resume [--json] <stitch-id>
+./loom.sh tie [--json] <stitch-id>
+./loom.sh drop [--json] <stitch-id> [reason...]
+./loom.sh queue [--json] <stitch-id>
+./loom.sh first [--json] <stitch-id>
+./loom.sh before [--json] <stitch-id> <anchor-stitch-id>
+./loom.sh after [--json] <stitch-id> <anchor-stitch-id>
+./loom.sh unqueue [--json] <stitch-id>
+./loom.sh queue --set <stitch-id>...
+./loom.sh anchor [--json] <stitch-id> <target-stitch-id>
+./loom.sh unanchor [--json] <stitch-id> <target-stitch-id>
 ./loom.sh loose-ends
 ./loom.sh tending
 ./loom.sh waiting
 ./loom.sh next
 ./loom.sh status
-./loom.sh map [--json]
+./loom.sh revision
+./loom.sh map [--json] [--active]
 ./loom.sh migrate-v2 [--dry-run|--rollback]
 ./loom.sh sweep [days]   # remove whole goal archives older than N days (default 14)
 ```
 
-`status`, `next`, `loose-ends`, `waiting`, `tending`, and both `map` forms are
-read-only. Lifecycle, queue, migration, and sweep commands mutate only the
-`.loom/` beside the invoked script. Run commands through that deployed copy;
+`status`, `next`, `loose-ends`, `waiting`, `tending`, `revision`, and all map
+forms are read-only. Lifecycle, dependency, queue, migration, and sweep
+commands mutate only the `.loom/` beside the invoked script. Run commands
+through that deployed copy;
 the examples above assume the current directory is `.loom/`.
 
 ## Verification
