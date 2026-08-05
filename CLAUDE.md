@@ -569,6 +569,88 @@ remain the authority for a particular piece of work.
 >    *This entry read "the only loose end left in the whole loom" until
 >    2026-08-02, when Bob's UI review intake added four more — see below.*
 >
+> **Update 2026-08-05 (patch push workflow — `58-patch-push-workflow`).**
+> Bringing Ciro Toast up to date after the sweep, Bob pushed the latest
+> `fire-button` patch and the engine would not restart. Three separable things
+> were true at once; the incident is written up in full at
+> `.loom/threads/58-patch-push-workflow/incident-2026-08-05-ciro-toast.md`.
+>
+> The device was crash-looping (restart counter 211) because its **patch** was
+> stale: `bopos.patch.json` still carried the retired `type`/`min`/`max`
+> grammar and the `cues` key. `patches/` is gitignored, so a locally-authored
+> patch reaches a device **only** by dashboard distribution — `git pull` could
+> never have fixed it, and the device's framework was perfectly current at
+> `361452e` the whole time. **A manifest hard break therefore reaches the field
+> at the speed of patch distribution, not of the sweep that made it**, and the
+> failure mode is a crash-loop rather than a warning.
+>
+> Worse, it is self-sealing: `start-engine.sh:42` rejects the manifest,
+> `start.sh:18-25` traps the error and runs `stop.sh` over the *whole* stack
+> including `bopos.py`, so the device leaves the network — and patch
+> distribution, the one mechanism that could replace the bad patch, requires it
+> to be on the network. Recovery was SSH by hand (`4-invalid-manifest-lockout`).
+>
+> Bob's UX reading, which is the rest of the thread: *"there's currently no
+> 'update patch' button on the device page. only 'pin to device' on the patch
+> page"*, plus *"a simpler pin/unpin button to get the device to hold onto a
+> patch"*. Confirmed in code — the push capability ships
+> (`retry_fleet_patch` correctly re-converges a device's own pin,
+> `server.py:2756`) but the button renders only when `patch_badge` is already a
+> fault state, and the pin's two halves live on two tabs under two names
+> (`Pin to device` on Patches, `Follow fleet patch` on Devices).
+>
+> **One correction to the report, deliberately recorded rather than quietly
+> fixed:** "Pin to device won't push if the device is already pinned" is not
+> what the code does — `set_device_patch` re-pins and re-converges
+> unconditionally and nothing disables the button. The symptom is fully
+> explained by the *target dropdown filtering on `online`*, so an offline
+> device is absent rather than inert. Unconfirmed with Bob; `1` asks.
+> Related and verified sound, so nobody re-derives it: `device_desired_patch`
+> re-resolves the pin's fingerprint from the live host catalog every broadcast,
+> so a host-side edit really does move an online device to `stale`. **The drift
+> detection works; only the affordance is missing.**
+>
+> **Second session, same day — and this one is a defect, now
+> `58/5-fetch-tombstone-lockout`, queued ahead of everything.** With Ciro Toast
+> healthy and online, deploy/unpin/sync all still did nothing: badge `stale`,
+> `fetch: {"patch:fire-button": "timeout"}`, `IDENTIFY` arriving at the device
+> but **no `/os/fetch` ever sent**. `_expire_fetch` (`osc_bridge.py:1624`)
+> deliberately leaves an expired record as a tombstone — correct, since v1.3 has
+> no request id and a late receipt must not certify newer bytes — but the record
+> is removed in exactly **one** place, the `/os/fetched` handler. A device that
+> was unreachable when the fetch went out never replies, so **the tombstone is
+> permanent and blocks every future push to that device+slot for the dashboard
+> process's lifetime.** `fetch()` returns False, `fetch_matches` then reports the
+> dead record as in-flight, and `converge_fleet_patch` waits on it and gives up
+> **silently** — no OSC, no `ws_error`, a button that visibly does nothing.
+> Restarting `server.py` is the only cure (the structure is in-memory); one
+> `retry_fleet_patch` afterwards converged the device end to end. **Any device
+> unreachable at fetch time poisons that slot** — a reboot, a WiFi blip, a fleet
+> deploy catching a node mid-restart.
+>
+> Two findings travel with it. The dashboard had been reporting Ciro Toast as
+> `git_rev 62c2a5a` / `contract_version 1.13` while it had been running
+> `361452e` / `1.16` all session: **`/os/report` is only requested on demand**,
+> so a device that updates under a running dashboard keeps presenting its old
+> report indefinitely. And a methodology trap — the ws protocol is
+> `{"type":…, "data":{"uid":…}}`; a probe with `uid` at the top level yields
+> `uid = None`, and `retry_fleet_patch` then returns at its `distribution_targets`
+> guard **with no error**, which is indistinguishable from the bug under
+> investigation.
+>
+> **Audio (Bob has no physical access to the box): the digital chain is intact
+> and the silence is downstream of the DAC.** Measured on the device —
+> `pure_data:output_1/2` connected to `system:playback_1/2`; `jack_rec` on PD's
+> outputs while firing params peaked at **3267/32767 (~-20 dBFS)**;
+> `/proc/asound/card1/pcm0p/sub0/status` is `RUNNING` with `hw_ptr` advancing.
+> Also worth knowing for every HiFiBerry node: `amixer -c sndrpihifiberry
+> scontrols` is **empty** — `snd_rpi_hifiberry_dac` has no hardware mixer, so
+> the startup log's run of `amixer: Unable to find simple control …` warnings is
+> normal on this board and volume is entirely software. The missing identify
+> chirp is patch-side: `identify` sends `/notify identify` to the engine
+> (`bopos.py:659`), and whether `r bopos-notify` is wired to make a sound is
+> Bob's domain.
+>
 > **Update 2026-08-03 (preset drift honesty — `57-preset-drift-honesty`).**
 > Bob edited a patch, deployed it, and an existing Show met a wall of
 > `Patch "bonks-pd" has changed since this preset message was authored.` —
@@ -1479,6 +1561,16 @@ they meant. What changed:
 
   (all `57-preset-drift-honesty`; `5-missing-preset-warning` is `.waiting` and
   unqueued.)
+
+  **Appended 2026-08-05** for `58-patch-push-workflow`, behind 57 — except
+  `5-fetch-tombstone-lockout`, which is a live defect and sits **first in the
+  whole queue**:
+
+  0. `5-fetch-tombstone-lockout` (`58`) — ahead of everything.
+  6. `1-device-push-action` · 7. `2-pin-unpin-toggle` — blocked on
+     `1-device-push-action` · 8. `3-push-target-legibility`
+  9. `4-invalid-manifest-lockout` — node-side bash, independent of the three
+     UI stitches and claimable in parallel with them.
 
   Bob's ordering principle, stated when he set the previous queue and still in
   force: *"I want to fix and simplify things before making them more
