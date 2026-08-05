@@ -429,3 +429,58 @@ The two in-repo Pure Data patches that are broken until this adoption lands
 are `patches/bonks-pd` (`/e/bonk`) and `patches/demo-pd` (`/e/snap`).
 Absolute shared nanosecond time must remain in Python; event elements are
 32-bit OSC floats.
+
+## io peripheral commands build the wrong OSC address (2026-08-05)
+
+`bopos~.pd`'s `process-io-messages` subpatch routes the three bridge
+management verbs (`report`, `create`, `poll`) to their own
+`[oscformat io <verb>]` objects. Everything else falls through to a generic
+path that treats the first atom as the address and hardcodes the `io`
+prefix:
+
+    [list split 1] -> [symbol] -> [set io $1(  -> [oscformat]
+
+So a patch sending `lights fill 0 255 0` reaches the bridge as
+
+    /io/lights   fill 0 255 0
+
+but `python/io/main.py` routes peripheral commands as `/<name>/<command>`
+(`main.py:143`). `/io/lights` matches the `io` branch instead, finds no verb
+called `lights`, and is dropped. Measured on Ciro Toast — the fire-button
+patch's `metro 750` chain produced a steady stream of
+
+    Unknown /io verb: lights ['fill', 0.0, 255.0, 0.0]
+
+**No PD-to-peripheral command has ever worked.** This went unnoticed because
+every peripheral in use so far is input-only (ADC, touch, accelerometer):
+those are polled and pushed *to* PD in the bundle on 6662 and never receive
+a command. The ADC working is not evidence this path works — it exercises
+the opposite direction.
+
+### The edit
+
+In the `process-io-messages` subpatch, make the generic path build the
+address from the first **two** atoms, so `lights fill 0 255 0` becomes
+`/lights/fill` with values `0 255 0`:
+
+- `[list split 1]` becomes `[list split 2]`
+- delete the `[symbol]` object; connect `[list split 2]`'s left outlet
+  straight to the message box
+- `[set io $1(` becomes `[set $1 $2(`
+- the comment `first arg = osc address; rest = values` becomes
+  `first two args = peripheral and command; rest = values`
+
+The `report`/`create`/`poll` branches are matched before this path and are
+unaffected, so `/io/*` management keeps working.
+
+This needs no change to any patch that sends io commands: `lights fill 0
+255 0` is already the right thing for a patch to say, and the documented
+form in `python/io/README.md` (`[touch/threshold 15 8(`) stays satisfied by
+writing it as `touch threshold 15 8`.
+
+### Verification once the edit lands
+
+On a device with the RGB module at 0x08, with `python/io/main.py`'s
+diagnostic logging in place, the bridge log should show no `Unknown /io
+verb` lines and the LEDs should follow the patch. A dropped command is now
+logged rather than silently discarded, so the log is the check.

@@ -150,6 +150,13 @@ class IOManager:
             except Exception as e:
                 print(f"Error writing to {peripheral_name}: {e}")
 
+        # Anything else is a message nobody claimed. Say so: a silently
+        # dropped command is indistinguishable from a dead peripheral, and
+        # that ambiguity has cost real debugging time.
+        else:
+            print(f"Unrouted OSC: {address} {list(args)} "
+                  f"(peripherals: {list(self.peripherals)})")
+
     def handle_io(self, parts, args):
         """Bridge management: /io/create|poll|report|scan."""
         verb = parts[0] if parts else ''
@@ -183,6 +190,9 @@ class IOManager:
             skip = [p.address for p in self.peripherals.values()
                     if getattr(p, 'address', None)]
             self._send("/io/scan", *scan_bus(bus, skip=skip))
+
+        else:
+            print(f"Unknown /io verb: {verb} {list(args)}")
 
     def handle_system(self, query):
         """Device facts: /system/rssi|id|ip|uptime|rev|patch|info.

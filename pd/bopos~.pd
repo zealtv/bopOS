@@ -43,7 +43,7 @@
 #X obj 54 188 oscformat io report;
 #X obj 195 187 oscformat io create;
 #X obj 341 187 oscformat io poll;
-#X msg 499 337 set io \$1;
+#X msg 499 337 set \$1;
 #X connect 0 0 4 0;
 #X connect 2 0 13 0;
 #X connect 3 0 14 0;
