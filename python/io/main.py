@@ -231,8 +231,15 @@ class IOManager:
         # Main polling loop
         try:
             while self.running:
+                # Sleep the REMAINDER of the period, not a flat interval on top
+                # of the read. A 4-channel ADS1115 read is ~13 ms, so sleeping
+                # 1/rate as well made poll_rate 10 mean 7.1 Hz -- and the error
+                # grew silently with every peripheral added. Clamped at zero:
+                # if a read outruns the period the loop free-runs, which cannot
+                # spin, because the I2C reads are themselves the rate limit.
+                started = time.time()
                 self.poll_and_send()
-                time.sleep(1.0 / self.poll_rate)
+                time.sleep(max(0.0, (1.0 / self.poll_rate) - (time.time() - started)))
                 
         except KeyboardInterrupt:
             print("\n\nShutting down...")
