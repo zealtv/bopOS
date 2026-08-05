@@ -108,23 +108,31 @@ It then polls at 10 Hz and sends `/adc <4 floats>` to `127.0.0.1:6662`, where
 delivers it to the patch's `[r bopos-io]` → `[route adc]`. Nothing in that
 path was broken.
 
-**The MIDI half does not exist.** Three stacked reasons, any one sufficient:
+**A wrong turn, recorded because it wasted real time.** The absence of sound
+was diagnosed here as "the MIDI half does not exist", on three findings that
+were each true and collectively irrelevant: the patch has no `noteout`,
+`aconnect -l` shows no `Pure Data` ALSA client, and `lsusb`/`amidi -l` find no
+MIDI hardware on the node.
 
-1. `patches/fire-button/main.pd` has **no `noteout`**. The chain ends
-   `[makenote 127 500]` → `[pack]` and stops. `grep -n
-   "noteout\|midiout\|ctlout"` on the patch returns nothing.
-2. **PD has no ALSA MIDI client.** `aconnect -l` on the node lists only
-   `System` and `Midi Through` — no `Pure Data`. `start-engine.sh:143` launches
-   `pd -nogui -jack …` with no MIDI flags.
-3. **No MIDI hardware is attached.** `lsusb` shows two root hubs and a VIA
-   Labs hub; `amidi -l` finds no device. The Casio is not on this Pi.
+**None of that matters, because there is no ALSA MIDI in this signal path.**
+`bop.casio~` is a **PD abstraction** that takes note pairs from `[makenote]`
+→ `[pack]` and synthesises audio internally. Bob: *"the bop.casio~ receives
+midi and produces audio."* No MIDI hardware, no `noteout` and no ALSA client
+are required, and their absence is not a defect.
 
-So the audible test Bob chose to prove the I2C chain was itself the broken
-part, and it was failing for reasons entirely unrelated to I2C. **That is the
-generalisable lesson for this thread**: he had no way to observe any
-intermediate hop, so the one signal available — silence at the far end — was
-attributed to the hop he was actually working on. Every stitch here is
-ultimately about making the hops individually observable.
+The lesson is about method, not MIDI: three confirming measurements were
+gathered against a mechanism that had never been checked to exist. Establish
+what the signal path *is* before measuring whether it works — an object named
+like hardware may be an abstraction.
+
+The real cause of the silence, found at the end of the session, was that the
+**audio jack was physically unplugged**.
+
+**The generalisable lesson for this thread survives all of that intact**, and
+is if anything sharper for it: Bob had no way to observe any intermediate hop,
+so the one signal available — silence at the far end — got attributed first to
+the hop he was working on, and then to a hop that did not exist. Every stitch
+here is ultimately about making the hops individually observable.
 
 ## `tools/iosim.py`
 
@@ -173,6 +181,32 @@ Two methodology notes, both mistakes made here:
   The first reading of the timeline here was that a reboot had failed to fix a
   pre-existing fault; in fact the wedge arrived with that boot and the previous
   boot had been healthy. Those two readings recommend opposite actions.
+
+## How it ended
+
+Working, on Ciro Toast, end to end. In order:
+
+1. `bopos~.pd` fixed by Bob (commit `4daaaf5`) — the three `oscformat` objects
+   in `process-io-messages` gained the `io` prefix. Verified on the laptop by
+   running the real patch under headless PD against a listener on 8880, which
+   emitted `/io/create adc ads1115 0x4b`.
+2. Delivered to the node by `bash/update.sh`, **not** by a patch push — `pd/`
+   is framework code and travels by git.
+3. The bus recovered by a cold power cycle (above).
+4. **The patch's own loadbang create landed for the first time**, with no
+   hand-issued OSC:
+   ```
+     adc: 4-channel ADC ready
+   ✓ Created adc (ads1115 @ 0x4B)
+   ```
+5. Audio restored — the jack was unplugged.
+
+One observation left open, noticed but not chased: **A1's resting voltage
+changed** between the morning (0.001 V, rest low) and after the board was
+replugged (3.287 V, rest high). The patch's channel-1 comparison is `[> 1.5]`,
+which assumes rest-low, so if that state persists the channel reads as
+permanently pressed and never produces an edge. Not investigated; recorded so
+it is not rediscovered from scratch.
 
 ## Evidence
 
