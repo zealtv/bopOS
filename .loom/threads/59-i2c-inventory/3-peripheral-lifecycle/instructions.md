@@ -19,16 +19,11 @@ and the only symptom available to him was silence.
 **A failed create must be observable.** That is true independently of this
 thread's UI and is the first thing to fix.
 
-**And the bridge's own diagnostics are discarded too.** `bash/start.sh:63-66`
-launches `io/main.py` with no redirection and no `-u`, so its stdout is both
-lost and block-buffered. It already prints everything an operator needs —
-`✓ Created adc (ads1115 @ 0x4B)`, `adc: 4-channel ADC ready`, the per-read
-`Error reading <name>` — and none of it reaches anyone. Confirmed on Ciro
-Toast 2026-08-05: relaunching the same process as
-`python -u main.py > /tmp/io.log` turned a silent box into a running
-commentary, with no code change at all. Giving the bridge a log file (and
-`-u`) is a one-line fix in `start.sh` and is worth doing on its own, before
-any of the OSC work here.
+**The bridge's own diagnostics are discarded too**, for a different reason —
+`bash/start.sh` launches it with no redirection and no `-u`. That half was
+split out as `0-bridge-logging`, which is a one-line change with no dependency
+on anything here and should land first. This stitch owns only the OSC side:
+`/io/error` reaching the operator who triggered the create.
 
 ## Deliver
 

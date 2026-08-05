@@ -1,4 +1,5 @@
 5-fetch-tombstone-lockout
+0-bridge-logging
 1-resolution-authority
 2-reference-schema-meaning
 3-drift-marks
