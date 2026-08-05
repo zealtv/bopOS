@@ -57,3 +57,24 @@ Whichever wins, resolve these before implementing:
 The OSC contract is Bob's to ratify. Write the proposal (options, the
 measured contention finding, the recommendation) into this stitch, mark it
 `.waiting`, and surface it — the amendment is small but it is still the wire.
+
+## Update 2026-08-05 — the pd-side scan path is now proven, and still not stale
+
+The sibling `6-io-create-dropped` warned that `scan` had no outlet on
+`bopos~.pd`'s `[route report create poll]` and so fell into the generic
+branch. That premise is **retired**: the generic branch now prefixes with
+`set io $1` (commit `bd2d989`), so a patch sending `scan 1` reaches the bridge
+as `/io/scan 1` correctly, and Bob's reboot confirmed the whole io path live.
+That sibling is filed at `feature-backlog/60-io-dispatch-silence`.
+
+**None of this stitch's substance changed.** The bridge is still localhost
+only — 8880 in, and one OSC client hardcoded to `127.0.0.1:6662`, which is the
+*engine*, not `bopos.py`. Every question here is untouched: which transport
+carries the address list device → dashboard, whether probing contends with a
+live peripheral, "no bus" vs "bus present, nothing on it", the bus number, and
+the contract amendment. The relay this builds is still what `2`, `3` and `4`
+ride on.
+
+Line references have drifted slightly with the io rework — `/io/scan` is now
+`python/io/main.py:187`, the `/os/probe` reply `python/bopos.py:1567`,
+simfleet's `has_i2c` `tools/simfleet.py:480`.

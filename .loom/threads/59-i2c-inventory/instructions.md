@@ -105,3 +105,23 @@ queue. But note this stopped being purely a new capability when the session
 found the silent-create-failure defect in `3` — Bob's standing principle
 (*"I want to fix and simplify things before making them more complicated"*)
 arguably pulls that one forward on its own.
+
+## Gated 2026-08-05 by `0a-io-design-review`
+
+Bob called for one design pass over the whole I2C layer — architecture and
+operator workflow together — before more of this thread is built: the
+localhost-only bridge, sensor readout/debugging as a usable workflow, and
+local simulation for patching, decided as one thing rather than four.
+
+`0a-io-design-review` holds the brief and is a Bob-ratified design gate.
+`1-scan-transport` and `5-simulated-input` carry `needs/` edges to it, and
+`2`, `3`, `4` are blocked through `1`. The three-option transport choice in
+`1-scan-transport` is now an *input* to that design, not its own ruling, and
+`5-simulated-input`'s "where does the simulation run?" is absorbed by it
+outright.
+
+**Not gated**, and deliberately so: `0-bridge-logging` (one line in
+`bash/start.sh`; Bob kept it queued because it makes the design work easier by
+making the bridge audible) and `7-poll-timing` (node-side sampling
+arithmetic — the ADS1115 `data_rate` default and the
+sleep-on-top-of-the-read period bug).
