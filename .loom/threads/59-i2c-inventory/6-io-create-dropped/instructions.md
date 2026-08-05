@@ -34,6 +34,42 @@ log line, no reply.** The documented form (`python/io/README.md`) is
 so the patch is one character away from correct and the bridge treats the
 difference as silence.
 
+## The mechanism, traced later the same day
+
+The malformed address is built in `pd/bopos~.pd`'s `process-io-messages`
+subpatch, and the Python side is arguably behaving correctly. That subpatch is:
+
+```
+[route report create poll]
+   │ create
+[oscformat create]      → "/create"
+```
+
+with a fourth, unmatched branch documented in the patch as *"first arg = osc
+address; rest = values"*.
+
+So `io create adc ads1115 0x4b` never matched the `[route]` at all — its first
+word is `io` — and fell into the generic branch, which took `io` as the
+address and left `create` as an argument. Bob then changed the patch to send
+`create adc …`, which does match, and `[oscformat create]` produced `/create`.
+Both forms miss `/io/create`.
+
+The `.pd` fix is one word on each of three objects — `oscformat io create`,
+`oscformat io report`, `oscformat io poll` — since `[route]` strips the matched
+selector. **`scan` has no outlet on that `[route]` at all**, so it takes the
+generic branch too; that matters directly to `1-scan-transport`.
+
+**This changes what the Python half of this stitch is for.** "Accept a bare
+`/io` with the verb as first argument" is now optional and arguably wrong — it
+would make a malformed address work by accident. The part that is *not*
+optional is that **three different malformed addresses all produced total
+silence**. That is the defect to fix here: log the unroutable message, and
+reply `/io/error` where a requester can see it.
+
+Note also that `pd/` is framework code distributed by git, not by patch
+push, so a `bopos~.pd` correction reaches a node through `bash/update.sh` and
+not through the dashboard — a patch push cannot deliver it.
+
 ## Why this went unnoticed for so long
 
 The peripheral outlives the engine. `bash/start.sh` starts the bridge once; an
