@@ -110,9 +110,27 @@ Three namespaces by first path segment: `/io/*` = bridge management,
 
 | Type | Module | Class | Description |
 |------|--------|-------|-------------|
-| `ads1015` | peripheral_adc | IO_ADS1015 | 4-channel 12-bit ADC |
-| `lis3dh` | peripheral_tilt | IO_LIS3DH | 3-axis accelerometer |
-| `mpr121` | peripheral_touch | IO_MPR121 | 12-channel capacitive touch |
+| `ads1015` | io_ads1015 | IO_ADS1015 | 4-channel 12-bit ADC |
+| `ads1115` | io_ads1115 | IO_ADS1115 | 4-channel 16-bit ADC |
+| `lis3dh` | io_lis3dh | IO_LIS3DH | 3-axis accelerometer |
+| `mpr121` | io_mpr121 | IO_MPR121 | 12-channel capacitive touch |
+| `rgb` | io_rgb | IO_RGB | PiicoDev 3x RGB LED (output) |
+| `ssd1306` | io_ssd1306 | IO_SSD1306 | 128x64 OLED display (output) |
+| `switch` | io_switch | IO_Switch | PiicoDev momentary button |
+
+### `rgb` commands
+
+Created with `[io/create lights rgb 0x08(`. Three LEDs, indexed 0-2.
+
+```
+/rgb/pixel <n> <r> <g> <b>       One LED, 0-255 per channel
+/rgb/fill <r> <g> <b>            All three the same colour
+/rgb/all <r g b r g b r g b>     All three in one I2C write (no tearing)
+/rgb/hsv <n> <hue> [sat] [val]   HSV 0-1; n = -1 fills all three
+/rgb/clear                       Blank
+/rgb/bright <0-255>              Global brightness
+/rgb/power <0|1>                 Onboard green power LED
+```
 
 ## Creating New Peripherals
 
