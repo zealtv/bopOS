@@ -1,5 +1,10 @@
+5-fetch-tombstone-lockout
 1-resolution-authority
 2-reference-schema-meaning
 3-drift-marks
 4-accept-restamp
 5-missing-preset-warning
+1-device-push-action
+2-pin-unpin-toggle
+3-push-target-legibility
+4-invalid-manifest-lockout
