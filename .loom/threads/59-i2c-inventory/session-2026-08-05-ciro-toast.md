@@ -141,6 +141,39 @@ It is a developer tool, not a dashboard feature, but its existence changes
 producing values"*, and `iosim` answers *"does the patch respond to values"*.
 Those are the two halves, and neither substitutes for the other.
 
+## Operational finding: an I2C wedge needs a COLD power cycle
+
+Late in the session the bus died on Ciro Toast: `i2cdetect` crawled and
+reported nothing, and both the Argon fan hat at `0x1a` and the ADS at `0x4b`
+vanished together. `pinctrl get 2,3` showed **SCL held low, then both lines
+low**, with pull-ups enabled and no process holding `/dev/i2c-1`.
+
+**Two warm `reboot`s did not clear it. A full power-down did, immediately.**
+
+The mechanism is the stack: Pi → Qwiic shim → Argon fan hat → Pimoroni Audio
+DAC SHIM. The fan hat has its own MCU on the bus at `0x1a`, and a `reboot`
+never drops the 3V3 rail, so a latched peripheral stays latched across it.
+Only removing power resets it.
+
+Worth knowing for any node with this stack: **if the I2C bus wedges, `reboot`
+is not a remedy and its failure tells you nothing.** Pull the power for ~30 s.
+`rmmod i2c_bcm2835` is also not available as a fallback — the adapter is held
+(refcount 1 with no dependent modules) and unloading it would not release an
+externally-held line anyway.
+
+Two methodology notes, both mistakes made here:
+
+- **Measure a healthy baseline before reading meaning into pin states.**
+  GPIO4 reads `ip pu | lo` on this stack *normally* — it still does with the
+  bus fully working — but with no baseline it looked like a third anomalous
+  pin, and together with GPIO2/3 it suggested a mechanical short across three
+  adjacent header pins. That story was wrong, and it was wrong in the
+  direction of sending someone to disassemble hardware.
+- **"It broke across a reboot" is not evidence that the reboot is innocent.**
+  The first reading of the timeline here was that a reboot had failed to fix a
+  pre-existing fault; in fact the wedge arrived with that boot and the previous
+  boot had been healthy. Those two readings recommend opposite actions.
+
 ## Evidence
 
 - `ads.py` / `watch.py` beside this file are the scripts that ran.
