@@ -13,10 +13,11 @@ Simple Python bridge for interfacing I2C sensors with Pure Data via OSC.
 
 ### From Pure Data, create peripherals dynamically
 
+Message boxes into `[s to-bopos-io]`:
 ```
-[io/create adc1 ads1015 0x48(  ← Create ADC at address 0x48
-[io/create tilt lis3dh 0x19(   ← Create tilt sensor
-[io/create touch mpr121 0x5A(  ← Create touch sensor
+[create adc1 ads1015 0x48(  ← Create ADC at address 0x48
+[create tilt lis3dh 0x19(   ← Create tilt sensor
+[create touch mpr121 0x5A(  ← Create touch sensor
 ```
 
 ### Receive data bundle in PD
@@ -36,7 +37,7 @@ All sensor data arrives in a single OSC bundle at the poll rate:
 
 ### Send commands to peripherals
 ```
-[touch/threshold 15 8(  ← Set touch thresholds
+[touch threshold 15 8(  ← Set touch thresholds
 ```
 
 ## File Structure
@@ -79,8 +80,19 @@ class MyPeripheral:
 
 ## OSC Commands
 
-Three namespaces by first path segment: `/io/*` = bridge management,
-`/system/*` = device facts, `/<name>/*` = control a peripheral.
+Two namespaces by first path segment: `/io/*` = the bridge (management verbs
+and peripherals alike), `/system/*` = device facts.
+
+**A peripheral is addressed as `/io/<name>`, with the command as the first
+value** — `/io/lights fill 0 255 0`, not `/io/lights/fill 0 255 0`. Exactly
+one segment is address; everything after it is a value. Putting the command
+in the address cannot work for a generic sender: `bopos~.pd`'s io path
+receives a flat list of atoms and has no way to know how many leading ones
+are address and how many are values, and splitting a fixed number would only
+be right by coincidence.
+
+Because peripherals share the namespace with the management verbs, the names
+`create`, `poll`, `report` and `scan` are reserved and rejected at creation.
 
 ### Bridge management (`/io/*`)
 ```
@@ -103,8 +115,12 @@ Three namespaces by first path segment: `/io/*` = bridge management,
 
 ### Peripheral commands
 ```
-/<peripheral>/<command> [args...]    Send command to peripheral
+/io/<peripheral> <command> [args...]   Send command to peripheral
 ```
+
+From a patch, `[s to-bopos-io]` takes the same thing as a flat message —
+`lights fill 0 255 0` — and `bopos~.pd` turns the first atom into the
+address segment.
 
 ## Available Peripheral Types
 
@@ -120,16 +136,17 @@ Three namespaces by first path segment: `/io/*` = bridge management,
 
 ### `rgb` commands
 
-Created with `[io/create lights rgb 0x08(`. Three LEDs, indexed 0-2.
+Created with `[create lights rgb 0x08(`. Three LEDs, indexed 0-2. Shown as
+patch messages; on the wire each is `/io/lights` with the rest as values.
 
 ```
-/rgb/pixel <n> <r> <g> <b>       One LED, 0-255 per channel
-/rgb/fill <r> <g> <b>            All three the same colour
-/rgb/all <r g b r g b r g b>     All three in one I2C write (no tearing)
-/rgb/hsv <n> <hue> [sat] [val]   HSV 0-1; n = -1 fills all three
-/rgb/clear                       Blank
-/rgb/bright <0-255>              Global brightness
-/rgb/power <0|1>                 Onboard green power LED
+[lights pixel <n> <r> <g> <b>(     One LED, 0-255 per channel
+[lights fill <r> <g> <b>(          All three the same colour
+[lights all <r g b r g b r g b>(   All three in one I2C write (no tearing)
+[lights hsv <n> <hue> [sat] [val>( HSV 0-1; n = -1 fills all three
+[lights clear(                     Blank
+[lights bright <0-255>(            Global brightness
+[lights power <0|1>(               Onboard green power LED
 ```
 
 ## Creating New Peripherals
@@ -143,7 +160,7 @@ PERIPHERAL_TYPES = {
     'yourdevice': ('io_yourdevice', 'IO_YOURDEVICE'),
 }
 ```
-4. Create from PD: `[io/create dev1 yourdevice 0x48(`
+4. Create from PD: `[create dev1 yourdevice 0x48(` to `[s to-bopos-io]`
 
 
 ## Peripheral lifecycle (design decision)

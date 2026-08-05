@@ -26,7 +26,7 @@
 #X obj 961 646 loadbang;
 #X msg 961 672 connect 127.0.0.1 8880;
 #X obj 665 582 netreceive -u -b 6662;
-#N canvas 308 267 768 660 process-io-messages 0;
+#N canvas 308 267 768 660 process-io-messages 1;
 #X obj 122 49 inlet;
 #X obj 233 457 outlet;
 #X msg 56 150 1;
@@ -43,7 +43,7 @@
 #X obj 54 188 oscformat io report;
 #X obj 195 187 oscformat io create;
 #X obj 341 187 oscformat io poll;
-#X msg 499 337 set \$1;
+#X msg 499 337 set io \$1;
 #X connect 0 0 4 0;
 #X connect 2 0 13 0;
 #X connect 3 0 14 0;

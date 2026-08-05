@@ -20,6 +20,10 @@ PYTHON_PORT = 8880      # This script listens here for commands from Pure Data
 PD_PORT = 6662          # Pure Data listens here for messages from this script
 DEFAULT_POLL_RATE = 10  # Hz
 
+# Peripherals are addressed as /io/<name>, the same namespace the management
+# verbs live in, so these names cannot be used for a peripheral.
+RESERVED_NAMES = ('create', 'poll', 'report', 'scan')
+
 # Available peripheral types
 PERIPHERAL_TYPES = {
     'ads1015': ('io_ads1015', 'IO_ADS1015'), # 4 channel 12-bit ADC
@@ -50,9 +54,14 @@ class IOManager:
             device_type: Type from PERIPHERAL_TYPES (e.g., 'ads1015')
             address: I2C address as int (e.g., 0x48)
         """
+        if name in RESERVED_NAMES:
+            print(f"Error: '{name}' is a reserved /io verb - "
+                  f"peripherals share that namespace, pick another name")
+            return False
+
         if name in self.peripherals:
             print(f"Warning: {name} already exists, replacing...")
-        
+
         if device_type not in PERIPHERAL_TYPES:
             print(f"Error: Unknown device type '{device_type}'")
             print(f"Available types: {list(PERIPHERAL_TYPES.keys())}")
@@ -127,9 +136,10 @@ class IOManager:
     def handle_command(self, address, tags, args, source):
         """
         Handle OSC commands from PD. Namespaces:
-          /io/*     - bridge management (create, poll, report, scan)
-          /system/* - device facts (rssi, id, ip, uptime, rev, patch, info)
-          /<name>/* - control the peripheral called <name>
+          /io/<verb>   - bridge management (create, poll, report, scan)
+          /io/<name>   - control the peripheral called <name>; the first
+                         value is the command, the rest are its arguments
+          /system/*    - device facts (rssi, id, ip, uptime, rev, patch, info)
         """
         parts = address.strip('/').split('/')
 
@@ -138,17 +148,6 @@ class IOManager:
 
         elif parts[0] == 'system':
             self.handle_system(parts[1] if len(parts) >= 2 else 'rssi')
-
-        # /<peripheral>/<command> - send to specific peripheral
-        elif len(parts) >= 2 and parts[0] in self.peripherals:
-            peripheral_name = parts[0]
-            command = '/'.join(parts[1:])
-            peripheral = self.peripherals[peripheral_name]
-            
-            try:
-                peripheral.write_data(command=command, args=args)
-            except Exception as e:
-                print(f"Error writing to {peripheral_name}: {e}")
 
         # Anything else is a message nobody claimed. Say so: a silently
         # dropped command is indistinguishable from a dead peripheral, and
@@ -190,6 +189,27 @@ class IOManager:
             skip = [p.address for p in self.peripherals.values()
                     if getattr(p, 'address', None)]
             self._send("/io/scan", *scan_bus(bus, skip=skip))
+
+        # /io/<peripheral> <command> [args...] - control a peripheral.
+        #
+        # Exactly one address segment names the target and everything after
+        # it is a value. The alternative -- putting the command in the
+        # address as /<name>/<command> -- cannot be produced by a generic
+        # sender: bopos~.pd's io path receives a flat list and has no way to
+        # know how many leading atoms are address and how many are values.
+        # Splitting a fixed number would only work by coincidence.
+        #
+        # Matched after the verbs above, which is why RESERVED_NAMES exists.
+        # len(parts) == 1: a trailing segment means the sender put the
+        # command in the address, and dispatching args[0] as the command
+        # would silently misread the first value as one.
+        elif len(parts) == 1 and verb in self.peripherals and args:
+            command = str(args[0])
+            try:
+                self.peripherals[verb].write_data(command=command,
+                                                  args=list(args[1:]))
+            except Exception as e:
+                print(f"Error writing to {verb}: {e}")
 
         else:
             print(f"Unknown /io verb: {verb} {list(args)}")

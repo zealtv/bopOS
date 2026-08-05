@@ -457,30 +457,37 @@ those are polled and pushed *to* PD in the bundle on 6662 and never receive
 a command. The ADC working is not evidence this path works — it exercises
 the opposite direction.
 
-### The edit
+### The edit (superseded 2026-08-05 by Bob's `/io/<target>` ruling)
 
-In the `process-io-messages` subpatch, make the generic path build the
-address from the first **two** atoms, so `lights fill 0 255 0` becomes
-`/lights/fill` with values `0 255 0`:
+The first write-up asked for `[list split 2]` + `[set $1 $2(` so the address
+became `/lights/fill`. **Bob rejected this and he is right:** the generic
+path receives a flat list of atoms and has no way to know how many leading
+ones are address and how many are values. Splitting a fixed 2 works only
+because every command in use today happens to be name-plus-command; it is
+as arbitrary as splitting 1.
 
-- `[list split 1]` becomes `[list split 2]`
-- delete the `[symbol]` object; connect `[list split 2]`'s left outlet
-  straight to the message box
-- `[set io $1(` becomes `[set $1 $2(`
-- the comment `first arg = osc address; rest = values` becomes
-  `first two args = peripheral and command; rest = values`
+The ratified pattern is **`/io/<target> [values]`** — exactly one address
+segment names the peripheral, and everything after it is a value, with the
+command as the first one. `lights fill 0 255 0` goes out as
 
-The `report`/`create`/`poll` branches are matched before this path and are
-unaffected, so `/io/*` management keeps working.
+    /io/lights   fill 0 255 0
 
-This needs no change to any patch that sends io commands: `lights fill 0
-255 0` is already the right thing for a patch to say, and the documented
-form in `python/io/README.md` (`[touch/threshold 15 8(`) stays satisfied by
-writing it as `touch threshold 15 8`.
+So `process-io-messages` wants its original `[set io $1(`, restoring the
+`io` prefix that the intermediate `[set $1(` edit removed. `[list split 1]`
+and `[symbol]` stay as they were. Net effect: **revert `pd/bopos~.pd` to its
+state before commit `b6785cd`** — one token, `set $1` back to `set io $1`.
 
-### Verification once the edit lands
+Keeping everything under `/io/` also stops a peripheral name colliding with
+the `/system/*` namespace. The cost is that peripherals share a namespace
+with the management verbs, so `create`, `poll`, `report` and `scan` are now
+reserved and rejected by `create_peripheral`.
 
-On a device with the RGB module at 0x08, with `python/io/main.py`'s
-diagnostic logging in place, the bridge log should show no `Unknown /io
-verb` lines and the LEDs should follow the patch. A dropped command is now
-logged rather than silently discarded, so the log is the check.
+`python/io/main.py` implements the receiving half: `/io/<name>` with a live
+peripheral dispatches `args[0]` as the command and the rest as its
+arguments, checked after the management verbs.
+
+### Verification once the revert lands
+
+On a device with the RGB module at 0x08, the bridge log should show no
+`Unknown /io verb` or `Unrouted OSC` lines and the LEDs should follow the
+patch. Both were silent drops before; the log is now the check.
