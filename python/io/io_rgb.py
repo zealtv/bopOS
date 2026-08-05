@@ -20,7 +20,9 @@ class IO_RGB:
 
     def setup(self):
         """Initialize the module dark, at a modest brightness."""
-        self.leds = PiicoDev_RGB(address=self.address, bright=50)
+        # note: this driver's keyword is `addr`, not `address` like
+        # PiicoDev_Switch and PiicoDev_SSD1306 use
+        self.leds = PiicoDev_RGB(addr=self.address, bright=50)
         self.leds.clear()
         print(f"  {self.name}: PiicoDev 3x RGB ready at 0x{self.address:02X}")
 
