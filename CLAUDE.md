@@ -1608,13 +1608,18 @@ they meant. What changed:
      interpreter check, because CI runs one Python and this failure only
      exists on another.)
 
-  **All three children are tied; the goal thread is deliberately NOT.** The one
-  thing neither stitch could do is the check the thread exists for — *Launch
-  editor* opening Pd **on Bob's machine** (`0.55-0` + `0.56-2`, where it should
-  now pick `0.56-2`). This session's machine carries exactly `Pd-0.55-2.app`,
-  the very build the old literal named, so it could never have reproduced the
-  failure. Remove any stopgap `/Applications/Pd-0.55-2.app` symlink first: it
-  is the exact condition under which the fix passes while changing nothing.
+  **The whole thread is TIED (2026-08-10)** — Bob confirmed on the test
+  machine: *"editor opens."* That closes the one check none of the three
+  stitches could make for itself, and it covers both halves of the thread's
+  goal: *Launch editor* **works**, and when it does not it **says why** — which
+  `2` demonstrated twice in the same session, since Bob's second failure
+  arrived with its cause attached and is what produced `3`.
+
+  **One question left open for Bob, not a defect:** `install-dashboard.sh` now
+  enforces a **3.9** floor, measured (full `fast` suite plus a live editor
+  supervisor under a 3.9.6 venv) rather than asserted. Its old text claimed
+  3.11+ and enforced nothing. If 3.11 is intended, raise it deliberately —
+  nothing anywhere records a reason for that number.
 
   *Launch editor* silently does nothing on any machine lacking the one Pd build
   hardcoded at `tools/audition.py:863-865`, which `server.py:3125-3132` never
