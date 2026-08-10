@@ -4,6 +4,7 @@
   const CONSOLE_LIMIT = 500;
   const CONSOLE_VISIBLE = 200;
   const TRANSPORT_ERROR_LIMIT = 50;
+  const SUPERVISOR_ERROR_LIMIT = 20;
   const DEFAULT_HEIGHT = 320;
   const MIN_HEIGHT = 180;
 
@@ -165,6 +166,14 @@
           <div class="monitor-system-error-log" data-monitor-transport-error-log
                role="log" aria-live="polite" aria-label="OSC transport errors"></div>
         </section>
+        <section class="monitor-system-errors" data-monitor-supervisor-errors hidden>
+          <div class="monitor-system-errors-head">
+            <h3>Supervisor errors</h3>
+            <small data-monitor-supervisor-error-count></small>
+          </div>
+          <div class="monitor-system-error-log" data-monitor-supervisor-error-log
+               role="log" aria-live="polite" aria-label="Supervisor errors"></div>
+        </section>
       </div>
     </div>`;
   document.querySelector(".tab-stage").after(monitor);
@@ -231,6 +240,7 @@
   let reportDevices = {};
   let systemConnected = false;
   const transportErrors = [];
+  const supervisorErrors = [];
 
   function maxHeight() {
     return Math.max(MIN_HEIGHT, Math.floor(window.innerHeight * .55));
@@ -725,6 +735,26 @@
     output.scrollTop = output.scrollHeight;
   }
 
+  function renderSupervisorErrors() {
+    const section = panels.system.querySelector("[data-monitor-supervisor-errors]");
+    const count = section.querySelector("[data-monitor-supervisor-error-count]");
+    const output = section.querySelector("[data-monitor-supervisor-error-log]");
+    section.hidden = supervisorErrors.length === 0;
+    count.textContent = `${supervisorErrors.length} recent`;
+    output.textContent = supervisorErrors.map(entry => {
+      const date = new Date(Number(entry.ts || 0) * 1000);
+      const stamp = date.toLocaleTimeString("en-GB", {hour12: false})
+        + "." + String(date.getMilliseconds()).padStart(3, "0");
+      const mode = entry.mode === "simulate" ? "Simulation"
+        : entry.mode === "edit" ? "Patch Edit" : String(entry.mode || "supervisor");
+      const head = `${stamp}  ${mode} exited (rc ${entry.returncode ?? "?"})`;
+      const lines = Array.isArray(entry.lines) ? entry.lines : [];
+      const body = lines.length ? lines : [entry.cause || "no output captured"];
+      return [head, ...body.map(line => `    ${line}`)].join("\n");
+    }).join("\n");
+    output.scrollTop = output.scrollHeight;
+  }
+
   ws.on("connection", connected => {
     systemConnected = Boolean(connected);
     renderSystem();
@@ -734,6 +764,11 @@
     transportErrors.push(data || {});
     if (transportErrors.length > TRANSPORT_ERROR_LIMIT) transportErrors.shift();
     renderTransportErrors();
+  });
+  ws.on("supervisor_error", data => {
+    supervisorErrors.push(data || {});
+    if (supervisorErrors.length > SUPERVISOR_ERROR_LIMIT) supervisorErrors.shift();
+    renderSupervisorErrors();
   });
   for (const event of ["device_update", "device_offline", "heartbeat", "report",
                        "distribution", "show", "show_playback"]) {

@@ -129,6 +129,30 @@ def main():
                           and "errno 49" in text, text)
                     check("System log exposes the actionable socket message",
                           "Can't assign requested address" in text, text)
+
+                    # A supervisor death gets the same treatment (61/2): the
+                    # editor and simulation supervisors used to die with
+                    # `stderr=DEVNULL`, so `stopped unexpectedly` was the whole
+                    # story regardless of cause.
+                    supervisor = page.locator("[data-monitor-supervisor-errors]")
+                    check("supervisor log stays hidden until something dies",
+                          supervisor.get_attribute("hidden") is not None)
+                    page.evaluate("""() => ws.emit("supervisor_error", {
+                        ts: 1000.125,
+                        mode: "edit",
+                        returncode: 1,
+                        cause: "PdBinaryError: no usable Pure Data executable",
+                        lines: ["Traceback (most recent call last):",
+                                "PdBinaryError: no usable Pure Data executable"]
+                    })""")
+                    check("supervisor death reveals the bounded System log",
+                          supervisor.get_attribute("hidden") is None)
+                    supervisor_text = page.locator(
+                        "[data-monitor-supervisor-error-log]").inner_text()
+                    check("supervisor log names the mode and the cause",
+                          "Patch Edit" in supervisor_text
+                          and "no usable Pure Data executable" in supervisor_text,
+                          supervisor_text)
                     # The System panel must tell the truth about the loaded
                     # show (08/4/4-current-show-broadcast). `set_current_show`
                     # broadcast `shows`, `show` and `show_warnings` but never

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import collections
 import copy
 import contextlib
 import ipaddress
@@ -13,6 +14,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.parse
 
@@ -33,6 +35,44 @@ import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from python.paramgen import ParamGrammarError, parse_message
+
+# The supervisor's stderr is the only place a launch failure explains itself:
+# audition.py dies before send_ready() and the dashboard has already reported
+# `running`. Keep a bounded tail per child and a bounded log of recent deaths,
+# mirroring the Monitor's OSC transport-error treatment (61/2).
+SUPERVISOR_LOG_LINES = 40
+SUPERVISOR_ERROR_LIMIT = 20
+SUPERVISOR_CAUSE_CHARS = 200
+
+
+def drain_supervisor_stderr(stream, lines):
+    """Read a supervisor's stderr to EOF, keeping only the tail.
+
+    Runs on a reader thread for the child's whole life: an undrained PIPE
+    blocks the child once the buffer fills, which would present as the editor
+    hanging rather than crashing -- worse than the silence this replaces.
+    """
+    try:
+        for raw in stream:
+            text = raw.decode("utf-8", "replace").rstrip("\r\n")
+            if text.strip():
+                lines.append(text)
+    except (OSError, ValueError):
+        pass
+    finally:
+        try:
+            stream.close()
+        except OSError:
+            pass
+
+
+def supervisor_cause(lines):
+    """The one line worth putting on a status: a traceback's last line."""
+    for text in reversed(list(lines)):
+        stripped = text.strip()
+        if stripped:
+            return stripped[:SUPERVISOR_CAUSE_CHARS]
+    return ""
 from state import (FACILITATOR_COMMANDS, InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
 from python import identity
@@ -149,6 +189,7 @@ class Dashboard:
         self.show_edit_lock = asyncio.Lock()
         self.show_undo = []
         self.supervisor_generation = 0
+        self.supervisor_errors = []
         # One managed-audition subprocess owns the loopback command port.  Keep
         # sim_process as the compatibility handle used by the existing focused
         # verifies; supervisor.mode is the authority for what that child means.
@@ -2971,16 +3012,47 @@ class Dashboard:
         self.osc.send_master()
         self.osc.send_mute_all()
 
-    async def supervisor_exited(self, process, mode, generation):
+    async def record_supervisor_error(self, mode, returncode, lines):
+        """Log an unexpected supervisor death and broadcast its tail.
+
+        Only reached past `supervisor_exited`'s generation guard, so a
+        deliberate stop -- which bumps the generation before terminating --
+        never lands here.
+        """
+        cause = supervisor_cause(lines)
+        payload = {
+            "ts": time.time(),
+            "mode": mode,
+            "returncode": returncode,
+            "cause": cause,
+            "lines": list(lines),
+        }
+        self.supervisor_errors.append(payload)
+        del self.supervisor_errors[:-SUPERVISOR_ERROR_LIMIT]
+        logging.getLogger("bopos.dashboard").warning(
+            "%s supervisor exited unexpectedly (rc=%s): %s",
+            mode, returncode, cause or "no output captured")
+        await self.broadcast("supervisor_error", payload)
+        return cause
+
+    async def supervisor_exited(self, process, mode, generation, lines=None,
+                                reader=None):
         await asyncio.to_thread(process.wait)
+        if reader is not None:
+            # The child is gone, so EOF is imminent; bounded anyway rather than
+            # letting a wedged reader hold the status line hostage.
+            await asyncio.to_thread(reader.join, 2.0)
         if self.sim_process is not process or generation != self.supervisor_generation:
             return
         self.sim_process = None
         self.clear_audition_devices()
+        cause = await self.record_supervisor_error(mode, process.returncode,
+                                                   lines or ())
+        status = f"stopped unexpectedly: {cause}" if cause else "stopped unexpectedly"
         if mode == "simulate":
-            self.state.data["simulation"].update(active=False, status="stopped unexpectedly")
+            self.state.data["simulation"].update(active=False, status=status)
         else:
-            self.state.data["editor"].update(active=False, status="stopped unexpectedly",
+            self.state.data["editor"].update(active=False, status=status,
                                               engine_alive=None)
         self.set_supervisor_mode("off")
         self.restore_live_state()
@@ -2992,14 +3064,19 @@ class Dashboard:
         try:
             process = subprocess.Popen(command, cwd=REPO_DIR,
                                        stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
+                                       stderr=subprocess.PIPE)
         except OSError:
             self.clear_audition_devices()
             self.set_supervisor_mode("off")
             self.restore_live_state()
             return False
+        lines = collections.deque(maxlen=SUPERVISOR_LOG_LINES)
+        reader = threading.Thread(target=drain_supervisor_stderr,
+                                  args=(process.stderr, lines),
+                                  name=f"supervisor-stderr-{mode}", daemon=True)
+        reader.start()
         self.sim_process = process
-        self.spawn(self.supervisor_exited(process, mode, generation))
+        self.spawn(self.supervisor_exited(process, mode, generation, lines, reader))
         return True
 
     async def stop_supervisor(self):

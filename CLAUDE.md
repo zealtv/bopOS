@@ -1580,7 +1580,22 @@ they meant. What changed:
      resolved at run time, highest `/Applications/Pd-*.app` first, with a named
      preflight error naming the path tried and the bundles seen; `--pd-bin`
      still wins outright and `--no-engine` never resolves) ·
-     2. `2-supervisor-stderr-visibility`
+     2. ~~`2-supervisor-stderr-visibility`~~ (**tied 2026-08-10** — the
+     supervisor's stderr is drained into a bounded tail by a reader thread
+     instead of `DEVNULL`; an unexpected death broadcasts `supervisor_error`
+     to a new `Supervisor errors` section of the Monitor's System panel,
+     mirroring the OSC transport-error treatment, and the status line becomes
+     `stopped unexpectedly: <cause>`. Covers Simulation as well as Patch Edit.
+     A deliberate stop reports nothing, structurally: the generation guard
+     already excludes it.)
+
+  **Both children are tied; the goal thread is deliberately NOT.** The one
+  thing neither stitch could do is the check the thread exists for — *Launch
+  editor* opening Pd **on Bob's machine** (`0.55-0` + `0.56-2`, where it should
+  now pick `0.56-2`). This session's machine carries exactly `Pd-0.55-2.app`,
+  the very build the old literal named, so it could never have reproduced the
+  failure. Remove any stopgap `/Applications/Pd-0.55-2.app` symlink first: it
+  is the exact condition under which the fix passes while changing nothing.
 
   *Launch editor* silently does nothing on any machine lacking the one Pd build
   hardcoded at `tools/audition.py:863-865`, which `server.py:3125-3132` never
