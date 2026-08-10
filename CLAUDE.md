@@ -1589,7 +1589,26 @@ they meant. What changed:
      A deliberate stop reports nothing, structurally: the generation guard
      already excludes it.)
 
-  **Both children are tied; the goal thread is deliberately NOT.** The one
+  3. ~~`3-python-floor`~~ (**tied 2026-08-10**, raised by Bob from the test
+     machine *after* `1` and `2` shipped — and reported with the cause
+     attached, which is `2` paying for itself on its first real failure.
+     `VirtualNode` is a dataclass, so `subprocess.Popen | None` is evaluated
+     when the class body runs and is a **runtime TypeError before Python
+     3.10** — `tools/audition.py` could not be imported at all on 3.9, so
+     Patch Edit and Simulation were both unreachable. Fixed with
+     `from __future__ import annotations`. Why a *new* install:
+     `install-dashboard.sh` printed "install Python 3.11+ first" but checked
+     only that `python3` **existed**, and a fresh macOS puts system 3.9 on
+     PATH. The advertised and enforced floors were different numbers; the
+     installer now compares `sys.version_info`. **The floor is 3.9 as a
+     measurement** — the whole `fast` suite (324) and a real editor supervisor
+     both pass under a 3.9.6 venv — so if 3.11 was meant, Bob should raise it
+     deliberately; nothing records a reason for that number. Guarded by
+     `tests/test_python_floor.py`, an AST source check rather than an
+     interpreter check, because CI runs one Python and this failure only
+     exists on another.)
+
+  **All three children are tied; the goal thread is deliberately NOT.** The one
   thing neither stitch could do is the check the thread exists for — *Launch
   editor* opening Pd **on Bob's machine** (`0.55-0` + `0.56-2`, where it should
   now pick `0.56-2`). This session's machine carries exactly `Pd-0.55-2.app`,

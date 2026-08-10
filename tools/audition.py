@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Run several audible bopOS virtual nodes behind one LAN command socket."""
 
+# VirtualNode is a dataclass, so its field annotations are evaluated when the
+# class body runs. `subprocess.Popen | None` is therefore a runtime TypeError
+# on Python < 3.10 -- an import-time death that takes the whole supervisor
+# with it before send_ready(). Deferring annotations costs nothing here and
+# keeps the child launchable on whatever interpreter the dashboard runs (61).
+from __future__ import annotations
+
 import argparse
 import heapq
 import ipaddress
