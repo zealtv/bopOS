@@ -59,7 +59,20 @@ sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "jackd2 jackd/tweak_rt_limits boolean true" |
     sudo debconf-set-selections
 sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales
+    alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales \
+    build-essential python3-dev swig
+
+# adafruit-blinka pulls in lgpio, RPi.GPIO and rpi_ws281x behind Raspberry Pi
+# platform markers. lgpio ships aarch64 wheels for cp39-cp312 only, and
+# piwheels serves armhf only, so on 64-bit Pi OS (Trixie is Python 3.13) pip
+# compiles it — and that build needs swig. Measured on Trixie Lite 2026-08-10:
+# build-essential and python3-dev were already present and swig was not, but
+# all three are named here so the build does not depend on that. liblgpio-dev
+# lets the build link the system library; it is absent before Bookworm, so it
+# is optional.
+sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    liblgpio-dev ||
+    echo "    (liblgpio-dev unavailable on this release; building lgpio from source)"
 
 echo "==> Configuring system locale: $DEVICE_LOCALE"
 sudo raspi-config nonint do_change_locale "$DEVICE_LOCALE"

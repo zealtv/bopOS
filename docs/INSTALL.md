@@ -117,7 +117,10 @@ sudo env LANG=C LC_ALL=C apt-get update
 sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "jackd2 jackd/tweak_rt_limits boolean true" | sudo debconf-set-selections
 sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales
+  alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales \
+  build-essential python3-dev swig
+sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  liblgpio-dev   # optional; absent before Bookworm
 sudo raspi-config nonint do_change_locale en_AU.UTF-8
 sudo update-locale LANG=en_AU.UTF-8 LC_ALL LANGUAGE
 ```
@@ -144,6 +147,30 @@ the mount itself needs no privilege at runtime.
 > need one manual `sudo bash/provision.sh` after updating; the routine
 > **Update bopOS** action deliberately cannot install root-owned pieces.
 > `provision.sh` is idempotent — a re-run installs only the missing pieces.
+
+### If the pip step fails to build `lgpio`
+
+`failed to build installable wheels for some pyproject.toml based projects
+-> lgpio` means pip had to compile `lgpio` and could not.
+
+`lgpio` is not a direct bopOS dependency. It arrives through
+`adafruit-blinka`, which the `adafruit-circuitpython-*` requirements pull in;
+`RPi.GPIO` and `rpi_ws281x` come the same way. All three sit behind Raspberry
+Pi platform markers, so they appear only when resolving **on** a Pi.
+
+`lgpio` publishes aarch64 wheels for cp39–cp312 only, and piwheels builds
+armhf only — so on a 64-bit image running Python 3.13 (Trixie) pip has to
+compile it, and that build needs **swig**.
+
+Install the packages listed under [Prepare the system](#prepare-the-system)
+— `build-essential python3-dev swig`, plus `liblgpio-dev` where available —
+and rerun the pip line. The one-liner installs these itself; a Pi provisioned
+before that change needs them added by hand.
+
+> Measured on Trixie 64-bit Lite, Python 3.13.5, 2026-08-10: `build-essential`
+> and `python3-dev` were already installed and `swig` was not, so `swig` +
+> `liblgpio-dev` were the whole fix. `RPi.GPIO` 0.7.1 compiled without
+> complaint on 3.13 — the `rpi-lgpio` shim is not needed.
 
 ## 4. Point it at the audio board
 
