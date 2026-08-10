@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -37,6 +38,73 @@ import audio_config  # noqa: E402
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
 HOSTNAME_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+
+PD_BUNDLE_RE = re.compile(r"^Pd-(\d+)\.(\d+)-(\d+)\.app$")
+PD_APP_DIRS = ("/Applications",)
+PD_FALLBACK_PATHS = ("/opt/homebrew/bin/pd", "/usr/local/bin/pd")
+
+
+class PdBinaryError(RuntimeError):
+    """No usable Pure Data executable could be resolved."""
+
+
+def _executable(path):
+    return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def pd_bundle_candidates(app_dirs=PD_APP_DIRS):
+    """Every /Applications/Pd-MAJOR.MINOR-PATCH.app binary, newest first.
+
+    Sorted on the parsed integer tuple, so Pd-0.56-2 beats Pd-0.9-1 and
+    Pd-0.55-10 beats Pd-0.55-2 -- both of which a string sort gets backwards.
+    """
+    found = []
+    for app_dir in app_dirs:
+        try:
+            entries = os.listdir(app_dir)
+        except OSError:
+            continue
+        for entry in sorted(entries):
+            match = PD_BUNDLE_RE.match(entry)
+            if not match:
+                continue
+            version = tuple(int(part) for part in match.groups())
+            binary = os.path.join(app_dir, entry, "Contents", "Resources", "bin", "pd")
+            found.append((version, binary))
+    found.sort(key=lambda item: item[0], reverse=True)
+    return found
+
+
+def resolve_pd_bin(explicit=None, platform=None, app_dirs=PD_APP_DIRS):
+    """Resolve the Pure Data executable, or return None if there isn't one.
+
+    An explicit --pd-bin wins outright and is never second-guessed. Otherwise
+    darwin prefers the highest installed Pd-*.app bundle, then PATH, then the
+    usual Homebrew locations; every other platform resolves through PATH.
+    """
+    if explicit:
+        return explicit
+    platform = sys.platform if platform is None else platform
+    if platform == "darwin":
+        for _version, binary in pd_bundle_candidates(app_dirs):
+            if _executable(binary):
+                return binary
+    found = shutil.which("pd")
+    if found:
+        return found
+    if platform == "darwin":
+        for path in PD_FALLBACK_PATHS:
+            if _executable(path):
+                return path
+    return None
+
+
+def describe_pd_candidates(app_dirs=PD_APP_DIRS):
+    """Human-readable account of what the resolver looked at, for errors."""
+    bundles = [binary for _version, binary in pd_bundle_candidates(app_dirs)]
+    if bundles:
+        return "bundles seen: " + ", ".join(bundles)
+    return f"no Pd-*.app bundles in {', '.join(app_dirs)}"
 
 
 def osc_datagram(address, *args):
@@ -95,6 +163,7 @@ class VirtualNode:
 class AuditionRig:
     def __init__(self, args):
         self.args = args
+        self._pd_bin = None
         self.running = True
         self.started = time.monotonic()
         self.nodes = [
@@ -216,15 +285,29 @@ class AuditionRig:
                 f"{' '.join(str(g) for g in group_protocol.wire_groups(node.groups))}"
             )
             gui = [] if getattr(self.args, "edit", False) else ["-nogui"]
-            return [self.args.pd_bin, *gui, *backend, "-path",
+            return [self.pd_binary(), *gui, *backend, "-path",
                     os.path.join(REPO_DIR, "pd"), "-open", entrypoint,
                     "-send", startup]
         return [engine, entrypoint]
+
+    def pd_binary(self):
+        """The Pure Data executable to launch, or a named error saying why not."""
+        if self._pd_bin is None:
+            resolved = resolve_pd_bin(self.args.pd_bin)
+            if not _executable(resolved):
+                tried = resolved or "(nothing)"
+                raise PdBinaryError(
+                    f"no usable Pure Data executable: tried {tried}; "
+                    f"{describe_pd_candidates()}; pass --pd-bin to name one")
+            self._pd_bin = resolved
+        return self._pd_bin
 
     def start_engines(self):
         if self.args.no_engine:
             return
         patch_dir, loaded = self._load_patch()
+        if not self.args.engine_command and (self.args.engine or loaded["engine"]) == "pd":
+            self.pd_binary()
         for node in self.nodes:
             context = runcontext.generate(os.path.basename(patch_dir),
                                           patches_dir=os.path.dirname(patch_dir),
@@ -860,9 +943,8 @@ def parse_args(argv=None):
     parser.add_argument("--engine", help="override the manifest engine")
     parser.add_argument("--engine-command",
                         help="command template with optional {entrypoint}, {port}, {id}")
-    parser.add_argument("--pd-bin", default=(
-        "/Applications/Pd-0.55-2.app/Contents/Resources/bin/pd"
-        if sys.platform == "darwin" else "pd"))
+    parser.add_argument("--pd-bin", default=None,
+                        help="Pure Data executable; resolved at run time when omitted")
     parser.add_argument("--audio-backend", choices=("coreaudio", "jack", "none"),
                         default="coreaudio" if sys.platform == "darwin" else "jack")
     parser.add_argument("--no-engine", action="store_true")

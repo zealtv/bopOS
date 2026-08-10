@@ -1572,6 +1572,23 @@ they meant. What changed:
   9. `4-invalid-manifest-lockout` — node-side bash, independent of the three
      UI stitches and claimable in parallel with them.
 
+  **Prepended 2026-08-10** for `61-editor-launch-silent-failure`, at Bob's
+  explicit instruction ("put it at the top of the queue"), ahead of
+  `5-fetch-tombstone-lockout`:
+
+  1. ~~`1-pd-binary-resolution`~~ (**tied 2026-08-10** — the Pd executable is
+     resolved at run time, highest `/Applications/Pd-*.app` first, with a named
+     preflight error naming the path tried and the bundles seen; `--pd-bin`
+     still wins outright and `--no-engine` never resolves) ·
+     2. `2-supervisor-stderr-visibility`
+
+  *Launch editor* silently does nothing on any machine lacking the one Pd build
+  hardcoded at `tools/audition.py:863-865`, which `server.py:3125-3132` never
+  overrides — the supervisor dies before `send_ready()` and
+  `launch_supervisor`'s `stderr=DEVNULL` throws the explanatory traceback away.
+  The resolver goes first because it unblocks the machine; the stderr capture
+  covers the whole class, Simulation included.
+
   Bob's ordering principle, stated when he set the previous queue and still in
   force: *"I want to fix and simplify things before making them more
   complicated."* So the panel-tells-the-truth fix comes first — it ships alone
