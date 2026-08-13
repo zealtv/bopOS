@@ -320,6 +320,8 @@ class Dashboard:
             for uid, device in self.state.devices.items():
                 if device["online"] and device["last_seen"] and epoch - device["last_seen"] > 30:
                     device["online"] = False
+                    # A transfer cannot survive the node it was running on.
+                    self.osc.strand_device_fetches(uid)
                     await self.broadcast("device_offline", {"uid": uid})
 
     async def websocket(self, ws):

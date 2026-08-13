@@ -96,6 +96,76 @@ class FetchGenerationTests(unittest.IsolatedAsyncioTestCase):
                 UID, SLOT, "new-fingerprint"))
             self.assertEqual(self.bridge.send_physical.call_count, 1)
 
+    async def test_live_generation_stranded_by_reboot_does_not_lock_out_retry(self):
+        """The reported Finn Jet defect: an acknowledged fetch, then a reboot.
+
+        The node replied `fetching` and then restarted, so no terminal will
+        ever arrive. Before the fix this held the slot for the full 1800s
+        timeout and `fetch_matches` reported the dead record as in-flight,
+        so convergence waited silently and no `/os/fetch` was ever re-sent.
+        """
+        with mock.patch.object(osc_bridge, "FETCH_TIMEOUT_SECONDS", 1800):
+            self.assertTrue(self.bridge.fetch(
+                UID, "http://host/bonks", SLOT, "fp"))
+            self.bridge.handle("/os/fetch-progress", [SLOT, "queued"], "192.0.2.4")
+            self.bridge.handle("/os/fetch-progress", [SLOT, "fetching"], "192.0.2.4")
+            self.assertEqual(self.bridge.fetch_pending[SLOT][0]["phase"], "fetching")
+
+            # The dashboard observes the device drop off the network.
+            self.bridge.strand_device_fetches(UID)
+
+            self.assertFalse(self.bridge.fetch_matches(UID, SLOT, "fp"))
+            self.assertTrue(self.bridge.fetch(UID, "http://host/bonks", SLOT, "fp"))
+            self.assertEqual(self.bridge.send_physical.call_count, 2)
+
+    async def test_stalled_generation_is_superseded_without_an_offline_edge(self):
+        """A lost terminal with no offline transition still has to recover."""
+        with mock.patch.object(osc_bridge, "FETCH_TIMEOUT_SECONDS", 1800), \
+                mock.patch.object(osc_bridge, "FETCH_STALL_SECONDS", 120):
+            self.assertTrue(self.bridge.fetch(
+                UID, "http://host/bonks", SLOT, "fp"))
+            self.bridge.handle("/os/fetch-progress", [SLOT, "fetching"], "192.0.2.4")
+            record = self.bridge.fetch_pending[SLOT][0]
+
+            # Still progressing: a retry must not disturb it, and the identical
+            # generation still coalesces rather than erroring.
+            self.assertFalse(self.bridge.fetch(UID, "http://host/bonks", SLOT, "fp"))
+            self.assertTrue(self.bridge.fetch_matches(UID, SLOT, "fp"))
+            self.assertEqual(self.bridge.send_physical.call_count, 1)
+
+            record["updated_at"] -= 121
+            self.assertFalse(self.bridge.fetch_matches(UID, SLOT, "fp"))
+            self.assertTrue(self.bridge.fetch(UID, "http://host/bonks", SLOT, "fp"))
+            self.assertEqual(self.bridge.send_physical.call_count, 2)
+
+    async def test_progress_refreshes_the_stall_clock(self):
+        """A slow multi-file transfer must not be superseded while it reports."""
+        with mock.patch.object(osc_bridge, "FETCH_STALL_SECONDS", 120):
+            self.bridge.fetch(UID, "http://host/bonks", SLOT, "fp")
+            record = self.bridge.fetch_pending[SLOT][0]
+            record["updated_at"] -= 121
+            self.bridge.handle("/os/fetch-progress", [SLOT, "fetching"], "192.0.2.4")
+            self.assertFalse(self.bridge.fetch(UID, "http://host/bonks", SLOT, "fp"))
+            self.assertEqual(self.bridge.send_physical.call_count, 1)
+
+    async def test_stranded_generation_still_bars_misattribution(self):
+        """Superseding must not weaken the invariant the first pass protected."""
+        with mock.patch.object(osc_bridge, "FETCH_TIMEOUT_SECONDS", 1800):
+            self.bridge.fetch(UID, "http://host/old", SLOT, "old-fp")
+            self.bridge.handle("/os/fetch-progress", [SLOT, "fetching"], "192.0.2.4")
+            self.bridge.strand_device_fetches(UID)
+            self.bridge.fetch(UID, "http://host/new", SLOT, "new-fp")
+
+            # A late receipt from the stranded generation cannot certify the
+            # new bytes; it retires the tombstone and forces a re-send.
+            self.bridge.handle("/os/fetched", [SLOT, "ok"], "192.0.2.4")
+            self.assertNotIn(SLOT, self.state.devices[UID]["distribution"])
+            self.assertEqual(self.bridge.send_physical.call_count, 3)
+
+            self.bridge.handle("/os/fetched", [SLOT, "ok"], "192.0.2.4")
+            self.assertEqual(
+                self.state.devices[UID]["distribution"][SLOT], "new-fp")
+
 
 class FetchVisibilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_suppressed_fetch_is_broadcast_as_operator_error(self):

@@ -49,6 +49,11 @@ SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-mi
 SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
 ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
 FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must still recover
+# A node bounds each file at 30s x 3 attempts and reports every phase change,
+# so silence far past that means the transfer is not coming back. Ruling one
+# out only demotes it to a tombstone, never forgets it, so the bound can be
+# generous without risking misattribution.
+FETCH_STALL_SECONDS = 120
 REQUEST_TIMEOUT_SECONDS = 5.0
 UNASSIGN_TIMEOUT_SECONDS = 5.0
 AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
@@ -751,9 +756,16 @@ class OSCBridge:
         if not device or int(device.get("id", -1)) < 0:
             return
         records = self.fetch_pending.setdefault(slot, deque())
-        if any(record["uid"] == uid and record["phase"] != "expired"
+        stranded = [record for record in records
+                    if record["uid"] == uid and not self._fetch_live(record)]
+        if any(record["uid"] == uid and record not in stranded
                for record in records):
             return False  # one generation per device/slot; never mislabel coalesced bytes
+        # A generation the node can no longer be running must not hold the slot
+        # shut. Demoting it keeps it as an attribution barrier while letting the
+        # operator's retry through.
+        for record in stranded:
+            self._tombstone_fetch(slot, record)
         record = {"uid": uid, "uri": uri, "fingerprint": fingerprint,
                   "phase": "sent"}
         records.append(record)
@@ -773,6 +785,7 @@ class OSCBridge:
         if previous:
             previous.cancel()
         record["phase"] = "sent"
+        record["updated_at"] = time.monotonic()
         record["timeout"] = asyncio.get_running_loop().call_later(
             FETCH_TIMEOUT_SECONDS, self._expire_fetch, slot, record)
         device.setdefault("fetch", {})[slot] = "sent"
@@ -787,7 +800,7 @@ class OSCBridge:
         A superseding fleet operation may observe an identical in-flight
         generation, but must never relabel or attach to different bytes.
         """
-        return any(record["uid"] == uid and record["phase"] != "expired"
+        return any(record["uid"] == uid and self._fetch_live(record)
                    and record["fingerprint"] == fingerprint
                    for record in self.fetch_pending.get(slot, ()))
 
@@ -1565,6 +1578,7 @@ class OSCBridge:
             record = self._fetch_record(slot, ip, phase)
             if record and phase in ("queued", "fetching"):
                 record["phase"] = phase
+                record["updated_at"] = time.monotonic()
                 device = self.state.devices.get(record["uid"])
                 if device:
                     device.setdefault("fetch", {})[slot] = phase
@@ -1662,14 +1676,50 @@ class OSCBridge:
         pending = self.fetch_pending.get(slot)
         if not pending or record not in pending:
             return
-        # Keep an expired tombstone ahead of any retry: v1.3 has no request id,
-        # so allowing a new generation could make a late old receipt certify
-        # newer bytes falsely. A late terminal still consumes this record.
+        self._tombstone_fetch(slot, record)
+
+    def _tombstone_fetch(self, slot, record):
+        """Retire a generation from liveness, keeping it as an attribution barrier.
+
+        Keep the record ahead of any retry: v1.3 has no request id, so dropping
+        it could let a late receipt certify newer bytes falsely. A late terminal
+        still consumes it.
+        """
+        if record["phase"] == "expired":
+            return
         record["phase"] = "expired"
         device = self.state.devices.get(record["uid"])
         if device:
             device.setdefault("fetch", {})[slot] = "timeout"
             self.broadcast("device_update", device)
+
+    def _fetch_live(self, record):
+        """Whether this generation can still plausibly be running on the node.
+
+        Deliberately answered on evidence rather than proof. The first pass
+        rejected liveness reasoning because an offline edge does not prove the
+        node restarted -- but that objection belongs to attribution, and
+        attribution never rests on this answer: a generation ruled out here is
+        demoted, not forgotten. Being wrong costs one coalesced re-request,
+        because a node keys its fetch jobs by (uri, slot) and joins a duplicate
+        to the running transfer. Being unable to be wrong cost a 30-minute
+        silent lockout on every push to the slot.
+        """
+        if record["phase"] == "expired":
+            return False
+        return time.monotonic() - record.get("updated_at", 0) < FETCH_STALL_SECONDS
+
+    def strand_device_fetches(self, uid):
+        """Retire a device's generations when it drops off the network.
+
+        Missing 30s of heartbeats means the node either finished and lost its
+        receipt or died with the transfer. Neither can be waited on, and both
+        otherwise hold the slot shut until the 1800s timeout.
+        """
+        for slot, records in list(self.fetch_pending.items()):
+            for record in list(records):
+                if record["uid"] == uid:
+                    self._tombstone_fetch(slot, record)
 
     @staticmethod
     def _sync_estimate(window):
