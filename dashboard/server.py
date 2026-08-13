@@ -2718,9 +2718,15 @@ class Dashboard:
             if entry and entry.get("git"):
                 continue
             uri = f"{base_urls[uid]}/patches/{name}/.manifest.json"
-            if (self.osc.fetch(uid, uri, slot, fingerprint)
-                    or self.osc.fetch_matches(uid, slot, fingerprint)):
+            started = self.osc.fetch(uid, uri, slot, fingerprint)
+            matched = (not started
+                       and self.osc.fetch_matches(uid, slot, fingerprint))
+            if started or matched:
                 waiting.add(uid)
+            else:
+                await self.broadcast("error", {"message":
+                    f"Patch transfer for {uid} could not start; another "
+                    f"generation is already active for {slot}."})
 
         deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS + 1.0
         while (waiting and is_current()

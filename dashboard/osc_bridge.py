@@ -751,14 +751,33 @@ class OSCBridge:
         if not device or int(device.get("id", -1)) < 0:
             return
         records = self.fetch_pending.setdefault(slot, deque())
-        if any(record["uid"] == uid for record in records):
+        if any(record["uid"] == uid and record["phase"] != "expired"
+               for record in records):
             return False  # one generation per device/slot; never mislabel coalesced bytes
-        record = {"uid": uid, "fingerprint": fingerprint, "phase": "sent"}
+        record = {"uid": uid, "uri": uri, "fingerprint": fingerprint,
+                  "phase": "sent"}
+        records.append(record)
+        return self._send_fetch_generation(slot, record)
+
+    def _send_fetch_generation(self, slot, record):
+        """Send or re-send one generation while preserving its identity.
+
+        Re-sending the same record is how an ambiguous first terminal after a
+        tombstone becomes harmless: every later reply can only name these same
+        bytes, so the generation may then be certified safely.
+        """
+        device = self.state.devices.get(record["uid"])
+        if not device or int(device.get("id", -1)) < 0:
+            return False
+        previous = record.get("timeout")
+        if previous:
+            previous.cancel()
+        record["phase"] = "sent"
         record["timeout"] = asyncio.get_running_loop().call_later(
             FETCH_TIMEOUT_SECONDS, self._expire_fetch, slot, record)
-        records.append(record)
         device.setdefault("fetch", {})[slot] = "sent"
-        self.send_physical(f"/{int(device['id'])}/os/fetch", [uri, slot])
+        self.send_physical(
+            f"/{int(device['id'])}/os/fetch", [record["uri"], slot])
         self.broadcast("device_update", device)
         return True
 
@@ -768,7 +787,8 @@ class OSCBridge:
         A superseding fleet operation may observe an identical in-flight
         generation, but must never relabel or attach to different bytes.
         """
-        return any(record["uid"] == uid and record["fingerprint"] == fingerprint
+        return any(record["uid"] == uid and record["phase"] != "expired"
+                   and record["fingerprint"] == fingerprint
                    for record in self.fetch_pending.get(slot, ()))
 
     def request(self, uid, member):
@@ -1555,6 +1575,7 @@ class OSCBridge:
             record = self._fetch_record(slot, ip, "terminal")
             if not record:
                 return
+            expired = record["phase"] == "expired"
             pending = self.fetch_pending.get(slot)
             try:
                 pending.remove(record)
@@ -1563,6 +1584,17 @@ class OSCBridge:
             if not pending:
                 self.fetch_pending.pop(slot, None)
             record.get("timeout") and record["timeout"].cancel()
+            if expired:
+                # With no request id, this terminal could be for the expired
+                # generation or its successor. Consume the tombstone, then
+                # resend that successor unchanged. The next terminal can only
+                # describe the successor's bytes and is safe to certify.
+                successor = next((candidate for candidate in pending or ()
+                                  if candidate["uid"] == record["uid"]
+                                  and candidate["phase"] != "expired"), None)
+                if successor is not None:
+                    self._send_fetch_generation(slot, successor)
+                return
             device = self.state.devices.get(record["uid"])
             if device:
                 device.setdefault("fetch", {})[slot] = "ok" if status == "ok" else "err"
@@ -1618,6 +1650,11 @@ class OSCBridge:
         if expected:
             return next((record for record in candidates
                          if record["phase"] == expected), candidates[0])
+        if phase == "terminal":
+            expired = next((record for record in candidates
+                            if record["phase"] == "expired"), None)
+            if expired is not None:
+                return expired
         return next((record for record in candidates
                      if record["phase"] in ("fetching", "queued", "sent")), candidates[0])
 
