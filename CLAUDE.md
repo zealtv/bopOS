@@ -651,6 +651,58 @@ remain the authority for a particular piece of work.
 > (`bopos.py:659`), and whether `r bopos-notify` is wired to make a sound is
 > Bob's domain.
 >
+> **Update 2026-08-13 (`58/5-fetch-tombstone-lockout` — TIED, in two passes).**
+> Bob hit the same wall on **Finn Jet**: `demo-pd` played, `bonks-pd` sat on
+> `switching` forever. Two distinct causes, and the second one is why this
+> stitch was reopened within the hour of being tied.
+>
+> **Cause A, the device's patch was stale** — the on-device `bonks-pd`
+> manifest was the 2026-07-25 copy, still carrying the retired
+> `type`/`min`/`max` grammar and a `cues` key, so `manifest.py` rejected it and
+> `start-engine.sh` refused to start. The *host* copy was current. Exactly the
+> Ciro Toast shape, and the same lesson: **a manifest hard break reaches the
+> field at the speed of patch distribution.**
+>
+> **Cause B, distribution was locked out — and the first pass of `5` did not
+> fix it.** That pass (commit `96bec64`) handled a generation whose 1800s
+> timeout had *fired*. The far commoner failure is a record stranded in a
+> **live** phase (`sent`/`queued`/`fetching`) because the node acknowledged the
+> fetch and then rebooted, or its terminal was lost. `fetch()` refused a new
+> generation on it, and — the part that made it invisible — `fetch_matches`
+> reported the dead record as in-flight, so `converge_fleet_patch` took its
+> `matched` branch, joined `waiting`, and **never reached the operator error
+> the first pass had just added**. Measured on the rig: re-issuing
+> `set_device_patch` produced **no `/os/fetch` on the wire and no `ws_error`**,
+> with the device journal recording nothing at all for the attempt.
+>
+> **The conceptual error worth carrying**, because it is subtle and was made in
+> good faith: the first pass rejected liveness-based retirement on the grounds
+> that an offline edge does not prove the node restarted. True — but that is an
+> argument about **attribution**, and it was applied to **admission**.
+> Attribution never rests on a liveness judgement, because a generation ruled
+> out is demoted to a tombstone rather than forgotten. Being wrong costs one
+> coalesced re-request (a node keys fetch jobs by `(uri, slot)` and joins a
+> duplicate to the running transfer); refusing to judge at all cost a
+> 30-minute silent lockout on every push to that device and slot. Fix
+> `67cbb3b`: an observed offline transition strands a device's generations at
+> once via `strand_device_fetches`, and a 120s progress stall
+> (`FETCH_STALL_SECONDS`, derived from the node's own 30s × 3 per-file bound,
+> refreshed by `/os/fetch-progress`) covers a lost terminal with no offline
+> edge. **Verified on hardware** — fetch in 0.8s, `Patch switch complete`, and
+> a `bonks-pd → demo-pd → bonks-pd` round trip at ~4s per switch with the node
+> up continuously.
+>
+> **NOT closed: the SSH freeze.** Bob reported the node becoming unreachable
+> during a failed switch. It was not reproduced and is not explained —
+> persistent journald is off on these nodes, so only the current boot is
+> retained and the episode's logs were gone. The plausible mechanism is the
+> rollback path (`bopos.py:1858-1877`) running two full jackd+Pd cycles, jackd
+> at realtime priority 70, with up to 60s ALSA and 15s jack waits on a 415MB
+> node — but that is inference from code, not measurement. **Turn on
+> `Storage=persistent` on the rig nodes** so the next occurrence is
+> diagnosable. `58/4-invalid-manifest-lockout` (the `start.sh` ERR trap taking
+> `bopos.py` down with the engine) is still open and is the related repair.
+>
 > **Update 2026-08-03 (preset drift honesty — `57-preset-drift-honesty`).**
 > Bob edited a patch, deployed it, and an existing Show met a wall of
 > `Patch "bonks-pd" has changed since this preset message was authored.` —
@@ -1563,10 +1615,11 @@ they meant. What changed:
   unqueued.)
 
   **Appended 2026-08-05** for `58-patch-push-workflow`, behind 57 — except
-  `5-fetch-tombstone-lockout`, which is a live defect and sits **first in the
-  whole queue**:
+  `5-fetch-tombstone-lockout`, which was a live defect and sat first in the
+  whole queue until it tied:
 
-  0. `5-fetch-tombstone-lockout` (`58`) — ahead of everything.
+  0. ~~`5-fetch-tombstone-lockout`~~ (`58`) — **TIED 2026-08-13**, in two
+     passes. See the 2026-08-13 update above.
   6. `1-device-push-action` · 7. `2-pin-unpin-toggle` — blocked on
      `1-device-push-action` · 8. `3-push-target-legibility`
   9. `4-invalid-manifest-lockout` — node-side bash, independent of the three

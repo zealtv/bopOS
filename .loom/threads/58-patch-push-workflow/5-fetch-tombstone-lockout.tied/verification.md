@@ -94,3 +94,47 @@ Taken from Finn Jet before the fix, with the dashboard running `96bec64`:
   nothing for the attempt across 100s of streamed `device_update` frames;
 - `curl` of the manifest URL from the device returned `200` in 150ms, so the
   transport was healthy and the suppression was entirely dashboard-side.
+
+## Hardware verification — Finn Jet, 2026-08-13
+
+Unlike the first pass, this one was verified on the rig. Bob restarted the
+dashboard onto the fix; everything below is the real device over the LAN.
+
+Push of `bonks-pd` to Finn Jet, streamed from the websocket:
+
+```
+[  0.0] fetch={'patch:bonks-pd': 'sent'}
+[  0.1] fetch={'patch:bonks-pd': 'fetching'}
+[  0.8] fetch={'patch:bonks-pd': 'ok'}   dist={'patch:bonks-pd': '0977f38f…'}
+[  5.0] switch status 'reconciling'  ->  cleared
+```
+
+Device side:
+
+```
+FETCH http://192.168.0.100:8080/patches/bonks-pd/.manifest.json
+      patch:bonks-pd: ok (fetched 3 files)
+ACTIVE PATCH: bonks-pd
+Patch switch complete: bonks-pd
+```
+
+The delivered manifest carries 8 `kind` entries and no `cues`, replacing the
+2026-07-25 copy that still used the retired `type`/`min`/`max` grammar.
+
+Round trip repeated to prove it was not a one-off unblocking:
+`bonks-pd -> demo-pd -> bonks-pd`, each switch completing in about 4s, with
+the device up continuously (`up 32 min`) and SSH responsive throughout.
+
+## Not verified
+
+The **SSH freeze** Bob reported during a failed switch was not reproduced and
+is not explained. It could not be: persistent journald is off on this node, so
+only the current boot is retained and the episode's logs were gone. The
+plausible mechanism — `bopos.py:1858-1877` rolls a failed switch back by
+running two full jackd+Pd teardown/startup cycles, jackd at realtime priority
+70, with waits of up to 60s for ALSA and 15s for jack, on a node with 415MB
+RAM — is inference from the code, not measurement. Recorded so nobody reads
+this stitch as having closed it. Enabling `Storage=persistent` in journald on
+the rig nodes would make the next occurrence diagnosable.
+
+No `.pd` file was changed.
