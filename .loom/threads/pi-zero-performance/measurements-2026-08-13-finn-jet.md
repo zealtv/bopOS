@@ -102,3 +102,49 @@ costs 51% on a nearly-empty patch is being paid by every patch on every node.
 - Restarting the engine by hand is `bash bash/stop-engine.sh` then
   `nohup bash bash/start-engine.sh`, which is enough to re-read `bopos.config`
   without a patch switch or reboot.
+
+---
+
+# Follow-up, same day: 22.05 kHz removes the stutter
+
+Bob's own change, measured afterwards. Node now at **22050 / 1024 / 2**
+(both rate and period changed; Bob reports **1024 alone at 44.1k made no
+audible difference**, so the sample rate is the lever).
+
+| metric | 44.1k / 512 | 22.05k / 1024 |
+|---|---|---|
+| `pd` | 99% of a core | **57%** |
+| xruns | ~2 in 3 min | **1 in 10 min** |
+| JACK client thread | ~0.2% | 0 ticks in 4 s |
+| `jackd` | 1.1% | 0.6% |
+| `io/main.py` | 0.1% | 0.1% |
+| system total | ~25% of 4 cores | 14.6% |
+
+45.1 °C, `throttled=0x0`.
+
+## This partly retires the "51% floor" open question
+
+Two points on the same patch separate fixed cost from DSP cost. If halving the
+rate halves only the DSP term:
+
+- `bonks-pd`: 99% @ 44.1k, 57% @ 22.05k  ->  **fixed ~15%, DSP ~84%** @ 44.1k
+- `demo-pd`: 51% @ 44.1k  ->  **DSP ~36%** @ 44.1k
+
+So the floor recorded above as "unexplained and paid by every patch on every
+node" is mostly **real DSP in demo-pd**, with only ~15% fixed. `demo-pd` is not
+a nearly-empty patch in DSP terms. Downgrade that lead accordingly.
+
+**This is a two-point linear fit, not a measurement**, and it assumes DSP
+scales with rate while overhead does not. The confirming datum is cheap:
+`demo-pd` at 22.05 kHz should land near **33%**. Not taken, because it means
+switching patches away from what Bob was listening to.
+
+## Trades this buys, both untested
+
+- **Bandwidth**: Nyquist is now 11 kHz; the top octave is gone.
+- **Latency**: 1024 frames at 22.05 kHz is a 46 ms period and ~93 ms buffer,
+  about 4x the previous 23 ms. This lands directly on **two-device forward-sync
+  timing, which `44/5-pd-adoption` tied without ever measuring on hardware**.
+  Whoever runs that rig check should do it at the rate the fleet actually runs.
+- With ~40% headroom now, **512 frames at 22.05 kHz** would halve the latency
+  back and probably still hold. Untried.
