@@ -1180,7 +1180,18 @@ a real regression hides among the drift.)
   `clock-sync/sync-4-hw-measurement`, and
   `spatial-audio/spatial-3-rig-sweep`.
 - **`pi-zero-performance/zero-1-tuning-matrix`** (claimable in any session that
-  confirms `bop000` reachable).
+  confirms `bop000` reachable). **Baseline measurements now exist** —
+  `.loom/threads/pi-zero-performance/measurements-2026-08-13-finn-jet.md`,
+  taken on Finn Jet 2026-08-13. Headlines: the io bridge costs **0.1%** on a
+  node with no peripherals configured (so `3919cb2` is exonerated there); Pd
+  costs **51%** of a core on `demo-pd` and **99%** on `bonks-pd`, with the JACK
+  client thread idle and three of four cores unable to help, because Pd's audio
+  path is single-threaded — review §3.1, measured. **`-callback` was tried and
+  is worse on both counts** (100% CPU, 518 XRun lines, and Bob's independent
+  *"sounds worse"*); it shipped as `PD_CALLBACK` and was reverted the same
+  session, so do not re-run it. The open lead is the **51% floor on a nearly
+  empty patch**, which is unexplained and is paid by every patch on every
+  node.
 
 Then, after the sweep: the host-loom patch-workflow documentation/starter-kit
 close-out (`~/repos/.loom/threads/patch-workflow-friction/`).
