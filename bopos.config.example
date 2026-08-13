@@ -17,3 +17,9 @@ AUDIO_CHANNELS=2
 # Node log destination (Device tab): internal (SD card ~/bopos-logs/) or usb
 # (auto-mounted stick). usb falls back to internal when no stick is present.
 LOG_DESTINATION=internal
+
+# EXPERIMENT (2026-08-13): Pd scheduling against JACK. Pd's default is polling
+# mode, which spends a core spinning regardless of DSP load -- measured at 51%
+# of a core for a small demo patch on a Pi Zero 2. Set to 1 to run Pd with
+# -callback instead. Off by default until judged by ear on a real node.
+PD_CALLBACK=0
