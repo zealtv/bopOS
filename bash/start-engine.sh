@@ -15,13 +15,6 @@ JACK_SAMPLE_RATE="${JACK_SAMPLE_RATE:-44100}"
 JACK_PERIOD_SIZE="${JACK_PERIOD_SIZE:-512}"
 JACK_NPERIODS="${JACK_NPERIODS:-2}"
 JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
-# Pd defaults to polling mode against JACK ("-nocallback ... true by default"),
-# which spends a core spinning whether or not the patch needs it: measured on
-# Finn Jet at 51% of a core for a small demo patch and 99% for bonks-pd, with
-# JACK reporting `client = pure_data was not finished`. Callback mode is the
-# experiment. Left OFF by default until it has been judged by ear on a real
-# node -- it changes how Pd is scheduled, not just how much CPU it uses.
-PD_CALLBACK="${PD_CALLBACK:-0}"
 JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
 AUDIO_WAIT_TIMEOUT="${BOPOS_AUDIO_WAIT_TIMEOUT:-60}"
 
@@ -146,17 +139,8 @@ python3 "$BOPOS_DIR/python/audio_config.py" record-active \
 
 if [ "$ENGINE" = "pd" ]; then
     echo "------------------- Starting Pure Data..."
-    # Name the mode in the log: an A/B judged by ear is worthless if the
-    # recording cannot be attributed to the mode that produced it.
-    if [ "$PD_CALLBACK" = "1" ]; then
-        PD_SCHED_ARGS=(-callback)
-        echo "PD SCHEDULING: callback (PD_CALLBACK=1)"
-    else
-        PD_SCHED_ARGS=()
-        echo "PD SCHEDULING: polling (Pd default)"
-    fi
     # PUREDATA — run context lands on the bopos-context bus in the same launch
-    pd -nogui -jack "${PD_SCHED_ARGS[@]}" -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_ASSETS_PD; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT; bopos-context groups $BOPOS_GROUPS" &
+    pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_ASSETS_PD; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT; bopos-context groups $BOPOS_GROUPS" &
     ENGINE_PID=$!
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else
