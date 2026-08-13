@@ -148,3 +148,53 @@ switching patches away from what Bob was listening to.
   Whoever runs that rig check should do it at the rate the fleet actually runs.
 - With ~40% headroom now, **512 frames at 22.05 kHz** would halve the latency
   back and probably still hold. Untried.
+
+---
+
+# Settled config: 32000 / 1024 / 2
+
+Bob heard **Nyquist folding on filter sweeps with the rough oscillators** at
+22.05 kHz — the demo patch's oscillators are not bandlimited, so aliasing that
+folds harmlessly above 11 kHz at 44.1 kHz lands in the audible band at 22.05.
+32 kHz (already in `audio_config.py`'s `SAMPLE_RATES`, and fine on the
+PCM512x) puts Nyquist at 16 kHz. Bob on the result: *"sounds ok"*.
+
+**Rate is buying masking, not a fix.** Bandlimited or oversampled oscillators
+would allow 22.05 kHz and its headroom back; that is patch-side and Bob's.
+
+## Full measured table
+
+All at period 1024 / nperiods 2 except the 44.1 kHz column, which was taken at
+period 512 before the buffer was raised.
+
+| patch | 22050 | 32000 | 44100 (period 512) |
+|---|---|---|---|
+| `demo-pd` | 29% | **37%** | 51% |
+| `bonks-pd` | 57% | **81%** | 99% |
+
+`bonks-pd` at 32000: **0 xruns in 120 s**, 45.1 °C, `throttled=0x0`.
+
+## Stop fitting models to this
+
+Two earlier attempts in this file to split cost into "fixed overhead" plus
+"DSP that scales with rate" are **not supported by the data**, and the second
+one was reported to Bob before the flaw was noticed:
+
+- The first fit compared 44.1 kHz to 22.05 kHz without accounting for the
+  period size having changed too (512 -> 1024), so per-block overhead fell 4x
+  while per-sample cost fell 2x. Those are not separable from those points.
+- The second fit, at a consistent period, yields a fixed term of **~11% for
+  `demo-pd` but ~4% for `bonks-pd`**. A machine constant cannot differ per
+  patch, so two points per patch do not resolve it.
+
+The measured table above stands on its own and is what later work should use.
+What is safe to say: **cost is dominated by terms that scale with sample rate**
+— there is no large rate-independent floor, which is what the original "51%
+floor on a nearly empty patch" worry supposed. That worry is retired.
+
+## The caveat on the 0-xrun result
+
+The clean 120 s window had **0 events fired**. `bonks-pd` at 32 kHz sits at
+81%, i.e. ~19% spare, and event bursts are transient load on top of that. The
+steady state is clean; a busy show at this rate is **unverified**. If it turns
+out tight, period 2048 or a return to 22.05 kHz are the levers, in that order.
