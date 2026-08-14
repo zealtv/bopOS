@@ -60,6 +60,14 @@ default was **raised to 128 MiB** (~22 hours) and every statement of the rate in
 `logpipe.py`, `bopos.config.example` and `python/io/README.md` now cites the
 measurement rather than the estimate.
 
+**Recovery is automatic.** The chip was plugged back in mid-session: errors
+stopped at the moment of reconnection (`12:07:50`), the next 10 s produced zero
+error lines, and `/io/report` still showed `tilt: IO_LIS3DH` live and polling.
+No restart, no re-create. So an intermittent cable fault presents in this log
+as *bursts* and in no other channel at all — the bridge neither dies nor
+reports the fault anywhere else, which is the whole case for the soak reading
+this file. The full ~5-minute disconnection cost 610 KB against a 128 MiB cap.
+
 ## Found on the way — belongs to `3-peripheral-lifecycle`, not here
 
 The second line above is a **defect in the read-error path**: a failed LIS3DH
