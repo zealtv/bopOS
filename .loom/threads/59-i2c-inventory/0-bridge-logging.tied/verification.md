@@ -60,13 +60,38 @@ default was **raised to 128 MiB** (~22 hours) and every statement of the rate in
 `logpipe.py`, `bopos.config.example` and `python/io/README.md` now cites the
 measurement rather than the estimate.
 
-**Recovery is automatic.** The chip was plugged back in mid-session: errors
-stopped at the moment of reconnection (`12:07:50`), the next 10 s produced zero
-error lines, and `/io/report` still showed `tilt: IO_LIS3DH` live and polling.
-No restart, no re-create. So an intermittent cable fault presents in this log
-as *bursts* and in no other channel at all — the bridge neither dies nor
-reports the fault anywhere else, which is the whole case for the soak reading
-this file. The full ~5-minute disconnection cost 610 KB against a 128 MiB cap.
+**Reconnection is NOT recovery — it is a silent fault.** First recorded here
+as "recovers automatically", which was wrong, and Bob's caution about
+generalising from one module is what prompted the check that disproved it.
+
+On replug the error lines stopped at that instant and `/io/report` still
+listed `tilt: IO_LIS3DH` — but the chip's registers say why:
+
+```
+CTRL_REG1(0x20)=0x07   CTRL_REG4(0x23)=0x00   WHO_AM_I=0x0f -> 0x33
+OUT_X=0x00 0x00   OUT_Z=0x00 0x00   STATUS(0x27)=0x00   (x3, 1 s apart)
+```
+
+`0x07` is the LIS3DH's power-down reset default: output data rate 0, axes
+enabled. `STATUS = 0x00` means no sample has ever been ready. The chip lost
+power with the cable, came back in its reset state, and nothing re-ran
+`setup()` — `PiicoDev_LIS3DH()` is constructed once at create time and never
+again. So the device answers the bus (which is why the errors stopped) and
+reports **frozen zeros at 10 Hz, indefinitely, with no error anywhere**.
+
+The error state was the honest one. Reconnection is what made the fault
+invisible.
+
+For the cable-run soak this inverts the reading of the log: a burst of errors
+that *stops* does not mean the cable recovered, it means the sensor went quiet.
+A run that ends with a clean log may be a run whose sensor died in hour two.
+The bridge must re-`setup()` a peripheral after a read-failure burst, or the
+soak needs a liveness check that is not "are there errors".
+
+Other `io_*.py` modules will differ — the ADS1115 writes its data rate at
+setup, the MPR121 and SSD1306 configure state, the switch and RGB hold state —
+so none of this is claimed for them. **LIS3DH is the installation's sensor and
+the one the pole cable carries**, which is why it is the one measured.
 
 ## Found on the way — belongs to `3-peripheral-lifecycle`, not here
 

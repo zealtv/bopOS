@@ -81,11 +81,8 @@ operator-facing message names a Python type error instead of the bus, and the
 duplication doubles the fault-case log rate to ~20 lines/s at the 10 Hz poll
 rate (1670 B/s, 5.7 MiB/hour, measured).
 
-Neither is fatal, and this was checked rather than assumed: on replug the
-errors stopped at that instant, the next 10 s were clean, and `/io/report`
-still listed the peripheral as live. The bridge keeps polling and recovers with
-no restart and no re-create — so whatever this stitch does about the read-error
-path must not change that. But this is the exact log an unattended cable soak is read
+Neither is fatal. But the far more serious finding is what happens on
+**reconnection**, and it is a second thing this stitch must handle. But this is the exact log an unattended cable soak is read
 from, so a read failure should say *which peripheral, which address, and that
 the bus did not answer*, once per cycle.
 
@@ -94,3 +91,39 @@ because the line went to a closed stdout — which is the case for `0` made by
 accident. And the fix likely belongs with whatever this stitch does about
 `no-bus`/wrong-address handling, since it is the same failure path; check the
 other `io_*.py` modules for the same shape rather than fixing LIS3DH alone.
+
+
+## Reconnection leaves the LIS3DH silently dead — measured 2026-08-14
+
+Continuing the session above: the sensor was plugged back in, the error lines
+stopped instantly, and `/io/report` still listed `tilt: IO_LIS3DH`. That looks
+like recovery and is not. Read straight off the chip a few minutes later:
+
+```
+CTRL_REG1(0x20)=0x07   CTRL_REG4(0x23)=0x00   WHO_AM_I=0x33
+OUT_X=0x00 0x00   OUT_Z=0x00 0x00   STATUS(0x27)=0x00   (x3, 1 s apart)
+```
+
+`0x07` is the power-down reset default and `STATUS=0x00` means no sample has
+ever been ready. The chip lost power with the cable and came back in its reset
+state; `PiicoDev_LIS3DH()` is constructed once in `setup()` at create time and
+never again, so nothing reconfigures it. The bridge then polls a chip that
+answers perfectly and emits **frozen zeros at 10 Hz with no error at all**.
+
+So the peripheral lifecycle needs a re-init path, not just create/destroy: a
+read-failure burst that ends should re-run `setup()` rather than assume the
+device came back as it left. Note the ordering problem — the bridge cannot see
+"it came back", it can only see "errors stopped", which is indistinguishable
+from a peripheral that is answering wrongly.
+
+**Scope note from Bob (2026-08-14):** the LIS3DH is the installation's sensor
+and the one on the pole cable, so it is the one that must work. Other modules
+will differ — some are stateless per read, others configure registers at setup
+— and nothing here is claimed for them; check each rather than generalising
+from this one, which is the mistake that produced the retracted claim above.
+
+This matters beyond the bridge: it is the failure mode
+`i2c-cable-run-validation` in **kite-choir-brains** is trying to detect. A
+marginal 1 m Cat-5 run that momentarily drops the sensor leaves the
+installation reading a constant zero tilt, and the log — read naively — says
+the errors stopped.
