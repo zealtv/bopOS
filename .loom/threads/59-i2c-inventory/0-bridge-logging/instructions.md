@@ -52,6 +52,40 @@ the same session that log:
 - Keep the pid-file contract intact: `bash/stop.sh:21` stops the bridge by
   `$RUN_DIR/io.pid`, with the full script path as its matching pattern.
 
+## ⚠️ The cap is not optional — land it with the redirect (2026-08-14)
+
+The size cap above reads like a nice-to-have. It stops being one immediately,
+because the Kite Choir I2C cable-run validation is about to create exactly the
+scenario that fills a card.
+
+The spool pole puts the LIS3DH ~1 m from the Pi over Cat-5/6, and
+`i2c-cable-run-validation` in **kite-choir-brains** is the soak that decides
+whether that run is sound. `tools/i2c_soak.py` tests the cable standalone with
+the stack stopped — but the natural follow-up is to run the **real stack** on
+that cable for a working day and read this log. If the run is marginal, every
+poll cycle produces `Error reading <name>`. At the true poll rate that
+`7-poll-timing` restored (`poll_rate 10` now means 10 Hz, not 7.1), a marginal
+bus writes a log line ~10× a second for 8 hours, unattended, on an SD card.
+
+Worse, the fault this is meant to catch is **intermittent**, so the run has to
+be long to be worth anything — which is precisely the run that must not die of
+a full card partway through, taking the evidence with it.
+
+So: **a size cap or rotation ships in the same change as the redirect**, not as
+a follow-up. Two further asks that fall out of the same use case:
+
+- **Prefer capping over truncation on rotation.** The valuable part of a
+  soak log is the *distribution of errors over time* — clusters are the
+  diagnosis. A scheme that keeps only the newest bytes throws away the onset,
+  which is the half that says what triggered it.
+- **Timestamp the lines.** Unbuffered output alone gives ordering, not
+  incidence. "24 errors in one minute at hour six" and "24 errors spread over
+  eight hours" are different verdicts on the cable and are indistinguishable
+  without timestamps.
+
+Context: [`i2c-cable-run-validation`](https://github.com/zealtv/kite-choir-brains)
+in the brains repo, and `tools/i2c_soak.py` here.
+
 ## Verify
 
 Boot the stack on a real node and read the log. The failure case is the
