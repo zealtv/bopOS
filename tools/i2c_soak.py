@@ -20,6 +20,20 @@ mid-scan). An unguarded soak script hangs there silently and the run is lost, so
 every transaction runs under a SIGALRM watchdog and a stall is recorded as its
 own event class.
 
+And a fourth, which is the one this test exists to catch (measured on Finn Jet,
+2026-08-14). The Cat-5 run carries 3V3 as well as the signals, so a marginal
+cable does not merely corrupt a transaction -- it can BROWN OUT THE SENSOR. The
+LIS3DH then comes back at its power-down reset default (CTRL_REG1 = 0x07), where
+it answers the bus perfectly, returns a correct WHO_AM_I, and emits frozen zeros
+forever. Every counter above stays clean. So the soak re-reads CTRL_REG1
+periodically and after every error burst, and treats a config reset as a
+first-class failure: the chip having gone back to its reset state is positive
+proof the cable dropped power, which no error counter can show.
+
+The corollary, and it inverts the naive reading of any soak log: A BURST OF
+ERRORS THAT STOPS IS NOT A CABLE THAT RECOVERED. It is equally consistent with a
+sensor that came back dead. Only the config read-back tells the two apart.
+
 Usage:
   # quick 15-minute confidence check
   i2c_soak.py run --label bench-quiet --out soak.jsonl
@@ -60,8 +74,18 @@ REG_CTRL4 = 0x23
 REG_OUT_X_L = 0x28
 AUTO_INCREMENT = 0x80
 
+REG_STATUS = 0x27
+
 CTRL1_100HZ_XYZ = 0x57      # ODR 100 Hz, normal mode, all three axes enabled
 CTRL4_HIGH_RES = 0x08       # high-resolution, +/-2 g
+CTRL1_POWER_DOWN = 0x07     # the reset default -- what a browned-out chip reads back as
+STATUS_ZYXDA = 0x08         # a new x/y/z sample is ready
+
+# Successful reads in one bucket with a byte-identical payload throughout before
+# we call the sensor frozen. In high-resolution mode the low bits dither with
+# thermal noise even on a dead-still bench, so an unchanging payload means the
+# chip is not converting -- not that the spool sat still.
+FROZEN_BUCKET_READS = 100
 
 # Consecutive failures before we call the bus wedged rather than glitchy.
 WEDGE_THRESHOLD = 50
@@ -142,6 +166,43 @@ def configure(bus, addr, timeout):
     with Watchdog(timeout):
         bus.write_byte_data(addr, REG_CTRL1, CTRL1_100HZ_XYZ)
         bus.write_byte_data(addr, REG_CTRL4, CTRL4_HIGH_RES)
+
+
+def verify_config(bus, addr, timeout):
+    """Read back the config we wrote, to catch a chip that power-cycled mid-soak.
+
+    This is the counterpart to the WHO_AM_I canary. WHO_AM_I proves the bus moved
+    the right bits; CTRL_REG1 proves the DEVICE is still the one we set up. They
+    fail independently: a browned-out LIS3DH returns a perfect WHO_AM_I from its
+    reset state while reporting nothing.
+
+    Returns (ctrl1, ctrl4, status). Raises on any transport failure.
+    """
+    with Watchdog(timeout):
+        ctrl1 = bus.read_byte_data(addr, REG_CTRL1)
+        ctrl4 = bus.read_byte_data(addr, REG_CTRL4)
+        status = bus.read_byte_data(addr, REG_STATUS)
+    return ctrl1, ctrl4, status
+
+
+def config_is_lost(ctrl1, ctrl4):
+    """Has the device fallen back to its reset defaults?
+
+    Compares against what configure() wrote. CTRL_REG1 == 0x07 is the specific
+    signature of a power-down reset and worth naming, but any mismatch means the
+    device is no longer configured the way the soak assumes.
+    """
+    return ctrl1 != CTRL1_100HZ_XYZ or ctrl4 != CTRL4_HIGH_RES
+
+
+def bucket_is_frozen(ok_reads, moved):
+    """Did this bucket produce plenty of good reads and no change at all?
+
+    Kept separate from the loop so the rule can be argued with and tested. The
+    read count matters: a handful of identical payloads is a still sensor, a
+    hundred is a dead one.
+    """
+    return ok_reads >= FROZEN_BUCKET_READS and not moved
 
 
 def probe(bus, addr, timeout):
@@ -249,31 +310,95 @@ def run(args):
     bucket_start = started
     bucket_txns = 0
     bucket_errors = 0
+    bucket_ok = 0
+    bucket_moved = False
 
-    # Stuck-data detection: transactions can all succeed while the sensor sits
-    # frozen. If the payload never changes across the whole soak, the bus is
-    # fine but the reading is worthless -- a different failure, equally fatal.
-    first_payload = None
+    # Stuck-data detection. Transactions can all succeed while the sensor sits
+    # frozen, so liveness is judged PER BUCKET rather than over the run: a
+    # run-lifetime "did it ever move" flag latches true in the first minute and
+    # then cannot report the sensor dying at hour six, which is precisely the
+    # failure a cable soak is looking for.
+    prev_payload = None
     payload_changed = False
+    frozen_buckets = 0
+
+    # Config-reset detection -- see verify_config().
+    resets = 0
+    last_config_check = 0
 
     interrupted = False
 
     def finish_bucket(now):
         nonlocal bucket_index, bucket_start, bucket_txns, bucket_errors, worst_bucket
+        nonlocal bucket_ok, bucket_moved, frozen_buckets
+        frozen = bucket_is_frozen(bucket_ok, bucket_moved)
         entry = {
             "event": "bucket",
             "index": bucket_index,
             "t": round(bucket_start - started, 3),
             "txns": bucket_txns,
+            "ok": bucket_ok,
             "errors": bucket_errors,
+            "moved": bucket_moved,
+            "frozen": frozen,
         }
         report.emit(entry)
+        if frozen:
+            frozen_buckets += 1
+            report.emit(
+                {"event": "frozen", "t": round(bucket_start - started, 3),
+                 "index": bucket_index, "reads": bucket_ok},
+                "{:9.2f}s  *** SENSOR FROZEN *** {} good reads in bucket #{}, payload never "
+                "changed -- the bus is fine and the data is worthless".format(
+                    bucket_start - started, bucket_ok, bucket_index))
         if bucket_errors > worst_bucket["errors"]:
             worst_bucket = {"index": bucket_index, "errors": bucket_errors}
         bucket_index += 1
         bucket_start = now
         bucket_txns = 0
         bucket_errors = 0
+        bucket_ok = 0
+        bucket_moved = False
+
+    def check_config(elapsed, why):
+        """Read the config back; on a reset, say so loudly and re-arm the device.
+
+        Re-arming is deliberate. Leaving the chip powered down would turn one
+        brownout into an eight-hour run of frozen data and tell us nothing more,
+        whereas re-configuring lets the soak keep counting -- and the reset count
+        is itself the headline result.
+        """
+        nonlocal resets
+        try:
+            ctrl1, ctrl4, status = verify_config(bus, args.address, args.timeout)
+        except (OSError, Stalled) as exc:
+            kind, err = classify(exc)
+            report.emit(
+                {"event": "config_check_failed", "t": round(elapsed, 3),
+                 "kind": kind, "errno": err, "why": why},
+                "{:9.2f}s  config read-back failed ({})".format(elapsed, kind))
+            return
+        if not config_is_lost(ctrl1, ctrl4):
+            return
+        resets += 1
+        powered_down = ctrl1 == CTRL1_POWER_DOWN
+        report.emit(
+            {"event": "config_reset", "t": round(elapsed, 3), "why": why,
+             "ctrl1": ctrl1, "ctrl4": ctrl4, "status": status,
+             "power_down_default": powered_down, "count": resets},
+            "{:9.2f}s  *** DEVICE RESET *** CTRL1=0x{:02x} CTRL4=0x{:02x} STATUS=0x{:02x}{} -- "
+            "the sensor lost power, so the CABLE dropped 3V3. It would answer the bus "
+            "perfectly and report frozen zeros from here on.".format(
+                elapsed, ctrl1, ctrl4, status,
+                " (power-down reset default)" if powered_down else ""))
+        try:
+            configure(bus, args.address, args.timeout)
+            report.emit({"event": "reconfigured", "t": round(elapsed, 3)},
+                        "{:9.2f}s  device re-armed; soak continues".format(elapsed))
+        except (OSError, Stalled) as exc:
+            kind, _ = classify(exc)
+            report.emit({"event": "reconfigure_failed", "t": round(elapsed, 3), "kind": kind},
+                        "{:9.2f}s  re-arm FAILED ({})".format(elapsed, kind))
 
     try:
         while True:
@@ -314,12 +439,16 @@ def run(args):
                 time.sleep(args.interval)
                 continue
 
-            # Transport succeeded. Now: were the bytes right?
+            # Transport succeeded. Now: were the bytes right, and is it still
+            # the device we configured?
+            burst_ended = consecutive
             consecutive = 0
+            bucket_ok += 1
             if in_wedge:
                 in_wedge = False
-                report.emit({"event": "recovered", "t": round(elapsed, 3)},
-                            "{:9.2f}s  bus recovered on its own".format(elapsed))
+                report.emit({"event": "unwedged", "t": round(elapsed, 3)},
+                            "{:9.2f}s  bus answering again after a wedge -- NOT yet proof of "
+                            "recovery, checking the device config".format(elapsed))
 
             if who != WHO_AM_I_VALUE:
                 corruptions += 1
@@ -335,10 +464,18 @@ def run(args):
                 clean_run += 1
                 longest_clean = max(longest_clean, clean_run)
 
-            if first_payload is None:
-                first_payload = payload
-            elif payload != first_payload:
+            if prev_payload is not None and payload != prev_payload:
                 payload_changed = True
+                bucket_moved = True
+            prev_payload = payload
+
+            # The end of an error burst is the single most important moment to
+            # check: "the errors stopped" is exactly the observation that looks
+            # like recovery and is indistinguishable from a sensor that came back
+            # in its reset state.
+            if burst_ended or (txns - last_config_check) >= args.config_check:
+                last_config_check = txns
+                check_config(elapsed, "burst-end" if burst_ended else "periodic")
 
             time.sleep(args.interval)
 
@@ -353,7 +490,7 @@ def run(args):
     errors_total = failures + corruptions
     rate = (errors_total / txns) if txns else 0.0
     verdict, reasoning = judge(txns, errors_total, corruptions, stalls, wedges,
-                              rate, payload_changed, worst_bucket)
+                              rate, payload_changed, worst_bucket, resets, frozen_buckets)
 
     summary = {
         "event": "summary",
@@ -371,6 +508,8 @@ def run(args):
         "longest_clean_run": longest_clean,
         "worst_bucket": worst_bucket,
         "payload_changed": payload_changed,
+        "resets": resets,
+        "frozen_buckets": frozen_buckets,
         "clock_hz": clock,
         "verdict": verdict,
         "reasoning": reasoning,
@@ -380,7 +519,8 @@ def run(args):
     return 0 if verdict == "PASS" else 1
 
 
-def judge(txns, errors, corruptions, stalls, wedges, rate, payload_changed, worst_bucket):
+def judge(txns, errors, corruptions, stalls, wedges, rate, payload_changed, worst_bucket,
+          resets=0, frozen_buckets=0):
     """Turn the counters into a verdict.
 
     The thresholds are judgement calls, written down here so they can be argued
@@ -397,6 +537,16 @@ def judge(txns, errors, corruptions, stalls, wedges, rate, payload_changed, wors
     """
     if txns == 0:
         return "INVALID", "no transactions completed"
+    if resets:
+        return "FAIL", ("the device reset {} time(s) mid-soak -- it came back at its "
+                        "power-down defaults, which means the cable dropped 3V3 to the "
+                        "sensor. In the field that is a spool reporting frozen zeros with "
+                        "nothing in any log to show it".format(resets))
+    if frozen_buckets:
+        return "FAIL", ("{} bucket(s) of good reads with a byte-identical payload throughout "
+                        "-- the bus worked and the data was dead. Confirm the sensor was free "
+                        "to move; if it was, this is the silent failure the soak exists to "
+                        "catch".format(frozen_buckets))
     if wedges or stalls:
         return "FAIL", ("bus wedged/stalled -- a hung bus needs a power cycle on site, "
                         "which is unacceptable across 54 units")
@@ -433,6 +583,8 @@ def format_summary(s):
         "  error rate       {:.3e}".format(s["error_rate"]),
         "  longest clean    {} transactions".format(s["longest_clean_run"]),
         "  payload moved    {}".format("yes" if s["payload_changed"] else "NO -- see verdict"),
+        "  device resets    {}".format(s.get("resets", 0)),
+        "  frozen buckets   {}".format(s.get("frozen_buckets", 0)),
     ]
     if s["by_kind"]:
         lines.append("  by kind          " + ", ".join(
@@ -482,6 +634,9 @@ def main():
                    help="seconds per reporting bucket, for clustering (default 60)")
     r.add_argument("--timeout", type=float, default=2.0,
                    help="watchdog seconds before a transaction counts as a stall (default 2)")
+    r.add_argument("--config-check", type=int, default=250, dest="config_check",
+                   help="read CTRL_REG1/4 back every N transactions to catch a device that "
+                        "power-cycled (default 250; also always checked after an error burst)")
     r.add_argument("--out", default=None, help="append JSONL report events to this file")
     r.add_argument("--stop-on-wedge", action="store_true",
                    help="stop at the first wedge instead of logging through it")
