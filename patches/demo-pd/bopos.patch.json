@@ -7,7 +7,7 @@
       "kind": "float",
       "min": 0,
       "max": 1,
-      "default": 0.75,
+      "default": 0,
       "dashboard": true
     },
     {
@@ -15,7 +15,7 @@
       "kind": "float",
       "min": 0,
       "max": 1,
-      "default": 0.8,
+      "default": 0,
       "dashboard": true
     }
   ],
@@ -23,8 +23,8 @@
     {
       "name": "snap",
       "arity": 0,
-      "label": "Snap",
-      "description": "Trigger a short noise snap"
+      "defaults": [],
+      "dashboard": false
     }
   ],
   "caps": [],
