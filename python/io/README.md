@@ -163,6 +163,24 @@ PERIPHERAL_TYPES = {
 4. Create from PD: `[create dev1 yourdevice 0x48(` to `[s to-bopos-io]`
 
 
+## Diagnostics
+
+Everything this bridge prints -- the startup banner, `✓ Created <name>
+(<type> @ <addr>)`, a peripheral's own ready line, and `Error reading <name>`
+per failed poll -- goes to `run/io.log` on the node, timestamped, beside the
+pid files. `bash/start.sh` runs the bridge with `-u` through
+`python/logpipe.py`, so a line lands in the file as it is printed rather than
+whenever a buffer happens to flush. The previous run is kept as
+`run/io.log.prev`.
+
+The file is capped (64 MiB by default, `IO_LOG_MAX_BYTES` in `bopos.config`)
+and the cap keeps the *head* of a run: on a marginal I2C bus every poll cycle
+produces an error line, and in an unattended soak the onset and clustering of
+those errors are the diagnosis, not the last few minutes.
+
+This is not the `/log` node log (`python/nodelog.py`, `~/bopos-logs/`), which
+is a structured append-only facility with its own destination config.
+
 ## Peripheral lifecycle (design decision)
 
 Peripherals are **created and managed over OSC by the active patch** (`/io/create …`),

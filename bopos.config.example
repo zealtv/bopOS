@@ -17,3 +17,11 @@ AUDIO_CHANNELS=2
 # Node log destination (Device tab): internal (SD card ~/bopos-logs/) or usb
 # (auto-mounted stick). usb falls back to internal when no stick is present.
 LOG_DESTINATION=internal
+
+# Byte cap for the service stdout logs in run/ (bopos.log, io.log). These are
+# the raw diagnostics of bopos.py and the io bridge, not the /log node log
+# above. The sink keeps the head of a run and stops growing at the cap, so a
+# peripheral erroring every poll cycle cannot fill the card during an
+# unattended soak. Default 67108864 (64 MiB), which holds a working day of
+# continuous 10 Hz errors.
+#IO_LOG_MAX_BYTES=67108864
