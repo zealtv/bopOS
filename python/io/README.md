@@ -173,10 +173,11 @@ pid files. `bash/start.sh` runs the bridge with `-u` through
 whenever a buffer happens to flush. The previous run is kept as
 `run/io.log.prev`.
 
-The file is capped (64 MiB by default, `IO_LOG_MAX_BYTES` in `bopos.config`)
+The file is capped (128 MiB by default, `IO_LOG_MAX_BYTES` in `bopos.config`)
 and the cap keeps the *head* of a run: on a marginal I2C bus every poll cycle
-produces an error line, and in an unattended soak the onset and clustering of
-those errors are the diagnosis, not the last few minutes.
+produces error lines, and in an unattended soak the onset and clustering of
+those errors are the diagnosis, not the last few minutes. Measured rates: a
+healthy bus writes nothing, a peripheral off the bus writes 5.7 MiB/hour.
 
 This is not the `/log` node log (`python/nodelog.py`, `~/bopos-logs/`), which
 is a structured append-only facility with its own destination config.

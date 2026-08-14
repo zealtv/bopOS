@@ -36,10 +36,14 @@ import signal
 import sys
 from datetime import datetime
 
-# ~64 MiB. At the bridge's 10 Hz poll rate a continuously failing peripheral
-# writes on the order of 2 MB/hour, so this holds a full working-day soak
-# without capping, while staying a rounding error on an SD card.
-DEFAULT_MAX_BYTES = 64 * 1024 * 1024
+# ~128 MiB. Measured on Finn Jet 2026-08-14 with a LIS3DH physically pulled off
+# the bus: a continuously failing peripheral writes 1670 B/s -- 5.7 MiB/hour,
+# 20 lines/s, because a failed poll logs twice (the peripheral's own error and
+# the manager's). So this holds ~22 hours of unbroken errors, where an 8-hour
+# working-day soak needs ~46 MiB. A healthy bus at the same poll rate writes
+# nothing at all (measured: zero bytes in 30s), so the cap only ever engages in
+# the fault case. Either way it stays a rounding error on an SD card.
+DEFAULT_MAX_BYTES = 128 * 1024 * 1024
 
 
 def stamp():

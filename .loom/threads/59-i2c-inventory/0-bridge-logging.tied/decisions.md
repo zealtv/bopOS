@@ -20,12 +20,15 @@ throws away the useful half. At the cap the sink writes one notice, then counts
 what it drops and reports the count and the time of the last dropped line when
 the run ends — so the file never silently stops meaning anything.
 
-**64 MiB default, `IO_LOG_MAX_BYTES` in `bopos.config`.** Derived, not picked:
-at the 10 Hz poll rate `7-poll-timing` restored, a continuously failing
-peripheral writes on the order of 2 MB/hour, so an 8-hour soak of *unbroken*
-errors is ~17 MB. 64 MiB holds that whole day without ever capping, while
-staying a rounding error against an SD card. The cap is the guard for a run
-longer or noisier than that, not the expected operating point.
+**128 MiB default, `IO_LOG_MAX_BYTES` in `bopos.config`.** First derived as
+64 MiB from an assumed ~2 MB/hour, then **corrected by measurement on Finn Jet**
+(2026-08-14, LIS3DH pulled off the bus): the real rate is **5.7 MiB/hour**,
+because a failed poll logs twice, not once. An 8-hour soak of unbroken errors is
+~46 MiB. 64 MiB would still have held it, but with 1.4× headroom rather than the
+4× the number was chosen for, and nothing about a soak is guaranteed to stop at
+eight hours. 128 MiB is ~22 hours and still a rounding error on a card. A
+*healthy* bus writes literally nothing at the same poll rate (measured: zero
+bytes in 30 s), so the cap never engages in normal operation.
 
 **One generation of history (`.prev`), not N.** A reboot in the middle of an
 investigation should not erase the run being investigated, and two files is
@@ -35,3 +38,11 @@ enough for that. More generations is rotation policy, which is thread 42's.
 It has 76 `print(` sites, all of them going nowhere for the same two reasons.
 Deliberately *not* extended past those two: `start-engine.sh` launches jackd
 and Pd, whose output has different volume and different owners.
+
+**Hardware verification happened here, not in a later stitch.** Bob brought
+Finn Jet up mid-session, so the node check the stitch specifies was done rather
+than deferred: create-at-empty-address is legible in 342 ms, the pid contract
+holds against the real `stop.sh`, rotation works across a real restart, and
+`bopos.py`'s boot-window `Connection refused` warnings — the Ciro Toast
+symptom that motivated the stitch — are now in a file. Detail in
+`verification.md`.

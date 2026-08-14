@@ -22,6 +22,7 @@ LOG_DESTINATION=internal
 # the raw diagnostics of bopos.py and the io bridge, not the /log node log
 # above. The sink keeps the head of a run and stops growing at the cap, so a
 # peripheral erroring every poll cycle cannot fill the card during an
-# unattended soak. Default 67108864 (64 MiB), which holds a working day of
-# continuous 10 Hz errors.
-#IO_LOG_MAX_BYTES=67108864
+# unattended soak. Default 134217728 (128 MiB): a peripheral pulled off the bus
+# writes 5.7 MiB/hour (measured), so that is ~22 hours of unbroken errors, and
+# a healthy bus writes nothing at all.
+#IO_LOG_MAX_BYTES=134217728

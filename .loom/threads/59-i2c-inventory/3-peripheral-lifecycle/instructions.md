@@ -61,3 +61,33 @@ on anything here and should land first. This stitch owns only the OSC side:
 Browser journey against simfleet, plus a real create/destroy of the ADS1115 at
 `0x4b` on Ciro Toast — the failure paths (`no-bus`, wrong address, wrong type)
 are the ones worth exercising, since they are what actually happened.
+
+## Read-error path defect — measured 2026-08-14, handed over from `0-bridge-logging`
+
+With the bridge's output finally reaching a file, verifying that stitch on Finn
+Jet meant pulling a live LIS3DH off the bus. Every failed poll logs **two**
+lines, and the second one is wrong:
+
+```
+12:02:42.122+10:00 Error reading from LIS3DH at address 0x19
+12:02:42.122+10:00 Error reading tilt: a bytes-like object is required, not 'float'
+```
+
+The first is the peripheral reporting the bus failure, which is right. The
+second is `main.py`'s per-poll handler catching a **`TypeError` raised inside
+the failure path itself** — `io_lis3dh` returns something (a float? `-1`?)
+where a caller expects bytes — rather than a clean "this read failed". So the
+operator-facing message names a Python type error instead of the bus, and the
+duplication doubles the fault-case log rate to ~20 lines/s at the 10 Hz poll
+rate (1670 B/s, 5.7 MiB/hour, measured).
+
+Neither is fatal: the bridge keeps polling and recovers cleanly when the chip
+is plugged back in. But this is the exact log an unattended cable soak is read
+from, so a read failure should say *which peripheral, which address, and that
+the bus did not answer*, once per cycle.
+
+Two notes. This presumably has always been broken and could not be seen,
+because the line went to a closed stdout — which is the case for `0` made by
+accident. And the fix likely belongs with whatever this stitch does about
+`no-bus`/wrong-address handling, since it is the same failure path; check the
+other `io_*.py` modules for the same shape rather than fixing LIS3DH alone.
