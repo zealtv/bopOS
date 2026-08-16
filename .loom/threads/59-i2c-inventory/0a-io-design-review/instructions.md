@@ -136,3 +136,51 @@ UX:
 Everything else in the thread (`1-scan-transport`, `2-device-tab-inventory`,
 `3-peripheral-lifecycle`, `4-sensor-test-window`, `5-simulated-input`) is
 downstream of this and carries a `needs/` edge, directly or through `1`.
+
+## Widened 2026-08-16 by Bob: peripherals under **split elements**
+
+Bob raised a horizon capability — a device set to **split** runs one engine
+instance per element, each taking its own Seat and targeted like any other
+Seat (`62-split-elements`). He ruled the same session that the i2c half of
+that idea belongs **here**, in this design pass, rather than in a stitch of
+its own: this gate is already deciding peripheral ownership and transport, and
+two gates answering the same ownership question in different sessions is how
+this layer got muddy the first time.
+
+So question **2. Ownership** grows a third axis. It is no longer "the patch or
+the operator" but "the patch, the operator, **or which instance**". Concretely:
+
+- **The ownership ruling must survive N engine instances on one device.** It
+  need not *implement* split — `62` is unratified and unqueued — but an answer
+  phrased as "the engine owns its peripherals" silently assumes one engine and
+  would have to be reopened. Phrase it so it still means something when there
+  are two.
+- **The measured collision, so it is not rediscovered:** `io/main.py` is one
+  process holding one registry and constructing exactly one OSC client
+  hardcoded to `127.0.0.1:6662` (`:40-41`), and peripherals are created *from
+  the patch* on `loadbang`, re-run on every engine restart. Two instances of
+  the same patch means two creators racing on one registry, one reply route
+  serving two consumers, and contended writes to a shared peripheral. The
+  reply-route problem this gate already has to solve for `bopos.py` is the
+  same problem, one consumer further on.
+- **Bob's own starting proposal, as an input rather than a decision:**
+  *"i2c modules are declared in the manifest, and any element instance can
+  choose to hook into them or control them."* That is a real answer to
+  ownership — declaration moves from runtime patch messages to the manifest,
+  which is host-authored, distributed and fingerprinted. Two consequences to
+  weigh rather than assume:
+  - A manifest is **fleet-wide**; a peripheral is **physical and per device**.
+    The asset-slot pattern is the precedent that already handles exactly this
+    shape — the manifest declares slots, the device supplies content
+    (`python/asset_slots.py`, contract §9). A manifest that declares *roles*
+    and a Device tab that binds role → address/instance would follow it.
+  - "Hook into **or** control" is a read/write distinction. Say what happens
+    when two instances write to one peripheral (an RGB module, an OLED),
+    because last-writer-wins at the poll rate is a real outcome and should be
+    chosen rather than inherited.
+- **`5-simulated-input` is affected too**: whatever distinguishes a simulated
+  peripheral from a real one has to keep working when two instances are
+  reading the same simulated device.
+
+This does **not** gate `0a` on `62`. `0a` is queued first and answers first;
+`62` inherits the ruling. `62`'s own instructions carry the reciprocal note.

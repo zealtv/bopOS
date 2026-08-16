@@ -57,6 +57,33 @@ remain the authority for a particular piece of work.
   `.waiting`, and surface it to Bob. Don't implement past an unratified design.
 - Commit style: plain prose subject line (match `git log`), body explaining why.
 
+## Horizon — the architecture refactor (marker, 2026-08-16)
+
+Read `.notes/horizon-architecture-refactor.md`. Not a plan and not queued: a
+marker Bob set so the direction survives the sessions before it. Two forces,
+which are one refactor because they break on the same seam — the framework's
+assumption that a device has **exactly one engine**, and that the engine is
+**probably Pure Data**:
+
+1. **Split elements** (`62-split-elements`, `.waiting` design gate) — a device
+   runs one engine instance per element, each taking its own Seat and targeted
+   like any other Seat. Moves the routable unit from the device to the engine
+   instance. The i2c half of it was folded into `0a-io-design-review` on Bob's
+   ruling rather than becoming a stitch of its own.
+2. **Engine agnosticism** — *"we are going to want both pd and super collider
+   as working engines"* (Bob, 2026-08-16). The boundary is already designed and
+   tied; what is not neutral is the launcher (`start-engine.sh:140` branches on
+   PD and only the *non*-PD arm honours `BOPOS_ENGINE_PORT`), PD-specific
+   liveness in `bopos.py`, PD defaults in four places, and a Pd-only audition
+   rig. `sclang` has still never launched under the framework — text-verified
+   only, per `.notes/handoff-2026-07-12-engine-boundary-complete.md`. The *why*
+   is `.notes/architecture-review-2026-07-05.md` §11 and has not changed.
+
+**Ordering is Bob's and explicit: the i2c work goes first** (`59-i2c-inventory`,
+gated on `0a-io-design-review`), then `62`, then the refactor — which gets no
+thread until `0a` and `62/1` have ruled, because those two rulings are most of
+its input.
+
 ## Next sweep — holistic ordered program of work (2026-07-23)
 
 > **Update 2026-07-27 (control-panel UI + architecture review):** Bob's
