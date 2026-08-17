@@ -118,7 +118,11 @@ its input.
 > 2026-07-27 (Bob):** toggles and integers already exist (a toggle is
 > `type: "i"`, `min: 0`, `max: 1`) and enums shipped as `options` on an
 > integer param, so **events are the only missing kind and the only wire
-> work.** Further rulings the same session: **every event forward-syncs**
+> work.** *(That sentence describes the pre-`kind` grammar and is stale as a
+> statement about today: `toggle` and `enum` are first-class kinds in
+> `python/manifest.py:20-24`. Reading it as current sent the 2026-08-17
+> eiko Maple diagnosis down a false lead — a valid `enum` manifest suspected
+> of being a hard-break rejection.)* Further rulings the same session: **every event forward-syncs**
 > (the mockup's per-row `sync` button is dropped; global lead time `0` *is*
 > sync-off), the manifest moves to an explicit **`kind`** field as a hard
 > break, event elements are **free-form labeled floats** (arity 1–3;

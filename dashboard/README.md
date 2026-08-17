@@ -126,6 +126,10 @@ From the repo root, `./run.sh` is a shortcut for exactly that (run `./install-da
 once first to build the venv). Extra flags pass straight through, e.g.
 `./run.sh --port 9000`.
 
+`--host 0.0.0.0` is what the server *binds* to; it is not an address to browse
+to. Open the LAN address `./run.sh` prints — the address you browse to is the
+one nodes are told to fetch patches from.
+
 ## Clock sync & cue timing
 
 The dashboard is the clock leader: while it runs it broadcasts `/sync/ping`,
@@ -153,9 +157,13 @@ Sim spread is a single-machine floor; the honest number is the hardware run.
 out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
 `--state-file` installation.json path · `--assets-dir` host asset folders served
 at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
-`--public-url` URL nodes should fetch from. When the dashboard is opened through
-`localhost`, it derives the LAN source address from each real device's route;
-the explicit flag remains useful on multi-interface or proxied installations.
+`--public-url` URL nodes should fetch from. Nodes are told to fetch patches and
+assets from **whichever address you opened the dashboard at**, so open its LAN
+address (`./run.sh` prints it). When the dashboard is opened through `localhost`,
+`127.0.0.1`, or an unspecified address (`0.0.0.0` / `::` — the address `--host`
+binds to, which on a node means the node itself), the server instead derives the
+LAN source address from each real device's route. The explicit flag remains
+useful on multi-interface or proxied installations.
 
 The defaults are the repository's `assets/` and `patches/` directories. The
 global Fleet patch selector lists valid host catalog patches. **Deploy as

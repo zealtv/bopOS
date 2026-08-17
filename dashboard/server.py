@@ -2903,13 +2903,20 @@ class Dashboard:
         scheme = "https" if ws is not None and ws.url.scheme == "wss" else "http"
         host = ws.headers.get("host") if ws is not None else None
         request_hostname = ws.url.hostname if ws is not None else None
-        loopback = request_hostname in (None, "localhost")
+        # Derive a device-reachable address ourselves whenever the operator
+        # reached us at something that does not mean us from the node's side:
+        # loopback, or an unspecified address (0.0.0.0 / ::, which run.sh binds
+        # to and which a node resolves as *itself*). A hostname we cannot parse
+        # is left alone — the venue may legitimately reach the dashboard by a
+        # name the nodes also resolve.
+        derive = request_hostname in (None, "localhost")
         if request_hostname not in (None, "localhost"):
             try:
-                loopback = ipaddress.ip_address(request_hostname).is_loopback
+                address = ipaddress.ip_address(request_hostname)
+                derive = address.is_loopback or address.is_unspecified
             except ValueError:
-                loopback = False
-        if not loopback:
+                derive = False
+        if not derive:
             return f"{scheme}://{host}"
 
         device = self.state.devices.get(device_uid, {})

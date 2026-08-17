@@ -233,6 +233,73 @@ class DistributionUrlRoutingTests(unittest.TestCase):
         self.assertEqual(url, "http://192.168.0.100:8080")
         discover.assert_called_once_with("192.168.0.103")
 
+    @staticmethod
+    def _dashboard():
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.args = SimpleNamespace(public_url=None, port=8080)
+        dashboard.state = SimpleNamespace(devices={
+            "imani": {"ip": "192.168.0.103"},
+        })
+        return dashboard
+
+    @staticmethod
+    def _ws(hostname, host=None):
+        return SimpleNamespace(
+            url=SimpleNamespace(scheme="ws", hostname=hostname),
+            headers={"host": host or f"{hostname}:8080"},
+        )
+
+    def test_unspecified_request_address_derives_device_reachable_url(self):
+        # A dashboard browsed at 0.0.0.0 (or ::) must not hand that address to a
+        # node — the node resolves it as itself and every fetch fails with `err`.
+        # Incident 2026-08-17, eiko Maple.
+        for hostname, host in (("0.0.0.0", "0.0.0.0:8080"), ("::", "[::]:8080")):
+            with self.subTest(hostname=hostname):
+                dashboard = self._dashboard()
+                with mock.patch(
+                        "server.source_for_peer",
+                        return_value="192.168.0.100"):
+                    url = dashboard.public_url(self._ws(hostname, host), "imani")
+                self.assertEqual(url, "http://192.168.0.100:8080")
+
+    def test_loopback_literal_derives_device_reachable_url(self):
+        dashboard = self._dashboard()
+        with mock.patch("server.source_for_peer", return_value="192.168.0.100"):
+            url = dashboard.public_url(self._ws("127.0.0.1"), "imani")
+        self.assertEqual(url, "http://192.168.0.100:8080")
+
+    def test_lan_request_address_is_advertised_verbatim(self):
+        dashboard = self._dashboard()
+        url = dashboard.public_url(self._ws("192.168.0.100"), "imani")
+        self.assertEqual(url, "http://192.168.0.100:8080")
+
+    def test_unresolvable_hostname_is_left_alone(self):
+        # A venue may reach the dashboard by a name the nodes also resolve, so a
+        # non-IP host header is passed through rather than derived.
+        dashboard = self._dashboard()
+        url = dashboard.public_url(self._ws("studio.local"), "imani")
+        self.assertEqual(url, "http://studio.local:8080")
+
+    def test_unspecified_address_without_device_route_names_the_remedy(self):
+        dashboard = self._dashboard()
+        dashboard.state.devices["imani"] = {}
+        with self.assertRaises(ValueError) as caught:
+            dashboard.public_url(self._ws("0.0.0.0", "0.0.0.0:8080"), "imani")
+        self.assertIn("--public-url", str(caught.exception))
+
+
+class RunScriptUrlBannerTests(unittest.TestCase):
+    def test_run_script_never_advertises_the_bind_address(self):
+        script = (REPO / "run.sh").read_text()
+
+        # --port must reach the printed URL; the banner used to hard-code 8080.
+        self.assertIn('--port=*) PORT="${arg#--port=}"', script)
+        self.assertIn('[ "$prev" = "--port" ] && PORT="$arg"', script)
+        # The printed URL is resolved, never the bound wildcard address.
+        self.assertNotIn('echo "==> Dashboard on http://0.0.0.0', script)
+        self.assertIn("lan_addresses()", script)
+        self.assertIn("Do not open http://0.0.0.0:$PORT/", script)
+
 
 class MonitorTransportLogTests(unittest.TestCase):
     def test_system_panel_has_bounded_transport_error_log(self):
