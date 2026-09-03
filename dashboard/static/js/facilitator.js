@@ -16,7 +16,13 @@ const $ = selector => document.querySelector(selector);
 let installation = {devices: {}, seats: {}, groups: {}};
 let muted = false;
 let master = 1.0;
-let interacting = false;
+// Keep pointer gestures separate from component-owned focus/timer guards. A
+// primary click focuses a drawer number field before document pointerup; when
+// these shared one boolean, pointerup cleared that focus guard and immediately
+// rebuilt the field (63/1).
+let componentInteracting = false;
+let pointerInteracting = false;
+const isInteracting = () => componentInteracting || pointerInteracting;
 
 const column = window.ControlColumn.create({
   host: $("#control-column-host"),
@@ -33,8 +39,8 @@ const column = window.ControlColumn.create({
       groupId, Object.values(installation.groups || {})),
   },
   getState: () => installation,
-  isInteracting: () => interacting,
-  setInteracting: editing => { interacting = editing; },
+  isInteracting,
+  setInteracting: editing => { componentInteracting = editing; },
   send: ({scope, id, name, value}) => {
     const payload = {scope, name, value};
     if (id != null) payload.id = Number(id);
@@ -103,14 +109,14 @@ ws.on("event_scheduled", data => column.reportEventScheduled(data));
 document.addEventListener("pointerdown", event => {
   if (event.target.matches(
     'input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]',
-  )) interacting = true;
+  )) pointerInteracting = true;
 });
 document.addEventListener("pointerup", () => {
-  if (!interacting) return;
+  if (!pointerInteracting) return;
   // Click/change follows pointerup. Keep every column frozen through that event
   // so a heartbeat cannot replace the control before its handler fires.
   setTimeout(() => {
-    interacting = false;
+    pointerInteracting = false;
     render();
   }, 0);
 });
@@ -126,7 +132,7 @@ function renderPageFurniture() {
 }
 
 function renderControls() {
-  if (!interacting) $("#master").value = master;
+  if (!isInteracting()) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
   const silence = $("#silence");
   silence.textContent = muted ? "UNMUTE" : "MUTE";

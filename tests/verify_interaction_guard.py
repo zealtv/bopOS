@@ -18,9 +18,11 @@ empty name and saved nothing at all.
 Two independent protections, and this journey pins both, because they cover
 different renders:
 
-  1. the guard holds while focus is inside the drawer, so the common case
+  1. a primary click reaches a numeric field without document pointerup
+     clearing the focus guard and rebuilding the drawer;
+  2. the guard holds while focus is inside the drawer, so the common case
      never re-renders at all; and
-  2. the typed name is written through into the drawer's own state, so a render
+  3. the typed name is written through into the drawer's own state, so a render
      that happens ANYWAY — one provoked from outside the drawer, after focus has
      left — cannot silently empty a field the operator already filled.
 
@@ -205,7 +207,13 @@ def main():
             ], cwd=REPO, stdout=fleet_log, stderr=subprocess.STDOUT)
 
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=True)
+                browser_name = os.environ.get("BOPOS_PLAYWRIGHT_BROWSER",
+                                              "chromium")
+                browser_type = getattr(playwright, browser_name, None)
+                if browser_type is None:
+                    raise RuntimeError("unknown Playwright browser: " +
+                                       browser_name)
+                browser = browser_type.launch(headless=True)
                 page = browser.new_page(viewport={"width": 1440,
                                                   "height": 1200})
                 page.set_default_timeout(15000)
@@ -290,11 +298,43 @@ def main():
                 gen_selector = f"{HOST} .live-param-gen input.live-gen-num"
                 gen_field = page.locator(gen_selector).first
                 gen_field.wait_for()
-                gen_field.focus()
+                # A programmatic focus was the old regression's blind spot:
+                # primary pointerup saw the focus guard's shared boolean,
+                # cleared it as though a range gesture had ended, and rebuilt
+                # this node before a person could type.
+                gen_field.click()
+                check("a primary click focuses the generator number field",
+                      gen_field.evaluate(
+                          "node => document.activeElement === node"))
+                gen_field.fill("0.35")
                 mark(page, gen_selector)
                 page.wait_for_timeout(HEARTBEATS_MS)
                 check("the generator drawer's field is not rebuilt under focus",
                       not was_replaced(page, gen_selector))
+                check("the clicked generator number remains editable",
+                      page.locator(gen_selector).first.input_value() == "0.35",
+                      repr(page.locator(gen_selector).first.input_value()))
+
+                # Remote has its own document-level pointer guard around the
+                # same ControlColumn. Pin the duplicate host seam explicitly.
+                page.goto(base_url + "/facilitator")
+                # Connected Remote deliberately renders an empty status span,
+                # so it is attached and online but not Playwright-visible.
+                page.wait_for_selector("#ws-status.online", state="attached")
+                page.locator(f"{HOST} [data-gen-toggle]").first.click()
+                remote_field = page.locator(gen_selector).first
+                remote_field.wait_for()
+                remote_field.click()
+                check("Remote primary click focuses the generator number field",
+                      remote_field.evaluate(
+                          "node => document.activeElement === node"))
+                remote_field.fill("0.45")
+                mark(page, gen_selector)
+                page.wait_for_timeout(HEARTBEATS_MS)
+                check("Remote keeps the clicked number field through heartbeats",
+                      not was_replaced(page, gen_selector)
+                      and page.locator(gen_selector).first.input_value() ==
+                      "0.45")
 
                 check("no page errors", not errors, repr(errors))
                 browser.close()

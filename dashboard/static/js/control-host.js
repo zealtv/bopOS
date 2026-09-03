@@ -13,7 +13,13 @@
   const CARD_MAX_WIDTH = 560;
   const CARD_GAP = 12;
   const cards = [];
-  let interacting = false;
+  // Pointer gestures and component-owned interactions overlap but do not have
+  // the same lifetime. In particular, focusing a drawer number field happens
+  // between document pointerdown and pointerup. A single shared boolean let
+  // that pointerup clear the new focus guard and redraw the field out from
+  // under the primary click (63/1).
+  let componentInteracting = false;
+  let pointerInteracting = false;
   let venueKnown = false;
   let runtimeId = 0;
   const {strings, readTargets, compareSelectors} = window.ControlCardsModel;
@@ -97,8 +103,8 @@
           groupId, Object.values(installation.groups || {})),
       },
       getState: () => installation,
-      isInteracting: () => interacting,
-      setInteracting: editing => { interacting = editing; },
+      isInteracting: () => componentInteracting || pointerInteracting,
+      setInteracting: editing => { componentInteracting = editing; },
       send: ({scope, id, name, value}) => {
         const payload = {scope, name, value};
         if (id != null) payload.id = Number(id);
@@ -230,12 +236,12 @@
     if (!stage.contains(event.target)) return;
     if (event.target.matches(
       'input[type="range"], button.live-toggle[data-live-param], select.live-enum[data-live-param]',
-    )) interacting = true;
+    )) pointerInteracting = true;
   });
   document.addEventListener("pointerup", () => {
-    if (!interacting) return;
+    if (!pointerInteracting) return;
     setTimeout(() => {
-      interacting = false;
+      pointerInteracting = false;
       cards.forEach(card => card.surface.render());
     }, 0);
   });
