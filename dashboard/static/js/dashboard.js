@@ -1481,21 +1481,39 @@ function renderDeviceDetail() {
   const hostnameCurrent=String(d.hostname||"").toLowerCase()===hostnameTarget;
   const hostnameActionLabel=hostnamePending?"Setting…":hostnameCurrent?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";
   const enabled=deviceEnabledPresentation(d);
+  // Wi-Fi RSSI is useful only with a coarse reading of what the number means.
+  // These thresholds deliberately describe installation reliability rather
+  // than theoretical link viability: -60 dBm or better is good, -61..-75 is
+  // marginal, and below -75 is poor. Wired/absent reports stay neutral.
+  const rssi=rssiPresentation(d.rssi);
+  const rssiMarkup=`<span class="device-rssi" data-rssi-health="${rssi.health}">${esc(rssi.text)}</span>`;
   const binding=d.revoking_assignment
     ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
     : seat
       ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
       : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${d.rssi==null?'wired / unavailable':esc(`${d.rssi} dBm`)}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
+  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${rssiMarkup}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
+    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     ${binding}
     ${patchDiagnostics(d,!!seat)}
-    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
     ${deviceControlSection(d)}
     ${audioSection(d)}
     ${logSection(d)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
+}
+
+function rssiPresentation(raw) {
+  if (raw == null || raw === "") {
+    return {health:"neutral",text:"wired / unavailable"};
+  }
+  const value=Number(raw);
+  if (!Number.isFinite(value)) {
+    return {health:"neutral",text:"wired / unavailable"};
+  }
+  const health=value>=-60?"good":value>=-75?"marginal":"poor";
+  return {health,text:`${raw} dBm · ${health}`};
 }
 
 function updateDeviceEnabledControls(d) {

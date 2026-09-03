@@ -4,8 +4,9 @@
 
 Bob's rulings, each one a check:
 
-  * device-tab order is patch diagnostics -> device ACTIONS -> device CONTROL
-    (the actions move up; the control panel sits below them);
+  * device ACTIONS are the second card, immediately after device STATUS;
+  * RSSI keeps its dBm reading and states good / marginal / poor health, while
+    wired or unavailable remains neutral;
   * the panel is COLLAPSED by default and remembers the operator's choice;
   * an OFFLINE device shows its last known values, DISABLED -- never hidden;
   * one code path: a device write goes through the shared component and reaches
@@ -230,19 +231,64 @@ def main():
                 # (CLAUDE.md testing gotcha 12).
                 select_device(page, UID_A)
 
-                # --- panel order: diagnostics -> actions -> control ---
+                # --- status hierarchy: status -> actions -> the rest ---
                 order = section_order(page)
                 ids = [item.strip().lower() for item in order]
-                try:
-                    diagnostics = ids.index("patch-diagnostics")
-                    actions = ids.index("actions")
-                    control = ids.index("device-control")
-                except ValueError:
-                    diagnostics = actions = control = -1
-                check("device tab orders diagnostics, then actions, "
-                      "then device control",
-                      -1 not in (diagnostics, actions, control)
-                      and diagnostics < actions < control, repr(order))
+                check("Device Actions is the second card below status",
+                      len(ids) >= 2 and ids[1] == "actions", repr(order))
+                action_controls = page.locator(
+                    "#detail > section:nth-of-type(2) "
+                    "[data-action], #detail > section:nth-of-type(2) "
+                    "[data-identify]")
+                check("moved Device Actions retain their bindings",
+                      action_controls.count() == 5
+                      and action_controls.evaluate_all(
+                          "nodes => nodes.every(node => "
+                          "typeof node.onclick === 'function')"))
+
+                # Thresholds are part of the UI meaning, not incidental color.
+                def rssi(value):
+                    return page.evaluate(
+                        """([uid, value]) => {
+                          installation.devices[uid].rssi = value;
+                          renderDeviceDetail();
+                          const mark = document.querySelector('.device-rssi');
+                          return {health: mark?.dataset.rssiHealth,
+                                  text: mark?.textContent};
+                        }""", [UID_A, value])
+
+                check("RSSI -60 dBm is good",
+                      rssi(-60) == {"health": "good",
+                                    "text": "-60 dBm · good"})
+                check("RSSI -61 through -75 dBm is marginal",
+                      rssi(-61)["health"] == "marginal"
+                      and rssi(-75)["health"] == "marginal")
+                check("RSSI below -75 dBm is poor",
+                      rssi(-76) == {"health": "poor",
+                                    "text": "-76 dBm · poor"})
+                check("wired or unavailable RSSI stays neutral",
+                      rssi(None) == {"health": "neutral",
+                                     "text": "wired / unavailable"})
+                theme_colors = {}
+                for theme in ("light", "dark"):
+                    theme_colors[theme] = page.evaluate(
+                        """([uid, theme]) => {
+                          document.documentElement.dataset.theme = theme;
+                          const color = value => {
+                            installation.devices[uid].rssi = value;
+                            renderDeviceDetail();
+                            return getComputedStyle(document.querySelector(
+                              '.device-rssi')).color;
+                          };
+                          return [color(-60), color(-70), color(-76),
+                                  color(null)];
+                        }""", [UID_A, theme])
+                check("RSSI health remains visually distinct in both themes",
+                      all(len(set(colors)) == 4
+                          for colors in theme_colors.values()),
+                      repr(theme_colors))
+                page.evaluate(
+                    "() => { delete document.documentElement.dataset.theme; }")
 
                 # --- collapsed by default, and remembered ---
                 check("device control is collapsed by default",
