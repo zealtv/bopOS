@@ -1,5 +1,6 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-09-22-esp32-s3-node-feasibility](items/2026-09-22-esp32-s3-node-feasibility/) — ESP32-S3 as a restricted bopOS node — feasibility exploration — Whether a cheap microcontroller node running only the trigger layer can be a legal bopOS citizen, what it would cost to build, and what hardware and OSC-surface design would make it flexible enough to be worth deploying.
 - [2026-08-03-remote-verb-promotion-proposal](items/2026-08-03-remote-verb-promotion-proposal/) — Remote verb promotion — design proposal — Proposal to make the venue-level Remote command allowlist editable beside the patch manifest without making framework verbs portable patch content.
 - [2026-07-30-ui-unification-braindump](items/2026-07-30-ui-unification-braindump/) — UI unification and reusable-component braindump — Bob's 2026-07-30 braindump setting a component-first process for unifying the desktop UI around the ratified control-panel language, plus specific layout rulings for the Control, Patches, Assets and Show tabs.
 - [2026-07-27-events-cues-and-global-controls-braindump](items/2026-07-27-events-cues-and-global-controls-braindump/) — Events/cues unification + global-controls home braindump — Bob's second 2026-07-27 braindump, following the control-panel mockup session
