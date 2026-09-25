@@ -489,7 +489,7 @@ receive `BOPOS_VERSION` and `BOPOS_PATCH_FINGERPRINT` in the environment.
 `patch-fingerprint` is the active patch's canonical content fingerprint (§7,
 v1.4 sense), or the literal string `unknown` when it cannot be resolved at
 launch. Both are strings end-to-end — never floats (PD's OSC floats are
-32-bit; see the house rule in `CLAUDE.md`). Patch name is already delivered
+32-bit; see `.glean/findings/pd-float-precision.md`). Patch name is already delivered
 via `bopos-context patch <name>` above; this is additive.
 
 **Seat-group membership (engine group-context amendment, 2026-07-20):** run

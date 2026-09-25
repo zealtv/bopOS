@@ -1,27 +1,22 @@
 # version-0-currentness-design
 
-Design the remaining framework-currentness model and UX for Devices.
+**Status:** waiting on Bob · design gate
+**Goal:** define framework currentness and how Devices shows it.
 
-Verified current baseline (2026-07-26):
+## Decide
 
-- the dashboard publishes and displays its `host_version`;
-- heartbeat `version` and report `git_rev`, `contract_version`, and
-  `update_model` are retained and visible;
-- per-device and fleet **Update bopOS** actions already exist;
-- `/os/rev` retains status/phase, and `updatebopos-unattended` proved
-  noninteractive convergence, success-before-reboot receipts, reappearance,
-  and active-patch preservation on a real persistent node.
+- **What "desired" means** — is the dashboard host's checkout enough? How is
+  branch/release intent represented?
+- **Classification** — current / stale / unknown / diverged. Can equality alone
+  tell stale from diverged, or is ancestry/release metadata needed?
+- **Where it shows** — compact per-device and fleet summaries.
+- **Actions** — target only appropriate persistent nodes; explain ephemeral
+  nodes without implying they can keep an update.
 
-Do not redesign those shipped mechanisms. Define what desired framework state
-means: whether the dashboard host checkout is sufficient, how branch/release
-intent is represented, and whether equality alone can distinguish stale from
-diverged or requires ancestry/release metadata. Specify current, stale,
-unknown, and diverged classifications; where compact per-device and fleet
-summaries live; how actions select only appropriate persistent nodes; and how
-ephemeral nodes are explained without implying they can persist an update.
-Reuse the existing confirmation, receipt, reboot, and reappearance behavior.
-Do not conflate framework revision with patch fingerprint or OSC contract
-version.
+Reuse the shipped confirm / receipt / reboot / reappearance flow (see parent).
+Keep framework revision separate from patch fingerprint and contract version.
 
-Deliver a short proposal and implementation split, lore-keep it, and return to
-waiting for Bob's ratification.
+## Deliver
+
+A short proposal + implementation split, kept in lore. Then back to waiting for
+Bob's ratification.

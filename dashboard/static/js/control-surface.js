@@ -20,7 +20,7 @@
   // Which hierarchy accordions the operator has pruned. localStorage rather
   // than module state because the Control tab is an iframe and the Device-tab
   // panel is the parent document: storage is the only channel the two share
-  // (CLAUDE.md gotcha 15), and it is also what makes pruning survive a reload.
+  // (until `08/3-iframe-retirement`), and it is also what makes pruning survive a reload.
   //
   // Keyed by scope + branch path, not by target id: collapsing `reverb` on one
   // Seat card prunes it on every Seat card, which is the point — the operator

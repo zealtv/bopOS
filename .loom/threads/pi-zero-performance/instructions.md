@@ -1,28 +1,41 @@
 # pi-zero-performance
 
-**Goal:** enough CPU headroom on the Pi Zero 2 W for real patches. Bob is seeing CPU
-overhead, likely PD single-threaded (review §3.1). **Overlaps kite-choir-brains loom
-`bopos-uptodate/pi-zero-optimisation`** — the spool-specific tuning lives there; the
-generic bopOS defaults and the engine survey live here.
+**Goal:** enough CPU headroom on the Pi Zero 2 W for real patches, with
+Zero-safe defaults committed and a verdict on whether a non-Pd engine is
+warranted.
 
-Measure first, then tune:
-- [ ] A repeatable measurement: xrun count + `top`/`vcgencmd measure_temp` under a
-      reference patch; record baseline before changing anything
-- [ ] jackd tuning matrix: `-p` (512→1024), `-n` (2→3), 44.1k vs 22.05k (a commented
-      22.05k line already exists in start.sh); commit Zero-safe defaults
-- [ ] PD cost levers: `-rt` scheduling, strip `bop.ui` GUI abstractions on-target,
-      io poll rate (10 Hz default) vs patch needs
-- [ ] Process split: check helper.py / io bridge nice levels; they should never steal
-      from the audio thread
-- [ ] Engine track — **SuperCollider is under serious consideration on its own merits**
-      (review §11), not just as a CPU fallback: scsynth is OSC-native, headless,
-      multi-core-friendlier, and **more agent-friendly than PD** — and agent-coded
-      composition is a target workflow. bop/PD remains the hand-patched artist layer;
-      Kite Choir-scale work will probably prefer SC. Deliverable: a proof-of-concept SC
-      patch running as a bopOS patch (entrypoint via its own start.sh) on the Zero,
-      with a CPU comparison vs an equivalent PD patch. RNBO noted as future-only
-      (its runner competes with bopOS process management). Also glance at
-      Faust-compiled natives / Csound for completeness.
+**Status:** baseline measured on Finn Jet (2026-08-13). Defaults not yet
+committed (`zero-1`, needs a Zero). Engine verdict is co-design with Bob
+(`zero-2`).
 
-Done when: documented Zero 2 W defaults committed, with the measurement showing the
-headroom gained, and a short written verdict on whether a non-PD engine is warranted.
+Spool-specific tuning lives in kite-choir-brains (`bopos-uptodate/pi-zero-optimisation`);
+generic defaults and the engine question live here.
+
+## What we know (`measurements-2026-08-13-finn-jet.md`)
+
+- **Pd is single-threaded** — one core maxed, three idle. `bonks-pd` hit 99% at
+  44.1 kHz and stuttered.
+- **Sample rate is the lever.** Period size alone made no audible difference.
+
+  | patch | 22.05 kHz | 32 kHz | 44.1 kHz |
+  |---|---|---|---|
+  | `demo-pd` | 29% | 37% | 51% |
+  | `bonks-pd` | 57% | 81% | 99% |
+
+- **Finn Jet settled at 32000 / 1024 / 2.** 22.05 kHz aliased audibly on
+  non-bandlimited oscillators (fixable patch-side). 32 kHz: 0 xruns in 120 s —
+  but with no events firing; a busy show is unverified.
+- **Io bridge costs 0.1%** (no peripherals attached).
+- **Pd `-callback` is worse** (100% CPU, more xruns, sounds worse). Don't retry.
+- The "51% floor on an empty patch" worry is retired — cost scales with rate.
+- Repo default stays **44100** — Bob, 2026-09-25: not 32 kHz yet.
+
+## Remaining
+
+- [ ] Commit Zero-safe defaults (`zero-1`).
+- [ ] Load-test 32 kHz with events firing.
+- [ ] Nice levels / `-rt`: `bopos.py` and the io bridge must never steal from
+      audio.
+- [ ] Io poll rate vs patch needs, on a node with peripherals attached.
+- [ ] Engine verdict (`zero-2`) — now part of the engine-agnosticism horizon
+      (`lore:2026-09-25-horizon-architecture-refactor-2026-08-16`).

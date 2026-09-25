@@ -148,7 +148,7 @@ def surface(page):
     """The Control surface is mounted in this document since
     `3-iframe-retirement`. It is no longer a frame — but it is also no
     longer alone in its document, so every selector must be scoped to the
-    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    Control host (glean: playwright-gotchas) rather than reaching page-wide."""
     return page.locator("#control-column-host")
 
 

@@ -147,7 +147,7 @@ def surface(page):
     """The Control surface is mounted in this document since
     `3-iframe-retirement`. It is no longer a frame — but it is also no
     longer alone in its document, so every selector must be scoped to the
-    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    Control host (glean: playwright-gotchas) rather than reaching page-wide."""
     return page.locator(CONTROL_HOST)
 
 
@@ -587,7 +587,7 @@ def main():
                 stop_process(fleet)
                 fleet = None
                 # The offline sweep marks a device down 30 s after its last
-                # heartbeat (CLAUDE.md gotcha 14).
+                # heartbeat (glean: playwright-gotchas).
                 page.wait_for_function(
                     "uid => installation.devices[uid]?.online === false",
                     arg=UID_A, timeout=45000)

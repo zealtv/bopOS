@@ -1,20 +1,20 @@
 # sync-4-hw-measurement
 
-**.waiting — needs Bob + a real rig.** The parent's tie condition: N Pis on
-WiFi fire an audible click within the jitter budget (<10 ms typical),
-demonstrated with a recorded measurement.
+**Status:** waiting — needs Bob + a real rig
+**Goal:** prove the parent's done-condition: N Pis on installation Wi-Fi fire an
+audible click within < 10 ms typical, recorded.
 
-When a rig is available:
-- [ ] Run `tools/sync_measure.py` (sync-3) in hardware mode on ≥3 Pis on the
-      installation WiFi; record the report in this stitch dir.
-- [ ] If jitter blows the budget: tune (ping rate, smoothing window, outlier
-      policy) before re-architecting — HB achieved musical sync with this
-      mechanism on WiFi.
-- [ ] Fold measured reality back into the contract note / parent instructions.
+## Steps
 
-Agent prep is done when sync-0..3 are tied. Bob confirmed (2026-07-08) a dev
-Pi is ssh-reachable during development — an agent may run a reduced hardware
-pass itself (even 2–3 reachable Pis gives real WiFi numbers; confirm hosts
-in-session). The full ≥3-Pi installation-WiFi measurement with audible/GPIO
-evidence stays Bob-coordinated; don't tie the parent on loopback or
-single-Pi numbers.
+- [ ] Run `tools/sync_measure.py --mode hardware` on ≥ 3 Pis on the installation
+      Wi-Fi; save the report here.
+- [ ] If over budget, tune first (ping rate, smoothing window, outlier policy) —
+      don't re-architect.
+- [ ] Fold the measured numbers back into the contract note / parent.
+
+This is also the unmeasured half of `44/5-pd-adoption`: two-device event
+forward-sync timing was never checked on hardware.
+
+An agent may do a reduced pass (2–3 reachable Pis, hosts confirmed in-session)
+for real Wi-Fi numbers. The full ≥ 3-Pi run with audible/GPIO evidence is
+Bob-coordinated. Don't tie on loopback or single-Pi numbers.

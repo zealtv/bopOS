@@ -1,0 +1,7 @@
+- [Implementation queue status](implementation-queue-status.md) — 2026-07-28: first live event test fixed the editor-fire selector bug and retired per-element event labels (contract v1.16); 44/5 pd-adoption rig check is still Bob's
+- [Testing strategy: durable tests](testing-strategy-durable-tests.md) — Bob 2026-07-23: durable maintainable tests by code surface in tests/; running tied-stitch guards was the wrong pattern; 27 reframed as two-tier split
+- [Patch editor & tabbed-UI rulings](patch-editor-and-ui-tabs-decisions.md) — 2026-07-14: editor launches PD w/ GUI; paper tab-IA then live review; cues join the manifest (v1.4)
+- [bop000 dev Pi access](bop000-dev-pi-access.md) — new-bop @ 192.168.0.102 (key installed) + bop000 @ .101; py-spy in ~/venv; sudo needs Bob; tmux 0 pane 0:0.0
+- [Single-object PD seam idea](bopos-single-object-idea.md) — merge [bopos]+[bopos.out~]; spec it live during the patch-editor pe-0 walkthrough, not on paper
+- [Sequencer brainstorm 2026-07-15](sequencer-brainstorm-2026-07-15.md) — clip-launcher + /field brainstorm folder in .notes; feeds scene-sequencing co-design
+- [Finn & Ciro test rig](finn-ciro-test-rig.md) — 2026-07-24: Finn Jet (fleet-node) + Ciro Toast (standalone) two-device rig for device-scoped-patch work (threads 36/37/38/39)

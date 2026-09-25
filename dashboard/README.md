@@ -100,7 +100,7 @@ client; redo is deferred.
 
 Show documents persist as JSON in `shows/` next to the installation state
 file, one file per show; the schema and playback semantics live in
-`.notes/show-tab-design-2026-07-18.md`. The transport strip carries the
+`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`. The transport strip carries the
 show catalog: switch between saved shows (stops playback first), create,
 rename, or delete them; the active show persists across dashboard restarts
 and is shared by every connected client. Two collapsible OSC consoles sit

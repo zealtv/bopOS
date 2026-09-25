@@ -176,7 +176,7 @@ def surface(page):
     """The Control surface is mounted in this document since
     `3-iframe-retirement`. It is no longer a frame — but it is also no
     longer alone in its document, so every selector must be scoped to the
-    Control host (CLAUDE.md gotcha 17) rather than reaching page-wide."""
+    Control host (glean: playwright-gotchas) rather than reaching page-wide."""
     return page.locator("#control-column-host")
 
 
@@ -312,7 +312,7 @@ def main():
                     }""")
                 # `inner_text` applies CSS `text-transform`, so the heading
                 # comes back in whatever case the stylesheet renders it
-                # (CLAUDE.md Playwright gotcha 1) -- compare case-insensitively.
+                # (glean: playwright-gotchas) -- compare case-insensitively.
                 check("the Control surface shows an Events section",
                       section.locator(":scope > h3").inner_text().strip().lower()
                       == "events")

@@ -87,5 +87,5 @@ below the patch and requires no SC handler.
 - Use the parsed `~bopos.assets` Array for framework-landed media.
 
 The Bob-owned PD follow-ups remain in
-[`../../.notes/pd-edits-for-bob.md`](../../.notes/pd-edits-for-bob.md); agents do
+the loom thread `64-pd-edits-owed`; agents do
 not edit `.pd` files.

@@ -228,7 +228,7 @@ def main():
                 page.click("#tab-button-devices")
                 page.wait_for_selector("#tab-devices:not([hidden])")
                 # Seat rows carry data-uid too, so scope to the roster
-                # (CLAUDE.md testing gotcha 12).
+                # (glean: playwright-gotchas).
                 select_device(page, UID_A)
 
                 # --- status hierarchy: status -> actions -> the rest ---

@@ -1,43 +1,35 @@
 # clock-sync
 
-**Goal:** a forward-synchronised clock across all bopOS devices so cues can be triggered
-sample-tight(ish) over WiFi, engine-agnostically.
+**Goal:** a forward-synchronised clock across the fleet, so events fire
+near-simultaneously over Wi-Fi, engine-agnostically.
 
-Reference design: `.notes/architecture-review-2026-07-05.md` §5 (Happy Brackets
-`Synchronizer` / `HBScheduler`, read from source — the belief installation used this).
+**Status:** mechanism built and tied (`sync-0`..`sync-3`, in
+`.loom/legacy-v1/tied/`). Only the hardware measurement is left
+(`sync-4-hw-measurement`, needs rig).
 
-Mechanism (HB-style, adapted):
-1. Leader (the dashboard backend) broadcasts a ping: `/sync/ping <seq> <leaderTime>`.
-2. Each Pi's **helper.py** replies unicast: `/sync/pong <seq> <leaderTime> <mac> <myTime>`.
-3. Leader computes per-device offset: `oneWay = roundTrip/2`,
-   `offset = (deviceTime + oneWay) - leaderNow`; smooths over many rounds; pushes the
-   correction to the device (or device computes its own — pick one side and document it).
-4. Cue: `/cue <cueId> <sharedTime>`; helper.py converts sharedTime → local monotonic
-   deadline, then at the deadline fires `/cue <cueId>` to the engine on localhost.
+**Done when:** N Pis on installation Wi-Fi fire an audible click within budget
+(**< 10 ms typical**), with a recorded measurement.
 
-Hard constraints (learned from HB + PD):
-- **PD never sees an absolute timestamp** — 32-bit OSC floats mangle epoch millis. Encode
-  64-bit times as strings or two ints on the wire; PD only receives the bare cue at
-  fire-time (or a small relative delay).
-- Use `time.monotonic()` on the Pi, never wall clock (NTP steps would glitch cues).
-- **Slew** corrections while audio runs (HB gen-2: `adjustScheduleTime(amount, duration)`),
-  never step.
-- Randomise ping intervals slightly to avoid lockstep network bursts (HB does 500±100 ms).
+## How it works (reference)
 
-Decisions:
-- **RESOLVED (Bob, 2026-07-05): the dashboard backend is the clock leader.** Tight-sync
-  features may assume the dashboard is running; Pis stay autonomous for everything
-  else. No leaderless MAC-election needed.
-- Still open (implementer's call, record it): where the offset math lives
-  (leader-side vs device-side).
-- Expected accuracy target: HB achieved musically-usable sync on WiFi with this; measure
-  actual jitter on our network before over-engineering (a test harness that flashes a
-  GPIO/click on N Pis and records them together is the honest measurement).
+Happy Brackets-style (`lore:2026-09-25-architecture-review-2026-07-05` §5):
 
-Done when: N Pis on WiFi fire an audible click cue within an agreed jitter budget
-(target: <10 ms typical), demonstrated with a recorded measurement.
+- The **dashboard is the clock leader** (Bob, 2026-07-05). Pings, nodes
+  (`bopos.py`, `python/sync_node.py`) reply, offsets are smoothed.
+- Events carry a shared time: `/e/<id> <sharedTime …>` (contract v1.14; the old
+  `/cue` plane was retired in v1.15). The node converts to a local monotonic
+  deadline and fires the event to the engine then.
 
-(Naming note, 2026-07-13: `helper.py` above is now `python/bopos.py` — renamed
-in the 2026-07-12 engine-boundary migration; the mechanism described is
-implemented and tied, sync-0..3. Only `sync-4-hw-measurement.waiting`
-remains.)
+Rules that still bind:
+
+- **Pd never sees absolute time** (32-bit floats) — 64-bit times travel as
+  strings/int pairs.
+- `time.monotonic()` on nodes, never wall clock.
+- Slew corrections while audio runs; never step.
+- Jitter ping intervals to avoid lockstep bursts.
+
+## Note for the measurement
+
+Finn Jet now runs 32 kHz / 1024-frame buffers (see
+`pi-zero-performance/measurements-2026-08-13-finn-jet.md`) — much more latency
+than the old defaults. Measure at the rate the fleet actually runs.

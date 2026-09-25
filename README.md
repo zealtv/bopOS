@@ -112,8 +112,9 @@ sync, spatial terms, the six-tab dashboard, patch/asset distribution, and
 unattended updates. Installation-scale hardware verification (rig timing
 sweeps, multi-room deployments) continues; claims that depend on it are
 labelled honestly where they appear. Current work state lives in
-[`.loom/`](.loom/), design records in [`.lore/`](.lore/), and agent
-orientation in [CLAUDE.md](CLAUDE.md).
+[`.loom/`](.loom/), design records in [`.lore/`](.lore/), current guidance in
+[`.glean/`](.glean/findings/INDEX.md), and agent orientation in
+[AGENTS.md](AGENTS.md).
 
 ## Repository layout
 
@@ -126,7 +127,7 @@ pd/          bopOS Pure Data adapters and the bop submodule
 python/      node service, persistence, sync, spatial math, I2C bridge
 tools/       simfleet, audition rig, sync and performance harnesses
 assets/      host catalog of asset slots (large media)
-.loom/       live work tracker · .notes/ working notes · .lore/ records
+.loom/ work · .glean/ memory · .lore/ records · .nest/ arrivals
 ```
 
 The [bop](https://github.com/zealtv/bop) Pure Data module library is

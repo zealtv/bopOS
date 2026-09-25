@@ -171,7 +171,7 @@ def main():
 
                 page.click("#tab-button-devices")
                 page.wait_for_selector("#tab-devices:not([hidden])")
-                # Seat rows carry data-uid too (CLAUDE.md testing gotcha 12).
+                # Seat rows carry data-uid too (glean: playwright-gotchas).
                 page.click(f'#device-roster .device-row[data-uid="{UID_A}"]')
                 page.wait_for_selector("#patch-diagnostics")
 

@@ -5,7 +5,7 @@ under `tests/`; each completed stitch also retains its focused commands,
 results, and honest boundaries under `.loom/tied/<stitch>/`.
 
 Use `~/.venvs/bopos/bin/python` for project verifies. Dependency and Chromium
-setup is documented in `CLAUDE.md` and `dashboard/README.md`. Set
+setup is documented in `.glean/findings/verification.md` and `dashboard/README.md`. Set
 `PYTHONPYCACHEPREFIX=/tmp/bopos-pycache` for compile/import checks launched from
 stitch directories so generated `__pycache__` folders do not appear to Loom as
 unresolved child stitches. Focused verifier scripts should also set
@@ -44,9 +44,9 @@ real-LAN, or iPad adoption checks.
 | Dashboard or facilitator UI | Focused Playwright `verify_*.py` using the newest tied browser verify as the template | Run adjacent UI regressions, especially facilitator, spatial, patch-management, and meter surfaces affected by the change | Check iPad/touch interaction when the behavior is facilitator-facing |
 | Clock sync and cue timing | `tests/test_sync_protocol.py` or a narrower living sync test for the changed layer | `tools/sync_measure.py --devices 5 --sync-skew-ms 40` | `tools/sync_measure.py --mode hardware --cues 8`; software spread is only a floor |
 | Spatial terms / point decomposition | `tests/test_pointfield.py` | Real dashboard + simfleet; recompute expected falloff from sniffed point frames | Audible confirmation awaits the documented PD receiver edits and a rig |
-| Pure Data integration | Do not edit `.pd`; update `.notes/pd-edits-for-bob.md` with exact live spellings and expected behavior | Verify the Python/dashboard/simfleet side independently | Bob performs the PD edit and audible rig verification |
-| Bash, boot, audio-board, or peripheral work | Static review plus the narrowest safe local check | Laptop rig where applicable (`bash/start-laptop.sh`) | Follow `docs/HARDWARE.md`; record board, OS, command, result, and limitations |
-| Documentation or contract-only change | Check links, commands, terminology, and consistency with `CLAUDE.md` | If normative, inspect affected implementation and stitch instructions for drift | None unless the documentation asserts hardware behavior |
+| Pure Data integration | Do not edit `.pd`; add the edit to loom `64-pd-edits-owed` with exact live spellings and expected behavior | Verify the Python/dashboard/simfleet side independently | Bob performs the PD edit and audible rig verification |
+| Bash, boot, audio-board, or peripheral work | Static review plus the narrowest safe local check | Laptop rig where applicable | Follow `docs/HARDWARE.md`; record board, OS, command, result, and limitations |
+| Documentation or contract-only change | Check links, commands, terminology, and consistency with `AGENTS.md` and `.glean/findings/` | If normative, inspect affected implementation and stitch instructions for drift | None unless the documentation asserts hardware behavior |
 
 ## Routine commands
 

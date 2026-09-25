@@ -1,127 +1,61 @@
 # 59-i2c-inventory
 
-Show the I2C devices actually connected to a physical device, in the Device
-tab, without SSH.
+**Goal:** detect, instantiate and test an I2C sensor on a device from the
+Device tab — no SSH.
 
-Raised by Bob on 2026-08-05: *"it would be useful if in the device tab you
-could see the connected i2c devices"*.
+**Status:** `0` and `7` tied. Everything else is gated on
+**`0a-io-design-review`** (ready, first in queue, ends in a Bob-ratified
+proposal).
 
-## Starting state — measured, not assumed
+## Origin
 
-Most of this already exists; what is missing is a path from the bus to the
-dashboard.
+- Bob, 2026-08-05: *"it would be useful if in the device tab you could see the
+  connected i2c devices."*
+- Same day, Bob brought up an ADS1115 on Ciro Toast by hand (SSH, `i2cdetect`,
+  hand-written `ads.py` / `watch.py` — see `session-2026-08-05-ciro-toast.md`).
+  That widened the thread from "show addresses" to the whole workflow:
+  **scan → identify → instantiate (and know it worked) → test**.
 
-- **The scanner is written and used.** `python/io/sys_i2c.py` probes
-  `0x03–0x77` with i2cdetect's own strategy (read-probe for `0x30–0x37` and
-  `0x50–0x5F`, quick-write elsewhere) and treats `EBUSY` as present — that is
-  i2cdetect's `UU`, an address a kernel driver already owns, e.g. a bound DAC.
-  It takes a `skip` set so the poll loop's live peripherals are reported
-  without being poked.
-- **The io bridge already exposes it on the wire**: `/io/scan [bus]` →
-  `/io/scan <addr>…` (`python/io/main.py:178-184`), and it passes the live
-  peripherals' addresses as `skip`. But the io bridge is **localhost only** —
-  it listens on 8880 and replies to 6662, which is the *engine*, not
-  `bopos.py` (`docs/PORTS.md`, contract §"Ports"). The dashboard cannot reach
-  it, and nothing forwards it.
-- **`bopos.py` already imports `sys_i2c`** (`python/bopos.py:50-53`) and
-  answers a boolean `has_i2c` in the `/os/report` JSON
-  (`python/bopos.py:1282-1303`), which the Device tab already renders as one
-  `<dl>` row (`dashboard/static/js/dashboard.js:1746`). So today the operator
-  can see *that there is a bus* and nothing about what is on it.
+## What exists
 
-So the work is: pick how the address list travels device → dashboard, then
-render it. The bus scan itself needs no new code.
+- **Bus scan:** `python/io/sys_i2c.py` (i2cdetect's strategy; `EBUSY` = present
+  but kernel-owned, like a DAC). Takes a `skip` set for live peripherals.
+- **Io bridge** exposes `/io/scan`, but is **localhost-only**: listens on 8880,
+  replies only to the engine on 6662 (`PD_PORT` in `python/io/main.py`). The
+  dashboard can't reach it.
+- **`bopos.py`** imports `sys_i2c` but only reports a boolean `has_i2c`, shown
+  on the Device tab.
 
-## The question the first stitch answers
+So the missing piece is a path from the bus (via the bridge) to the dashboard.
 
-`/os/probe <what>` (contract §6) is the obvious vehicle — it exists precisely
-for "demand-driven, one-shot inspection", it is unicast to the requester, and
-an unknown `what` is silently unanswered. But it currently answers only from
-values `bopos.py` **already holds** (patch-authored `/report` values plus a
-four-entry held-fact set, `python/bopos.py:1554-1571`); a bus scan is work
-performed on request, which widens what `/os/probe` means. The alternative — an
-`i2c` array in the `/os/report` JSON — makes the scan happen on every report
-instead of on demand.
+## Binding constraints
 
-Two constraints that must survive whichever is chosen:
+- **An address is not a chip.** Hints OK, claims not.
+- **Anything that touches a live peripheral goes through `io/main.py`**, which
+  owns the registry. Two processes on one chip is a contention bug.
+- **No streaming.** Contract §6 deleted the meter plane and declined leased
+  probes. Bounded windows returning one summary are fine.
 
-- **Addresses are not device types.** `sys_i2c.py` says it in its own
-  docstring: discovery, not assumption. The UI may hint at well-known
-  addresses, but it must not claim a chip it has not talked to.
-- **`bopos.py` does not know the io bridge's peripheral registry**, so a scan
-  it runs itself cannot populate `skip` — it would probe addresses the io
-  bridge's poll loop is actively reading. Whether that is harmful in practice,
-  and what to do about it, is the substance of `1-scan-transport`. It is the
-  reason this is two stitches and not one.
+## Stitches
 
-## Widened 2026-08-05, same day, by a live session
+- ~~`0-bridge-logging`~~ — tied. Bridge output now reaches a logfile.
+- ~~`7-poll-timing`~~ — tied. ADS1115 sample rate / poll period fixed.
+- `0a-io-design-review` — **ready, first in queue.** One design for transport,
+  peripheral ownership, debugging workflow, simulation. Also carries split
+  elements' i2c question (`62`).
+- `1-scan-transport` — device→dashboard path + contract amendment. Needs `0a`.
+- `2-device-tab-inventory` — show the addresses. Needs `1`.
+- `3-peripheral-lifecycle` — create/destroy/re-init from the dashboard, and see
+  failures. Needs `1`. Contains two standalone defects (silent create failure;
+  LIS3DH dead after reconnect).
+- `4-sensor-test-window` — "test this sensor for N seconds" → verdict + exact PD
+  values. Needs `3`.
+- `5-simulated-input` — simulated sensors for patching without hardware. Needs
+  `0a`. Wanted, not urgent.
 
-Bob brought an ADS1115 up on Ciro Toast in a terminal and asked for that
-workflow in the Device tab. The transcript and findings are in
-`session-2026-08-05-ciro-toast.md` beside this file; `ads.py` and `watch.py`
-are the scripts that ran. It changes the shape of this thread from "show the
-addresses" to **"detect and test a sensor on a device"**, in four moves:
+`0a` may merge, split or retire `1`–`5`; expect it to revise this list.
 
-1. **Scan** — what is on the bus (`1-scan-transport`, `2-device-tab-inventory`).
-2. **Identify** — an address is not a chip. The session needed a register read
-   to tell `0x4b` from `0x1a`.
-3. **Instantiate and know it worked** (`3-peripheral-lifecycle`). The session's
-   real failure was a create with **both** arguments wrong — `io create adc
-   ads1015 0x48` against an ads1115 at `0x4b` — whose only symptom was silence,
-   because `/io/error` is sent to the engine and no patch routes it.
-4. **Test it** (`4-sensor-test-window`) — a bounded capture returning a
-   rest/min/max/swing verdict *and* the payload verbatim as PD receives it,
-   because Bob also needs to patch thresholds against real numbers.
+## Supporting files
 
-Two constraints came out of it and bind the children:
-
-- **Moves 3 and 4 must go through `io/main.py`**, which owns the peripheral
-  registry and holds the chip open — two processes driving one ADS1115 is a
-  contention problem nobody should invent. So `1-scan-transport` should build
-  the relay rather than have `bopos.py` scan alone; it is needed either way.
-  The obstacle is measured: `io/main.py:40-41` constructs one OSC client
-  hardcoded to `127.0.0.1:6662`, so a relay needs a reply route, not just a
-  request route.
-- **Nothing here streams.** Contract §6 deleted the meter plane and declined
-  the leased probe deliberately. A bounded window returning one summary needs
-  none of that reopened, and it is also the better instrument — see
-  `4-sensor-test-window`.
-
-## Children
-
-1. `1-scan-transport` — the device→dashboard path for the address list, and
-   the relay everything else rides. Touches the OSC contract, so it ends in a
-   Bob-ratifiable proposal, however small the amendment.
-2. `2-device-tab-inventory` — the Device tab scan surface, plus simfleet
-   parity. Anchored on `1`.
-3. `3-peripheral-lifecycle` — create/destroy a peripheral from the dashboard
-   and surface the result. Anchored on `1`. Contains a defect fix that stands
-   alone: a failed `io create` is currently invisible.
-4. `4-sensor-test-window` — "test this sensor for N seconds", returning a
-   verdict and the PD-shaped values. Anchored on `3`.
-
-Not queued: `57-preset-drift-honesty` and `58-patch-push-workflow` hold the
-queue. But note this stopped being purely a new capability when the session
-found the silent-create-failure defect in `3` — Bob's standing principle
-(*"I want to fix and simplify things before making them more complicated"*)
-arguably pulls that one forward on its own.
-
-## Gated 2026-08-05 by `0a-io-design-review`
-
-Bob called for one design pass over the whole I2C layer — architecture and
-operator workflow together — before more of this thread is built: the
-localhost-only bridge, sensor readout/debugging as a usable workflow, and
-local simulation for patching, decided as one thing rather than four.
-
-`0a-io-design-review` holds the brief and is a Bob-ratified design gate.
-`1-scan-transport` and `5-simulated-input` carry `needs/` edges to it, and
-`2`, `3`, `4` are blocked through `1`. The three-option transport choice in
-`1-scan-transport` is now an *input* to that design, not its own ruling, and
-`5-simulated-input`'s "where does the simulation run?" is absorbed by it
-outright.
-
-**Not gated**, and deliberately so: `0-bridge-logging` (one line in
-`bash/start.sh`; Bob kept it queued because it makes the design work easier by
-making the bridge audible) and `7-poll-timing` (node-side sampling
-arithmetic — the ADS1115 `data_rate` default and the
-sleep-on-top-of-the-read period bug).
+`session-2026-08-05-ciro-toast.md` (transcript), `ads.py`, `watch.py` (the
+scripts that answered the questions).

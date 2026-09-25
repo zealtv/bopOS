@@ -1,8 +1,7 @@
 # 2-network-config-implementation
 
-Implement the Bob-ratified saved-network design from
-`1-network-config-design`.
+**Status:** waiting on `1-network-config-design` being ratified
+**Goal:** build the ratified design.
 
-This remains `.waiting` until that design is ratified. Replace this placeholder
-with the exact implementation checklist, affected surfaces, and verification
-gates from `decisions.md` before claiming it.
+Placeholder. Before claiming, replace with the checklist, affected files and
+verification gates from `1`'s `decisions.md`.

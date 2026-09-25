@@ -1,23 +1,24 @@
 # zero-1-tuning-matrix
 
-**.waiting — needs a real Zero 2 W.** Run zero-0's matrix on hardware, commit
-Zero-safe defaults.
+**Status:** waiting — needs a reachable Zero 2 W (claim in any session that
+confirms one)
+**Goal:** commit Zero-safe JACK defaults, backed by measurement.
 
-- [ ] Baseline with current defaults under the reference patch (record which).
-- [ ] Run the matrix (`-p` 512→1024, `-n` 2→3, 44.1k vs 22.05k); pick defaults
-      with honest headroom, commit to start.sh/bopos.config with the report in
-      this stitch dir.
-- [ ] Confirm nice-level/-rt observations from zero-0 on target; apply what
-      measures well.
+Most of the matrix is already measured on Finn Jet (see parent and
+`../measurements-2026-08-13-finn-jet.md`). Don't re-run what's there.
 
-**Bob confirmed (2026-07-08): a dev Pi is ssh-reachable during development** —
-an agent may drive the kit over ssh once zero-0 is tied. Confirm the host
-in-session (check `~/.ssh/config`; the kite-choir-brains bopos-dev skill
-documents the Pi tmux workflow) — never flash/reimage/apt-upgrade without
-asking.
+## Do
 
-**Resume condition (clarified 2026-07-13): zero-0 is tied**, so this waits
-only on the dev Pi being live. bop000 (Zero 2 W + DigiAMP,
-`ssh -i ~/.ssh/id_ed25519_spectre pi@192.168.0.101`, sudo needs Bob) is the
-target — claim this in any session that confirms it reachable. It stays
-`.waiting` so unattended sessions don't stall on a powered-off Pi.
+- **Bob (2026-09-25): don't make 32 kHz the default yet.** The repo default
+  stays 44100; 32 kHz remains a per-node setting (Finn Jet).
+- [ ] Measure 32 kHz under load (events firing). If tight: period 2048, then
+      22.05 kHz.
+- [ ] Try 512 frames at 22.05 kHz or 32 kHz to claw back latency — untried.
+- [ ] Nice-level / `-rt` checks on target.
+- [ ] Record results here; commit defaults.
+
+## Access
+
+Finn Jet or `bop000` (see memory `bop000-dev-pi-access`). Confirm the host
+in-session. Never flash, reimage or `apt upgrade` without asking; sudo needs
+Bob.

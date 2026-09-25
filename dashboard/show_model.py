@@ -1,7 +1,7 @@
 """Show document model, persistence, and edit operations (show-tab stitch 2).
 
 Schema, storage location, uid scheme, and validation rules are fixed by
-`.notes/show-tab-design-2026-07-18.md` sec 2; this module implements exactly
+`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md` sec 2; this module implements exactly
 that. A show document is one JSON-shaped dict:
 
     {"schema": 1, "name": "opening-set", "items": [...]}

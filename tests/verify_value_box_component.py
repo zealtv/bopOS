@@ -132,7 +132,7 @@ with sync_playwright() as playwright:
     # Chromium mirrors the host element's own values onto that pseudo (it
     # reports the input's width, not a spinner box), and headless does not
     # paint the spinner at all, so a screenshot probe would pass vacuously
-    # (CLAUDE.md gotcha 11). Assert the mechanism that removes the buttons.
+    # (glean: playwright-gotchas). Assert the mechanism that removes the buttons.
     face = "el => getComputedStyle(el).webkitAppearance"
     check("value boxes carry the spinner-free textfield face",
           float_box.evaluate(face) == "textfield", str(float_box.evaluate(face)))

@@ -1,186 +1,70 @@
 # 0a-io-design-review
 
-The I2C/peripheral layer gets one design pass — architecture **and** operator
-workflow together — before any more of this thread is built.
+**Status:** ready · first in queue · **design gate** — ends in a proposal Bob
+ratifies; mark `.waiting` when ready. Don't implement past it.
+**Goal:** one design for the I2C/peripheral layer — architecture and operator
+workflow together — before building the rest of `59`.
 
-**Raised by Bob 2026-08-05**, after setting up an ADS1115 on Ciro Toast by
-hand: *"the io being localhost only came up at the beginning of this major
-sweep of redevelopment — i had questions regarding debugging sensors, getting
-them to readout on the dash (or elsewhere) — this was the same friction i felt
-today during setting up the adc … we need to be able to simulate i2c devices
-locally to aid patching, as well as read / debug i2c devices in some kind of
-usable workflow while keeping the system architecture clean. requires some
-thorough thought and clear thinking."*
+Bob, 2026-08-05: *"we need to be able to simulate i2c devices locally to aid
+patching, as well as read / debug i2c devices in some kind of usable workflow
+while keeping the system architecture clean. requires some thorough thought and
+clear thinking."*
 
-This is a **design gate**: it ends in a written proposal Bob ratifies, and it
-is marked `.waiting` when the proposal is ready to read. Do not implement past
-it.
+## Why one design
 
-## Why this exists rather than four independent stitches
+Root cause: the io bridge is localhost-only and talks only to the engine
+(one hardcoded client to `127.0.0.1:6662`). So nothing it knows reaches anyone
+but Pure Data — `/io/error` goes unrouted, `/io/report` is a `print()`, the scan
+is unreachable. Stitches `1`, `3`, `4`, `5` would each solve a piece of the same
+transport. Decide it once.
 
-The friction is the same friction twice, months apart, and every child of this
-thread pays for it separately. The cause is one architectural fact and one
-missing surface:
+## Decide
 
-- **The io bridge is localhost-only and one-directional in practice.** It
-  listens on `127.0.0.1:8880` and constructs exactly one OSC client,
-  hardcoded to `127.0.0.1:6662` — the *engine*
-  (`python/io/main.py:40-41`). So everything the bridge knows goes to Pure
-  Data and nowhere else, and `bopos.py` — the only process on the LAN — can
-  neither ask it anything nor hear its replies. `docs/PORTS.md` and the
-  contract's §Ports carry the boundary as designed.
-- **Consequently there is no readout anywhere but PD.** `/io/error` is sent
-  where no patch routes it; `/io/report` and the create's `✓` are `print()`
-  calls into an unredirected, block-buffered stdout; a bus scan exists and is
-  unreachable. Each child of this thread is, in part, a workaround for that.
+1. **Transport** — one answer for scan, create/destroy, registry report,
+   errors, test capture and injection. Candidates from `1-scan-transport`:
+   `bopos.py` scans itself; `bopos.py` ↔ bridge relay on 8880; a field in
+   `/os/report`. Known constraints:
+   - `bopos.py` can't see the bridge's registry, so its own scan can't `skip`
+     live peripherals. Whether that disturbs them is a **rig measurement**.
+   - A relay needs a reply route; say what the bridge's reply model becomes.
+   - No streaming (§6).
+2. **Ownership** — who owns a peripheral: patch, operator, or (with split
+   elements) **which engine instance**? Today the patch creates them on
+   `loadbang` and re-creates on restart; dashboard creates would collide.
+   - Phrase the answer so it survives N engine instances per device (`62`).
+     "The engine owns its peripherals" assumes one engine.
+   - Bob's starting idea (input, not decision): *"i2c modules are declared in
+     the manifest, and any element instance can choose to hook into them or
+     control them."* Weigh: manifests are fleet-wide but peripherals are
+     per-device — the asset-slot pattern (manifest declares slots, device
+     supplies content) is the precedent. And say what happens when two instances
+     write to one peripheral.
+3. **Debugging workflow** — walk it end to end: chip arrives → on the bus →
+   instantiated → numbers visible → patched against. Say where each step is
+   surfaced (Device tab, Monitor dock, …). Must cover **readout** (units *and*
+   verbatim as PD receives it) and **identification**. Should read as a
+   replacement for `ads.py` and `watch.py`.
+4. **Local simulation** — first-class "patch with no hardware". `tools/iosim.py`
+   works today. Must stream continuously at poll rate, and rest polarity is per
+   channel. Say where it runs, how a simulated peripheral is distinguishable
+   from a real one, and whether simulator and bridge share a peripheral
+   definition. simfleet has no peripheral model (`has_i2c: False`).
+5. **Out of scope** — state plainly what this layer won't become, especially
+   whether "no streaming" holds under a "watch this sensor" workflow.
 
-`1-scan-transport` currently frames the transport as its own local choice
-between three options. That framing is too narrow now: the same relay
-question is answered by `3-peripheral-lifecycle` (create/destroy + result),
-`4-sensor-test-window` (a bounded capture returning a verdict) and
-`5-simulated-input` (injection, on the device or on a laptop). Four stitches
-each deciding a piece of one transport is how architectures get muddy.
+## Evidence
 
-## What the design must settle
-
-**1. The transport.** One answer, serving scan, create/destroy, registry
-report, error, test-capture and injection. The candidates are already written
-up in `1-scan-transport` (a `bopos.py`-side scan; a `bopos.py` ↔ bridge relay
-on 8880; a field in the `/os/report` JSON) — but decide them as one surface,
-not per-feature. Constraints already measured and binding:
-
-- `bopos.py` cannot see the bridge's peripheral registry, so anything it
-  scans alone cannot populate `skip` and will probe addresses the poll loop
-  owns. Whether that actually disturbs a live peripheral is a **measurement
-  owed on the rig**, not a judgement call.
-- A relay needs a *reply route*. `io/main.py`'s single hardcoded client is
-  the obstacle; changing it is a small change with architectural
-  consequences, so state what the bridge's reply model becomes.
-- Nothing here streams. Contract §6 deleted the meter plane and declined the
-  leased probe deliberately; a bounded window returning one summary needs
-  none of that reopened.
-
-**2. Ownership.** Who owns a peripheral — the patch or the operator? Today the
-patch is the only creator, via `io create` message boxes on `loadbang`, and an
-engine restart re-runs them. If the dashboard can create too, the two
-authorities collide on every restart. `3-peripheral-lifecycle` raises this;
-it belongs here, because the answer shapes what the Device tab may offer.
-
-**3. The debugging workflow, as a workflow.** Bob's is the use case: a chip
-arrives, he wants it on the bus, instantiated, producing numbers he can see,
-and then patched against. Today that is SSH, `i2cdetect`, a hand-written
-`ads.py`, a hand-written `watch.py` and a tail of a logfile that only exists
-if you relaunch the process yourself. Walk the whole path end to end and say
-what the operator does at each step and where it is surfaced — Device tab,
-Monitor dock, or elsewhere. The two things he named specifically are
-**readout** (see the live values, in the peripheral's units *and* verbatim as
-PD receives them) and **identification** (an address is not a chip;
-`sys_i2c.py`'s own docstring is the standing rule).
-
-**4. Local simulation.** A first-class answer to "develop a patch with no
-hardware", not a bolt-on. `tools/iosim.py` already exists and is verified
-audible on Bob's laptop, and `5-simulated-input` records two fidelity findings
-that any design must respect: it must stream continuously at the poll rate
-(not only during a press), and rest polarity is **per channel** — on the real
-rig A1 rests low and rises while A0/A2 rest at rail and fall. Say where
-simulation runs (laptop, device, dashboard-driven relay), how a simulated
-peripheral is distinguished from a real one so nobody debugs a ghost, and
-whether the simulator and the bridge share a definition of a peripheral or
-merely a wire format. Note that simfleet answers a flat `"has_i2c": False`
-today (`tools/simfleet.py:480`) and has no peripheral model at all.
-
-**5. What stays out.** Say plainly what this layer will *not* become. The
-contract has repeatedly declined streaming planes; this is the moment to
-decide whether that holds under a "watch this sensor" workflow, and to say so
-in the amendment rather than letting a leased probe arrive by accident.
-
-## Evidence to work from
-
-- `../session-2026-08-05-ciro-toast.md` — the transcript of the friction, with
-  `../ads.py` and `../watch.py`, the scripts that actually answered the
-  questions. This is the primary source; the workflow proposal should be
-  legible as a replacement for exactly those scripts.
-- `../instructions.md` — the thread's measured starting state.
-- `feature-backlog/60-io-dispatch-silence` — the just-closed silent-dispatch
-  defect, which is the same failure family (the bridge knew and told no one)
-  and a good test of whether a proposed design would have surfaced it.
-- `python/io/README.md` — the current namespace model (`/io/<verb>` for
-  management, `/io/<name> <command>` for peripherals) as it stands after the
-  2026-08-05 rework.
+- `../session-2026-08-05-ciro-toast.md`, `../ads.py`, `../watch.py` — primary.
+- `../instructions.md` — measured starting state.
+- `feature-backlog/60-io-dispatch-silence` — same failure family; test whether
+  the design would have surfaced it.
+- `python/io/README.md` — current namespace (`/io/<verb>`, `/io/<name> <cmd>`).
 
 ## Deliver
 
-- `proposal.md` in this stitch: the transport decision with its alternatives
-  and why they lost, the ownership ruling, the workflow walkthrough, the
-  simulation model, and the explicit out-of-scope list.
-- A note of which contract amendment falls out of it, at whatever version is
-  current — the wire is Bob's to ratify, so the amendment is proposed here
-  and written by the stitch that implements it.
-- A revised sequencing note for this thread's children, since the design may
-  merge, split or retire some of them.
+- `proposal.md`: transport (with rejected alternatives), ownership ruling,
+  workflow walkthrough, simulation model, out-of-scope list.
+- The contract amendment this implies (proposed, not written).
+- Revised sequencing for `1`–`5`.
 
-Then mark `.waiting` and surface it.
-
-## What is NOT gated on this
-
-Deliberately kept claimable, because neither touches transport, protocol or
-UX:
-
-- **`0-bridge-logging`** — redirection and `-u` in `bash/start.sh`. One line,
-  node-side, and it makes the design work easier by making the bridge audible.
-  Worth landing first.
-- **`7-poll-timing`** — the ADS1115 `data_rate` default and the
-  `sleep(1/rate)`-on-top-of-the-read period bug. Node-side sampling
-  arithmetic; a design pass changes nothing about it.
-
-Everything else in the thread (`1-scan-transport`, `2-device-tab-inventory`,
-`3-peripheral-lifecycle`, `4-sensor-test-window`, `5-simulated-input`) is
-downstream of this and carries a `needs/` edge, directly or through `1`.
-
-## Widened 2026-08-16 by Bob: peripherals under **split elements**
-
-Bob raised a horizon capability — a device set to **split** runs one engine
-instance per element, each taking its own Seat and targeted like any other
-Seat (`62-split-elements`). He ruled the same session that the i2c half of
-that idea belongs **here**, in this design pass, rather than in a stitch of
-its own: this gate is already deciding peripheral ownership and transport, and
-two gates answering the same ownership question in different sessions is how
-this layer got muddy the first time.
-
-So question **2. Ownership** grows a third axis. It is no longer "the patch or
-the operator" but "the patch, the operator, **or which instance**". Concretely:
-
-- **The ownership ruling must survive N engine instances on one device.** It
-  need not *implement* split — `62` is unratified and unqueued — but an answer
-  phrased as "the engine owns its peripherals" silently assumes one engine and
-  would have to be reopened. Phrase it so it still means something when there
-  are two.
-- **The measured collision, so it is not rediscovered:** `io/main.py` is one
-  process holding one registry and constructing exactly one OSC client
-  hardcoded to `127.0.0.1:6662` (`:40-41`), and peripherals are created *from
-  the patch* on `loadbang`, re-run on every engine restart. Two instances of
-  the same patch means two creators racing on one registry, one reply route
-  serving two consumers, and contended writes to a shared peripheral. The
-  reply-route problem this gate already has to solve for `bopos.py` is the
-  same problem, one consumer further on.
-- **Bob's own starting proposal, as an input rather than a decision:**
-  *"i2c modules are declared in the manifest, and any element instance can
-  choose to hook into them or control them."* That is a real answer to
-  ownership — declaration moves from runtime patch messages to the manifest,
-  which is host-authored, distributed and fingerprinted. Two consequences to
-  weigh rather than assume:
-  - A manifest is **fleet-wide**; a peripheral is **physical and per device**.
-    The asset-slot pattern is the precedent that already handles exactly this
-    shape — the manifest declares slots, the device supplies content
-    (`python/asset_slots.py`, contract §9). A manifest that declares *roles*
-    and a Device tab that binds role → address/instance would follow it.
-  - "Hook into **or** control" is a read/write distinction. Say what happens
-    when two instances write to one peripheral (an RGB module, an OLED),
-    because last-writer-wins at the poll rate is a real outcome and should be
-    chosen rather than inherited.
-- **`5-simulated-input` is affected too**: whatever distinguishes a simulated
-  peripheral from a real one has to keep working when two instances are
-  reading the same simulated device.
-
-This does **not** gate `0a` on `62`. `0a` is queued first and answers first;
-`62` inherits the ruling. `62`'s own instructions carry the reciprocal note.
+Then mark `.waiting` and surface to Bob.

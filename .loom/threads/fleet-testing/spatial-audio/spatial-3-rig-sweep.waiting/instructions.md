@@ -1,11 +1,12 @@
 # spatial-3-rig-sweep
 
-Real-installation acceptance sweep after spatial software completion.
+**Status:** waiting — needs a real fleet on installation Wi-Fi
+**Goal:** audible acceptance of spatial audio on real hardware.
 
-- Run point drag, radius/falloff, two-axis bounce, and synced named cue against
-  a real fleet on installation WiFi.
-- Complete Bob's pending PD point/master/cue receivers first, or exercise an SC
-  patch that consumes all three provided terms.
-- Record audible behavior, cue spread, dropped-frame recovery, touch/drag UX,
-  and any mismatch between displayed proximity and what is heard.
-- This is hardware/audible evidence: simfleet results do not close it.
+- Run point drag, radius/falloff, two-axis bounce, and a synced event against
+  the fleet.
+- Needs a patch that consumes points, master and events — confirm Bob's Pd
+  receivers are in place, or use an SC patch.
+- Record: what's heard, event spread, dropped-frame recovery, touch/drag UX, and
+  any mismatch between displayed proximity and sound.
+- simfleet results don't count.

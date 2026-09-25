@@ -2,7 +2,7 @@
 
 Asyncio state machine that drives a loaded `show_model` document: per-step
 start/stop/pause/resume, duration timers, play-n-times re-emission, and
-then-action resolution (§4 of `.notes/show-tab-design-2026-07-18.md`). This
+then-action resolution (§4 of `.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`). This
 module is deliberately separable -- it imports only `show_model` and stdlib,
 never `server`; the OSC send path (an `OSCBridge` instance) and a WS
 broadcast callback are handed to the constructor, so the engine never opens
