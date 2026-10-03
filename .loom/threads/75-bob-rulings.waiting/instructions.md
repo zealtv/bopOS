@@ -26,8 +26,8 @@ when the list is empty.
    text over a thin amber rule. Ruling → keep, or make it stronger (a
    "Warning" label, tinted background). Screenshots:
    `.loom/threads/67-repair-pass/6-load-failure-followups.tied/notice-*.png`.
-4. **Git patch route amendment.** `68-remove-git-patch-route/proposal.md`
-   (being written now): contract §7/§15 text at v1.19, the removal list, and
+4. **Git patch route amendment.** `68-remove-git-patch-route.waiting/proposal.md`
+   (ready, `4d61e88`): contract §7/§15 text at v1.19, the removal list, and
    what push does to a device's existing git-cloned patch dir. Ruling →
    approve so phase 2 can land, or amend.
 5. **IO error vocabulary** — already handed to the IO design gate
