@@ -3,6 +3,8 @@
 When writing or debugging a `tests/verify_*.py` browser journey, these are the traps earlier sessions fell into.
 
 - Scope every selector to its host: component classes and `data-uid` repeat across tabs (Seats and Devices rosters both carry `.device-row[data-uid]`); use `#device-roster …`, `#show-root …`, `#control-column-host …`.
+- Remote renders All, every group and every Seat together. Scope row checks to one card's `data-live-scope` and `data-live-id`; repeating a flagged parameter in different cards is expected.
+- A string passed to `page.add_init_script` must execute its setup directly (or invoke an IIFE). A bare `() => localStorage.setItem(...)` only creates a function and never seeds the fixture.
 - Elements in an inactive tab never become visible — wait with `state="attached"` (also for `#ws-status`).
 - Waiting for an element isn't waiting for its handler: heartbeats re-render and rebind. Wait on the binding of the **exact element you're about to click**, host-scoped.
 - Heartbeat re-renders and CSS animation keep nodes "unstable": use one `page.evaluate` `scrollIntoView` and a fresh `bounding_box()`; gather all rects in one `evaluate`.

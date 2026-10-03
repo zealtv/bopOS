@@ -141,10 +141,28 @@ def drag_before(page, handle, target):
     """Pointer-drag one handle just above a row; callers scroll explicitly."""
     handle.evaluate(
         "(element) => element.scrollIntoView({block:'center',inline:'center'})")
-    source_box = handle.bounding_box()
-    target_box = target.bounding_box()
-    if source_box is None or target_box is None:
+    # Heartbeats may replace either row. Read both rectangles together from
+    # connected nodes, retrying only before the gesture starts.
+    boxes = None
+    deadline = time.monotonic() + 5
+    while boxes is None and time.monotonic() < deadline:
+        handle.wait_for(state="visible", timeout=5000)
+        target.wait_for(state="visible", timeout=5000)
+        source_node, target_node = handle.element_handle(), target.element_handle()
+        try:
+            boxes = page.evaluate("""([source, target]) => {
+              if (!source?.isConnected || !target?.isConnected) return null;
+              const a = source.getBoundingClientRect(), b = target.getBoundingClientRect();
+              if (!a.width || !a.height || !b.width || !b.height) return null;
+              return [a.toJSON(), b.toJSON()];
+            }""", [source_node, target_node])
+        finally:
+            for node in (source_node, target_node):
+                if node is not None:
+                    node.dispose()
+    if boxes is None:
         raise RuntimeError("manifest drag endpoint has no bounding box")
+    source_box, target_box = boxes
     start_x = source_box["x"] + source_box["width"] / 2
     start_y = source_box["y"] + source_box["height"] / 2
     end_x = target_box["x"] + target_box["width"] / 2
@@ -220,10 +238,12 @@ def main():
                     lambda error: facilitator_errors.append(str(error)))
                 facilitator.goto(base_url + "/facilitator")
                 facilitator.locator("[data-live-param]").first.wait_for()
-                visible = identities(
-                    facilitator.locator("[data-live-param]"))
-                check("standalone facilitator shows only flagged parameters",
-                      visible == ["gain"], repr(visible))
+                cards = facilitator.locator("#control-column-host .live-card")
+                cards.first.wait_for()
+                visible = [identities(card.locator("[data-live-param]"))
+                           for card in cards.all()]
+                check("every Remote target card shows each flagged parameter once",
+                      visible == [["gain"], ["gain"]], repr(visible))
 
                 page.click("#tab-button-devices")
                 page.wait_for_function(
@@ -248,7 +268,7 @@ def main():
                 remote_editor = page.locator("#remote-command-editor")
                 check("Remote command editor is a visible venue sibling",
                       remote_editor.is_visible()
-                      and remote_editor.locator("text=Venue setting").count() == 1
+                      and remote_editor.locator("p", has_text="Venue setting").count() == 1
                       and page.evaluate(
                           "() => !document.querySelector('#remote-command-editor')"
                           ".closest('#manifest-editor')"))

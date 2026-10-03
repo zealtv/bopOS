@@ -698,7 +698,7 @@ def main():
                       repr(narrow))
                 page.set_viewport_size({"width": 900, "height": 1200})
 
-                page.click('[data-target-toggle="g0"]')
+                # Remote derives all target cards; it has no target picker.
                 page.wait_for_selector('.live-card[data-live-scope="group"]')
                 check("group card renders rows through the component",
                       page.locator(
@@ -706,12 +706,10 @@ def main():
                           '[data-live-param][data-param-path="density"]'
                       ).count() >= 1)
 
-                page.click('[data-target-toggle="g0"]')
-                page.click('[data-target-toggle="2"]')
                 page.wait_for_selector('.live-card[data-live-scope="seat"]')
                 check("seat cards render rows through the component",
                       page.locator(
-                          '.live-card[data-live-scope="seat"] '
+                          '.live-card[data-live-scope="seat"][data-live-id="2"] '
                           '[data-live-param][data-param-path="density"]'
                       ).count() == 1)
 
@@ -896,12 +894,12 @@ def main():
                       repr(takeover["sent"]))
 
                 # --- (f) hierarchy accordions (01-control-panel/5) ---
-                # The seat card is the one on screen at this point; its manifest
+                # Remote has both Seat cards; scope this check to Seat 2. Its manifest
                 # carries the nested `filter/cutoff`, so `filter` is a branch.
                 # Scoped through `.promoted-controls` because the probe hosts
                 # appended above render their own `filter` branch inside the
                 # same card.
-                branch = ('.live-card[data-live-scope="seat"] '
+                branch = ('.live-card[data-live-scope="seat"][data-live-id="2"] '
                           '.promoted-controls '
                           '.live-param-branch[data-param-branch="filter"]')
                 child = branch + ' input[data-param-path="filter/cutoff"]'
@@ -941,9 +939,7 @@ def main():
                 # comes back on the Seat; assert nothing either way and simply
                 # make sure the Seat card is the one on screen.
                 page.wait_for_selector('.live-card')
-                if page.locator('.live-card[data-live-scope="seat"]').count() == 0:
-                    page.click('[data-target-toggle="2"]')
-                page.wait_for_selector('.live-card[data-live-scope="seat"]')
+                page.wait_for_selector('.live-card[data-live-scope="seat"][data-live-id="2"]')
                 check("the collapse survives a reload",
                       page.locator(branch).get_attribute("open") is None
                       and not page.locator(child).is_visible())

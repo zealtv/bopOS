@@ -36,8 +36,9 @@ CI uses Python 3.11, dashboard dependencies plus `pyOSC3`, Node.js for fast
 tests, and Playwright with Chromium and its Linux dependencies for browser
 tests. The living journeys construct temporary patch/asset/state fixtures or
 use static components; none needs the local gitignored patch library or Pd.
-All `tests/verify_*.py` run, including the known red journeys assigned to
-`67-repair-pass/5-browser-tier-red`; this gate does not suppress those failures.
+All `tests/verify_*.py` run. The preset journey's known missing-file timeout is
+deliberately retained until `65-remove-presets` removes that surface and its
+tests; the browser gate continues to report it as a failure.
 
 GitHub Actions was chosen over a laptop scheduler so runs survive a sleeping
 or offline laptop and share their results in the repository. See GitHub's

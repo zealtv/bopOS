@@ -186,7 +186,7 @@ def main():
                 page.on("dialog", lambda dialog: dialog.accept())
 
                 # ---------------- the Control tab ----------------
-                page.add_init_script("""() => localStorage.setItem(
+                page.add_init_script("""localStorage.setItem(
                   'bopos.control.cards', JSON.stringify({
                     version:1, targets:['2','g0','all','1']
                   }))""")

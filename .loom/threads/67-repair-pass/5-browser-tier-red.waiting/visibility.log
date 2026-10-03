@@ -1,0 +1,36 @@
+[PASS] Control tab shows every manifest parameter
+[PASS] Control preserves the nested texture branch
+[PASS] unflagged numeric params retain generator authoring
+[PASS] every Remote target card shows each flagged parameter once
+[PASS] Device control shows every manifest parameter
+[PASS] desktop Device Actions ignore the Remote allowlist
+[PASS] Remote command editor is a visible venue sibling
+[PASS] venue command choices reflect installation state
+[PASS] venue command save does not dirty or rewrite the manifest
+[PASS] venue command save leaves patch content untouched
+[PASS] Remote puts the venue subset on every target card
+[PASS] Remote has no command strip outside its target cards
+[PASS] venue command choices survive dashboard reload
+[PASS] Patch-tab declaration editor uses the explicit kind grammar
+[PASS] Patch-tab declaration editor has no legacy type selector
+[PASS] kind changes replace inferred enum and toggle fields
+[PASS] Patch-tab checkbox is labelled Remote
+[PASS] parameter drag changes only presentation order
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/verify_manifest_param_visibility.py", line 460, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/bob/repos/bopOS/tests/verify_manifest_param_visibility.py", line 381, in main
+    drag_before(
+    ~~~~~~~~~~~^
+        page,
+        ^^^^^
+        event_rows.nth(1).locator(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+            '[data-manifest-drag="events"]'),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        event_rows.nth(0))
+        ^^^^^^^^^^^^^^^^^^
+  File "/Users/bob/repos/bopOS/tests/verify_manifest_param_visibility.py", line 147, in drag_before
+    raise RuntimeError("manifest drag endpoint has no bounding box")
+RuntimeError: manifest drag endpoint has no bounding box

@@ -1,0 +1,16 @@
+[PASS] Control lays four cards into equal grid tracks
+[PASS] Control cards flex within the requested bounds
+[PASS] wide Control cards grow beyond their minimum
+[PASS] a sparse final Control row stays left packed
+[PASS] Control cards and host expose no nested scrollport
+[PASS] the long cards grow the document below the viewport
+[PASS] Control scrolls the page
+[PASS] the final Control row is reachable in the viewport
+[PASS] Remote derives four equal-width cards
+[PASS] Remote's final-row card keeps the shared track width
+[PASS] Remote also has no nested vertical scrollport
+[PASS] Remote grows the document below the viewport
+[PASS] Remote reaches its final row through page scroll
+[PASS] no page errors
+
+all control-column scroll checks passed

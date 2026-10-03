@@ -1,0 +1,53 @@
+[PASS] component is loaded on the facilitator page
+[PASS] all card renders rows through the component
+[PASS] nested path renders a param branch
+[PASS] string and toggle declarations render their own kinds
+[PASS] a focused text draft survives a heartbeat re-render
+[PASS] Enter commits the text value through the real simfleet
+[PASS] blur commits a changed text value through simfleet
+[PASS] the facilitator keeps value, slider, and ∿ atomic below its narrow breakpoint
+[PASS] group card renders rows through the component
+[PASS] seat cards render rows through the component
+[PASS] device-scoped value and automation presentation is markup-identical to seat scope
+[PASS] device-scoped row calls the host send with scope+uid
+[PASS] the row is [value box][name-in-slider][∿]
+[PASS] the parameter name lives inside the slider
+[PASS] the fill position follows the value
+[PASS] dragging the slider moves the fill with it
+[PASS] floats left-align in the value box, integers right
+[PASS] the native range is a transparent overlay
+[PASS] a generator-driven row hands the fill to its marker
+[PASS] a manual row keeps its own fill and marker line
+[PASS] a 0/1 int is a square latching box, not a checkbox
+[PASS] the toggle and enum label their box from beside it
+[PASS] the string row is one row tall, like every other kind
+[PASS] a mixed text aggregate keeps its word and shared hatch
+[PASS] text rows offer no generator
+[PASS] a toggle carries the ∿ icon like any numeric row
+[PASS] an enum renders its manifest option labels
+[PASS] choosing an enum option sends its integer index
+[PASS] an event declaration renders exactly arity boxes
+[PASS] the event row is live with a single fire button
+[PASS] the event row reads fire · elements · name
+[PASS] a periodic generator shows dots, not a stale number
+[PASS] a marker-bearing slider does not pulse — it shows the value exactly
+[PASS] a fade keeps its number: the rAF animator samples it
+[PASS] a generator-driven toggle pulses instead of flashing a value
+[PASS] a generator-driven enum pulses too
+[PASS] a disagreeing aggregate hatches its slider
+[PASS] editing a mixed row renders it solid at the new value
+[PASS] editing a mixed row sends the value to every member
+[PASS] a nested branch is a disclosure accordion, open by default
+[PASS] the accordion's children indent 12px
+[PASS] an open branch shows the ▾ disclosure glyph
+[PASS] clicking the summary collapses the branch
+[PASS] a collapsed branch shows the ▸ disclosure glyph
+[PASS] the collapse survives the heartbeat re-render
+[PASS] the collapse survives a reload
+[PASS] the collapse is keyed by scope and branch path
+[PASS] re-opening the branch restores its children and clears the stored collapse
+[PASS] facilitator emitted no page errors
+[PASS] component is loaded on the dashboard page
+[PASS] dashboard emitted no page errors
+
+Control surface component checks passed

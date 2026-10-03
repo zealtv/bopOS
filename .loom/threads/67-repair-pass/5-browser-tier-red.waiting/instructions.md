@@ -1,10 +1,17 @@
 # 5-browser-tier-red
 
-**Status:** ready
+**Status:** waiting on `2-remove-presets` · four journeys repaired
 **Goal:** `tools/run-tests.sh browser` is green again, and every failure is
 either fixed or explained.
 
-## Failing (every run, 2026-10-03)
+## Current outcome
+
+The four non-preset journeys now pass; see `verification.md` and `browser.log`.
+The full tier has 24 passes and the one confirmed preset timeout, retained as
+instructed below. Resume after `2-remove-presets`, run the full browser tier,
+and tie only once it is green (the parent thread's completion constraint).
+
+## Initial failures (every run, 2026-10-03)
 
 - `verify_control_column_scroll.py` — timeout waiting for `.live-param` count.
 - `verify_control_surface_component.py` — click on `[data-target-toggle="g0"]`

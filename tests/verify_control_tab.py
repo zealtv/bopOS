@@ -554,7 +554,7 @@ def main():
                                        "targets": ["all", "g0", "5"]},
                       repr(stored_cards))
 
-                before = columns.first.locator(".live-card").inner_html()
+                before = page.evaluate("installation.seats['1'].params.density")
                 slider = columns.nth(2).locator('input[type="range"]').first
                 slider.wait_for()
                 page.wait_for_function("() => [...document.querySelectorAll("
@@ -562,12 +562,12 @@ def main():
                                        "].at(-1)?.onchange != null")
                 slider.fill("0.8")
                 slider.dispatch_event("change")
-                page.wait_for_timeout(500)
-                check("a send in one card leaves the others alone",
+                page.wait_for_function("installation.seats['5'].params.density === 0.8")
+                check("a Seat send preserves other Seat values and card targets",
                       columns.first.locator(".live-card").count() == 1
                       and columns.first.locator(
                           '.live-card[data-live-scope="all"]').count() == 1
-                      and columns.first.locator(".live-card").inner_html()
+                      and page.evaluate("installation.seats['1'].params.density")
                       == before)
                 check("one live region per card",
                       page.locator("#control-column-host .live-param-status")
@@ -594,9 +594,12 @@ def main():
                     "() => document.querySelectorAll("
                     "'#control-column-host .control-column').length === 4")
                 check("Open in Control adds a card for that Seat",
-                      columns.nth(3).locator(
+                      columns.nth(2).locator(
                           '.live-card[data-live-scope="seat"]'
-                          '[data-live-id="1"]').count() == 1)
+                          '[data-live-id="1"]').count() == 1
+                      and columns.nth(3).locator(
+                          '.live-card[data-live-scope="seat"]'
+                          '[data-live-id="5"]').count() == 1)
                 # Asked for twice, it FOCUSES rather than duplicating.
                 page.click("#tab-button-seats")
                 page.click('#assigned .device-row[data-seat-id="1"] small')
