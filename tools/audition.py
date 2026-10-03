@@ -556,6 +556,8 @@ class AuditionRig:
             element = int(params[0])
         except (TypeError, ValueError):
             return
+        # Current devices have one or two elements; positions support any number.
+        # Widen this editor limit when a device needs more.
         if element not in (0, 1) or element == self.editor_element:
             return
         previous = self.editor_element

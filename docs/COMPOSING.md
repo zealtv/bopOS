@@ -140,6 +140,10 @@ While simulating, every dashboard control behaves exactly as it will at the
 venue: parameters, cues, points, master. Live fleet devices are never
 driven in this mode.
 
+In Patch edit, Point preview targets element 0 or 1 because devices currently
+carry one or two elements; positions themselves support any number, and the
+editor limit should widen when a device needs more.
+
 > macOS (CoreAudio) is the well-trodden audition platform; Linux uses JACK
 > and is less exercised. Real-room acoustics are, of course, not simulated.
 

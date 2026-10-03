@@ -1,6 +1,6 @@
 # 11-editor-element-limit
 
-**Status:** ready · tiny · Bob ruled 2026-10-03
+**Status:** verified · tiny · Bob ruled 2026-10-03
 **Goal:** the patch editor's two-element limit is documented as a deliberate
 current limit, not an accident.
 
