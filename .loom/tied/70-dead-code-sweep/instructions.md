@@ -2,7 +2,8 @@
 
 **Goal:** code nothing uses is gone, and the docs name files that exist.
 
-**Status:** new (2026-10-03). Both children ready. Evidence:
+**Status:** verified (2026-10-03). Both children verified within the user's
+boundaries; see their `verification.md` records. Evidence:
 `lore:2026-10-03-bopos-code-review-2026-10` (§ Dead or stale code).
 
 ## Stitches

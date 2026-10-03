@@ -616,13 +616,6 @@ class OSCBridge:
         self.send("/pt", points.frame_args(self.state.data.get("points") or {},
                                            self._points_elapsed()))
 
-    def set_points(self, new_points):
-        # full-state replace mirroring the wire frame; devices release points
-        # that vanished. Resets the motion clock so paths sweep from the top.
-        self.state.data["points"] = new_points
-        self._points_started = time.monotonic()
-        self.send_points_frame()
-
     def upsert_point(self, point):
         # sparse authoring edit: one point on the wire, the rest hold
         if point.get("motion"):

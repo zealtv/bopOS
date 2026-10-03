@@ -260,7 +260,7 @@ refreshed on the next engine start after a slot is added or removed.
 | `/admin <action:s>` | `action` ∈ `update-patch`, `update-bopos`, `shutdown`, `reboot` | **v1.7, additive.** A patch running on the Pi asks bopos.py for the same node-lifecycle action the LAN `/os/*` verbs already provide — routes to the identical implementation (`pullpatch`/`updatebopos`/`shutdown`/`reboot`). No selector, no reply to the engine (these are terminal or restart the engine anyway); `/os/rev` outcome receipts still flow to the LAN model where a real requester exists. An unknown or missing action logs a warning and is otherwise ignored — never fatal. |
 
 The PD-side bus that would let a real `[bopos]`-using patch send `/admin` is
-not wired yet (`pd/bopos.pd` — Bob's `.pd` edit, not an agent's); other
+not wired yet (`pd/bopos~.pd` — Bob's `.pd` edit, not an agent's); other
 engines can send it directly over the localhost socket today.
 
 ## 4. Worked examples

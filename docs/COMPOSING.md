@@ -101,7 +101,7 @@ fallback, so a typo shows up on your laptop, not at the venue.
 ## Step 3 — write the music
 
 Open your entry point in Pure Data. Everything bopOS gives your patch
-arrives through the `[bopos]` abstraction (from `pd/bopos.pd`), which
+arrives through the `[bopos]` abstraction (from `pd/bopos~.pd`), which
 exposes labelled buses instead of raw networking:
 
 | bus | what arrives |

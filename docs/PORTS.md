@@ -17,9 +17,9 @@ inside each node.
 | **5550** | LAN | dashboard | `bopos.py` on every node | heartbeats, status, command replies |
 | **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, cues, point frames |
 | 6661 | localhost | active engine | `bopos.py` | the selector-stripped engine surface |
-| 6662 | localhost | active engine | `io/main.py` | bundled peripheral sensor data |
+| 6662 | localhost | active engine | `python/io/main.py` | bundled peripheral sensor data |
 | 7770 | localhost | `bopos.py` | active engine | engine requests: config, store, load, report, admin (v1.7) |
-| 8880 | localhost | `io/main.py` | active engine | peripheral and I/O commands |
+| 8880 | localhost | `python/io/main.py` | active engine | peripheral and I/O commands |
 
 ```mermaid
 flowchart LR

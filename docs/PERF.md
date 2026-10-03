@@ -69,14 +69,14 @@ throttling starts near 80 °C and shows up as late-run xruns.
 ## Baselines
 
 Recorded baselines live with the loom stitch that produced them
-(`.loom/**/zero-*/`), which travels into `tied/`. The first sample report from
+(`.loom/**/zero-*/`), which travels into `.loom/tied/`. The first sample report from
 the bop000 Zero 2 W smoke test lives in the `zero-0-measure-kit` stitch.
 
 ## Scheduling as found (bop000, 2026-07-13)
 
 - `jackd` runs with `-P70` (SCHED_FIFO 70) and `-p16`; realtime comes from the
   `audio` group rlimits, no sudo involved.
-- `bopos.py` and `io/main.py` run at nice 0, no realtime — fine: they are
+- `bopos.py` and `python/io/main.py` run at nice 0, no realtime — fine: they are
   control-plane, and their CPU shows up in the report if they ever misbehave.
 - PD is launched without `-rt`; on a busy Zero, PD competing at nice 0 with
   everything else is a plausible xrun source. Whether to add `-rt` (needs the

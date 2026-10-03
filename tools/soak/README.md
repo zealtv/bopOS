@@ -31,7 +31,7 @@ i2c_soak.py run --label C1-paired --interval 0 --bucket 30 --duration 1200 --out
 python3 pairedstats.py <soak-start-ts-file> audio-schedule.txt c1.jsonl
 ```
 
-Stop the autostart stack's bridge first (`io/main.py` polls at 10 Hz and contends), and stop
+Stop the autostart stack's bridge first (`python/io/main.py` polls at 10 Hz and contends), and stop
 `pd`/`jackd` if `aplay` needs the card.
 
 ## Choosing a stressor
