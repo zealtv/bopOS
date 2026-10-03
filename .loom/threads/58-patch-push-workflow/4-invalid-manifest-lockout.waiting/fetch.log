@@ -1,0 +1,8 @@
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 0.040s
+
+OK
+ASSIGNED: id 0 name Seat 0 pos [1.0, 2.0]
+FETCH file:///var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/bopos-active-fetch-iv99_j0w/source patch:live: ok (synced 2 files)
+exiting.  closing server...

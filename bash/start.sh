@@ -82,6 +82,8 @@ sleep 1
 
 
 
-SOUNDCARD="$SOUNDCARD" "$SCRIPT_DIR/start-engine.sh"
+# Boot may stay online without an engine when only the patch is invalid.
+# Engine-only starts (including corrective pushes) still return that failure.
+SOUNDCARD="$SOUNDCARD" "$SCRIPT_DIR/start-engine.sh" --skip-invalid-manifest
 
 trap - ERR

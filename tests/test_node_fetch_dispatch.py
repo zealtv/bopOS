@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Living regression tests for node-side fetch request dispatch."""
 
+import json
+import subprocess
 import sys
 import types
 import unittest
@@ -164,7 +166,7 @@ class NodeFetchDispatchTests(unittest.TestCase):
                 bopos.fetch_active_key,
             ) = originals
 
-    def test_active_patch_converges_and_restarts_before_terminal_success(self):
+    def test_invalid_active_patch_recovers_on_valid_fetch_before_terminal_success(self):
         class WorkerComplete(Exception):
             pass
 
@@ -183,23 +185,49 @@ class NodeFetchDispatchTests(unittest.TestCase):
             def task_done(self):
                 self.completed += 1
 
-        key = ("file:/source", "patch:live")
         reply = ReplySocket()
-        job_queue = OneJobQueue(key)
         events = []
+        engine_running = False
 
         with tempfile.TemporaryDirectory(prefix="bopos-active-fetch-") as root:
             patch = Path(root) / "patches" / "live"
             patch.mkdir(parents=True)
+            (patch / "entry.txt").write_text("entrypoint")
+            invalid = {"engine": "fixture-engine", "entrypoint": "entry.txt",
+                       "params": [{"name": "gain", "type": "f"}], "events": []}
+            (patch / "bopos.patch.json").write_text(json.dumps(invalid))
+            self.assertIsNone(bopos.manifest.load(str(patch))[0])
+            source = Path(root) / "source"
+            source.mkdir()
+            (source / "entry.txt").write_text("replacement entrypoint")
+            valid = dict(invalid, params=[])
+            (source / "bopos.patch.json").write_text(json.dumps(valid))
+            key = (source.as_uri(), "patch:live")
+            job_queue = OneJobQueue(key)
+            real_fetch = bopos.fetcher.fetch
 
             def run_command(argv, wait_for_start=False):
-                events.append(os.path.basename(argv[1]))
-                return 0
+                nonlocal engine_running
+                script = os.path.basename(argv[1])
+                events.append(script)
+                if script == "stop-engine.sh":
+                    engine_running = False
+                    return 0
+                self.assertEqual(script, "start-engine.sh")
+                self.assertTrue(wait_for_start)
+                # The real validator gates the engine stand-in. JACK/audio
+                # launch itself is a separate hardware claim.
+                result = subprocess.run(
+                    [sys.executable, str(REPO / "python/manifest.py"), str(patch)],
+                    capture_output=True, timeout=5)
+                engine_running = result.returncode == 0
+                return result.returncode
 
-            def converge(*_args):
+            def converge(*args):
                 events.append("converge")
                 self.assertEqual(events, ["stop-engine.sh", "converge"])
-                return True, "bytes converged"
+                self.assertFalse(engine_running)
+                return real_fetch(*args)
 
             with (
                 mock.patch.object(bopos, "BOPOS_DIR", root),
@@ -207,7 +235,8 @@ class NodeFetchDispatchTests(unittest.TestCase):
                                   return_value=str(patch)),
                 mock.patch.object(bopos, "run_command",
                                   side_effect=run_command),
-                mock.patch.object(bopos, "engine_alive", return_value=1),
+                mock.patch.object(bopos, "engine_alive",
+                                  side_effect=lambda: int(engine_running)),
                 mock.patch.object(bopos.fetcher, "fetch",
                                   side_effect=converge),
                 mock.patch.object(bopos, "fetch_queue", job_queue),
@@ -219,6 +248,9 @@ class NodeFetchDispatchTests(unittest.TestCase):
             ):
                 with self.assertRaises(WorkerComplete):
                     bopos._fetch_worker_loop()
+                self.assertTrue(engine_running)
+                self.assertIsNotNone(bopos.manifest.load(str(patch))[0])
+                self.assertEqual((patch / "entry.txt").read_text(), "replacement entrypoint")
 
         self.assertEqual(
             events,

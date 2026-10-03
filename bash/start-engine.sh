@@ -41,6 +41,11 @@ PATCH_PATH="$BOPOS_DIR/patches/$ACTIVE_PATCH"
 
 if ! MANIFEST_OUTPUT=$(python3 "$BOPOS_DIR/python/manifest.py" "$PATCH_PATH"); then
     echo "ERROR: PATCH REQUIRES A VALID bopos.patch.json: $PATCH_PATH" >&2
+    # Only full-stack boot opts into staying online without an engine. This
+    # gate is before any audio starts; later failures must remain failures.
+    if [ "${1:-}" = "--skip-invalid-manifest" ]; then
+        exit 0
+    fi
     exit 1
 fi
 eval "$MANIFEST_OUTPUT"

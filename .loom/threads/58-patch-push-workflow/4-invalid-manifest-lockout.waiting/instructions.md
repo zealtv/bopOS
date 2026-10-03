@@ -1,6 +1,6 @@
 # 4-invalid-manifest-lockout
 
-**Status:** ready · node-side bash · independent of `1`–`3`
+**Status:** software verified; waiting on Bob’s hardware check · node-side bash · independent of `1`–`3`
 **Goal:** an invalid patch must not take the device off the network. It should
 stay reachable and recover when a good patch is pushed — no SSH.
 
@@ -50,3 +50,10 @@ whether `patch_badge` needs a word for it. Don't add one speculatively.
 `patches/` is gitignored — patches reach devices only by push, never by
 `git pull`. A manifest hard break therefore leaves stale copies on devices for
 months (it happened to Ciro Toast and Finn Jet). Nodes must fail soft.
+
+## Software close-out
+
+Choose run without an engine at the boot-time manifest gate; see decisions.md.
+Shell harness and real-fetcher regression pass; all 359 fast tests pass.
+No new operator wording, badge or wire change is needed. The Finn Jet/Ciro Toast
+check remains pending in verification.md; park this stitch waiting, not tied.
