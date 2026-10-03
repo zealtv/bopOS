@@ -51,6 +51,7 @@ import groups as group_protocol  # noqa: E402
 import paramgen  # noqa: E402
 import audio_config  # noqa: E402
 import log_config  # noqa: E402
+import osc_contract  # noqa: E402
 
 
 def device_log_state(device):
@@ -485,7 +486,7 @@ class SimFleet:
             "uptime": int(time.monotonic() - self.start_monotonic),
             "git_rev": device.version,
             "update_model": "ephemeral" if device.ephemeral else "persistent",
-            "contract_version": "1.16",
+            "contract_version": osc_contract.VERSION,
             "groups": list(device.groups),
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),

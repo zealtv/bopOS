@@ -1,0 +1,51 @@
+FEF
+======================================================================
+ERROR: test_shared_version_matches_ratified_contract_heading (__main__.ContractVersionTests.test_shared_version_matches_ratified_contract_heading)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_contract_version.py", line 54, in test_shared_version_matches_ratified_contract_heading
+    import osc_contract
+ModuleNotFoundError: No module named 'osc_contract'
+
+======================================================================
+FAIL: test_audition_serializes_current_contract_version (__main__.ContractVersionTests.test_audition_serializes_current_contract_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_contract_version.py", line 66, in test_audition_serializes_current_contract_version
+    self.assert_report_version(rig, node)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/bob/repos/bopOS/tests/test_contract_version.py", line 50, in assert_report_version
+    self.assertEqual(json.loads(message.params[0])["contract_version"],
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     documented_version())
+                     ^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1.16' != '1.17'
+- 1.16
+?    ^
++ 1.17
+?    ^
+
+
+======================================================================
+FAIL: test_simfleet_serializes_current_contract_version (__main__.ContractVersionTests.test_simfleet_serializes_current_contract_version)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_contract_version.py", line 60, in test_simfleet_serializes_current_contract_version
+    self.assert_report_version(rig, node)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/bob/repos/bopOS/tests/test_contract_version.py", line 50, in assert_report_version
+    self.assertEqual(json.loads(message.params[0])["contract_version"],
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     documented_version())
+                     ^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1.16' != '1.17'
+- 1.16
+?    ^
++ 1.17
+?    ^
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.003s
+
+FAILED (failures=2, errors=1)

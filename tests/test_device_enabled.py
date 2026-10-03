@@ -46,6 +46,7 @@ sys.argv = ["bopos.py", "unknown"]
 
 import bopos  # noqa: E402
 import device_aliases  # noqa: E402
+import osc_contract  # noqa: E402
 from state import InstallationState  # noqa: E402
 from store import Store  # noqa: E402
 
@@ -135,7 +136,7 @@ class DeviceEnabledTests(unittest.TestCase):
             reply = ReplySocket()
             self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
             report = json.loads(reply.calls[0][0][2])
-            self.assertEqual(report["contract_version"], "1.16")
+            self.assertEqual(report["contract_version"], osc_contract.VERSION)
             self.assertEqual(
                 {key: report[key] for key in (
                     "device_enabled", "mute_all", "output_enabled")},

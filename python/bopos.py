@@ -31,6 +31,7 @@ import asset_slots
 import audio_config
 import log_config
 import nodelog
+import osc_contract
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -1308,7 +1309,7 @@ def report_reply(reply_socket, requester, state=None):
         "uptime": uptime,
         "git_rev": state.version,
         "update_model": state.update_model,
-        "contract_version": "1.16",
+        "contract_version": osc_contract.VERSION,
         "groups": list(getattr(state, "groups", ())),
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),

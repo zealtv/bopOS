@@ -41,6 +41,7 @@ import relay  # noqa: E402
 import runcontext  # noqa: E402
 import groups as group_protocol  # noqa: E402
 import audio_config  # noqa: E402
+import osc_contract  # noqa: E402
 
 DEFAULT_MANIFEST = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
 VERSION = "audition-2"
@@ -356,7 +357,7 @@ class AuditionRig:
             "uptime": int(time.monotonic() - self.started),
             "git_rev": VERSION,
             "update_model": "ephemeral",
-            "contract_version": "1.16",
+            "contract_version": osc_contract.VERSION,
             "groups": list(getattr(node, "groups", ())),
             "device_enabled": bool(node.device_enabled),
             "mute_all": bool(node.mute_all),
