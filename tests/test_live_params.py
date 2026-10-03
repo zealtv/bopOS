@@ -1,6 +1,7 @@
 """Durable tests for the shared live parameter replay and automation."""
 
 import copy
+import asyncio
 import sys
 import tempfile
 import time
@@ -148,6 +149,76 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.saved, 1)
         self.assertEqual(seat["params"]["gain"], 0.333333)
         self.assertEqual(self.state.devices["one"]["params"]["gain"], 0.333333)
+
+    async def test_failed_load_stop_rolls_back_and_reports_error_without_sending(self):
+        path = self.root / "broken.json"
+        original = b"broken installation JSON"
+        path.write_bytes(original)
+        failed_state = InstallationState(str(path))
+        self.assertTrue(failed_state._load_invalid)
+        # Runtime targets may still exist in a failed-load session.
+        failed_state.data["seats"] = self.state.seats
+        failed_state.data["devices"] = self.state.devices
+        failed_state.data["groups"] = self.state.data["groups"]
+        failed_state.data["params_patch"] = "alpha"
+        failed_state.data["fleet_patch"] = self.state.data["fleet_patch"]
+        self.state = failed_state
+        self.dashboard.state = failed_state
+        self.osc.state = failed_state
+        self.dashboard.supervisor_lock = asyncio.Lock()
+        self.state.devices["sim-1"] = {
+            "uid": "sim-1", "virtual": True, "seat_id": 1, "params": {"gain": 0.4}}
+        self.state.seats["1"]["params"] = {"gain": 0.2, "voice": "keep"}
+        self.state.seats["2"].pop("params")
+        self.state.devices["one"]["params"] = {"gain": 0.3}
+        self.osc.automation = {
+            str(seat_id): {"gain": {"args": [1, "1s"], "kind": "fade",
+                                   "from": 0, "sent_at": 100.0}}
+            for seat_id in (1, 2)
+        }
+        before_seats = copy.deepcopy(self.state.seats)
+        before_devices = copy.deepcopy(self.state.devices)
+        before_automation = copy.deepcopy(self.osc.automation)
+        ws = mock.Mock(send_json=mock.AsyncMock())
+        with mock.patch("server.time.time", return_value=100.5):
+            await self.dashboard.handle_ws({"type": "set_live_automation", "data": {
+                "scope": "group", "id": 1, "name": "gain",
+                "args": [{"type": "s", "value": "stop"}],
+            }}, ws)
+        self.assertEqual(self.state.seats, before_seats)
+        self.assertEqual(self.state.devices, before_devices)
+        self.assertEqual(self.osc.automation, before_automation)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.broadcasts, [])
+        self.assertEqual(path.read_bytes(), original)
+        ws.send_json.assert_awaited_once_with({
+            "type": "error", "data": {
+                "message": "Could not save the stopped parameter; no command was sent."}})
+        # The handler returned normally; another request on this socket works.
+        self.dashboard.osc.probe = mock.Mock(return_value=(True, None))
+        await self.dashboard.handle_ws({"type": "monitor_probe", "data": {
+            "uid": "one", "name": "patches"}}, ws)
+        self.assertEqual(ws.send_json.await_count, 2)
+
+    def test_stop_save_errors_restore_editor_shared_params(self):
+        params = {"gain": 0.2}
+        self.state.data["editor"] = {"params": params}
+        target = {"id": 0, "automation_key": "editor", "editor": True,
+                  "bound": None, "params": params}
+        self.osc.automation["editor"] = {
+            "gain": {"args": [1, "1s"], "kind": "fade", "from": 0,
+                     "sent_at": 100.0}}
+        declaration = self.dashboard.live_param_declaration("gain", "alpha")
+        for error in (OSError("disk unavailable"), TypeError("bad value"),
+                      ValueError("invalid value")):
+            with self.subTest(error=type(error).__name__):
+                with mock.patch.object(self.state, "save", side_effect=error):
+                    with self.assertRaises(type(error)):
+                        self.dashboard.store_stopped_automation(
+                            [target], declaration, now=100.5)
+                self.assertIs(target["params"], params)
+                self.assertIs(self.state.data["editor"]["params"], params)
+                self.assertEqual(params, {"gain": 0.2})
 
 
     def test_fade_takeover_origin_matches_node_live_value(self):

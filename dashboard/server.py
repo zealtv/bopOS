@@ -504,7 +504,12 @@ class Dashboard:
                 return
             args = live_params.canonicalize_args(declaration, args)
             if args == ["stop"]:
-                self.store_stopped_automation(seats, declaration)
+                try:
+                    self.store_stopped_automation(seats, declaration)
+                except (OSError, TypeError, ValueError):
+                    await self.ws_error(
+                        ws, "Could not save the stopped parameter; no command was sent.")
+                    return
             self.osc.set_param_for(
                 seats, selector, declaration["identity"], args)
             await self.broadcast("state")
@@ -1630,6 +1635,8 @@ class Dashboard:
         """
         now = time.time() if now is None else float(now)
         identity = declaration["identity"]
+        previous = [(target, dict(target["params"]) if "params" in target else None)
+                    for target in [*seats, *self.state.devices.values()]]
         changed = False
         for seat in seats:
             entry = self.osc.automation.get(
@@ -1646,7 +1653,17 @@ class Dashboard:
                     device.setdefault("params", {})[identity] = value
             changed = True
         if changed:
-            self.state.save()
+            try:
+                self.state.save()
+            except (OSError, TypeError, ValueError):
+                for target, params in previous:
+                    if params is None:
+                        target.pop("params", None)
+                    else:
+                        # Editor targets share this dict with editor state.
+                        target["params"].clear()
+                        target["params"].update(params)
+                raise
         return changed
 
 

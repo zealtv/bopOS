@@ -1,8 +1,12 @@
 # 6-load-failure-followups
 
-**Status:** ready · small · found reviewing `1-installation-load-wipe`
+**Status:** part 1 complete; part 2 awaiting Bob's placement ruling
 **Goal:** the "state file couldn't load" safety holds everywhere and the
 operator can't miss it.
+
+Part 1 is implemented; verification is in `verification.md`. Part 2 has a
+short `placement-proposal.md` and remains unimplemented per Bob's instruction.
+Leave this stitch waiting with `waiting.md` until he rules on placement.
 
 `1` made `InstallationState.save()` raise `OSError` after a failed load and
 posts a notice. Two gaps:

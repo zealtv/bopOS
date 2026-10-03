@@ -1,5 +1,6 @@
 """A failed installation/venue load must never destroy its source file."""
 import asyncio
+import ast
 import copy
 import json
 from pathlib import Path
@@ -152,6 +153,39 @@ class DebouncedLoadSafetyTests(unittest.IsolatedAsyncioTestCase):
             await state.close()
             self.assertIsNone(state._save_task)
             self.assertEqual(path.read_bytes(), original)
+
+
+class SaveGuardTests(unittest.TestCase):
+    def test_dashboard_state_saves_have_an_oserror_guard(self):
+        source = Path(__file__).resolve().parents[1] / "dashboard" / "server.py"
+        tree = ast.parse(source.read_text())
+        parents = {child: node for node in ast.walk(tree)
+                   for child in ast.iter_child_nodes(node)}
+        unguarded = []
+        for call in ast.walk(tree):
+            if not (isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and call.func.attr == "save"
+                    and isinstance(call.func.value, ast.Attribute)
+                    and call.func.value.attr == "state"
+                    and isinstance(call.func.value.value, ast.Name)
+                    and call.func.value.value.id == "self"):
+                continue
+            child = call
+            while child in parents:
+                parent = parents[child]
+                if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    unguarded.append(call.lineno)
+                    break
+                if isinstance(parent, ast.Try) and child in parent.body:
+                    if any(handler.type is None or any(
+                            isinstance(node, ast.Name)
+                            and node.id in {"OSError", "Exception", "BaseException"}
+                            for node in ast.walk(handler.type))
+                           for handler in parent.handlers):
+                        break
+                child = parent
+        self.assertEqual(unguarded, [], f"unguarded state.save() lines: {unguarded}")
 
 
 if __name__ == "__main__":

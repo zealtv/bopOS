@@ -1,0 +1,74 @@
+[PASS] [agreeing] numeric row carries a ∿ generator icon
+[PASS] [agreeing] string row carries no generator icon
+[PASS] [agreeing] the icon is a disclosure, closed to start
+[PASS] [agreeing] gen opens an inline drawer
+[PASS] [agreeing] the drawer is a sibling of its row, not a popover
+[PASS] [agreeing] stop is a control inside the drawer
+[PASS] [agreeing] the row still carries exactly one ∿ icon
+[PASS] [agreeing] opening the drawer lights the icon
+[PASS] [agreeing] the drawer offers the generator kinds as tabs
+[PASS] [agreeing] exactly one kind tab is latched on
+[PASS] [agreeing] the drawer is built around a waveform display
+[PASS] [agreeing] shaping args are mini-sliders
+[PASS] [agreeing] min, max and period sit in one args row
+[PASS] [agreeing] the Show inspector's drawer markup is gone
+[PASS] [agreeing] a sine offers no curve control
+[PASS] [agreeing] a tri does offer curve
+[PASS] [agreeing] switching back to square takes curve away again
+[PASS] [agreeing] applying runs the generator on the node
+[PASS] [agreeing] the node accepted the grammar
+[PASS] [agreeing] the generator is recorded for every member seat
+[PASS] [agreeing] stop halts the generator on the node
+[PASS] [agreeing] stop clears the recorded automation
+[PASS] [agreeing] the from box starts off, and its field with it
+[PASS] [agreeing] with the box off the fade carries no from value
+[PASS] [agreeing] checking the box wakes its field
+[PASS] [agreeing] checking it puts that start value on the wire
+[PASS] [agreeing] the ∿ icon closes the drawer again
+[PASS] [agreeing] the underlying control is still usable
+[PASS] [agreeing] an enum row carries the ∿ icon
+[PASS] [agreeing] a generator on an enum runs on the node
+[PASS] [agreeing] enum generator ticks are whole indices in range
+[PASS] [agreeing] no server rejection alert fired
+[PASS] [agreeing] no page errors
+[PASS] [mixed] numeric row carries a ∿ generator icon
+[PASS] [mixed] string row carries no generator icon
+[PASS] [mixed] the icon is a disclosure, closed to start
+[PASS] [mixed] the aggregate row reports its mixed state
+[PASS] [mixed] the ∿ icon is NOT disabled by disagreement
+[PASS] [mixed] the value box hatches and shows dots
+[PASS] [mixed] the slider hatches across its whole width
+[PASS] [mixed] a mixed row carries no marker line
+[PASS] [mixed] no generator is involved, so the hatch stays gray
+[PASS] [mixed] gen opens an inline drawer
+[PASS] [mixed] the drawer is a sibling of its row, not a popover
+[PASS] [mixed] stop is a control inside the drawer
+[PASS] [mixed] the row still carries exactly one ∿ icon
+[PASS] [mixed] opening the drawer lights the icon
+[PASS] [mixed] the drawer offers the generator kinds as tabs
+[PASS] [mixed] exactly one kind tab is latched on
+[PASS] [mixed] the drawer is built around a waveform display
+[PASS] [mixed] shaping args are mini-sliders
+[PASS] [mixed] min, max and period sit in one args row
+[PASS] [mixed] the Show inspector's drawer markup is gone
+[PASS] [mixed] a sine offers no curve control
+[PASS] [mixed] a tri does offer curve
+[PASS] [mixed] switching back to square takes curve away again
+[PASS] [mixed] applying runs the generator on the node
+[PASS] [mixed] the node accepted the grammar
+[PASS] [mixed] the generator is recorded for every member seat
+[PASS] [mixed] stop halts the generator on the node
+[PASS] [mixed] stop clears the recorded automation
+[PASS] [mixed] the from box starts off, and its field with it
+[PASS] [mixed] with the box off the fade carries no from value
+[PASS] [mixed] checking the box wakes its field
+[PASS] [mixed] checking it puts that start value on the wire
+[PASS] [mixed] the ∿ icon closes the drawer again
+[PASS] [mixed] the underlying control is still usable
+[PASS] [mixed] an enum row carries the ∿ icon
+[PASS] [mixed] a generator on an enum runs on the node
+[PASS] [mixed] enum generator ticks are whole indices in range
+[PASS] [mixed] no server rejection alert fired
+[PASS] [mixed] no page errors
+
+Generator drawer checks passed
