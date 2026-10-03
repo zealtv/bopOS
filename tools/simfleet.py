@@ -28,6 +28,7 @@ import re
 import select
 import socket
 import sys
+import threading
 import time
 
 from pythonosc import osc_message, osc_message_builder
@@ -308,6 +309,10 @@ class _DeviceSyncState:
 
 
 class SimFleet:
+    # Each device's param generator ticks on its own thread, and tests build
+    # fleets without __init__; one class-level lock guards the shared stdout.
+    log_lock = threading.Lock()
+
     def __init__(self, args, devices):
         self.args = args
         self.devices = devices
@@ -368,7 +373,13 @@ class SimFleet:
     def log(self, device, message):
         if not self.tty:
             stamp = time.strftime("%H:%M:%S")
-            print(f"{stamp} {device.hostname} id={device.device_id:g} {message}", flush=True)
+            line = f"{stamp} {device.hostname} id={device.device_id:g} {message}\n"
+            # print() writes the text and its newline separately, so two
+            # generator threads could splice lines ("p/mode=0" + "10:45:12 ...")
+            # and a log reader would see a bogus value. One write per line.
+            with SimFleet.log_lock:
+                sys.stdout.write(line)
+                sys.stdout.flush()
 
     def set_state(self, device, state):
         if device.state != state:
