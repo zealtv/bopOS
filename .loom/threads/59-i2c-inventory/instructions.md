@@ -1,59 +1,67 @@
 # 59-i2c-inventory
 
-**Goal:** detect, instantiate and test an I2C sensor on a device from the
-Device tab — no SSH.
+**Goal:** work with I2C sensors from the dashboard, no SSH: see what's on a
+device's bus, bring a peripheral up and know it worked, watch its values live,
+and patch against a real sensor on a real device while editing.
 
-**Status:** `0` and `7` tied. Everything else is gated on
-**`0a-io-design-review`** (ready, first in queue, ends in a Bob-ratified
-proposal).
+**Status:** `0` and `7` tied. Everything else waits on
+**`0a-io-design-review`** (ready; ends in a proposal Bob ratifies).
 
 ## Origin
 
 - Bob, 2026-08-05: *"it would be useful if in the device tab you could see the
-  connected i2c devices."*
-- Same day, Bob brought up an ADS1115 on Ciro Toast by hand (SSH, `i2cdetect`,
-  hand-written `ads.py` / `watch.py` — see `session-2026-08-05-ciro-toast.md`).
-  That widened the thread from "show addresses" to the whole workflow:
-  **scan → identify → instantiate (and know it worked) → test**.
+  connected i2c devices."* The same day he brought up an ADS1115 on Ciro Toast
+  by hand (SSH, `i2cdetect`, hand-written `ads.py` / `watch.py` —
+  `session-2026-08-05-ciro-toast.md`). That widened the thread to **scan →
+  identify → instantiate (and know it worked) → test**.
+- Bob, 2026-10-03: *"I'm going to need to see in real time streaming I2C
+  values. Our current debugging setup doesn't work particularly well for that.
+  … When I go into patch edit mode, if I've got some devices in the fleet, I'd
+  like to be able to pick a device and have its I2C values get streamed over to
+  the patch that I'm editing … so I can work with a live sensor on a real
+  device as I edit the patch."* → `6`, and the end of the "no streaming" rule
+  for this layer.
 
 ## What exists
 
-- **Bus scan:** `python/io/sys_i2c.py` (i2cdetect's strategy; `EBUSY` = present
-  but kernel-owned, like a DAC). Takes a `skip` set for live peripherals.
-- **Io bridge** exposes `/io/scan`, but is **localhost-only**: listens on 8880,
-  replies only to the engine on 6662 (`PD_PORT` in `python/io/main.py`). The
-  dashboard can't reach it.
-- **`bopos.py`** imports `sys_i2c` but only reports a boolean `has_i2c`, shown
-  on the Device tab.
+- **Bus scan:** `python/io/sys_i2c.py` (i2cdetect's strategy; `EBUSY` =
+  present but kernel-owned, like the DAC). Takes a `skip` set for live
+  peripherals.
+- **Io bridge** (`python/io/main.py`) is **localhost-only**: listens on 8880,
+  sends peripheral bundles at poll rate only to the engine on `127.0.0.1:6662`.
+  The dashboard can't reach it.
+- **`bopos.py`** reports only a boolean `has_i2c`, shown on the Device tab.
+- **`tools/iosim.py`** fakes the bridge by sending to the engine's 6662 — the
+  same door a live device stream would come through.
 
-So the missing piece is a path from the bus (via the bridge) to the dashboard.
+The missing piece is a path from the bridge to the dashboard and the editor.
 
 ## Binding constraints
 
 - **An address is not a chip.** Hints OK, claims not.
 - **Anything that touches a live peripheral goes through `io/main.py`**, which
   owns the registry. Two processes on one chip is a contention bug.
-- **No streaming.** Contract §6 deleted the meter plane and declined leased
-  probes. Bounded windows returning one summary are fine.
+- **Streaming is now allowed here — deliberately, not by drift.** Contract §6
+  removed streamed telemetry; Bob's 2026-10-03 ask reopens it for sensor
+  development. `0a` decides its bounds and the §6 amendment.
 
 ## Stitches
 
-- ~~`0-bridge-logging`~~ — tied. Bridge output now reaches a logfile.
-- ~~`7-poll-timing`~~ — tied. ADS1115 sample rate / poll period fixed.
-- `0a-io-design-review` — **ready, first in queue.** One design for transport,
-  peripheral ownership, debugging workflow, simulation. Also carries split
-  elements' i2c question (`62`).
+- ~~`0-bridge-logging`~~, ~~`7-poll-timing`~~ — tied.
+- `0a-io-design-review` — **ready.** One design for transport, streaming,
+  ownership, workflow, simulation. Also answers split elements' i2c question
+  (`62`).
 - `1-scan-transport` — device→dashboard path + contract amendment. Needs `0a`.
 - `2-device-tab-inventory` — show the addresses. Needs `1`.
 - `3-peripheral-lifecycle` — create/destroy/re-init from the dashboard, and see
-  failures. Needs `1`. Contains two standalone defects (silent create failure;
-  LIS3DH dead after reconnect).
-- `4-sensor-test-window` — "test this sensor for N seconds" → verdict + exact PD
-  values. Needs `3`.
-- `5-simulated-input` — simulated sensors for patching without hardware. Needs
-  `0a`. Wanted, not urgent.
+  failures. Needs `1`. Carries two standalone defects.
+- `4-sensor-test-window` — "test this sensor for N seconds". Needs `3`; `0a`
+  may fold it into live streaming.
+- `5-simulated-input` — fake sensors for patching without hardware. Needs `0a`.
+- `6-live-sensor-in-patch-edit` — stream a fleet device's sensor values into
+  the patch being edited. Needs `0a`.
 
-`0a` may merge, split or retire `1`–`5`; expect it to revise this list.
+Expect `0a` to merge, split or retire `1`–`6`.
 
 ## Supporting files
 

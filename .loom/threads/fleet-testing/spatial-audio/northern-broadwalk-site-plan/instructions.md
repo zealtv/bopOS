@@ -32,6 +32,12 @@ with provenance and conventions in the adjacent `README.md`.
 - The remaining issued-drawing/on-site verification is stated explicitly; this stitch does not claim
   surveyed physical accuracy.
 
+## Note (2026-10-03)
+
+`66-projects` may reshape venues into a project's *sites*. The venue snapshot
+format is fine to target now; keep the conversion scripted so it can be re-run
+if the format changes.
+
 ## Source
 
 Kite Choir Brains lore `2026-08-28-northern-broadwalk-bopos-site-plan`.

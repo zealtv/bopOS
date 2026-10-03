@@ -1,59 +1,27 @@
 # 1-device-push-action
 
-**Status:** ready · ends with a Bob gate
-**Goal:** a push button on the Device page, always shown, enabled whenever the
-device can receive a patch — not only when the badge shows a fault.
-
-No new wire verb needed.
+**Status:** waits on `66-projects/0-project-design` · re-scope before claiming
+**Goal:** the Device page always offers "push the patch to this device" when
+the device can take it — not only when its badge shows a fault.
 
 ## Today
 
-In `patchDiagnostics` (`dashboard.js`):
+`patchDiagnostics` (`dashboard.js`) renders `#fleet-patch-retry` ("Sync to
+pinned/fleet patch", sends `retry_fleet_patch`) only for fault badges
+(`missing`, `stale`, `mismatch`, `failed`, …). Most of the time the badge reads
+`current` and there's no button. The label names the mechanism, not the intent
+(Bob says "update patch").
 
-```js
-const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch","failed","timeout"].includes(d.patch_badge)
-  ? `<button id="fleet-patch-retry">Sync to ${d.patch_pinned?'pinned':'fleet'} patch</button>`:"";
-```
+## After `66/0`
 
-It sends `retry_fleet_patch`, which already pushes the device's pin (or the
-fleet patch if unpinned). Problems:
+With one patch per fleet and no pins, this likely becomes a plain "re-push the
+project patch to this device" action — or disappears into the project's own
+push. Rewrite this stitch from the ratified design, or drop it.
 
-- hidden when the badge reads `current` — which is most of the time;
-- named after the mechanism ("Sync"), not the intent (Bob says "update patch");
-- sits among remediation buttons, so it reads as a repair action.
+## Keep regardless
 
-## Change
-
-- Always render a push action in Patch diagnostics. Enabled when seat-bound,
-  online and non-virtual; otherwise disabled with a `title` reason (`3` owns the
-  visible sentence).
-- It sends `retry_fleet_patch` — pushes the **effective desired patch** shown in
-  the `Desired patch` row. No patch picker; choosing is the Patch tab's job.
-- Keep `allowRemediation` (seat-bound check) — unbound targeting isn't possible
-  in OSC v1.5.
-- Pushing restarts the engine → confirm, matching neighbouring confirms.
-- Fold the old badge-conditional button into this one if it reads better; that's
-  part of the proposal.
-
-## Done when
-
-Extend `tests/verify_device_patch_targeting.py`:
-
-- online, seat-bound device with badge `current` has an enabled push (fails
-  today);
-- pressing it sends `retry_fleet_patch` with that uid;
-- offline device shows it disabled, not absent.
-
-Hardware: a push from the Device page to a rig device end to end. State in
-`verification.md` which half ran.
-
-## Bob gate (before `2` starts)
-
-Screenshot the Device page patch section as-is and as proposed (generate from
-the running app — `mockup.py` in `08/1-columns-design` is the pattern) and ask:
-
-1. Push and pin: one control or two?
-2. "Update patch" or "Push patch"?
-
-Pinning is due for a refactor soon (Bob, 2026-09-25) — check its state before
-designing `2`, and keep this stitch's changes easy to fold into it.
+- Disabled-with-reason rather than hidden when the device can't take a push
+  (offline, unassigned, simulated).
+- Pushing restarts the engine → confirm.
+- Test in `tests/verify_device_patch_targeting.py`; hardware push on the rig is
+  a separate claim.

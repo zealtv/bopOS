@@ -13,6 +13,9 @@ audition rig) — that software is now built. Since then the **Show tab** shippe
 (steps, sections, then-actions, parameter automation, presets, events), which
 covers part of this ground. Worth raising with Bob when he next plans work.
 
+`66-projects` (2026-10-03) will decide where a show lives — per project or per
+site. Settle that before designing lanes and scenes.
+
 ## Stitches (all waiting on Bob)
 
 - `show-lanes-and-scenes-design` — next Show model: lanes of steps, scene rows,

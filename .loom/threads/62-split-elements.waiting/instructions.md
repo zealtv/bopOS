@@ -69,6 +69,7 @@ not here. `0a` answers first; `3-dashboard-model` inherits its ruling. Not a
 ## Non-goals (unless Bob says otherwise)
 
 - **Same patch in every instance.** Different patches per element touches
-  distribution, fingerprints, manifests and presets.
+  distribution, fingerprints and manifests. `66-projects` points the same way:
+  one patch on every device of a project's fleet.
 - **Two, not N.** Don't be hostile to N, but don't pay for it (§5: "usually N is
   1 or 2").

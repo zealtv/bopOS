@@ -15,7 +15,7 @@ IPs are DHCP; confirm in-session.
 
 - **Finn Jet** (was `192.168.0.102`, `finn-jet.local`): the agent key is **not** installed. Bob offers an authenticated shell in a tmux pane beside Claude's — find it with `tmux list-panes -a`, drive it with `tmux send-keys` + `tmux capture-pane -p`, and echo a unique marker to know when a command finished.
 - **bop000** (was `192.168.0.101`, `bop000.local`): `ssh -i ~/.ssh/id_ed25519_spectre pi@<host>`. Zero 2 W + DigiAMP+, Debian 13.
-- `sudo` needs Bob (so does `bash/restart.sh`). `bash/stop.sh` then `bash/start.sh` restarts the stack as `pi`; `bash/stop-engine.sh` + `bash/start-engine.sh` re-reads `bopos.config` without a reboot.
+- Never flash, reimage or `apt upgrade` without asking. `sudo` needs Bob (so does `bash/restart.sh`). `bash/stop.sh` then `bash/start.sh` restarts the stack as `pi`; `bash/stop-engine.sh` + `bash/start-engine.sh` re-reads `bopos.config` without a reboot.
 
 ## Also
 

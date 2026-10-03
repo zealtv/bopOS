@@ -1,70 +1,64 @@
 # 0a-io-design-review
 
-**Status:** ready · first in queue · **design gate** — ends in a proposal Bob
-ratifies; mark `.waiting` when ready. Don't implement past it.
+**Status:** ready · **design gate** — ends in a proposal Bob ratifies; mark
+`.waiting` when ready. Don't implement past it.
 **Goal:** one design for the I2C/peripheral layer — architecture and operator
 workflow together — before building the rest of `59`.
 
 Bob, 2026-08-05: *"we need to be able to simulate i2c devices locally to aid
 patching, as well as read / debug i2c devices in some kind of usable workflow
-while keeping the system architecture clean. requires some thorough thought and
-clear thinking."*
+while keeping the system architecture clean."* And 2026-10-03: live streaming
+of sensor values, including into Patch edit (see parent).
 
 ## Why one design
 
-Root cause: the io bridge is localhost-only and talks only to the engine
-(one hardcoded client to `127.0.0.1:6662`). So nothing it knows reaches anyone
-but Pure Data — `/io/error` goes unrouted, `/io/report` is a `print()`, the scan
-is unreachable. Stitches `1`, `3`, `4`, `5` would each solve a piece of the same
-transport. Decide it once.
+The io bridge talks only to its local engine, so nothing it knows reaches
+anyone else: `/io/error` goes nowhere, `/io/report` is a `print()`, the scan is
+unreachable, and values can't leave the device. Stitches `1`, `3`, `4`, `5`,
+`6` each need a piece of the same path. Decide it once.
 
 ## Decide
 
-1. **Transport** — one answer for scan, create/destroy, registry report,
-   errors, test capture and injection. Candidates from `1-scan-transport`:
-   `bopos.py` scans itself; `bopos.py` ↔ bridge relay on 8880; a field in
-   `/os/report`. Known constraints:
-   - `bopos.py` can't see the bridge's registry, so its own scan can't `skip`
-     live peripherals. Whether that disturbs them is a **rig measurement**.
-   - A relay needs a reply route; say what the bridge's reply model becomes.
-   - No streaming (§6).
-2. **Ownership** — who owns a peripheral: patch, operator, or (with split
-   elements) **which engine instance**? Today the patch creates them on
-   `loadbang` and re-creates on restart; dashboard creates would collide.
-   - Phrase the answer so it survives N engine instances per device (`62`).
-     "The engine owns its peripherals" assumes one engine.
-   - Bob's starting idea (input, not decision): *"i2c modules are declared in
-     the manifest, and any element instance can choose to hook into them or
-     control them."* Weigh: manifests are fleet-wide but peripherals are
-     per-device — the asset-slot pattern (manifest declares slots, device
-     supplies content) is the precedent. And say what happens when two instances
-     write to one peripheral.
-3. **Debugging workflow** — walk it end to end: chip arrives → on the bus →
-   instantiated → numbers visible → patched against. Say where each step is
-   surfaced (Device tab, Monitor dock, …). Must cover **readout** (units *and*
-   verbatim as PD receives it) and **identification**. Should read as a
-   replacement for `ads.py` and `watch.py`.
-4. **Local simulation** — first-class "patch with no hardware". `tools/iosim.py`
-   works today. Must stream continuously at poll rate, and rest polarity is per
-   channel. Say where it runs, how a simulated peripheral is distinguishable
-   from a real one, and whether simulator and bridge share a peripheral
-   definition. simfleet has no peripheral model (`has_i2c: False`).
-5. **Out of scope** — state plainly what this layer won't become, especially
-   whether "no streaming" holds under a "watch this sensor" workflow.
+1. **Transport** — one answer for scan, create/destroy, registry, errors, value
+   streaming and injection. Candidates: `bopos.py` relays to the bridge on
+   8880; the bridge sends to more than one destination; something else. Say
+   what the bridge's reply model becomes. Note that `bopos.py` scanning on its
+   own can't skip live peripherals — whether that disturbs them is a rig
+   measurement.
+2. **Streaming** (new, 2026-10-03) — who can open a stream, to where (dashboard
+   view, the editor's audition engine, both), at what rate, and how it's
+   bounded (one device at a time? stops when Patch edit closes?). It must not
+   load a show's Wi-Fi. Write the §6 amendment that allows it.
+3. **Ownership** — who owns a peripheral: the patch, the operator, or (with
+   split elements) which engine instance? Today the patch creates peripherals
+   on `loadbang`; dashboard creates would collide. Phrase it to survive N
+   engine instances per device (`62`). Bob's starting idea, input not
+   decision: *"i2c modules are declared in the manifest, and any element
+   instance can choose to hook into them or control them."* Manifests are
+   fleet-wide but peripherals are per-device — the asset-slot pattern is the
+   precedent. Say what happens when two instances write to one peripheral.
+4. **Workflow** — walk it end to end: chip arrives → seen on the bus →
+   instantiated → values visible → patched against live. Say where each step
+   lives in the UI. Show values both in units and verbatim as the patch
+   receives them. Should replace `ads.py` and `watch.py`.
+5. **Simulation** — "patch with no hardware" as a first-class case.
+   `tools/iosim.py` works today (stream continuously at poll rate; per-channel
+   rest polarity). Live device and simulator should feed the editor the same
+   way — say how they're told apart.
+6. **Out of scope** — what this layer won't become.
 
 ## Evidence
 
-- `../session-2026-08-05-ciro-toast.md`, `../ads.py`, `../watch.py` — primary.
-- `../instructions.md` — measured starting state.
-- `feature-backlog/60-io-dispatch-silence` — same failure family; test whether
-  the design would have surfaced it.
+- `../session-2026-08-05-ciro-toast.md`, `../ads.py`, `../watch.py`.
+- `feature-backlog/60-io-dispatch-silence` — same failure family; would this
+  design have surfaced it?
 - `python/io/README.md` — current namespace (`/io/<verb>`, `/io/<name> <cmd>`).
+- Contract §6 (no streamed telemetry, and why) and §11 (io plane).
 
 ## Deliver
 
-- `proposal.md`: transport (with rejected alternatives), ownership ruling,
-  workflow walkthrough, simulation model, out-of-scope list.
-- The contract amendment this implies (proposed, not written).
-- Revised sequencing for `1`–`5`.
+- `proposal.md`: the six decisions, with rejected alternatives.
+- The contract amendment it implies (proposed, not written).
+- Revised sequencing for `1`–`6`.
 
 Then mark `.waiting` and surface to Bob.

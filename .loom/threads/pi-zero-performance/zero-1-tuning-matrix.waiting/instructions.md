@@ -19,6 +19,6 @@ Most of the matrix is already measured on Finn Jet (see parent and
 
 ## Access
 
-Finn Jet or `bop000` (see memory `bop000-dev-pi-access`). Confirm the host
+Finn Jet or `bop000` (see `glean:test-rig`). Confirm the host
 in-session. Never flash, reimage or `apt upgrade` without asking; sudo needs
 Bob.
