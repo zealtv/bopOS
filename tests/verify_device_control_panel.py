@@ -398,32 +398,6 @@ def main():
                       page.locator(slider).count() == 1
                       and page.get_attribute(slider, "data-live-scope")
                       == "device")
-                # The preset row (01-control-panel/7) is part of the shared
-                # panel, so the Device tab carries the same one the Control tab
-                # does -- live since `41-preset-primitive/07`.
-                preset = page.evaluate(
-                    """sel => {
-                      const body = document.querySelector(sel);
-                      const row = body.querySelector("[data-preset-slot]");
-                      if (!row) return {present: false};
-                      const rows = body.querySelector(".promoted-controls");
-                      return {
-                        present: true,
-                        patch: row.querySelector(".live-preset-patch")
-                          .textContent.trim(),
-                        aboveRows: !!(row.compareDocumentPosition(rows)
-                          & Node.DOCUMENT_POSITION_FOLLOWING),
-                        live: [...row.querySelectorAll("select,button")]
-                          .filter(control => !control.disabled).length,
-                      };
-                    }""", BODY)
-                # Supersedes this file's `live == 0` inertness check: Bob
-                # ratified the preset design in `41-preset-primitive/1`.
-                check("the device panel carries the same live preset row",
-                      preset["present"] and preset.get("patch") == "alpha"
-                      and preset.get("aboveRows")
-                      and preset.get("live") > 0, repr(preset))
-
                 page.eval_on_selector(
                     slider,
                     "node => { node.value = '0.63';"

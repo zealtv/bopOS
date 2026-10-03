@@ -39,11 +39,11 @@ Then open:
 - **<http://localhost:8080/>** — Show, Dashboard, Seats, Devices, Patches,
   and Assets tabs. The landed controls cover device inspection, spatial
   authoring, patch editing, host-to-node distribution, discovery/assignment,
-  synced events, venues, patch presets, single-device asset delivery, and
+  synced events, venues, single-device asset delivery, and
   show authoring/playback (see "The Show tab" below).
 - **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
   with the patch's promoted (`dashboard: true`) params as labelled controls,
-  master, and Silence All. Patch presets are desktop-only. On an iPad, "Add to Home
+  master, and Silence All. On an iPad, "Add to Home
   Screen" launches it fullscreen.
 
 Useful simfleet variations: `--unassigned 2` (exercise discovery/assign),
@@ -192,9 +192,8 @@ the previous patch are removed. Setting the same patch again (including a stale
 content retry) preserves values for unchanged qualified identities, defaults
 new identities, and prunes removed ones. Revert changes patch names, so it
 restores the previous patch with its manifest defaults rather than retaining a
-hidden per-patch parameter history. Parameter and patch-preset keys are the
-canonical slash-joined manifest `path + name`; reconnect catch-up and preset
-apply send only identities declared by the active manifest.
+hidden per-patch parameter history. Parameter keys are the canonical slash-joined manifest `path + name`;
+reconnect catch-up sends only identities declared by the active manifest.
 
 In Patch edit, `path` is authored as slash-separated text and saved as a JSON
 array while `name` remains the leaf. Nested declarations render as a tree and

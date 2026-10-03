@@ -436,16 +436,8 @@ class InstallationState:
                 "next_group_id": self.data.get("next_group_id", 0),
                 "device_registry": {uid: dict(entry)
                                     for uid, entry in self.device_registry.items()},
-                # Applied-preset provenance and dirtiness are runtime-only,
-                # like automation: a dashboard restart deliberately forgets
-                # them even though public seat projections carry both.
-                "seats": {
-                    str(seat["id"]): {
-                        key: value for key, value in seat.items()
-                        if key not in {"applied_preset", "preset_dirty"}
-                    }
-                    for seat in self.seats.values()
-                }}
+                "seats": {str(seat["id"]): self.clean_seat(seat)
+                          for seat in self.seats.values()}}
 
     @staticmethod
     def clean_positions(value):
@@ -1100,10 +1092,8 @@ class InstallationState:
         if groups is None or next_group_id is None or rebuilt is None:
             self._invalid_file_notice(path)
             return None, None
-        loaded = dict(loaded)
-        # Venue presets retired in thread 41. Old snapshots remain loadable,
-        # but their obsolete store is never propagated into a rewritten file.
-        loaded.pop("presets", None)
+        loaded = {key: value for key, value in loaded.items()
+                  if key in self.durable()}
         loaded["groups"] = groups
         loaded["next_group_id"] = next_group_id
         if adoptions:

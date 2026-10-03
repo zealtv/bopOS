@@ -17,7 +17,7 @@ Two passes:
       no living journey at all before this file.
 
 Seat-domain integration is covered where it already lives: verify_control_tab.py
-(the Control surface) and verify_show_reference_foundation.py (the Show
+(the Control surface) and verify_show_targets.py (the Show
 inspector's portable `group:<name>` selectors).
 """
 

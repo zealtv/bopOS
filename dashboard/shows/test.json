@@ -310,68 +310,6 @@
         }
       ],
       "uid": "89814a78"
-    },
-    {
-      "alias": "medium bonks",
-      "duration_s": 5.0,
-      "kind": "step",
-      "messages": [
-        {
-          "address": "/preset/bonks-pd/medium-bonks",
-          "alias": "medium bonks",
-          "args": [],
-          "kind": "reference",
-          "reference": {
-            "content": {
-              "fingerprint": "e1328fca97c6f8a4a276dd13a747df1f4d202b53a23be4c62d98bb37525d5cd1",
-              "name": "bonks-pd"
-            },
-            "schema": "sha256:e9ce4a7a591929ebcbad096c8f4ddeb300e36d0ad5fa38ec3085ff372aaa1b0f"
-          },
-          "target": [
-            "all"
-          ],
-          "uid": "ed441766"
-        }
-      ],
-      "play_count": 1,
-      "then_actions": [
-        {
-          "type": "stop"
-        }
-      ],
-      "uid": "86668499"
-    },
-    {
-      "alias": "medium bonks",
-      "duration_s": 5.0,
-      "kind": "step",
-      "messages": [
-        {
-          "address": "/preset/bonks-pd/medium-bonks",
-          "alias": "medium bonks",
-          "args": [],
-          "kind": "reference",
-          "reference": {
-            "content": {
-              "fingerprint": "e1328fca97c6f8a4a276dd13a747df1f4d202b53a23be4c62d98bb37525d5cd1",
-              "name": "bonks-pd"
-            },
-            "schema": "sha256:e9ce4a7a591929ebcbad096c8f4ddeb300e36d0ad5fa38ec3085ff372aaa1b0f"
-          },
-          "target": [
-            "all"
-          ],
-          "uid": "fa0711cf"
-        }
-      ],
-      "play_count": 1,
-      "then_actions": [
-        {
-          "type": "stop"
-        }
-      ],
-      "uid": "8c3264c3"
     }
   ],
   "name": "test",

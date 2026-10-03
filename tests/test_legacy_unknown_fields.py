@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Living regressions for retiring installation-scoped venue presets."""
+"""Unknown legacy fields do not enter current installation or venue state."""
 
 import json
 import sys
@@ -31,7 +31,7 @@ def legacy_document():
                 "bound": None,
             },
         },
-        "presets": {
+        "obsolete_field": {
             "morning": {
                 "master": 0.5,
                 "seats": {"2": {"gain": 0.25}},
@@ -40,21 +40,21 @@ def legacy_document():
     }
 
 
-class VenuePresetRetirementTests(unittest.TestCase):
-    def test_legacy_installation_loads_and_drops_presets_on_save(self):
+class VenueUnknownFieldRetirementTests(unittest.TestCase):
+    def test_legacy_installation_loads_and_drops_obsolete_field_on_save(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "installation.json"
             path.write_text(json.dumps(legacy_document()), encoding="utf-8")
 
             state = InstallationState(str(path))
 
-            self.assertNotIn("presets", state.public())
-            self.assertNotIn("presets", state.durable())
+            self.assertNotIn("obsolete_field", state.public())
+            self.assertNotIn("obsolete_field", state.durable())
             state.save()
             self.assertNotIn(
-                "presets", json.loads(path.read_text(encoding="utf-8")))
+                "obsolete_field", json.loads(path.read_text(encoding="utf-8")))
 
-    def test_seat_reindex_and_delete_ignore_retired_preset_payload(self):
+    def test_seat_reindex_and_delete_ignore_retired_unknown_field_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "installation.json"
             path.write_text(json.dumps(legacy_document()), encoding="utf-8")
@@ -66,7 +66,7 @@ class VenuePresetRetirementTests(unittest.TestCase):
             self.assertEqual(state.delete_seat(5)["id"], 5)
             self.assertEqual(state.seats, {})
 
-    def test_legacy_venue_snapshot_loads_without_propagating_presets(self):
+    def test_legacy_venue_snapshot_loads_without_propagating_obsolete_field(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             state = InstallationState(str(root / "installation.json"))
@@ -78,12 +78,12 @@ class VenuePresetRetirementTests(unittest.TestCase):
 
             loaded, seats = state.read_venue("legacy")
 
-            self.assertNotIn("presets", loaded)
+            self.assertNotIn("obsolete_field", loaded)
             self.assertTrue(state.load_venue("legacy", (loaded, seats)))
-            self.assertNotIn("presets", state.public())
+            self.assertNotIn("obsolete_field", state.public())
             state.save_venue("legacy")
             self.assertNotIn(
-                "presets", json.loads(venue_path.read_text(encoding="utf-8")))
+                "obsolete_field", json.loads(venue_path.read_text(encoding="utf-8")))
 
 
 if __name__ == "__main__":

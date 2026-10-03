@@ -69,17 +69,15 @@ class CardsGridCssTests(unittest.TestCase):
         self.assertNotIn("max-height", css.split(".control-column {", 1)[1]
                          .split("}", 1)[0])
 
-    def test_remote_derivation_has_no_picker_or_preset_capability(self):
+    def test_remote_derivation_has_no_picker(self):
         source = read("dashboard/static/js/facilitator.js")
         self.assertIn("targetPicker: false", source)
         self.assertIn("deriveAllTargets: true", source)
-        self.assertIn("presetMenu: false", source)
 
-    def test_control_keeps_authored_picker_and_presets(self):
+    def test_control_keeps_authored_picker(self):
         source = read("dashboard/static/js/control-host.js")
         self.assertIn("targetPicker: true", source)
         self.assertIn("deriveAllTargets: false", source)
-        self.assertIn("presetMenu: true", source)
 
 
 if __name__ == "__main__":

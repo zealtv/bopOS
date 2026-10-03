@@ -11,7 +11,7 @@ import time
 sys.dont_write_bytecode = True
 
 from playwright.sync_api import sync_playwright
-from verify_show_reference_foundation import free_port, wait_http, ROOT
+from verify_show_targets import free_port, wait_http, ROOT
 
 
 def run_phase(root, page, invalid_start):

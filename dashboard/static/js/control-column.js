@@ -2,7 +2,7 @@
 // authored selector with a single-select picker; Remote mounts one derived
 // instance that emits All, every group and every Seat without picker chrome.
 // The host owns fleet state, transport and page furniture. This component owns
-// card markup, ControlSurface state, preset reports and Remote command state.
+// card markup, ControlSurface state, Remote command state.
 (function () {
   "use strict";
 
@@ -34,10 +34,6 @@
     sendEvent,
     sendAutomation,
     replay,
-    applyPreset,
-    savePreset,
-    deletePreset,
-    requestCapturePreview,
     sendCommand,
     // The desktop can hand off device lifecycle to its Devices tab; Remote
     // instead enables the per-card commands because it has no such tab.
@@ -46,7 +42,6 @@
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
     const fullManifest = capabilities.fullManifest ?? false;
-    const presetMenu = capabilities.presetMenu ?? false;
     const showTargetPicker = capabilities.targetPicker ?? true;
     const deriveAllTargets = capabilities.deriveAllTargets ?? false;
     const showDeviceCommands = capabilities.deviceCommands ?? false;
@@ -71,9 +66,6 @@
 
     const openCommandTargets = new Set();
     const openOverflows = new Set();
-    const capturePreviews = new Map();
-    let pendingPreview = null;
-    let lastPresetReport = null;
     const state = () => getState?.() || {devices: {}, seats: {}, groups: {}};
 
     function seats() {
@@ -114,23 +106,6 @@
       // One live region per authored Control card, or one for derived Remote.
       announce: message => { status.value = `${terseTarget()}: ${message}`; },
       requestRender: () => render(),
-      presetCatalog: patch => state().preset_catalog?.[patch] || [],
-      applyPreset,
-      savePreset,
-      deletePreset,
-      requestCapturePreview: ({key, scope, id: targetId, patch}) => {
-        capturePreviews.delete(key);
-        pendingPreview = key;
-        requestCapturePreview?.({scope, id: targetId, patch});
-      },
-      capturePreview: key => capturePreviews.get(key) || null,
-      presetReport: (_key, members) => {
-        if (!lastPresetReport) return null;
-        const targets = new Set(Object.keys(lastPresetReport.targets || {}));
-        const mine = (members || []).map(seat => String(seat.id));
-        return mine.length && mine.length === targets.size &&
-          mine.every(seatId => targets.has(seatId)) ? lastPresetReport : null;
-      },
     });
 
     function targetSpec() {
@@ -334,12 +309,6 @@
         ? `<div class="promoted-controls">${surface.tree(scope, targetId, members, declarations, empty)}</div>`
         : "";
       const cardKey = `${scope}:${targetId ?? "all"}`;
-      const presets = presetMenu && declarations.length
-        ? surface.presetRow(scope, targetId, members, patch, {
-            key: cardKey,
-            saveDisabled: scope === "seat" && !live,
-          })
-        : "";
       // An emptied group keeps its column and says so out loud: `aria-disabled`
       // rather than a member count in a `<small>` nobody reads aloud (D5).
       const emptyGroup = scope === "group" && empty;
@@ -347,7 +316,7 @@
       const identityCss = deriveAllTargets ? identityStyle(scope, targetId) : "";
       return `<article class="live-card ${scope}-card${identity}${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}"${identityCss} data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
         <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
-        ${presets}${controls}${targetCommands(scope, targetId)}
+        ${controls}${targetCommands(scope, targetId)}
       </article>`;
     }
 
@@ -524,25 +493,6 @@
       render();
     }
 
-    function acceptCapturePreview(data) {
-      if (!pendingPreview) return false;
-      capturePreviews.set(pendingPreview, data);
-      pendingPreview = null;
-      render();
-      return true;
-    }
-
-    function reportPresetSaved(data) {
-      status.value = `Saved ${data.name}${data.omitted?.length
-        ? ` · ${data.omitted.length} omitted as mixed`
-        : ""}`;
-    }
-
-    function reportPresetApplied(data) {
-      lastPresetReport = data;
-      render();
-    }
-
     function reportEventScheduled(data) {
       const declaration = (liveEventSchema()?.events || [])
         .find(item => item.identity === data.identity);
@@ -552,9 +502,6 @@
     return {
       render,
       refresh,
-      acceptCapturePreview,
-      reportPresetSaved,
-      reportPresetApplied,
       reportEventScheduled,
       target: () => targetPicker.selection(),
       setTarget: next => targetPicker.set(next),

@@ -11,8 +11,6 @@ Bob's rulings, each one a check:
   * the Seat choice is shared -- picking a Seat on the Seats tab is the Seat
     the picker lands on;
   * CUES sit above the surface;
-  * PRESETS follow the target filter: the shelf names the current target, and a
-    save under one Seat captures that Seat rather than the whole venue.
 
 Also pins the correction that came with the ratification: the Control tab hosts
 NO patch deployment -- the picker stays on the Patches tab.
@@ -303,58 +301,6 @@ def main():
                 check("All shows the aggregate card only",
                       frame.locator(".live-card").count() == 1)
 
-                # --- the preset row (01-control-panel/7, made live by
-                # 41-preset-primitive/07) ---
-                # The slot shipped inert; the preset system landed into it
-                # without redesigning it, so the ratified anatomy and placement
-                # are still what this checks. Behaviour lives in
-                # verify_preset_surfaces.py.
-                slot = frame.locator(
-                    '.live-card[data-live-scope="all"] [data-preset-slot]')
-                check("the panel carries the preset row",
-                      slot.count() == 1)
-                check("the preset row names the live patch",
-                      slot.locator(".live-preset-patch").inner_text().strip()
-                      == "alpha")
-                check("it offers one shared recall and authoring menu",
-                      slot.locator(".preset-menu").count() == 1
-                      and [button.strip() for button in slot.locator(
-                          ".live-preset-action").all_text_contents()]
-                      == ["+new", "↥save", "⌫delete"])
-                check("the preset menu is closed at rest",
-                      slot.locator(".preset-menu[open]").count()
-                      == 0
-                      and slot.locator(
-                          '.preset-menu [data-preset-action]')
-                      .count() == 3
-                      and not slot.locator(
-                          '[data-preset-action="new"]').is_visible())
-                placement = page.evaluate(
-                    """() => {
-                      const card = document.querySelector(
-                        '#control-column-host'
-                        + ' .live-card[data-live-scope="all"]');
-                      const row = card.querySelector("[data-preset-slot]");
-                      const head = card.querySelector(".live-card-head");
-                      const rows = card.querySelector(".promoted-controls");
-                      const after = Node.DOCUMENT_POSITION_FOLLOWING;
-                      return {
-                        belowHead: !!(head.compareDocumentPosition(row) & after),
-                        aboveRows: !!(row.compareDocumentPosition(rows) & after),
-                        live: [...row.querySelectorAll("select,button")]
-                          .filter(control => !control.disabled).length,
-                      };
-                    }""")
-                check("the preset row sits between the header and the rows",
-                      placement["belowHead"] and placement["aboveRows"],
-                      repr(placement))
-                # Supersedes this file's two `7-preset-slot` inertness checks:
-                # Bob ratified the preset design in `41-preset-primitive/1`, so
-                # the row is live and the visually-hidden "not built yet" note
-                # is gone with it.
-                check("the preset row is live, not a placeholder",
-                      placement["live"] > 0, repr(placement))
-
                 # One card has one target. A second chip replaces the first;
                 # mixtures now require a second card.
                 open_picker(frame)
@@ -623,11 +569,6 @@ def main():
                       columns.count() == 3
                       and page.locator(".control-column-grip").count() == 0)
 
-                # The old venue-level shelf is retired. Patch presets remain
-                # on each Control card (asserted above).
-                check("the venue-preset shelf is absent",
-                      page.locator("#preset-bar").count() == 0)
-
                 check("no page errors", not errors, repr(errors))
 
                 standalone = browser.new_page(viewport={"width": 1024,
@@ -641,9 +582,6 @@ def main():
                     "() => document.querySelector('#ws-status')"
                     "?.classList.contains('online')")
                 standalone.locator(".live-card").first.wait_for()
-                check("the standalone facilitator has no preset affordance",
-                      standalone.locator("#preset-section").count() == 0
-                      and standalone.locator("[data-preset-slot]").count() == 0)
                 check("Remote has labels rather than target pickers",
                       standalone.locator(".target-picker").count() == 0)
                 remote_cards = standalone.locator(".live-card")

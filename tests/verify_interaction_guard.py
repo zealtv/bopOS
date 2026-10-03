@@ -1,28 +1,18 @@
 #!/usr/bin/env python3
-"""Real-dashboard browser journey: editing inside a drawer survives the
-heartbeat (`52-preset-drawer-name-discarded`).
+"""Real-dashboard browser journey: generator editing survives heartbeats.
 
-The Control surface rebuilds its whole card DOM on every heartbeat. Two drawers
-let the operator type into that DOM — the preset save drawer's name field and
-the generator drawer's argument fields — and both are supposed to be protected
-by the host's render guard while focus is inside them.
+The Control surface rebuilds its card DOM on every heartbeat. The generator
+argument fields must hold focus and preserve drafts. Delegated focus events
+must use listeners: `onfocusin`/`onfocusout` are not event-handler IDL attributes.
 
-Neither was. Both wired the guard as `drawer.onfocusin = fn`, and
-`onfocusin`/`onfocusout` are **not** event-handler IDL attributes: the
-assignment sets an inert expando that nothing ever calls
-(`'onfocusin' in element` is `false` on a fresh element, where `onfocus` is
-`true`). So the guard had never once run, and a preset name typed into the
-drawer was wiped by the next heartbeat ~1 s later — after which `commit` read an
-empty name and saved nothing at all.
-
-Two independent protections, and this journey pins both, because they cover
+Three independent protections, and this journey pins both, because they cover
 different renders:
 
   1. a primary click reaches a numeric field without document pointerup
      clearing the focus guard and rebuilding the drawer;
   2. the guard holds while focus is inside the drawer, so the common case
      never re-renders at all; and
-  3. the typed name is written through into the drawer's own state, so a render
+  3. the generator draft is written through into the drawer's own state, so a render
      that happens ANYWAY — one provoked from outside the drawer, after focus has
      left — cannot silently empty a field the operator already filled.
 
@@ -129,8 +119,7 @@ def make_fixture(root):
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "staged_at": time.time(), "previous": None},
         "params_patch": "alpha", "groups": {},
-        # Bound, with params: a preset save captures a seat's values, so an
-        # unbound seat with none would make the commit assertion vacuous.
+        # A bound Seat lets the generator commit a meaningful live value.
         "seats": {"1": {"id": 1, "name": "Freda", "positions": [[1, 1]],
                         "groups": [], "bound": UID, "patch": "alpha",
                         "params": {"density": .2}}},
@@ -162,15 +151,6 @@ def was_replaced(page, selector):
         " !== 'original'", selector)
 
 
-def open_preset_drawer(page):
-    disclosure = page.locator(f"{HOST} .preset-menu").first
-    bound(page, f"{HOST} .preset-menu", "ontoggle")
-    disclosure.locator("summary").click()
-    bound(page, f'{HOST} [data-preset-action="new"]', "onclick")
-    page.locator(f'{HOST} [data-preset-action="new"]').first.click()
-    field = page.locator(f"{HOST} [data-preset-drawer] [data-preset-name]")
-    field.wait_for()
-    return field
 
 
 def main():
@@ -238,56 +218,6 @@ def main():
                               "focus": True}, repr(idl))
                 page.locator(
                     f'{HOST} .live-card[data-live-scope="all"]').wait_for()
-
-                # --- 1. the guard holds while focus is in the drawer ---
-                field = open_preset_drawer(page)
-                field.fill("Dawn")
-                name_selector = (f"{HOST} [data-preset-drawer] "
-                                 "[data-preset-name]")
-                mark(page, name_selector)
-                check("focus reaches the drawer's name field",
-                      page.evaluate(
-                          "() => document.activeElement?.dataset"
-                          "?.presetName !== undefined"))
-
-                page.wait_for_timeout(HEARTBEATS_MS)
-                check("a typed preset name survives the heartbeat",
-                      page.locator(name_selector).input_value() == "Dawn",
-                      repr(page.locator(name_selector).input_value()))
-                check("the focused field is not even rebuilt",
-                      not was_replaced(page, name_selector))
-
-                # --- 2. write-through covers a render the guard does not ---
-                # Focus leaves the drawer, which releases the guard, and then a
-                # heartbeat rebuilds the cards. Before the write-through the
-                # field was re-emitted from a stored name that was still "".
-                page.locator("#ws-status").click()
-                page.wait_for_function(
-                    "() => document.activeElement?.dataset"
-                    "?.presetName === undefined")
-                mark(page, name_selector)
-                page.wait_for_timeout(HEARTBEATS_MS)
-                rebuilt = was_replaced(page, name_selector)
-                check("leaving the drawer does release the guard",
-                      rebuilt, "the card was never rebuilt, so this "
-                               "assertion proved nothing")
-                check("the name survives a rebuild that happens anyway",
-                      page.locator(name_selector).input_value() == "Dawn",
-                      repr(page.locator(name_selector).input_value()))
-
-                # --- 3. and it still commits, which is the operator's point ---
-                bound(page, f"{HOST} [data-preset-drawer] "
-                            "[data-preset-commit]", "onclick")
-                page.locator(
-                    f"{HOST} [data-preset-drawer] [data-preset-commit]").click()
-                saved = True
-                try:
-                    page.wait_for_function(
-                        "() => (installation.preset_catalog?.alpha || [])"
-                        ".length === 1")
-                except Exception:
-                    saved = False
-                check("the preset actually saves", saved)
 
                 # --- 4. the generator drawer carried the same broken guard ---
                 page.locator(f"{HOST} [data-gen-toggle]").first.click()

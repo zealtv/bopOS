@@ -211,32 +211,24 @@ class ContentIdentityTests(unittest.TestCase):
             (plain / "voice.wav").write_bytes(b"changed visible content")
             self.assertNotEqual(identity.fingerprint(plain), before)
 
-    def test_patch_presets_do_not_change_fingerprint_or_hash_cache(self):
+    def test_nested_content_changes_fingerprint_and_enters_hash_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
             patch = Path(temporary)
             (patch / "main.bin").write_bytes(b"patch")
             before = identity.fingerprint(patch)
-
-            presets = patch / "presets"
-            presets.mkdir()
-            dawn = presets / "dawn.json"
-            dawn.write_text('{"params":{"gain":[0.25]}}')
-            self.assertEqual(identity.fingerprint(patch), before)
-            dawn.write_text('{"params":{"gain":[0.75]}}')
-            self.assertEqual(identity.fingerprint(patch), before)
-            dawn.unlink()
-            self.assertEqual(identity.fingerprint(patch), before)
-
-            # A stale cache entry from a pre-v1.17 process is purged rather
-            # than silently carried forever.
-            dawn.write_text("{}")
-            stat = dawn.stat()
-            identity._file_hashes[str(dawn)] = (
-                identity._signature(stat), "0" * 64)
+            nested = patch / "content"
+            nested.mkdir()
+            data = nested / "data.json"
+            data.write_text("first")
+            changed = identity.fingerprint(patch)
+            self.assertNotEqual(changed, before)
+            data.write_text("second")
+            self.assertNotEqual(identity.fingerprint(patch), changed)
             identity.save_hash_cache(patch)
             cache = json.loads((patch / ".hashcache.json").read_text())
-            self.assertNotIn("presets/dawn.json", cache["files"])
-            self.assertNotIn(str(dawn), identity._file_hashes)
+            self.assertIn("content/data.json", cache["files"])
+            data.unlink()
+            self.assertEqual(identity.fingerprint(patch), before)
 
     def test_cached_inventory_is_unknown_until_warm_and_after_change(self):
         with tempfile.TemporaryDirectory() as temporary:

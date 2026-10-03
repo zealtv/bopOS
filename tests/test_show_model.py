@@ -176,67 +176,27 @@ class ShowSchemaTests(unittest.TestCase):
         )
         self.assertEqual(duplicate["messages"][0]["uid"], "b0000002")
 
-    def test_reference_payload_survives_clean_duplicate_move_and_persistence(self):
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-            "schema": "sha256:" + "b" * 64,
-        }
+    def test_literal_payload_survives_duplicate_move_and_persistence(self):
+        args = [{"type": "f", "value": 0.25}]
         original = show_model.clean_show(document([
-            step("a0000001", [
-                message("b0000001", kind="reference", reference=reference),
-            ]),
+            step("a0000001", [message("b0000001", args=args)]),
             step("a0000002"),
         ]))
-        self.assertEqual(
-            original["items"][0]["messages"][0]["reference"],
-            reference,
-        )
-
         minted = iter(("a0000003", "b0000002"))
-        with mock.patch.object(
-            show_model, "mint_uid", side_effect=lambda _existing: next(minted)
-        ):
-            duplicated, clone, error = show_model.duplicate_item(
-                original, "a0000001"
-            )
+        with mock.patch.object(show_model, "mint_uid", side_effect=lambda _existing: next(minted)):
+            duplicated, clone, error = show_model.duplicate_item(original, "a0000001")
         self.assertIsNone(error)
-        self.assertEqual(clone["messages"][0]["reference"], reference)
-        moved, result, error = show_model.move_message(
-            duplicated, "b0000001", "a0000002"
-        )
+        self.assertEqual(clone["messages"][0]["args"], args)
+        moved, result, error = show_model.move_message(duplicated, "b0000001", "a0000002")
         self.assertIsNone(error)
-        self.assertEqual(result["reference"], reference)
-
+        self.assertEqual(result["args"], args)
         with tempfile.TemporaryDirectory() as temporary:
             show_model.save_show(temporary, moved)
             loaded = show_model.load_show(temporary, moved["name"])
-        moved_message = loaded["items"][1]["messages"][0]
-        self.assertEqual(moved_message["kind"], "reference")
-        self.assertEqual(moved_message["reference"], reference)
+        self.assertEqual(loaded["items"][1]["messages"][0]["args"], args)
 
-    def test_reference_payload_is_explicit_and_strict(self):
-        valid_reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-        }
-        self.assertIsNotNone(show_model.clean_message(
-            message(kind="reference", reference=valid_reference)
-        ))
-        for bad in (
-            message(kind="reference"),
-            message(kind="osc", reference=valid_reference),
-            message(kind="reference", reference={
-                "content": {"name": "../alpha", "fingerprint": "a" * 64},
-            }),
-            message(kind="reference", reference={
-                "content": {"name": "alpha", "fingerprint": "short"},
-            }),
-            message(kind="reference", reference={
-                "content": {"name": "alpha", "fingerprint": "a" * 64},
-                "schema": "bad",
-            }),
-        ):
-            with self.subTest(bad=bad):
-                self.assertIsNone(show_model.clean_message(bad))
+    def test_unsupported_message_kind_is_rejected(self):
+        self.assertIsNone(show_model.clean_message(message(kind="reference")))
 
     def test_named_group_targets_resolve_with_non_blocking_warnings(self):
         groups = [
@@ -267,139 +227,28 @@ class ShowSchemaTests(unittest.TestCase):
         ))
         bridge.set_param.assert_called_once_with("g7", "gain", [0.5])
 
-    def test_unhandled_reference_fails_closed_instead_of_sending_raw_osc(self):
+    def test_unsupported_kind_fails_closed_instead_of_sending_raw_osc(self):
         bridge = mock.Mock()
         engine = ShowEngine(bridge, mock.AsyncMock())
-        engine._send_message(show_model.clean_message(message(
-            kind="reference",
-            address="/content/example",
-            reference={
-                "content": {"name": "alpha", "fingerprint": "a" * 64},
-            },
-        )))
+        engine._send_message(message(kind="reference", address="/content/example"))
         bridge.send.assert_not_called()
         bridge.set_param.assert_not_called()
 
-    def test_preset_reference_has_strict_args_and_uses_injected_application(self):
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-            "schema": "sha256:" + "b" * 64,
-        }
-        preset = show_model.clean_message(message(
-            kind="reference",
-            address="/preset/alpha/Dawn",
-            args=[
-                {"type": "f", "value": 250},
-                {"type": "s", "value": "c:-1"},
-            ],
-            target=["group:Front", "3"],
-            reference=reference,
-        ))
-        apply = mock.Mock()
-        bridge = mock.Mock()
-        engine = ShowEngine(bridge, mock.AsyncMock(), apply_preset=apply)
-
-        engine._send_message(preset)
-
-        apply.assert_called_once_with(
-            "alpha", "Dawn", ["group:Front", "3"], 250.0, -1.0,
-            reference)
-        bridge.send.assert_not_called()
-        for bad_args in (
-            [{"type": "s", "value": "250ms"}],
-            [{"type": "f", "value": -1}],
-            [{"type": "s", "value": "c:1"}, {"type": "f", "value": 2}],
-        ):
-            with self.subTest(args=bad_args):
-                self.assertIsNone(show_model.clean_message(message(
-                    kind="reference", address="/preset/alpha/Dawn",
-                    args=bad_args, reference=reference)))
-
-    def test_preset_drift_warnings_cover_patch_and_schema_independently(self):
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-            "schema": "sha256:" + "b" * 64,
-        }
-        show = show_model.clean_show(document([
-            step(messages=[message(
-                kind="reference", address="/preset/alpha/Dawn",
-                args=[], reference=reference,
-            )]),
-        ]))
-        warnings = show_model.show_reference_warnings(
-            show, {"alpha": "c" * 64},
-            {"alpha": "sha256:" + "d" * 64})
-        self.assertEqual(
-            [warning["code"] for warning in warnings],
-            ["patch_drift", "schema_drift"])
-        self.assertTrue(all(
-            warning["message_uid"] == "b0000001" for warning in warnings))
-
-    def test_flatten_is_one_atomic_model_mutation(self):
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-            "schema": "sha256:" + "b" * 64,
-        }
-        preset = message(
-            kind="reference", address="/preset/alpha/Dawn",
-            args=[], reference=reference)
-        show = show_model.clean_show(document([step(messages=[preset])]))
-        flattened = [
-            {"kind": "osc", "alias": None, "address": "/p/gain",
-             "args": [{"type": "f", "value": 0.5}], "target": ["all"]},
-            {"kind": "osc", "alias": None, "address": "/p/mode",
-             "args": [{"type": "i", "value": 1}], "target": ["all"]},
-        ]
-
-        next_show, result, error = show_model.flatten_preset_message(
-            show, "b0000001", flattened)
-        self.assertIsNone(error)
-        self.assertEqual(len(result), 2)
-        self.assertEqual(
-            [item["address"] for item in next_show["items"][0]["messages"]],
-            ["/p/gain", "/p/mode"])
-        self.assertEqual(
-            show["items"][0]["messages"][0]["address"],
-            "/preset/alpha/Dawn")
-
-
-class ShowPlaybackOrderingTests(unittest.IsolatedAsyncioTestCase):
-    async def test_preset_reference_finishes_before_following_param_message(self):
-        value = {"gain": None}
-
-        async def apply_preset(*_args):
-            value["gain"] = 0.25
-
-        bridge = mock.Mock()
-        bridge.set_param.side_effect = (
-            lambda _selector, _name, args: value.__setitem__("gain", args[0]))
-        engine = ShowEngine(
-            bridge, mock.AsyncMock(), apply_preset=apply_preset)
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-            "schema": "sha256:" + "b" * 64,
-        }
-        engine.show = show_model.clean_show(document([
-            step(messages=[
-                message(
-                    kind="reference", address="/preset/alpha/Dawn",
-                    args=[], reference=reference),
-                message(uid="b0000002", args=[{"type": "f", "value": 0.9}]),
-            ]),
-        ]))
-
-        await engine.step_start("a0000001")
-        # Before the fix the reference is a detached task, so let it run and
-        # expose the late preset overwrite.
-        await asyncio.sleep(0)
-
-        self.assertEqual(value["gain"], 0.9)
 
 class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
-    async def test_reference_update_and_undo_restore_one_persisted_snapshot(self):
-        reference = {
-            "content": {"name": "alpha", "fingerprint": "a" * 64},
-        }
+    async def test_literal_playback_preserves_authored_message_order(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock())
+        await engine._emit_messages(step(messages=[
+            message(args=[{"type": "f", "value": 0.25}]),
+            message(uid="b0000002", args=[{"type": "f", "value": 0.9}]),
+        ]))
+        self.assertEqual(bridge.set_param.call_args_list, [
+            mock.call("all", "gain", [0.25]),
+            mock.call("all", "gain", [0.9]),
+        ])
+
+    async def test_literal_update_and_undo_restore_one_persisted_snapshot(self):
         original = show_model.clean_show(document([
             step(messages=[message()]),
         ]))
@@ -418,12 +267,12 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
             show_model.save_show(temporary, original)
             await dashboard.apply_show_mutation(
                 None, show_model.update_message, "b0000001",
-                {"kind": "reference", "reference": reference},
+                {"args": [{"type": "f", "value": 0.75}]},
             )
             self.assertEqual(len(dashboard.show_undo), 1)
             self.assertEqual(
-                dashboard.show["items"][0]["messages"][0]["reference"],
-                reference,
+                dashboard.show["items"][0]["messages"][0]["args"],
+                [{"type": "f", "value": 0.75}],
             )
             await dashboard.undo_show(None)
             self.assertEqual(

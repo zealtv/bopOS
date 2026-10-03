@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Browser journey for portable Show targets and reference preservation."""
+"""Browser journey for portable Show targets and literal message preservation."""
 
-import hashlib
 import json
 import random
 import socket
@@ -96,7 +95,7 @@ def make_fixture(root):
     patch.mkdir(parents=True)
     assets.mkdir()
     shows.mkdir()
-    (patch / "main.bin").write_bytes(b"show-reference-foundation")
+    (patch / "main.bin").write_bytes(b"show-targets")
     manifest = {
         "engine": "test",
         "entrypoint": "main.bin",
@@ -109,21 +108,6 @@ def make_fixture(root):
         "slots": [],
     }
     (patch / "bopos.patch.json").write_text(json.dumps(manifest))
-    schema_projection = [{
-        "identity": "gain", "kind": "float", "min": 0, "max": 1,
-        "options": None,
-    }]
-    schema = "sha256:" + hashlib.sha256(json.dumps(
-        schema_projection, separators=(",", ":")).encode()).hexdigest()
-    presets = patch / "presets"
-    presets.mkdir()
-    (presets / "Dawn.json").write_text(json.dumps({
-        "bopos_preset": 1,
-        "name": "Dawn",
-        "saved": "2026-08-02T00:00:00+00:00",
-        "schema": schema,
-        "params": {"gain": [0.5]},
-    }))
     state = {
         "schema": 1,
         "name": "Portable room",
@@ -135,10 +119,6 @@ def make_fixture(root):
         "seats": {},
         "device_registry": {},
     }
-    reference = {
-        "content": {"name": "alpha", "fingerprint": "a" * 64},
-        "schema": "sha256:" + "b" * 64,
-    }
     show = {
         "schema": 1,
         "name": "opening-set",
@@ -147,13 +127,12 @@ def make_fixture(root):
             "uid": "11111111",
             "alias": "opening",
             "messages": [{
-                "kind": "reference",
+                "kind": "osc",
                 "uid": "aaaaaaaa",
-                "alias": "content reference",
-                "address": "/content/example",
-                "args": [],
+                "alias": "gain",
+                "address": "/p/gain",
+                "args": [{"type": "f", "value": 0.5}],
                 "target": ["group:Missing"],
-                "reference": reference,
             }],
             "duration_s": 1,
             "play_count": 1,
@@ -164,12 +143,12 @@ def make_fixture(root):
     show_path = shows / "opening-set.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
-    return state_path, show_path, patches, assets, reference, schema
+    return state_path, show_path, patches, assets
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="bopos-show-reference-") as temporary:
-        state_path, show_path, patches, assets, reference, schema = make_fixture(temporary)
+    with tempfile.TemporaryDirectory(prefix="bopos-show-targets-") as temporary:
+        state_path, show_path, patches, assets = make_fixture(temporary)
         http_port = free_port(socket.SOCK_STREAM)
         listen_port = free_port(socket.SOCK_DGRAM)
         send_port = free_port(socket.SOCK_DGRAM)
@@ -261,38 +240,20 @@ def main():
                 page.keyboard.press("Control+v")
                 page.wait_for_function(
                     "() => document.querySelectorAll('[data-show-message-focus]').length === 2")
-                check("copy/paste preserves the validated reference payload",
+                check("copy/paste preserves typed parameter arguments",
                       wait_for(lambda: len(saved_messages()) == 2
-                               and saved_messages()[1].get("reference") == reference
-                               and saved_messages()[1].get("kind") == "reference"),
+                               and saved_messages()[1].get("args") == [{"type": "f", "value": 0.5}]
+                               and saved_messages()[1].get("kind") == "osc"),
                       repr(saved_messages()))
 
                 page.keyboard.press("Control+z")
                 page.wait_for_function(
                     "() => document.querySelectorAll('[data-show-message-focus]').length === 1")
-                check("one undo removes the paste and leaves the original reference",
+                check("one undo removes the paste and leaves the original message",
                       wait_for(lambda: len(saved_messages()) == 1
-                               and saved_messages()[0].get("reference") == reference),
+                               and saved_messages()[0].get("args") == [{"type": "f", "value": 0.5}]),
                       repr(saved_messages()))
 
-                # R5 retires automatic capture. Pin the smaller surviving
-                # workflow: an operator can add a message to a step and choose
-                # a stored preset from the Show inspector.
-                page.locator('[data-show-step-row="11111111"]').click()
-                page.wait_for_selector("#show-add-message")
-                page.click("#show-add-message")
-                page.wait_for_function(
-                    "() => document.querySelectorAll('[data-show-message-focus]').length === 2")
-                page.wait_for_selector("#show-message-mode")
-                page.select_option("#show-message-mode", "preset")
-                check("the Show inspector hand-authors a preset reference",
-                      wait_for(lambda: len(saved_messages()) == 2
-                               and saved_messages()[1].get("kind") == "reference"
-                               and saved_messages()[1].get("address")
-                               == "/preset/alpha/Dawn"
-                               and saved_messages()[1].get("reference", {}).get("schema")
-                               == schema),
-                      repr(saved_messages()))
                 # 05g, Bob 2026-07-30: the step list is a spreadsheet. Rows butt
                 # against each other, a divider is the same height as a step
                 # whatever it contains, and a divider selects exactly like a

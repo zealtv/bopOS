@@ -23,9 +23,9 @@ if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import manifest as patch_manifest
 from python.paramgen import ParamGrammarError, parse_message
-# Imported after the repo root joins sys.path: preset_application reaches into
+# Imported after the repo root joins sys.path: live_params reaches into
 # python.paramgen at module scope.
-import preset_application
+import live_params
 
 
 LEGACY_DECLARATIONS = [
@@ -442,10 +442,8 @@ class OSCBridge:
                          persist=True, broadcast=True):
         """Record mirrors for targets a caller has already resolved.
 
-        Preset apply resolves its concrete targets before deciding whether the
-        send can coalesce to `all`/`gN`, and the patch editor's audition target
-        is not a Seat at all — neither can be recovered from the selector, so
-        the recording boundary takes the targets themselves.
+        The patch editor's audition target is not a Seat and cannot be
+        recovered from a selector, so callers supply concrete targets.
         """
         # Show automation passes the full §3.2 argument list; plain writes
         # stay a single scalar.
@@ -477,16 +475,16 @@ class OSCBridge:
                     # displaces. Durable params already hold a running fade's
                     # destination and predate a periodic generator, so consult
                     # the automation mirror before falling back to that scalar.
-                    key = preset_application.automation_key(seat)
+                    key = live_params.automation_key(seat)
                     prior_entry = self.automation.get(key, {}).get(name)
-                    prior = preset_application.estimate_automation(
+                    prior = live_params.estimate_automation(
                         name, {"kind": "float"}, prior_entry,
                         seat_entry["sent_at"])
                     if prior is None:
                         prior = seat.get("params", {}).get(name)
                     seat_entry["from"] = spec.start if spec.start is not None else prior
                 self.automation.setdefault(
-                    preset_application.automation_key(seat), {})[name] = seat_entry
+                    live_params.automation_key(seat), {})[name] = seat_entry
                 changed = True
             if spec.kind == "fade":
                 self._store_fade_destination(
@@ -494,7 +492,7 @@ class OSCBridge:
                     persist=persist, broadcast=broadcast)
         else:
             for seat in seats:
-                key = preset_application.automation_key(seat)
+                key = live_params.automation_key(seat)
                 per_seat = self.automation.get(key, {})
                 if per_seat.pop(name, None) is not None:
                     changed = True
@@ -1444,7 +1442,7 @@ class OSCBridge:
                         seat["params"][identity] = declaration["default"]
             # catch-up push: the dashboard's stored params are the mix of
             # record, so a (re)declaring device gets them back (this is how a
-            # device offline during a preset load converges on reconnect);
+            # device offline during a live parameter update converges on reconnect);
             # master rides along per the contract sec 4.1 catch-up rule
             if editor and execution_owned:
                 for _declaration, identity in qualified:

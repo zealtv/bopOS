@@ -11,7 +11,7 @@ warning, and nothing to see in the DOM. Measured, not assumed —
 where this rule would be caught out if a browser ever added them).
 
 That is how the Control surface shipped two drawers whose heartbeat render
-guard had never once run, taking an operator's half-typed preset name with it.
+guard had never once run, taking an operator's generator draft with it.
 The comments above both said the guard was the same one a working surface used;
 they were sincere and wrong, which is exactly why prose is not the guard here.
 

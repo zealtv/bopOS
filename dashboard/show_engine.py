@@ -28,7 +28,6 @@ address kind:
 """
 
 import asyncio
-import inspect
 import logging
 import os
 import random
@@ -48,17 +47,13 @@ MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
 class ShowEngine:
     def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None,
-                 resolve_targets=None, apply_preset=None):
+                 resolve_targets=None):
         self.bridge = bridge
         self.broadcast = broadcast  # async callable(message_type, data)
         self.event_lead_ms = event_lead_ms or (lambda: 500)
         # Venue identity stays outside this transport engine. The dashboard
         # injects portable group-name -> wire selector resolution.
         self.resolve_targets = resolve_targets or (lambda targets: targets)
-        # Preset resolution remains dashboard-owned. The transport engine only
-        # recognizes the reference family and hands it to the injected
-        # application core; it never reads patch or preset files itself.
-        self.apply_preset = apply_preset
         if seed is None:
             # No existing mechanism threads a run-context seed into the
             # dashboard process (python/runcontext.py's BOPOS_SEED is
@@ -145,27 +140,13 @@ class ShowEngine:
 
     async def _emit_messages(self, step):
         for message in step["messages"]:
-            result = self._send_message(message)
-            if inspect.isawaitable(result):
-                await result
+            self._send_message(message)
 
     def _send_message(self, message):
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
-        if message.get("kind") == "reference":
-            preset = show_model.preset_message_parts(message)
-            if preset is not None and self.apply_preset is not None:
-                patch, slug, duration_ms, curve = preset
-                result = self.apply_preset(
-                    patch, slug, target, duration_ms, curve,
-                    message.get("reference"))
-                # Return the dashboard-owned Task (or an embedding's bare
-                # coroutine) so `_emit_messages` can preserve authored order.
-                return result
-            # A content reference is never raw OSC. Unknown reference families
-            # fail closed instead of leaking pseudo-addresses onto the network.
-            log.warning("show engine: unhandled content reference %s; skipped",
-                        address)
+        if message.get("kind", "osc") != "osc":
+            log.warning("show engine: unsupported message kind; skipped")
             return
         selectors = self.resolve_targets(target)
         if isinstance(selectors, tuple):

@@ -18,7 +18,6 @@ if __package__:
 else:
     import asset_slots
 
-HOST_ONLY_DIRS = frozenset({"presets"})
 
 # per-file digests keyed by path, invalidated by stat signature, so repeated
 # fingerprints (a Zero answering /os/patches) re-hash only changed files
@@ -30,15 +29,6 @@ def _signature(stat):
     return (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
 
 
-def is_host_only(relative_path):
-    """Return whether a path enters a host-only top-level patch directory."""
-    if not isinstance(relative_path, (str, os.PathLike)):
-        return False
-    normalized = os.path.normpath(os.fspath(relative_path).replace("\\", os.sep))
-    if normalized in ("", ".") or os.path.isabs(normalized):
-        return False
-    first = normalized.split(os.sep, 1)[0]
-    return first in HOST_ONLY_DIRS
 
 
 def _walk_files(root):
@@ -46,8 +36,6 @@ def _walk_files(root):
     for directory, dirs, names in os.walk(root):
         dirs[:] = sorted(name for name in dirs
                          if not name.startswith(".")
-                         and not is_host_only(
-                             os.path.relpath(os.path.join(directory, name), root))
                          and not os.path.islink(os.path.join(directory, name)))
         for name in sorted(names):
             if (name.startswith(".") or name.endswith(".part")
@@ -79,8 +67,6 @@ def load_hash_cache(root):
         if isinstance(entries, dict):
             for relative, entry in entries.items():
                 if not isinstance(relative, str) or not isinstance(entry, dict):
-                    continue
-                if is_host_only(relative):
                     continue
                 path = os.path.abspath(os.path.join(root, relative.replace("/", os.sep)))
                 signature = entry.get("signature")
@@ -114,8 +100,7 @@ def save_hash_cache(root):
             if not path.startswith(prefix) or not os.path.isfile(path):
                 continue
             relative = os.path.relpath(path, root).replace(os.sep, "/")
-            if (any(part.startswith(".") for part in relative.split("/"))
-                    or is_host_only(relative)):
+            if (any(part.startswith(".") for part in relative.split("/"))):
                 del _file_hashes[path]
                 continue
             files[relative] = {"signature": list(signature), "sha256": digest}
@@ -137,8 +122,7 @@ def seed_hashes(root, directory, files):
     with _cache_lock:
         for item in files:
             path = os.path.abspath(os.path.join(directory, item["path"]))
-            relative = os.path.relpath(path, root)
-            if (not path.startswith(prefix) or is_host_only(relative)
+            if (not path.startswith(prefix)
                     or not os.path.isfile(path) or os.path.islink(path)):
                 continue
             _file_hashes[path] = (_signature(os.stat(path)), item["sha256"].lower())

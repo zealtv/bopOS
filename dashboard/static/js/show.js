@@ -122,7 +122,6 @@
 
   const PILL_CATEGORIES = {
     event: {code: "EV", label: "event"},
-    preset: {code: "PRE", label: "preset"},
     point: {code: "PT", label: "point"},
     raw: {code: "RAW", label: "raw OSC"},
     "param-value": {code: "VAL", label: "parameter value"},
@@ -134,7 +133,6 @@
 
   function pillCategory(message) {
     const mode = inferMessageMode(message);
-    if (mode === "preset") return "preset";
     if (mode !== "param") return mode;
     const args = message.args || [];
     const first = String(argValue(args[0]) ?? "").toLowerCase();
@@ -150,9 +148,7 @@
 
   function pillColourClass(message) {
     const category = pillCategory(message);
-    const driven = category === "preset" && (message.args || []).length
-      ? " show-pill-driven" : "";
-    return ` show-pill-${category}${driven}`;
+    return ` show-pill-${category}`;
   }
 
   function allSteps() {
@@ -231,9 +227,6 @@
       manifest: manifestFromStagedPatch(),
       seats: seats().map(seat => ({id: seat.id, name: seat.name, groups: seat.groups || []})),
       groups: groups().map(group => ({id: group.id, name: group.name})),
-      presets: state.preset_catalog || {},
-      patchFingerprints: (currentDistribution().patches || [])
-        .map(item => [item.name, item.fingerprint]),
       notices: state.notices || [],
     });
   }
@@ -294,7 +287,6 @@
   }
 
   function inferMessageMode(message) {
-    if (message.kind === "reference" && message.address?.startsWith("/preset/")) return "preset";
     if (message.address?.startsWith("/e/")) return "event";
     if (message.address === "/pt") return "point";
     if (message.address?.startsWith("/p/")) return "param";
@@ -317,9 +309,6 @@
 
   function wirePreview(message) {
     const args = (message.args || []).map(arg => `${arg.type}:${String(arg.value)}`).join(", ");
-    if (inferMessageMode(message) === "preset") {
-      return `${message.address || "/preset/"} ${args ? `[${args}]` : "[]"} -> expands at play -> ${wireTargets(message)}`;
-    }
     return `${message.address || "/"} ${args ? `[${args}]` : "[]"} -> ${wireTargets(message)}`;
   }
 
@@ -656,7 +645,6 @@
         <label>payload mode
           <select id="show-message-mode">
             <option value="param" ${mode === "param" ? "selected" : ""}>parameter</option>
-            <option value="preset" ${mode === "preset" ? "selected" : ""}>preset</option>
             <option value="event" ${mode === "event" ? "selected" : ""}>event</option>
             <option value="point" ${mode === "point" ? "selected" : ""}>point</option>
             <option value="raw" ${mode === "raw" ? "selected" : ""}>raw</option>
@@ -669,57 +657,10 @@
   }
 
   function renderPayloadBuilder(message, mode) {
-    if (mode === "preset") return renderPresetBuilder(message);
     if (mode === "param") return renderParamBuilder(message);
     if (mode === "event") return renderEventBuilder(message);
     if (mode === "point") return renderPointBuilder(message);
     return renderRawBuilder(message);
-  }
-
-  function presetAddressParts(message) {
-    const parts = String(message?.address || "").split("/");
-    return parts.length === 4 && parts[1] === "preset"
-      ? {patch: parts[2], slug: parts[3]} : {patch: "", slug: ""};
-  }
-
-  function patchCatalogItem(patch) {
-    return (currentDistribution().patches || [])
-      .find(item => item.name === patch) || null;
-  }
-
-  function presetEntries(patch) {
-    return currentInstallation().preset_catalog?.[patch] || [];
-  }
-
-  function presetReference(patch, entry) {
-    const content = patchCatalogItem(patch);
-    if (!content?.fingerprint || !entry?.schema) return null;
-    return {
-      content: {name: patch, fingerprint: content.fingerprint},
-      schema: entry.schema,
-    };
-  }
-
-  function renderPresetBuilder(message) {
-    const staged = manifestFromStagedPatch().patch || "";
-    const address = presetAddressParts(message);
-    const patch = address.patch || staged;
-    const entries = presetEntries(patch);
-    const selected = entries.find(entry => entry.slug === address.slug)
-      || entries[0] || null;
-    const options = entries.map(entry =>
-      `<option value="${escapeHtml(entry.slug)}" ${entry.slug === selected?.slug ? "selected" : ""}>${escapeHtml(entry.name)}${entry.drift ? " *" : ""}</option>`).join("");
-    const duration = message.args?.[0]?.value ?? "";
-    const curveToken = String(message.args?.[1]?.value || "");
-    const curve = curveToken.startsWith("c:") ? curveToken.slice(2) : "";
-    return `<section class="show-inspector-section" data-payload-builder="preset">
-      <label>preset <select id="show-preset-picker">${options || '<option value="">No presets for this patch</option>'}</select></label>
-      <label>duration · ms <input id="show-preset-duration" type="number" min="0" step="any" value="${escapeHtml(duration)}" placeholder="immediate"></label>
-      <label>curve <input id="show-preset-curve" type="number" step="any" value="${escapeHtml(curve)}" placeholder="linear"></label>
-      ${selected?.drift ? '<p class="show-field-error">preset schema differs from the current patch</p>' : ""}
-      <button type="button" id="show-flatten-preset" ${selected ? "" : "disabled"}>Flatten to parameter messages</button>
-      <small class="dim">${escapeHtml(patch || "No staged patch")} · by reference</small>
-    </section>`;
   }
 
   function renderParamBuilder(message) {
@@ -995,7 +936,6 @@
       alias: message.alias, address: message.address,
       args: structuredClone(message.args || []),
       target: structuredClone(targetList(message)),
-      ...(message.reference ? {reference: structuredClone(message.reference)} : {}),
     };
     render();
   }
@@ -1275,43 +1215,30 @@
 
   function applyModeDefault(message, mode) {
     const manifest = manifestFromStagedPatch();
-    if (mode === "preset") {
-      const entry = presetEntries(manifest.patch)[0];
-      const reference = presetReference(manifest.patch, entry);
-      if (!entry || !reference) {
-        showError = "No valid preset is available for the staged patch.";
-        render();
-        return;
-      }
-      updateMessage(message.uid, {
-        kind: "reference", reference,
-        address: `/preset/${manifest.patch}/${entry.slug}`,
-        args: [], target: targetList(message),
-      });
-    } else if (mode === "param") {
+    if (mode === "param") {
       const declaration = manifest.params[0];
       const identity = declaration?.identity || "gain";
       const type = declarationWireType(declaration);
       const value = declaration?.default ?? (type === "s" ? "" : 0);
-      updateMessage(message.uid, {kind: "osc", reference: null,
+      updateMessage(message.uid, {kind: "osc",
         address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
     } else if (mode === "event") {
       const declaration = manifest.events[0];
       const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
       const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
       updateMessage(message.uid, {
-        kind: "osc", reference: null,
+        kind: "osc",
         address: `/e/${declaration?.identity || ""}`,
         args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
         target: targetList(message),
       });
     } else if (mode === "point") {
-      updateMessage(message.uid, {kind: "osc", reference: null, address: "/pt", args: [
+      updateMessage(message.uid, {kind: "osc", address: "/pt", args: [
         {type: "i", value: 0}, {type: "f", value: 0}, {type: "f", value: 0},
         {type: "f", value: 1}, {type: "i", value: 1},
       ], target: targetList(message)});
     } else {
-      updateMessage(message.uid, {kind: "osc", reference: null,
+      updateMessage(message.uid, {kind: "osc",
         address: "/raw", args: message.args || [], target: targetList(message)});
     }
   }
@@ -1450,31 +1377,6 @@
           args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
         });
       }
-      if (event.target.id === "show-preset-picker") {
-        const address = presetAddressParts(message);
-        const patch = address.patch || manifestFromStagedPatch().patch;
-        const entry = presetEntries(patch)
-          .find(candidate => candidate.slug === event.target.value);
-        const reference = presetReference(patch, entry);
-        if (entry && reference) {
-          updateMessage(message.uid, {
-            kind: "reference", reference,
-            address: `/preset/${patch}/${entry.slug}`,
-          });
-        }
-      }
-      if (event.target.matches("#show-preset-duration, #show-preset-curve")) {
-        const durationInput = messageEditor.querySelector("#show-preset-duration");
-        const curveInput = messageEditor.querySelector("#show-preset-curve");
-        const args = [];
-        if (durationInput?.value !== "") {
-          args.push(typedArg("f", durationInput.value));
-          if (curveInput?.value !== "") {
-            args.push(typedArg("s", `c:${Number(curveInput.value)}`));
-          }
-        }
-        updateMessage(message.uid, {args});
-      }
       if (event.target.matches("[data-event-element]")) {
         const args = [...messageEditor.querySelectorAll("[data-event-element]")]
           .map(input => typedArg("f", input.value));
@@ -1601,9 +1503,6 @@
         const args = [...(message.args || [])];
         args.splice(Number(event.target.dataset.removeRawArg), 1);
         updateMessage(message.uid, {args});
-      }
-      if (event.target.id === "show-flatten-preset") {
-        ws.send("flatten_preset_message", {uid: message.uid});
       }
     }
   });

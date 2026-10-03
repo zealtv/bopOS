@@ -251,27 +251,6 @@ function renderVenues() {
   if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
 })();
-// ---- patch presets (41-preset-primitive) ----------------------------------
-ws.on("preset_capture_preview", data => {
-  if (!pendingPreview) return;
-  const {key, rerender} = pendingPreview;
-  capturePreviews.set(key, data);
-  pendingPreview = null;
-  rerender();
-});
-// The omitted-as-mixed set is stated in the drawer BEFORE the save (F8), so
-// the confirmation only has to say the write landed; the catalog broadcast
-// that follows is what repopulates the dropdown.
-ws.on("preset_saved", data => {
-  manifestFeedback = `Saved preset ${data.name}${data.omitted?.length
-    ? ` · ${data.omitted.length} omitted as mixed` : ""}`;
-  render();
-});
-ws.on("preset_applied", data => {
-  lastPresetReport = data;
-  renderDeviceDetail();
-  renderEditor();
-});
 function render() {
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
@@ -1024,20 +1003,9 @@ function renderEditor() {
     id:0,
     automation_key:"editor",
     params:editor.params||{},
-    applied_preset:editor.applied_preset||null,
-    preset_dirty:editor.preset_dirty||null,
   };
-  // The sculpt→save workflow (41-preset-primitive/08). The editor drives its
-  // own audition engine on selector 0, so the row targets scope "editor" and
-  // recall goes through the same server-side application core the Control tab
-  // uses — same clamping, same report, same provenance. Saving writes into
-  // `patches/<patch>/presets/`, which is excluded from the patch fingerprint,
-  // so a save while sculpting never restages the fleet.
-  const editorPresets=editor.active
-    ? editorSurface.presetRow("editor",null,[editorMember],editor.patch,{key:"editor:0"})
-    : "";
   $("#editor-params").innerHTML=editor.active
-    ? `${editorPresets}<div class="editor-master-row"><span>Audition master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></div><div class="promoted-controls">${declarations.length?editorSurface.tree("editor",null,[editorMember],declarations,false):'<p class="dim">No manifest controls.</p>'}</div>`:"";
+    ? `<div class="editor-master-row"><span>Audition master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></div><div class="promoted-controls">${declarations.length?editorSurface.tree("editor",null,[editorMember],declarations,false):'<p class="dim">No manifest controls.</p>'}</div>`:"";
   editorSurface.bind($("#editor-params"));
   const editorMaster=$("#editor-master");
   if(editorMaster) {
@@ -1251,8 +1219,8 @@ function renderSeatDetail() {
   // column already showing this Seat, else append one -- and it performs the
   // tab switch the ambient version never did.
   $("#seat-open-control").onclick=()=>{window.ControlHost?.openSeat(Number(seat.id));activateTab("control");};
-  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Current presets follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
-  $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its current preset entries will also be removed.`))ws.send("remove_seat",{id:seat.id});};
+  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Live parameter values follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
+  $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its live parameter values will also be removed.`))ws.send("remove_seat",{id:seat.id});};
   panel.querySelectorAll("[data-seat-group]").forEach(input=>input.onchange=()=>{const next=new Set((seat.groups||[]).map(Number));input.checked?next.add(Number(input.dataset.seatGroup)):next.delete(Number(input.dataset.seatGroup));seat.groups=[...next].sort((a,b)=>a-b);ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});renderGroups();renderGroupMap();Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());});
   const chosen=()=>$("#seat-device").value;
   $("#seat-device").onchange=()=>seatBindingDrafts.set(seat.id,chosen());
@@ -1324,39 +1292,6 @@ function logSection(d) {
     </div></section>`;
 }
 
-// ---- preset wiring shared by the Device panel and the patch editor --------
-// Both surfaces render the same ratified preset row through the shared
-// component (41-preset-primitive/07 and /08), so they share its callbacks:
-// only the target scope differs. Preset bodies never reach the browser — the
-// row sees a catalog listing, per-target provenance, and an apply report.
-const capturePreviews=new Map();
-let pendingPreview=null, lastPresetReport=null;
-function presetContext(rerender) {
-  return {
-    presetCatalog:patch=>installation.preset_catalog?.[patch]||[],
-    applyPreset:({scope,id,patch,name})=>ws.send("apply_preset",{scope,id,patch,name}),
-    savePreset:({scope,id,patch,name,include,revision})=>
-      ws.send("save_patch_preset",{scope,id,patch,name,include,revision}),
-    deletePreset:({patch,slug,revision})=>
-      ws.send("delete_patch_preset",{patch,slug,revision}),
-    requestCapturePreview:({key,scope,id,patch})=>{
-      capturePreviews.delete(key);
-      pendingPreview={key,rerender};
-      ws.send("preview_preset_capture",{scope,id,patch});
-    },
-    capturePreview:key=>capturePreviews.get(key)||null,
-    // A report belongs to the row whose targets it covers exactly: the
-    // broadcast carries no card key, and any client's apply produces one.
-    presetReport:(_key,members)=>{
-      if(!lastPresetReport)return null;
-      const targets=new Set(Object.keys(lastPresetReport.targets||{}));
-      const mine=(members||[]).map(seat=>String(seat.id));
-      return mine.length&&mine.length===targets.size
-        &&mine.every(id=>targets.has(id))?lastPresetReport:null;
-    },
-  };
-}
-
 function editorControlDeclarations(editor=installation.editor||{}) {
   const parameters=(editor.declarations||[]).map(item=>({
     ...item, path:item.path||[], identity:paramIdentity(item),
@@ -1388,7 +1323,6 @@ const editorSurface=window.ControlSurface.create({
     ws.send("set_live_automation",{scope:"editor",id:null,name,args}),
   setInteracting:editing=>{interacting=editing;},
   requestRender:()=>renderEditor(),
-  ...presetContext(()=>renderEditor()),
 });
 
 // The Device tab renders the same live controls the Control tab does, through
@@ -1411,7 +1345,6 @@ const deviceSurface=window.ControlSurface.create({
   sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
   setInteracting:editing=>{deviceControlInteracting=editing;},
   requestRender:()=>renderDeviceDetail(),
-  ...presetContext(()=>renderDeviceDetail()),
 });
 
 const DEVICE_CONTROL_OPEN="bopos.device-control-open";
@@ -1447,19 +1380,10 @@ function deviceControlSection(d) {
   const disabled=!seat||!live;
   const why=!seat?'Unbound device — showing patch defaults. Live control targets content by Seat, so bind this device to a Seat first.'
     :!live?'Offline — showing the last known values.':'';
-  // The preset row now names the patch (panel anatomy item 2), so the head
-  // line keeps only what the row cannot say: where that patch came from.
-  // Save is refused while the device is offline (F8): applying is dashboard
-  // state and replays when the node returns, but capturing from a device you
-  // cannot hear would store a guess.
-  const presets=declarations.length
-    ? deviceSurface.presetRow("device",d.uid,seat?[seat]:[],schema?.patch,
-        {key:`device:${d.uid}`,disabled:!seat,saveDisabled:disabled})
-    : "";
   const body=!declarations.length
     ? '<p class="dim">This patch declares no parameters.</p>'
-    : `${presets}<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
-  const source=schema?.patch?`<p class="dim">${d.patch_pinned?'pinned to this device':'fleet patch'}</p>`:"";
+    : `<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
+  const source=schema?.patch?`<p class="dim">${esc(schema.patch)} · ${d.patch_pinned?'pinned to this device':'fleet patch'}</p>`:"";
   return `<section id="device-control" class="device-control${disabled?' disabled':''}">
     <div class="section-head"><div><h2>Device control</h2>${source}</div><button id="device-control-toggle" aria-expanded="${open}" aria-controls="device-control-body">${open?'Hide':'Show'}</button></div>
     <div id="device-control-body" ${open?'':'hidden'}>${why?`<p class="dim">${esc(why)}</p>`:''}${body}</div>

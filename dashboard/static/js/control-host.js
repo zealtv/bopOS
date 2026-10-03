@@ -94,7 +94,6 @@
       onRemove: () => removeCard(entry),
       capabilities: {
         fullManifest: true,
-        presetMenu: true,
         targetPicker: true,
         deriveAllTargets: false,
         deviceCommands: false,
@@ -126,24 +125,6 @@
         ws.send("set_live_automation", payload);
       },
       replay: payload => ws.send("replay_live_params", payload),
-      applyPreset: ({scope, id, patch, name}) => {
-        const payload = {scope, patch, name};
-        if (id != null) payload.id = Number(id);
-        ws.send("apply_preset", payload);
-      },
-      savePreset: ({scope, id, patch, name, include, revision}) => {
-        const payload = {scope, patch, name, include};
-        if (id != null) payload.id = Number(id);
-        if (revision) payload.revision = revision;
-        ws.send("save_patch_preset", payload);
-      },
-      deletePreset: ({patch, slug, revision}) =>
-        ws.send("delete_patch_preset", {patch, slug, revision}),
-      requestCapturePreview: ({scope, id, patch}) => {
-        const payload = {scope, patch};
-        if (id != null) payload.id = Number(id);
-        ws.send("preview_preset_capture", payload);
-      },
       sendCommand: payload => ws.send("action", payload),
       openDevice: uid => {
         if (!installation.devices?.[uid]) return;
@@ -224,12 +205,6 @@
   ws.on("device_update", renderAll);
   ws.on("params_declaration", renderAll);
   ws.on("device_offline", renderAll);
-  ws.on("preset_capture_preview", data =>
-    cards.some(card => card.surface.acceptCapturePreview(data)));
-  ws.on("preset_saved", data =>
-    cards.forEach(card => card.surface.reportPresetSaved(data)));
-  ws.on("preset_applied", data =>
-    cards.forEach(card => card.surface.reportPresetApplied(data)));
   ws.on("event_scheduled", data =>
     cards.forEach(card => card.surface.reportEventScheduled(data)));
   document.addEventListener("pointerdown", event => {

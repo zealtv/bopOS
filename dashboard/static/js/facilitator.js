@@ -8,7 +8,7 @@
 // hosts differ about is stated by what each passes in.
 //
 // Remote derives All, every group and every Seat. It shares the card renderer
-// with Control but has no target picker or presets; dashboard:true still gates
+// with Control but has no target picker; dashboard:true still gates
 // its manifest subset, and it retains the device commands needed away from the
 // desktop rack view.
 const ws = new BopSocket("/ws");
@@ -30,7 +30,6 @@ const column = window.ControlColumn.create({
   storageKey: null,
   capabilities: {
     fullManifest: false,
-    presetMenu: false,
     targetPicker: false,
     deriveAllTargets: true,
     deviceCommands: true,
