@@ -15,6 +15,38 @@ from playwright.sync_api import sync_playwright
 from verify_show_targets import free_port, wait_http, ROOT
 
 
+def check_notice_themes(page, surface, artifact_dir):
+    """Check the rendered warning tint and normal-text AA contrast in both themes."""
+    original_theme = page.evaluate("document.documentElement.dataset.theme")
+    for theme in ("light", "dark"):
+        page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
+        colors = page.locator("#installation-notice").evaluate("""notice => {
+            const style = getComputedStyle(notice);
+            const probe = document.createElement('span');
+            probe.style.backgroundColor = 'var(--warning-bg)';
+            notice.append(probe);
+            const tint = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            return {text: style.color, background: style.backgroundColor, tint};
+        }""")
+        assert colors["background"] == colors["tint"], colors
+
+        def luminance(rgb):
+            channels = [float(value) / 255 for value in rgb[rgb.index("(") + 1:-1].split(",")]
+            assert len(channels) == 3, rgb  # Opaque theme colors; no hidden blending.
+            linear = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4
+                      for value in channels]
+            return sum(value * weight for value, weight in zip(linear, (.2126, .7152, .0722)))
+
+        values = sorted((luminance(colors["text"]), luminance(colors["background"])))
+        contrast = (values[1] + .05) / (values[0] + .05)
+        assert contrast >= 4.5, (surface, theme, colors, contrast)
+        if artifact_dir:
+            page.screenshot(path=str(artifact_dir / f"notice-{surface}-{theme}.png"))
+        print(f"[PASS] {surface} {theme} warning tint has {contrast:.2f}:1 text contrast")
+    page.evaluate("theme => document.documentElement.dataset.theme = theme", original_theme)
+
+
 def run_phase(root, page, invalid_start, artifact_dir=None):
     state_path = root / "installation.json"
     venue = root / "installations" / "broken.json"
@@ -58,8 +90,8 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
                     }""")
                 else:
                     assert notice.is_hidden()
-                if invalid_start and artifact_dir and tab in ("control", "seats"):
-                    page.screenshot(path=str(artifact_dir / f"notice-{tab}.png"))
+                if invalid_start and tab in ("control", "seats"):
+                    check_notice_themes(page, tab, artifact_dir)
                 print(f"[PASS] {tab} has one visible load notice" if invalid_start
                       else f"[PASS] {tab} has no load notice after a valid load")
 
@@ -84,9 +116,9 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
                     assert str(state_path) in remote_notice.inner_text()
                 else:
                     assert remote_notice.is_hidden()
-                if invalid_start and artifact_dir:
+                if invalid_start:
                     remote.set_viewport_size({"width": 768, "height": 1024})
-                    remote.screenshot(path=str(artifact_dir / "notice-remote.png"))
+                    check_notice_themes(remote, "remote", artifact_dir)
                 print("[PASS] Remote follows the same notice rule below its header, including reload")
             finally:
                 remote.close()

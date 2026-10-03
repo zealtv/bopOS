@@ -1,6 +1,6 @@
 # 8-load-notice-tint
 
-**Status:** ready · small · Bob ruled 2026-10-03 ("tint the background")
+**Status:** verified · small · Bob ruled 2026-10-03 ("tint the background")
 **Goal:** the load-failure notice strip is hard to miss.
 
 `6-load-failure-followups` (`55d769c`) added `#installation-notice`: plain

@@ -1,0 +1,29 @@
+[PASS] control light warning tint has 14.12:1 text contrast
+[PASS] control dark warning tint has 13.04:1 text contrast
+[PASS] control has one visible load notice
+[PASS] seats light warning tint has 14.12:1 text contrast
+[PASS] seats dark warning tint has 13.04:1 text contrast
+[PASS] seats has one visible load notice
+[PASS] devices has one visible load notice
+[PASS] patches has one visible load notice
+[PASS] assets has one visible load notice
+[PASS] show has one visible load notice
+[PASS] remote light warning tint has 14.12:1 text contrast
+[PASS] remote dark warning tint has 13.04:1 text contrast
+[PASS] Remote follows the same notice rule below its header, including reload
+[PASS] an ordinary master change preserves original bytes
+[PASS] saving over the invalid venue is refused without changing either file
+[PASS] reconnect retains the startup notice
+[PASS] shutdown preserves both source files
+[PASS] control has no load notice after a valid load
+[PASS] seats has no load notice after a valid load
+[PASS] devices has no load notice after a valid load
+[PASS] patches has no load notice after a valid load
+[PASS] assets has no load notice after a valid load
+[PASS] show has no load notice after a valid load
+[PASS] Remote follows the same notice rule below its header, including reload
+[PASS] repaired startup permits ordinary saves again
+[PASS] rejected venue is broadcast as a visible notice without changing current state
+[PASS] saving over the invalid venue is refused without changing either file
+[PASS] shutdown preserves both source files
+[PASS] repairing the file and restarting clears the startup lock and notice
