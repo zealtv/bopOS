@@ -8,55 +8,53 @@ Bob, 2026-10-03: *"anything that needs my ruling put in stitches for me to
 follow up on after this session"* — then *"make it a single stitch for review
 and ruling"*. Each item points at where the evidence lives; the stitches named
 stay where they are. When an item is ruled, record the ruling in the stitch it
-points at (resume that stitch if it's waiting), then strike it here. Tie this
-when the list is empty.
+points at (resume that stitch if it's waiting), then move it to Ruled here.
+Tie this when Open and Hardware checks are empty.
 
-## Rulings
+## Open
 
-1. **OS upgrade in the device installer.** Recommendation: remove
-   `apt-get upgrade -y` from `install-device.sh` (it can move JACK, Pd, kernel
-   or drivers during an install); keep `apt-get update` and the named packages.
-   See `.loom/tied/73-pinned-dependencies/os-upgrade-recommendation.md`.
-   Ruling → new stitch to make the change, or no.
-2. **"Mute all" honesty.** `set_mute` (`python/bopos.py`) sets `mute_all`
-   before `enforce_mute`, so a failed mixer call leaves the report claiming
-   output is off while sound continues — the same bug `67/2` just fixed for
-   Device enabled. Ruling → stitch it as a repair, or leave it.
-3. **Load-failure notice emphasis.** Built to option 2 (`55d769c`): plain
-   text over a thin amber rule. Ruling → keep, or make it stronger (a
-   "Warning" label, tinted background). Screenshots:
-   `.loom/threads/67-repair-pass/6-load-failure-followups.tied/notice-*.png`.
-4. **Git patch route amendment.** `68-remove-git-patch-route.waiting/proposal.md`
-   (ready, `4d61e88`): contract §7/§15 text at v1.19, the removal list, and
-   what push does to a device's existing git-cloned patch dir. Ruling →
-   approve so phase 2 can land, or amend.
-5. **IO error vocabulary** — already handed to the IO design gate
-   (`59-i2c-inventory/0a-io-design-review`, decision 1). No separate ruling;
-   listed so it isn't forgotten.
-6. **Contract 1.18 wording (FYI).** The preset retirement's §15 entry was
-   written by the agent under "do whatever is cleanest". Read it in
-   `docs/OSC-CONTRACT.md` §15 if you want to confirm the text.
-7. **Patch editor: two elements or N?** The editor only auditions elements
-   0/1 (`set_editor_point_element` in `server.py`, two radios in `index.html`)
-   though positions support any number. Recommendation: allow N, with any
-   audition output limit made explicit. See
+7. **Patch editor: elements 0/1 only.** In Patch Edit, the Point preview
+   section has a fieldset "send point values to: ○ element 0 ○ element 1"
+   (`index.html`, `#editor-point-target`). The audition engine sends each
+   point's computed value as `/pt <point> <element> <value>` to the chosen
+   element only; the server (`set_editor_point_element`) and audition
+   (`set_editor_element`) both reject anything but 0 or 1. So a patch whose
+   elements 2+ respond to points can't be previewed for them. Recommendation:
+   allow N (a number field instead of two radios). Asked for clarification
+   2026-10-03. Evidence:
    `.loom/threads/70-dead-code-sweep/1-dead-code.tied/element-recommendation.md`.
-   Ruling → stitch "allow N", or keep two and document it as audition-only.
-8. **Engine `/id` type tag.** Assignment/unassignment send `/id` as float,
-   `/config` and ready replay send int; the contract doesn't fix the tag.
-   Recommendation: ratify `/id <n:int32>` everywhere (two send tags change).
-   Pd reads either. Coordinate the version with item 4. See
-   `.loom/threads/69-complexity/4-node-daemon-tidy.tied/id-type-proposal.md`.
-   Ruling → stitch the int change with a contract amendment, or document mixed.
+5. **IO error vocabulary** — in the IO design gate
+   (`59-i2c-inventory/0a-io-design-review`, decision 1). No separate ruling.
+
+## Ruled 2026-10-03
+
+1. OS upgrade in the installer — **yes, remove it** →
+   `67-repair-pass/9-installer-no-os-upgrade`.
+2. "Mute all" honesty — **yes** → `67-repair-pass/7-mute-all-honesty`.
+3. Load-failure notice — **tint the background** →
+   `67-repair-pass/8-load-notice-tint`.
+4. Git patch route amendment — **approved** →
+   `68-remove-git-patch-route/ruling.md`, phase 2.
+6. Contract 1.18 wording — read to Bob. He clarified that "do whatever is
+   cleanest" was spot advice for that question, not a standing ruling
+   (recorded in glean `decision-gates`).
+8. Engine `/id` — **int, as long as Pd is happy** →
+   `67-repair-pass/10-engine-id-int` (Pd check first; lands in 68's 1.19).
 
 ## Hardware checks (Bob's hands; software halves are done)
 
-- **Finn Jet — LIS3DH wrong address** → error, not zeros.
-  `67-repair-pass/3-io-bridge-hardening.waiting`.
-- **Finn Jet / Ciro Toast — invalid manifest**: write one with the retired
-  `type` grammar, confirm the device stays visible, push a good patch, confirm
-  it recovers. `58-patch-push-workflow/4-invalid-manifest-lockout.waiting`.
-- **Ciro Toast — Device disable**: disable from the Device page; is it
-  actually silent? `67-repair-pass/2-device-enabled-honesty.waiting`.
-- **Rig package versions**: run the read-only comparison command in
+Device-agnostic (Bob, 2026-10-03): Finn Jet and Ciro Toast are out of date and
+will be updated first. Use any current bopOS device unless a check needs
+specific hardware, and record which device and framework revision.
+
+- **Wrong-address peripheral** → error, not zeros. Needs a device with an
+  LIS3DH. `67-repair-pass/3-io-bridge-hardening.waiting`.
+- **Invalid manifest**: write one with the retired `type` grammar, confirm the
+  device stays visible, push a good patch, confirm it recovers. Any device.
+  `58-patch-push-workflow/4-invalid-manifest-lockout.waiting`.
+- **Device disable / mute all**: disable from the Device page, then mute all;
+  is it actually silent? Most telling on a card with no hardware mixer (e.g.
+  HiFiBerry). `67-repair-pass/2-device-enabled-honesty.waiting` and
+  `7-mute-all-honesty`.
+- **Package versions**: run the read-only comparison command in
   `docs/INSTALL.md` on a device; compare against `constraints.txt`.

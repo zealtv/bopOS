@@ -12,3 +12,11 @@ design. The bridge keeps logging those cases until then.
 
 Resume once these gates are resolved; do not tie the stitch on software-only
 evidence.
+
+
+## Device-agnostic (Bob, 2026-10-03)
+
+Finn Jet and Ciro Toast are out of date and will be updated first. Run this
+check on any current bopOS device unless the test needs specific hardware;
+the hardware need here is noted above (e.g. a device with that peripheral or
+card). Record which device and its framework revision.

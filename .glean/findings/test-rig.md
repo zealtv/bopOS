@@ -2,6 +2,11 @@
 
 When hardware verification is needed, the two-device rig is Finn Jet (fleet node) and Ciro Toast (standalone); `bop000` is a spare Zero 2 W.
 
+**Be device-agnostic** (Bob, 2026-10-03): write hardware checks for any current
+bopOS device unless the test needs specific hardware (a peripheral like the
+LIS3DH, a card with no mixer), and record which device and framework revision
+ran it. Finn Jet and Ciro Toast are out of date and need updating before use.
+
 - Finn Jet: Pi Zero 2 W, IQaudIO DigiAMP+, runs 32000/1024/2 locally (repo default stays 44100). LIS3DH on the I2C bus.
 - Ciro Toast: HiFiBerry DAC, ADS1115 at `0x4b`.
 - HiFiBerry boards have no hardware mixer — `amixer` warnings at startup are normal; volume is software.
