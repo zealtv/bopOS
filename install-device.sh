@@ -55,7 +55,6 @@ echo "==> Preparing Raspberry Pi OS"
 sudo raspi-config nonint do_expand_rootfs
 sudo raspi-config nonint do_i2c 0
 sudo env LANG=C LC_ALL=C apt-get update
-sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "jackd2 jackd/tweak_rt_limits boolean true" |
     sudo debconf-set-selections
 sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \

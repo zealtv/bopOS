@@ -1,6 +1,6 @@
 # 9-installer-no-os-upgrade
 
-**Status:** ready · small · Bob ruled 2026-10-03 ("yes")
+**Status:** verified · Bob ruled 2026-10-03 ("yes"); see `verification.md`.
 **Goal:** installing bopOS on a device doesn't upgrade the whole OS.
 
 Remove `apt-get upgrade -y` from `install-device.sh` and from the manual

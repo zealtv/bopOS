@@ -73,6 +73,12 @@ absent, enables `bopos.service`, and reboots after a successful run. The SSH
 session will disconnect at that point. It is safe to rerun: existing device
 config is preserved, and an existing checkout is only fast-forwarded.
 
+OS upgrades are deliberate bench maintenance, separate from installing bopOS.
+Before running `apt upgrade`, record the OS image and package versions; after
+the upgrade, re-check audio and peripherals on the device used. The installer
+refreshes package indexes and installs named prerequisites without upgrading
+the whole OS.
+
 The default system locale is `en_AU.UTF-8`. To choose another UTF-8 locale:
 
 ```sh
@@ -114,7 +120,6 @@ Boot the Pi and log in (`ssh pi@raspberrypi.local`), then:
 sudo raspi-config nonint do_expand_rootfs
 sudo raspi-config nonint do_i2c 0
 sudo env LANG=C LC_ALL=C apt-get update
-sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 echo "jackd2 jackd/tweak_rt_limits boolean true" | sudo debconf-set-selections
 sudo env LANG=C LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get install -y \
   alsa-utils jackd2 puredata git python3-pip python3-venv i2c-tools locales \
@@ -261,8 +266,9 @@ claim that Finn Jet or Ciro Toast currently runs them or that the sensor/audio
 hardware has been tested with them. The earlier Trixie 64-bit Lite/Python 3.13.5
 build observation above is historical; the current Pi OS image, Python, Pd and
 JACK package versions on both devices remain unchecked. Apt packages are not
-locked by these Python constraints. `install-device.sh` still runs its existing
-`apt-get upgrade -y`; changing that policy is a recommendation awaiting Bob.
+locked by these Python constraints. The installer refreshes package indexes
+and installs named prerequisites; whole-OS upgrades follow the separate
+bench-maintenance policy in [Install the device](#2-install-the-device).
 
 Bob can run this exact read-only comparison on each device from its checkout
 (no package install, restart or network request):
