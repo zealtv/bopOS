@@ -1277,6 +1277,7 @@ class Dashboard:
                     self.state.save_venue(name)
                 except (OSError, TypeError, ValueError):
                     await self.ws_error(ws, "The venue snapshot could not be saved.")
+                    await self.broadcast("state")
                     return
                 await self.broadcast("venues", {"venues": self.state.list_venues(),
                                                 "current": self.state.data.get("name")})
@@ -1286,6 +1287,7 @@ class Dashboard:
                                      if name in self.state.list_venues() else (None, None))
             if loaded is None:
                 await self.ws_error(ws, "That venue could not be loaded.")
+                await self.broadcast("state")
                 return
             desired = {seat.get("bound"): seat["id"] for seat in desired_seats.values()
                        if seat.get("bound")}

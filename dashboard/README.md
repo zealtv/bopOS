@@ -211,6 +211,13 @@ through the same assignment path used by map dragging. Named snapshots live in
 `dashboard/installations/<venue>.json`
 via the Venue save/load buttons. Both are gitignored.
 
+If the dashboard cannot fully load its installation file, the Show tab displays
+a notice and saves are blocked for that session. The original file stays in
+place, including malformed JSON or dangling group references; repair the file
+named in the notice and restart the dashboard. Invalid venue snapshots are
+also rejected without replacing the current state, and cannot be overwritten
+by Venue save until repaired.
+
 The desktop Control tab and Device control panel show every parameter declared
 by the active patch. The standalone facilitator/iPad view is curated:
 parameters appear there only when their manifest declaration has

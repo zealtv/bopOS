@@ -424,7 +424,7 @@
   function renderEmptyState() {
     const names = shows.names || [];
     const options = names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-    root.innerHTML = `<div class="show-empty">
+    root.innerHTML = `${renderWarnings()}<div class="show-empty">
       <div>
         <p class="dim">Create or load a show to start building performance steps.</p>
       </div>
@@ -536,15 +536,18 @@
       </div>`;
   }
 
+  function renderWarnings() {
+    const notices = (currentInstallation().notices || []).map(message => ({message}));
+    const warnings = [...notices, ...showWarnings];
+    return warnings.length
+      ? `<div class="show-warning-list" role="status">${warnings.map(warning =>
+          `<p>${escapeHtml(warning.message || warning)}</p>`).join("")}</div>` : "";
+  }
+
   function renderLoadedShow() {
     const items = Array.isArray(show.items) ? show.items : [];
     const rows = items.map((item, index) => item.kind === "divider" ? dividerRow(item, index) : stepRow(item, index)).join("");
-    const notices = (currentInstallation().notices || []).map(message => ({message}));
-    const warnings = [...notices, ...showWarnings];
-    const warningPanel = warnings.length
-      ? `<div class="show-warning-list" role="status">${warnings.map(warning =>
-          `<p>${escapeHtml(warning.message || warning)}</p>`).join("")}</div>` : "";
-    root.innerHTML = `${renderTransport()}${warningPanel}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
+    root.innerHTML = `${renderTransport()}${renderWarnings()}<div class="show-workspace${inspectorOpen ? "" : " show-inspector-collapsed"}">
       <div class="show-list-shell">
         ${renderEditBar()}
         <div class="show-rows-box" style="height:${showRowsHeight}px">

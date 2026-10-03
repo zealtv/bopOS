@@ -172,6 +172,7 @@ class InstallationState:
                 if (groups is None or next_group_id is None or rebuilt is None
                         or registry is None):
                     self._load_invalid = True
+                    self._invalid_file_notice(self.path)
                     return
                 self.data["name"] = loaded.get("name", "bopOS")
                 room = self.clean_room(loaded.get("room"))
@@ -207,10 +208,28 @@ class InstallationState:
                 self.data["device_registry"] = registry
             else:
                 self._load_invalid = True
+                self._invalid_file_notice(self.path)
         except FileNotFoundError:
-            pass
+            if os.path.lexists(self.path):
+                self._load_invalid = True
+                self._invalid_file_notice(self.path)
         except (OSError, ValueError, TypeError):
             self._load_invalid = True
+            self._invalid_file_notice(self.path)
+
+    def _invalid_file_notice(self, path):
+        recovery = ('Repair the file and restart the dashboard before saving.'
+                    if path == self.path else
+                    'Repair the file before loading or saving this venue.')
+        notice = (f'State file "{path}" could not be fully loaded. '
+                  'The original file is preserved and saving is blocked. '
+                  + recovery)
+        if notice not in self.data["notices"]:
+            self.data["notices"].append(notice)
+
+    def _require_valid_load(self):
+        if self._load_invalid:
+            raise OSError(f"Refusing to save state that failed to load: {self.path}")
 
     def _runtime_device(self, uid, values=None, virtual=False):
         values = values or {}
@@ -1004,6 +1023,7 @@ class InstallationState:
                 "origin": offsets}
 
     def save(self):
+        self._require_valid_load()
         directory = os.path.dirname(os.path.abspath(self.path))
         os.makedirs(directory, exist_ok=True)
         temporary = self.path + ".tmp"
@@ -1013,6 +1033,8 @@ class InstallationState:
         os.replace(temporary, self.path)
 
     def save_debounced(self):
+        if self._load_invalid:
+            return
         if self._save_task and not self._save_task.done():
             self._save_task.cancel()
         self._save_task = asyncio.create_task(self._delayed_save())
@@ -1039,7 +1061,10 @@ class InstallationState:
     def save_venue(self, name):
         # Snapshot the durable state under a venue name; runtime liveness is
         # not part of a venue.
+        self._require_valid_load()
         path = os.path.join(self.venues_dir(), name + ".json")
+        if os.path.lexists(path) and self.read_venue(name)[0] is None:
+            raise OSError(f"Refusing to overwrite a venue that failed to load: {path}")
         temporary = path + ".tmp"
         snapshot = self.durable()
         snapshot["name"] = name
@@ -1059,9 +1084,11 @@ class InstallationState:
             with open(path, encoding="utf-8") as source:
                 loaded = json.load(source)
         except (OSError, ValueError):
+            self._invalid_file_notice(path)
             return None, None
         if (not isinstance(loaded, dict) or loaded.get("schema") != SCHEMA
                 or not isinstance(loaded.get("seats"), dict)):
+            self._invalid_file_notice(path)
             return None, None
         adopted_groups, adoptions = self.adopt_group_names(
             loaded.get("groups", {}))
@@ -1071,6 +1098,7 @@ class InstallationState:
             missing="next_group_id" not in loaded)
         rebuilt = self.clean_seats(loaded["seats"], groups)
         if groups is None or next_group_id is None or rebuilt is None:
+            self._invalid_file_notice(path)
             return None, None
         loaded = dict(loaded)
         # Venue presets retired in thread 41. Old snapshots remain loadable,
@@ -1161,4 +1189,5 @@ class InstallationState:
     async def close(self):
         if self._save_task and not self._save_task.done():
             self._save_task.cancel()
-            self.save()
+            if not self._load_invalid:
+                self.save()

@@ -1,0 +1,73 @@
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+=== fast: browser-free living suite ===
+.................................................................bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+.........................................................................quarantined malformed asset inventory entry 'bad' from 192.0.2.4
+....................................................................supervisor cleanup failed during dashboard shutdown
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/dashboard/server.py", line 252, in stop
+    await self.stop_supervisor()
+  File "/Users/bob/repos/bopOS/tests/test_osc_transport.py", line 176, in failing_supervisor
+    raise OSError(errno.EADDRNOTAVAIL, "send failed")
+OSError: [Errno 49] send failed
+OSC cleanup failed during dashboard shutdown
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/dashboard/server.py", line 265, in stop
+    self.osc.close()
+    ~~~~~~~~~~~~~~^^
+  File "/Users/bob/repos/bopOS/tests/test_osc_transport.py", line 181, in close
+    raise OSError("close failed")
+OSError: close failed
+.........OSC send failed for /all/os/to to 255.255.255.255:16660: [Errno 49] Can't assign requested address
+.OSC send failed for /all/os/to to 255.255.255.255:16660: [Errno 49] route changed
+.............................................................................................................show engine: unhandled content reference /content/example; skipped
+.......................edit supervisor exited unexpectedly (rc=3): the last word
+OSC send failed for /all/os/master to 127.0.0.1:16671: [Errno 1] Operation not permitted
+.simulate supervisor exited unexpectedly (rc=1): RuntimeError: the explanatory line
+OSC send failed for /all/os/master to 127.0.0.1:16671: [Errno 1] Operation not permitted
+.edit supervisor exited unexpectedly (rc=1): PdBinaryError: no usable Pure Data executable: tried /no/such/pd
+OSC send failed for /all/os/master to 127.0.0.1:16671: [Errno 1] Operation not permitted
+.edit supervisor exited unexpectedly (rc=1): failure 0
+OSC send failed for /all/os/master to 127.0.0.1:16671: [Errno 1] Operation not permitted
+edit supervisor exited unexpectedly (rc=1): failure 1
+edit supervisor exited unexpectedly (rc=1): failure 2
+edit supervisor exited unexpectedly (rc=1): failure 3
+edit supervisor exited unexpectedly (rc=1): failure 4
+edit supervisor exited unexpectedly (rc=1): failure 5
+edit supervisor exited unexpectedly (rc=1): failure 6
+edit supervisor exited unexpectedly (rc=1): failure 7
+edit supervisor exited unexpectedly (rc=1): failure 8
+edit supervisor exited unexpectedly (rc=1): failure 9
+edit supervisor exited unexpectedly (rc=1): failure 10
+edit supervisor exited unexpectedly (rc=1): failure 11
+edit supervisor exited unexpectedly (rc=1): failure 12
+edit supervisor exited unexpectedly (rc=1): failure 13
+edit supervisor exited unexpectedly (rc=1): failure 14
+edit supervisor exited unexpectedly (rc=1): failure 15
+edit supervisor exited unexpectedly (rc=1): failure 16
+edit supervisor exited unexpectedly (rc=1): failure 17
+edit supervisor exited unexpectedly (rc=1): failure 18
+edit supervisor exited unexpectedly (rc=1): failure 19
+edit supervisor exited unexpectedly (rc=1): failure 20
+edit supervisor exited unexpectedly (rc=1): failure 21
+edit supervisor exited unexpectedly (rc=1): failure 22
+..........................
+----------------------------------------------------------------------
+Ran 377 tests in 9.779s
+
+OK
+WARNING: admin verb failed: boom
+WARNING: engine send dropped (engine not ready?): while sending: [Errno 111] Connection refused
+ASSIGNED: id 4 name Seat 4 pos [1.0, 2.0, 3.0, 4.0]
+UNASSIGNED: node-a
+FETCH file:/source patch:live: ok (bytes converged)
+ASSIGNED: id 0 name Seat 0 pos [1.0, 2.0]
+WARNING: /log received with no stream
+nodelog: refusing invalid stream ''
+nodelog: refusing invalid stream 'has space'
+nodelog: refusing invalid stream 'dots.not.allowed'
+nodelog: refusing invalid stream 'slash/x'
+nodelog: refusing invalid stream '../esc'
+nodelog: could not append to 's': [Errno 1] Operation not permitted: '/proc'
+exiting.  closing server...
+exiting.  closing server...
