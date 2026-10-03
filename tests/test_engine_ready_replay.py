@@ -17,6 +17,7 @@ exactly like tests/test_node_fetch_dispatch.py.
 import sys
 import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -99,6 +100,41 @@ class EngineReadyReplayTests(unittest.TestCase):
         self.assertIs(bopos.send_to_engine(pyOSC3.OSCMessage("/id")), True)
         self.assertEqual(self.client.sent, ["/id"])
 
+    def test_notify_keeps_string_payload_and_reports_transport_result(self):
+        packets = []
+        with mock.patch.object(bopos, "send_to_engine", side_effect=lambda msg:
+                               packets.append(pyOSC3.decodeOSC(msg.getBinary())) or False):
+            self.assertIs(bopos.notify_engine("restart-engine"), False)
+        self.assertEqual(packets, [["/notify", ",s", "restart-engine"]])
+
+    def test_transient_traffic_is_handled_even_when_engine_is_down(self):
+        self.client.refuse = True
+        self.assertTrue(bopos.relay_provided_term("/os/master", [0.5]))
+        bopos.send_groups_to_engine(types.SimpleNamespace(groups=(2,)))
+        bopos.fire_event_to_engine("go", [])
+        state = types.SimpleNamespace(points={}, elements=[[0, 0], [1, 1]])
+        self.assertTrue(bopos.apply_points(["pt"], [2, 0.0, 0.0, 1.0, 0], state))
+        with mock.patch.object(bopos, "node_state", types.SimpleNamespace(
+                store=mock.Mock(get=mock.Mock(return_value=[0.5])))):
+            bopos.load_callback(args=["gain"])
+        self.assertEqual(self.client.sent, [])
+
+    def test_identity_tags_remain_unchanged_pending_bob_ruling(self):
+        packets = []
+        state = types.SimpleNamespace(
+            uid="test-node", id=3, groups=(), elements=[],
+            store=mock.Mock(put=mock.Mock(return_value=True),
+                            get=mock.Mock(return_value=[4, "Seat 4"])))
+        with mock.patch.object(bopos, "send_to_engine", side_effect=lambda msg:
+                               packets.append(pyOSC3.decodeOSC(msg.getBinary())) or True):
+            self.assertTrue(bopos.apply_assign(["test-node", 4, "Seat 4"], state))
+            self.assertTrue(bopos.apply_unassign(state))
+            self.assertTrue(bopos.deliver_engine_context(state))
+            with mock.patch.object(bopos, "node_state", state):
+                bopos.config_callback()
+        self.assertEqual([packet[1:] for packet in packets if packet[0] == "/id"],
+                         [[",f", 4.0], [",f", -1.0], [",i", -1], [",i", -1]])
+
     def test_unwrapped_engine_send_path_does_not_raise_when_down(self):
         # config_callback sends /id to the engine with no local try/except; when
         # the engine refuses it must still not raise (used to kill the listener).
@@ -146,6 +182,49 @@ class EngineReadyReplayTests(unittest.TestCase):
         bopos.record_static_param("gain", paramgen.ParamSpec("stop"), {"kind": "float"})
         with bopos.param_replay_lock:
             self.assertNotIn("gain", bopos.latest_static_params)
+
+
+class FingerprintCacheWarmerTests(unittest.TestCase):
+    def test_each_inventory_coalesces_its_own_warm_and_can_restart(self):
+        assets = bopos.FingerprintCacheWarmer("asset")
+        patches = bopos.FingerprintCacheWarmer("patch")
+        with mock.patch.object(bopos.threading, "Thread") as thread_factory:
+            asset_thread, patch_thread, next_thread = (mock.Mock() for _ in range(3))
+            thread_factory.side_effect = [asset_thread, patch_thread, next_thread]
+            self.assertIs(assets.warm("assets"), asset_thread)
+            self.assertIs(assets.warm("assets"), asset_thread)
+            self.assertIs(patches.warm("patches"), patch_thread)
+            asset_thread.start.assert_called_once_with()
+            patch_thread.start.assert_called_once_with()
+            asset_thread.is_alive.return_value = False
+            self.assertIs(assets.warm("assets"), next_thread)
+            self.assertEqual(thread_factory.call_count, 3)
+            self.assertTrue(all(call.kwargs["daemon"] for call in thread_factory.call_args_list))
+
+    def test_initialise_loads_cache_before_warming_even_if_load_fails(self):
+        warmer = bopos.FingerprintCacheWarmer("patch")
+        events = []
+        def load(root):
+            events.append(("load", root))
+            raise OSError("unreadable")
+        with mock.patch.object(bopos.identity, "load_hash_cache", side_effect=load), \
+                mock.patch.object(warmer, "warm", side_effect=lambda root:
+                                  events.append(("warm", root)) or "thread"), \
+                mock.patch("builtins.print"):
+            self.assertEqual(warmer.initialise("patches"), "thread")
+        self.assertEqual(events, [("load", "patches"), ("warm", "patches")])
+
+    def test_rejected_priority_does_not_skip_warming_and_warm_error_is_caught(self):
+        for kind in ("asset", "patch"):
+            with self.subTest(kind=kind), \
+                    mock.patch.object(bopos.os, "nice", side_effect=OSError("unsupported")), \
+                    mock.patch.object(bopos.identity, "warm_hash_cache",
+                                      side_effect=OSError("unreadable")) as warm, \
+                    mock.patch("builtins.print") as warning:
+                bopos.FingerprintCacheWarmer(kind)._run("root")
+                warm.assert_called_once_with("root")
+                self.assertEqual(warning.call_args.args[0],
+                                 f"WARNING: {kind} fingerprint warm failed:")
 
 
 if __name__ == "__main__":

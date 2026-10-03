@@ -1,6 +1,7 @@
 # 4-node-daemon-tidy
 
-**Status:** ready · small
+**Status:** verified within the user's boundaries; see `verification.md`,
+`id-type-proposal.md` and `import-assessment.md`.
 **Goal:** remove the dead defensive code and duplication in `python/bopos.py`.
 
 1. **`send_to_engine` never raises** — it catches every send error and returns

@@ -97,6 +97,12 @@ def send_to_engine(message):
             return False
 
 
+def notify_engine(event):
+    msg = OSCMessage("/notify")
+    msg.append(event, 's')
+    return send_to_engine(msg)
+
+
 def read_node_config(path=None):
     config = {"HB_TARGET": "255.255.255.255", "HB_RSSI": "1", "MIXER_CONTROL": None,
               "SOUNDCARD": None, "UPDATE_MODEL": "persistent", "AUDIO_CHANNELS": "2",
@@ -666,12 +672,7 @@ def identify(uid=None, state=None):
     state = state or node_state
     if uid is not None and str(uid) != state.uid:
         return False
-    try:
-        msg = OSCMessage("/notify")
-        msg.append("identify", 's')
-        send_to_engine(msg)
-    except Exception:
-        pass
+    notify_engine("identify")
     flash_led()
     print("IDENTIFY:", state.uid, "id", state.id)
     return True
@@ -716,10 +717,7 @@ def send_groups_to_engine(state=None):
     msg = OSCMessage("/groups")
     for group_id in group_protocol.wire_groups(state.groups):
         msg.append(group_id, 'i')
-    try:
-        send_to_engine(msg)
-    except Exception as error:
-        print("WARNING: groups send to engine failed:", error)
+    send_to_engine(msg)
 
 
 # --- engine-ready replay boundary -------------------------------------------
@@ -821,10 +819,7 @@ def apply_assign(args, state=None):
     state.id = new_id
     msg = OSCMessage("/id")
     msg.append(new_id, 'f')
-    try:
-        send_to_engine(msg)
-    except Exception:
-        pass
+    send_to_engine(msg)
     state.elements = [[positions[i], positions[i + 1]]
                       for i in range(0, len(positions) - 1, 2)]
     hb_wake.set()
@@ -850,10 +845,7 @@ def apply_unassign(state=None):
     state.elements = []
     msg = OSCMessage("/id")
     msg.append(-1, 'f')
-    try:
-        send_to_engine(msg)
-    except Exception:
-        pass
+    send_to_engine(msg)
     hb_wake.set()
     print(f"UNASSIGNED: {state.uid}")
     return True
@@ -911,11 +903,7 @@ def apply_points(parts, args, state=None):
         msg.append(int(point_id), 'i')
         msg.append(int(element), 'i')
         msg.append(float(value), 'f')
-        try:
-            send_to_engine(msg)
-        except Exception as error:
-            print("WARNING: point send to engine failed:", error)
-            break
+        send_to_engine(msg)
     return True
 
 
@@ -924,12 +912,10 @@ def relay_provided_term(address, args):
     msg = OSCMessage(address)
     for value in args:
         typed_append(msg, value)
-    try:
-        send_to_engine(msg)
-        return True
-    except Exception as error:
-        print("WARNING: provided-term send to engine failed:", error)
-        return False
+    send_to_engine(msg)
+    # The LAN dispatcher reports whether the term was handled, even while the
+    # engine is down. Delivery/replay callers check send_to_engine themselves.
+    return True
 
 
 admin_lock = threading.Lock()
@@ -994,84 +980,61 @@ def installed_patches():
     return result
 
 
-asset_warm_lock = threading.Lock()
-asset_warm_thread = None
+class FingerprintCacheWarmer:
+    """One low-priority background warm at a time for one inventory kind."""
 
+    def __init__(self, kind):
+        self.kind = kind
+        self.lock = threading.Lock()
+        self.thread = None
 
-def _asset_warm_loop(assets_root):
-    try:
-        # On Linux nice is per-thread. If a platform rejects it, warming still
-        # remains off the OSC thread and correctness does not depend on it.
+    def _run(self, root):
         try:
-            os.nice(10)
-        except OSError:
-            pass
-        identity.warm_hash_cache(assets_root)
-    except OSError as error:
-        print("WARNING: asset fingerprint warm failed:", error)
+            # On Linux nice is per-thread. Warming remains off the OSC thread
+            # even on platforms that reject this priority adjustment.
+            try:
+                os.nice(10)
+            except OSError:
+                pass
+            identity.warm_hash_cache(root)
+        except OSError as error:
+            print("WARNING: {} fingerprint warm failed:".format(self.kind), error)
+
+    def warm(self, root):
+        with self.lock:
+            if self.thread is not None and self.thread.is_alive():
+                return self.thread
+            self.thread = threading.Thread(target=self._run, args=(root,), daemon=True)
+            self.thread.start()
+            return self.thread
+
+    def initialise(self, root):
+        try:
+            identity.load_hash_cache(root)
+        except OSError as error:
+            print("WARNING: {} fingerprint cache load failed:".format(self.kind), error)
+        return self.warm(root)
+
+
+_asset_cache_warmer = FingerprintCacheWarmer("asset")
+_patch_cache_warmer = FingerprintCacheWarmer("patch")
 
 
 def warm_asset_cache(assets_root=None):
-    """Start at most one low-priority asset cache warm without blocking."""
-    global asset_warm_thread
-    assets_root = assets_root or ASSETS_ROOT
-    with asset_warm_lock:
-        if asset_warm_thread is not None and asset_warm_thread.is_alive():
-            return asset_warm_thread
-        asset_warm_thread = threading.Thread(target=_asset_warm_loop,
-                                             args=(assets_root,), daemon=True)
-        asset_warm_thread.start()
-        return asset_warm_thread
+    return _asset_cache_warmer.warm(assets_root or ASSETS_ROOT)
 
 
 def initialise_asset_cache(assets_root=None):
-    assets_root = assets_root or ASSETS_ROOT
-    try:
-        identity.load_hash_cache(assets_root)
-    except OSError as error:
-        print("WARNING: asset fingerprint cache load failed:", error)
-    return warm_asset_cache(assets_root)
-
-
-patch_warm_lock = threading.Lock()
-patch_warm_thread = None
-
-
-def _patch_warm_loop(patches_dir):
-    try:
-        try:
-            os.nice(10)
-        except OSError:
-            pass
-        identity.warm_hash_cache(patches_dir)
-    except OSError as error:
-        print("WARNING: patch fingerprint warm failed:", error)
+    return _asset_cache_warmer.initialise(assets_root or ASSETS_ROOT)
 
 
 def warm_patch_cache(patches_dir=None):
-    """Start at most one low-priority patch cache warm without blocking.
-
-    Warming persists patches/.hashcache.json, which is what lets the
-    launch-time run context resolve patch-fingerprint (contract v1.7)
-    instead of degrading to "unknown"."""
-    global patch_warm_thread
-    patches_dir = patches_dir or os.path.join(BOPOS_DIR, "patches")
-    with patch_warm_lock:
-        if patch_warm_thread is not None and patch_warm_thread.is_alive():
-            return patch_warm_thread
-        patch_warm_thread = threading.Thread(target=_patch_warm_loop,
-                                             args=(patches_dir,), daemon=True)
-        patch_warm_thread.start()
-        return patch_warm_thread
+    # Persists patches/.hashcache.json for launch-time patch-fingerprint.
+    return _patch_cache_warmer.warm(patches_dir or os.path.join(BOPOS_DIR, "patches"))
 
 
 def initialise_patch_cache(patches_dir=None):
-    patches_dir = patches_dir or os.path.join(BOPOS_DIR, "patches")
-    try:
-        identity.load_hash_cache(patches_dir)
-    except OSError as error:
-        print("WARNING: patch fingerprint cache load failed:", error)
-    return warm_patch_cache(patches_dir)
+    return _patch_cache_warmer.initialise(patches_dir or os.path.join(BOPOS_DIR, "patches"))
 
 
 def installed_assets(assets_root=None):
@@ -1774,9 +1737,7 @@ def converge_framework(branch=None):
 
 
 def update_bopos_callback(path='', tags='', args='', source=''):
-    msg = OSCMessage("/notify")
-    msg.append("updatebopos", 's')
-    send_to_engine(msg)
+    notify_engine("updatebopos")
     print("UPDATE BOPOS!")
     return converge_framework()
 
@@ -1789,23 +1750,17 @@ def request_power_action(action):
 
 
 def shutdown_callback(path='', tags='', args='', source=''):
-    msg = OSCMessage("/notify")
-    msg.append("shutdown", 's')
-    send_to_engine(msg)
+    notify_engine("shutdown")
     print("SHUTDOWN!")
     return request_power_action("poweroff")
 
 def reboot_callback(path='', tags='', args='', source=''):
-    msg = OSCMessage("/notify")
-    msg.append("reboot", 's')
-    send_to_engine(msg)
+    notify_engine("reboot")
     print("REBOOTING")
     return request_power_action("reboot")
 
 def checkout_callback(path, tags, args, source):
-    msg = OSCMessage("/notify")
-    msg.append("checkout", 's')
-    send_to_engine(msg)
+    notify_engine("checkout")
     if not args:
         return {"status": "err", "phase": "branch"}
     branch = str(args[0])
@@ -2017,9 +1972,7 @@ def drop_assets_callback(path='', tags='', args='', source=''):
 def restart_engine_callback(path='', tags='', args='', source=''):
     stop_script = os.path.join(BOPOS_DIR, "bash/stop-engine.sh")
     start_script = os.path.join(BOPOS_DIR, "bash/start-engine.sh")
-    msg = OSCMessage("/notify")
-    msg.append("restart-engine", 's')
-    send_to_engine(msg)
+    notify_engine("restart-engine")
     print("RESTARTING ENGINE")
     subprocess.Popen(["bash", "-c", '"$1" && exec "$2"', "restart-engine", stop_script, start_script],
                      start_new_session=True)
@@ -2039,10 +1992,7 @@ def load_callback(path='', tags='', args='', source=''):
     msg.append(str(args[0]), 's')
     for value in node_state.store.get(str(args[0])):
         typed_append(msg, value)
-    try:
-        send_to_engine(msg)
-    except Exception as error:
-        print(f"load: could not reply to engine: {error}")
+    send_to_engine(msg)
 
 
 def report_callback(path='', tags='', args='', source=''):
@@ -2123,10 +2073,7 @@ def fire_event_to_engine(identity, elements):
     msg = OSCMessage("/e/" + identity)
     for element in elements:
         msg.append(float(f"{float(element):.6g}"), 'f')
-    try:
-        send_to_engine(msg)
-    except Exception as error:
-        print(f"event: could not fire to engine: {error}")
+    send_to_engine(msg)
 
 
 sync_state = SyncState()
