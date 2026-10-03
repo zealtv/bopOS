@@ -25,6 +25,12 @@ unreachable, and values can't leave the device. Stitches `1`, `3`, `4`, `5`,
    what the bridge's reply model becomes. Note that `bopos.py` scanning on its
    own can't skip live peripherals — whether that disturbs them is a rig
    measurement.
+   **Error vocabulary is part of this** (moved here 2026-10-03): fold in
+   `67-repair-pass/3-io-bridge-hardening.waiting/wire-proposal.md` — which
+   reasons `/io/error` carries (`create-failed` is shipped but undocumented;
+   proposed `invalid-arguments`, `unknown-command`, `write-failed`), what
+   `<name>` a bridge-wide error uses, and where those errors end up once the
+   transport is decided. The bridge currently only logs these cases.
 2. **Streaming** (new, 2026-10-03) — who can open a stream, to where (dashboard
    view, the editor's audition engine, both), at what rate, and how it's
    bounded (one device at a time? stops when Patch edit closes?). It must not
@@ -51,7 +57,8 @@ unreachable, and values can't leave the device. Stitches `1`, `3`, `4`, `5`,
 
 - `../session-2026-08-05-ciro-toast.md`, `../ads.py`, `../watch.py`.
 - `67-repair-pass/3-io-bridge-hardening` (absorbed `60`) — same failure family; would this
-  design have surfaced it?
+  design have surfaced it? Its `wire-proposal.md` is the starting point for the
+  error vocabulary in decision 1.
 - `python/io/README.md` — current namespace (`/io/<verb>`, `/io/<name> <cmd>`).
 - Contract §6 (no streamed telemetry, and why) and §11 (io plane).
 
