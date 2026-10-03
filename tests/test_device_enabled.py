@@ -145,6 +145,60 @@ class DeviceEnabledTests(unittest.TestCase):
             self.assertNotIn("device_muted", report)
             self.assertNotIn("muted", report)
 
+    def test_failed_mute_all_preserves_state_report_and_persisted_device_setting(self):
+        for enabled in (False, True):
+            for previous_mute in (False, True):
+                with self.subTest(enabled=enabled, mute_all=previous_mute), \
+                        tempfile.TemporaryDirectory() as root:
+                    node, reply = Node(root, "node-a"), ReplySocket()
+                    node.device_enabled, node.mute_all = enabled, previous_mute
+                    self.assertTrue(node.store.put("device_enabled", [int(enabled)]))
+                    before = Path(node.store.path("device_enabled")).read_bytes()
+                    with mock.patch.object(bopos, "mute_targets", return_value=[("card", "Digital")]), \
+                            mock.patch.object(bopos, "run_command", return_value=1) as command, \
+                            mock.patch.object(node.store, "put", wraps=node.store.put) as persist:
+                        self.assertFalse(bopos.set_mute(int(not previous_mute), node))
+                        persist.assert_not_called()
+                    action = "mute" if not enabled or not previous_mute else "unmute"
+                    command.assert_called_once_with(
+                        ["amixer", "-q", "-c", "card", "sset", "Digital", action])
+                    self.assertEqual(node.mute_all, previous_mute)
+                    self.assertEqual(Path(node.store.path("device_enabled")).read_bytes(), before)
+                    self.assertEqual(reply.calls, [])
+                    self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
+                    report = json.loads(reply.calls[0][0][2])
+                    self.assertEqual((report["device_enabled"], report["mute_all"], report["output_enabled"]),
+                                     (enabled, previous_mute, enabled and not previous_mute))
+
+    def test_mute_all_applies_mixer_before_state_and_never_persists_overlay(self):
+        for enabled in (False, True):
+            for previous_mute in (False, True):
+                with self.subTest(enabled=enabled, mute_all=previous_mute), \
+                        tempfile.TemporaryDirectory() as root:
+                    node = Node(root, "node-a")
+                    node.device_enabled, node.mute_all = enabled, previous_mute
+                    def apply(value, state):
+                        self.assertEqual(state.mute_all, previous_mute)
+                        self.assertEqual(state.device_enabled, enabled)
+                        self.assertEqual(value, not enabled or not previous_mute)
+                        return True
+                    with mock.patch.object(bopos, "enforce_mute", side_effect=apply), \
+                            mock.patch.object(node.store, "put") as persist:
+                        self.assertTrue(bopos.set_mute(int(not previous_mute), node))
+                        persist.assert_not_called()
+                    self.assertEqual(node.mute_all, not previous_mute)
+                    self.assertEqual(bopos.output_enabled(node), enabled and previous_mute)
+
+    def test_failed_mute_all_lan_request_emits_no_success_receipt(self):
+        with tempfile.TemporaryDirectory() as root:
+            node, reply = Node(root, "node-a"), ReplySocket()
+            with mock.patch.object(bopos, "enforce_mute", return_value=False):
+                self.assertTrue(bopos.handle_lan_datagram(
+                    packet("/all/os/mute", 1), ("10.0.0.8", 4000), reply, node))
+            self.assertFalse(node.mute_all)
+            self.assertTrue(bopos.output_enabled(node))
+            self.assertEqual(reply.calls, [])
+
     def test_failed_mute_preserves_persistence_and_reports_output_enabled(self):
         with tempfile.TemporaryDirectory() as root:
             node, reply = Node(root, "node-a"), ReplySocket()

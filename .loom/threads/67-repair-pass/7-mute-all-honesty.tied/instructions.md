@@ -1,6 +1,7 @@
 # 7-mute-all-honesty
 
-**Status:** ready · small · Bob ruled 2026-10-03 ("yes")
+**Status:** software verified · small · Bob ruled 2026-10-03 ("yes")
+Hardware remains not run / not claimed; see `verification.md`.
 **Goal:** "mute all" never reports output off while the device is still
 making sound.
 

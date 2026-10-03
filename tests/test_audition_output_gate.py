@@ -86,6 +86,30 @@ class AuditionOutputGateTests(unittest.TestCase):
         self.assertFalse(any(address == "/os/mute"
                              for _uid, address, _args in self.sent))
 
+    def test_mute_gate_is_sent_before_committing_overlay(self):
+        node = self.rig.nodes[0]
+        node.master = .6
+        for previous in (False, True):
+            node.mute_all = previous
+            def send(current, address, args):
+                self.assertEqual(current.mute_all, previous)
+                self.assertEqual(address, "/os/master")
+                self.assertEqual(args, (.6 if previous else 0.0,))
+            self.rig.send_engine = send
+            self.assertTrue(self.rig.set_mute_all(node, not previous))
+            self.assertEqual(node.mute_all, not previous)
+
+    def test_failed_output_gate_send_keeps_previous_overlay(self):
+        node = self.rig.nodes[0]
+        def refuse(*_args):
+            raise OSError("engine socket unavailable")
+        self.rig.send_engine = refuse
+        for previous in (False, True):
+            with self.subTest(mute_all=previous):
+                node.mute_all = previous
+                self.assertFalse(self.rig.set_mute_all(node, not previous))
+                self.assertEqual(node.mute_all, previous)
+
 
 if __name__ == "__main__":
     unittest.main()

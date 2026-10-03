@@ -1081,9 +1081,10 @@ class SimFleet:
                 except (TypeError, ValueError):
                     continue
                 if value in (0, 1):
-                    device.mute_all = bool(value)
+                    requested_mute = bool(value)
                     device.output_enabled = bool(
-                        device.device_enabled and not device.mute_all)
+                        device.device_enabled and not requested_mute)
+                    device.mute_all = requested_mute
                     self.log(
                         device,
                         f"mute_all={value} output={int(device.output_enabled)}")

@@ -604,8 +604,12 @@ def output_enabled(state=None):
 def set_mute(value, state=None):
     """Apply execution MUTE ALL without changing persistent Device enabled."""
     state = state or node_state
-    state.mute_all = int(value) == 1
-    return enforce_mute(not output_enabled(state), state)
+    requested_mute = int(value) == 1
+    requested_output = bool(getattr(state, "device_enabled", True)) and not requested_mute
+    if not enforce_mute(not requested_output, state):
+        return False
+    state.mute_all = requested_mute
+    return True
 
 
 def set_device_enabled(value, reply_socket, requester, state=None):

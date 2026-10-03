@@ -519,8 +519,13 @@ class AuditionRig:
 
     def set_mute_all(self, node, value):
         """Apply MUTE ALL without exposing the framework mute verb to engines."""
-        node.mute_all = bool(value)
-        self.send_engine(node, "/os/master", (self.effective_master(node),))
+        requested_mute = bool(value)
+        try:
+            self.send_engine(node, "/os/master", (0.0 if requested_mute else node.master,))
+        except OSError:
+            return False
+        node.mute_all = requested_mute
+        return True
 
     def send_groups(self, node):
         # Mirrors bopos.py's send_groups_to_engine: full, sentinel-shaped
