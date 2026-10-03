@@ -51,4 +51,6 @@ Saved JSON and local patch directory scan:
 - `dashboard/installations/10x8-test.json`: /presets = {}
 - `patches/bonks-pd/presets`: medium-bonks.json, off.json, sparse.json
 
-No tracked patch preset files. `dashboard/shows/test.json` has pre-existing user edits; do not overwrite or stage it.
+No tracked patch preset files. `dashboard/shows/test.json` has pre-existing user edits.
+Bob subsequently authorized deleting its PRE fixture cues and the local preset
+files with feature removal; preserve unrelated edits. See the settled `plan.md`.

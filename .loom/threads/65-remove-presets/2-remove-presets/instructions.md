@@ -5,8 +5,8 @@
 
 Follow `../1-preset-inventory.tied/plan.md` and its `surface-audit.md`.
 This is one coordinated removal: partial source/UI/test retirement cannot
-independently meet the green-tier gate. Do not claim until the inventory's
-operator-visible data decisions are settled.
+independently meet the green-tier gate. Bob settled the data decisions on
+2026-10-03: no actual Shows need preservation; remove obsolete data cleanly.
 
 ## Checklist
 
@@ -17,10 +17,12 @@ operator-visible data decisions are settled.
   automation targets, literal Show editing/transport and group warnings.
 - Remove browser menus/drawers/reports/builders and their CSS/HTML links.
   Preserve input/focus guards and visible patch identity in Device controls.
-- Implement the inventory's agreed stale Show and patch-file handling.
-  Keep installation/venue unknown-field handling generic. Never rewrite or
-  stage Bob's pre-existing `dashboard/shows/test.json` edits or delete authored
-  local patch data.
+- Delete PRE messages and newly empty steps from the saved test Show, remove
+  the installation fixture's obsolete key and delete the three local preset
+  files plus empty directories identified by the inventory. Bob authorizes
+  this cleanup; preserve unrelated edits and all other patch/Pd files. Record
+  ignored local-file deletion separately from tracked changes. Keep generic
+  unknown-field handling; do not build a compatibility loader or migration.
 - Remove the special distribution policy, retaining generic containment,
   hash, dotfile, symlink and partial-file safeguards.
 - Apply the proposed §8.1 retirement and §15 amendment, synchronizing contract
@@ -28,7 +30,7 @@ operator-visible data decisions are settled.
   screenshots and stale glean guidance; preserve historical records.
 - Retire feature-only suites and rewrite mixed tests around surviving controls,
   automation, Show editing and distribution. Preserve generator focus checks
-  and meaningful legacy-input rejection/byte-preservation coverage.
+  and generic unsupported-kind validation/fail-closed transport coverage.
 - Audit residual source/docs/CSS/WS identifiers and record fast + browser green
   evidence in this stitch before tying and committing.
 
@@ -38,6 +40,6 @@ operator-visible data decisions are settled.
   are limited to history (contract §15, lore, tied/dropped loom records) and
   isolated stale-input fixtures that prove retirement handling.
 - Contract §8.1 retired with a §15 entry.
-- Supported saved shows and installations load cleanly; unsupported Show
-  messages follow the agreed inventory decision without silent cue loss.
+- Cleaned saved test shows and installations load cleanly; obsolete local
+  preset files are gone. No preset-specific compatibility code remains.
 - `tools/run-tests.sh fast` + `browser` green.

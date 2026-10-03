@@ -9,40 +9,43 @@ messages, Show schema and actual saved JSON, not just Python imports.
 The replacement is ordinary live parameter control and literal Show messages;
 there is no new snapshot facility, migration service or compatibility API.
 
-Two operator-visible decisions are pending Bob's answers:
+Bob settled both decisions on 2026-10-03: "there are no actual shows to
+consider. do whatever is cleanest. same with presets. i'd like them gone once
+the presets are removed." This supersedes the preservation proposals.
 
-1. Proposed: reject a saved Show containing PRE/reference messages, report a
-   clear unsupported-message error and preserve its bytes. Do not silently drop
-   cues, emit `/preset/...` as raw OSC, or convert an invalid Show to an editable
-   empty document. On an explicit load, validate before stopping transport or
-   replacing the currently loaded Show. On startup, expose the failure and keep
-   that file protected from autosave, editing, Save As and shutdown writes until
-   a valid Show is explicitly selected or created. Use generic unsupported
-   message validation rather than a special preset loader. Ordinary schema-1
-   OSC shows remain valid; no version bump is needed for their unchanged shape.
-2. Proposed: leave existing patch files untouched. Remove the special
-   `presets/` distribution exclusion, making leftover files ordinary patch
-   content: enumerated, fingerprinted, served and converged like other files.
-   This changes the fingerprint of a patch with such files and may cause normal
-   convergence/restart. It also removes the old prune exemption. No automatic
-   deletion or move; an operator can archive unwanted files outside the patch.
+1. Clean the saved test fixture once, as part of implementation: delete PRE
+   messages and any steps made empty solely by their removal. Preserve the
+   other literal cues. No compatibility loader, conversion, migration service
+   or new Show load-lockout feature is needed for this retirement. Unsupported
+   reference kinds remain invalid under ordinary Show validation; never emit
+   them as raw OSC. Existing generic load-safety work belongs to its own stitch.
+   Ordinary schema-1 OSC shows remain valid without a schema version bump.
+2. Delete obsolete preset JSON files and their empty directories when removing
+   the feature, including the three local files below. Do not leave them as
+   ordinary distributed content or archive them in a replacement store. Remove
+   the special distribution/fingerprint/prune/HTTP exclusion at the same time;
+   no reserved folder policy survives. Use a reviewed list of actual preset
+   data paths, preserving other patch files and all Pd files. Normal convergence
+   can prune old node-side copies once their special exemption is gone; do not
+   claim deletion on nodes that were not reached.
 
 Observed data:
 
 - `dashboard/shows/test.json` contains two `/preset/bonks-pd/medium-bonks`
-  reference messages at `items[11]` and `items[12]`. The file has user edits;
-  do not rewrite, stage, delete cues or copy over it. Exercise the agreed stale
-  behavior against a temporary copy instead. A clear refusal counts as clean
-  handling, not as a successful load of unsupported content.
+  reference messages at `items[11]` and `items[12]`. Bob authorizes their removal
+  as disposable test data. Apply only this cleanup; preserve unrelated user
+  edits and do not stage unrelated changes with it.
 - `dashboard/installations/10x8-test.json` has an empty top-level `presets` key.
   Installation normalization already ignores it and durable save drops it;
-  keep this generic unknown-field behavior. No bulk rewrite is needed.
+  keep this generic unknown-field behavior and remove the obsolete key from
+  the saved fixture so current data contains no retired store.
 - Venue read currently explicitly pops `presets`. Replace the ad hoc retired
   field special case with the existing supported-field projection on adoption
   and writing, ensuring old unknown fields cannot leak into public/durable data.
 - Local untracked `patches/bonks-pd/presets/` has `medium-bonks.json`, `off.json`
-  and `sparse.json`. There are no tracked patch preset files. They are Bob's
-  authored content and this implementation must not delete them.
+  and `sparse.json`. There are no tracked patch preset files. Bob authorizes
+  deleting these files with the feature removal; record the local cleanup in
+  verification because ignored-file deletion does not appear in the Git commit.
 - Runtime `applied_preset`, `preset_dirty`, editor provenance and
   `preset_catalog` disappear. Durable Seat params, generator state, patch
   declarations, master, mute, spatial positions and assignments survive.
@@ -122,13 +125,12 @@ Append to §15, update heading and `python/osc_contract.py` to 1.18 together:
 > 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1), including
 > patch storage APIs, capture/recall UI and Show PRE references. Remove §9's
 > special distribution/fingerprint/prune/HTTP exclusion for `presets/`;
-> leftover files follow ordinary patch rules. Existing installation/venue
-> unknown fields are ignored. Unsupported saved Show message kinds are
-> rejected visibly without rewriting source files. No wire grammar or node
+> obsolete local files and test PRE cues are deleted without a compatibility
+> layer. Existing installation/venue unknown fields are ignored. Unsupported
+> message kinds remain invalid. No wire grammar or node
 > engine behavior is added. | `65-remove-presets` removal verification.
 
-If Bob chooses different data handling, revise this draft before execution.
-Bob has already requested this retirement; this inventory does not ratify a
+Bob has approved the clean break; this inventory does not ratify a
 new wire form or implement project design.
 
 ## Tests: delete only obsolete behavior; preserve shared coverage
@@ -165,8 +167,8 @@ content identity, distribution, convergence/prune and existing generic HTTP
 denial checks. Preserve tests for genuinely hidden/control files.
 
 Rename/reframe `test_venue_preset_retirement.py` as generic legacy unknown-field
-handling; keep byte-preservation tests for rejected saved Shows, startup and
-explicit load, and no pseudo-address transmission. Retirement regression
+handling; retain generic unsupported-kind validation and fail-closed transport
+coverage, without adding preset-specific loading/migration behavior. Retirement regression
 fixtures may spell old persisted fields/addresses: they are evidence of a
 clean break, not surviving feature code. The removal acceptance grep therefore
 allows these isolated stale-input fixtures as well as historical records.
@@ -178,11 +180,11 @@ server/UI removal and test retirement cannot each meet the green-tier contract
 in isolation; adding child stitches would leave intentionally broken surfaces.
 Its checklist is updated alongside this plan, not claimed by this inventory.
 
-1. Settle the two data decisions above; preserve the user working tree.
+1. Apply Bob's settled clean-break decisions; preserve unrelated user edits.
 2. Extract live helpers and coverage; remove host/schema/reference plumbing.
 3. Remove browser/CSS/WS surfaces, preserving controls and patch context.
-4. Apply agreed stale-data handling and ordinary distribution rules; verify
-   against isolated fixtures, never rewrite Bob's current Show or patch files.
+4. Remove obsolete local preset files, PRE fixture cues and installation key;
+   verify the cleaned fixtures load and ordinary distribution rules converge.
 5. Apply contract 1.18 amendment and current docs/screenshots; migrate remaining
    tests and remove obsolete feature suites.
 6. Audit tracked current files for `preset`, `PRE`, `/preset/`, old message
