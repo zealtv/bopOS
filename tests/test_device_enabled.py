@@ -145,13 +145,73 @@ class DeviceEnabledTests(unittest.TestCase):
             self.assertNotIn("device_muted", report)
             self.assertNotIn("muted", report)
 
-    def test_failed_enforcement_emits_no_receipt(self):
+    def test_failed_mute_preserves_persistence_and_reports_output_enabled(self):
         with tempfile.TemporaryDirectory() as root:
             node, reply = Node(root, "node-a"), ReplySocket()
-            with mock.patch.object(bopos, "enforce_mute", return_value=False):
+            self.assertTrue(node.store.put("device_enabled", [1]))
+            before = Path(node.store.path("device_enabled")).read_bytes()
+            with mock.patch.object(bopos, "mute_targets", return_value=[("card", "Digital")]), \
+                    mock.patch.object(bopos, "run_command", return_value=1) as command, \
+                    mock.patch.object(node.store, "put", wraps=node.store.put) as persist:
                 self.assertFalse(
                     bopos.set_device_enabled(0, reply, "10.0.0.8", node))
+                persist.assert_not_called()
+            command.assert_called_once_with(["amixer", "-q", "-c", "card", "sset", "Digital", "mute"])
             self.assertEqual(reply.calls, [])
+            self.assertEqual(Path(node.store.path("device_enabled")).read_bytes(), before)
+            self.assertTrue(Node(root, "node-a").device_enabled)
+            self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
+            report = json.loads(reply.calls[0][0][2])
+            self.assertTrue(report["device_enabled"])
+            self.assertTrue(report["output_enabled"])
+
+    def test_failed_enforcement_preserves_disabled_and_default_states(self):
+        for previous in (None, 0):
+            with self.subTest(previous=previous), tempfile.TemporaryDirectory() as root:
+                node, reply = Node(root, "node-a"), ReplySocket()
+                if previous is not None:
+                    self.assertTrue(node.store.put("device_enabled", [previous]))
+                    node.device_enabled = bool(previous)
+                requested = 0 if previous is None else 1
+                with mock.patch.object(bopos, "enforce_mute", return_value=False):
+                    self.assertFalse(bopos.set_device_enabled(requested, reply, "10.0.0.8", node))
+                self.assertEqual(node.store.get("device_enabled"), [] if previous is None else [previous])
+                self.assertEqual(node.device_enabled, previous is None)
+                self.assertEqual(reply.calls, [])
+                self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
+                report = json.loads(reply.calls[0][0][2])
+                self.assertEqual(report["device_enabled"], previous is None)
+                self.assertEqual(report["output_enabled"], previous is None)
+
+    def test_mixer_is_applied_before_live_state_and_persistence_change(self):
+        with tempfile.TemporaryDirectory() as root:
+            node, reply = Node(root, "node-a"), ReplySocket()
+            self.assertTrue(node.store.put("device_enabled", [1]))
+            def apply(value, state):
+                self.assertTrue(value)
+                self.assertTrue(state.device_enabled)
+                self.assertEqual(state.store.get("device_enabled"), [1])
+                return True
+            with mock.patch.object(bopos, "enforce_mute", side_effect=apply):
+                self.assertTrue(bopos.set_device_enabled(0, reply, "10.0.0.8", node))
+            self.assertFalse(node.device_enabled)
+            self.assertEqual(node.store.get("device_enabled"), [0])
+            self.assertFalse(Node(root, "node-a").device_enabled)
+            self.assertEqual(reply.calls[0][0], ["/os/enabled", ",sii", "node-a", 0, 0])
+
+    def test_persist_failure_still_reports_successful_mixer_operation_without_receipt(self):
+        with tempfile.TemporaryDirectory() as root:
+            node, reply = Node(root, "node-a"), ReplySocket()
+            self.assertTrue(node.store.put("device_enabled", [1]))
+            with mock.patch.object(bopos, "enforce_mute", return_value=True), \
+                    mock.patch.object(node.store, "put", return_value=False):
+                self.assertFalse(bopos.set_device_enabled(0, reply, "10.0.0.8", node))
+            self.assertEqual(node.store.get("device_enabled"), [1])
+            self.assertEqual(reply.calls, [])
+            self.assertTrue(bopos.report_reply(reply, "10.0.0.8", node))
+            report = json.loads(reply.calls[0][0][2])
+            self.assertFalse(report["device_enabled"])
+            self.assertFalse(report["output_enabled"])
 
     def test_host_registry_migrates_and_saves_canonical_state(self):
         legacy = {

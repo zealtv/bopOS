@@ -609,10 +609,16 @@ def set_device_enabled(value, reply_socket, requester, state=None):
         value = int(value)
     except (TypeError, ValueError):
         return False
-    if value not in (0, 1) or not state.store.put("device_enabled", [value]):
+    if value not in (0, 1):
         return False
+    requested_output = bool(value) and not getattr(state, "mute_all", False)
+    if not enforce_mute(not requested_output, state):
+        return False
+    # Publish/persist only an applied mixer operation, never a failed intent.
+    # If persistence fails, the live report must still reflect what was applied;
+    # the old durable setting remains and no success receipt is sent.
     state.device_enabled = bool(value)
-    if not enforce_mute(not output_enabled(state), state):
+    if not state.store.put("device_enabled", [value]):
         return False
     msg = OSCMessage("/os/enabled")
     msg.append(str(state.uid), 's')

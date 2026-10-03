@@ -1,6 +1,6 @@
 # 2-device-enabled-honesty
 
-**Status:** ready · software fix plus a rig check
+**Status:** software verified; waiting on Bob’s Ciro Toast rig check · software fix plus a rig check
 **Goal:** Device enabled never reports "disabled" while the device is still
 making sound.
 
@@ -27,3 +27,11 @@ no hardware mixer (`glean:test-rig`) — Ciro Toast may be a real case.
 
 - Test: mute fails → report doesn't claim output disabled.
 - Rig result recorded, or explicitly not claimed.
+
+## Software close-out
+
+Mixer application now precedes live-state mutation and persistence. Failed
+enforcement retains the prior state and sends no success receipt. All 362 fast
+tests pass; decisions.md and verification.md record semantics and coverage.
+No wording, wire/report field or fallback changes. The Ciro Toast check is
+explicitly not claimed; leave this stitch waiting on it, not tied.
