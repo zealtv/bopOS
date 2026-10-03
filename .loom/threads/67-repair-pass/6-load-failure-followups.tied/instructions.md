@@ -1,12 +1,13 @@
 # 6-load-failure-followups
 
-**Status:** part 1 complete; part 2 awaiting Bob's placement ruling
+**Status:** complete; both parts verified
 **Goal:** the "state file couldn't load" safety holds everywhere and the
 operator can't miss it.
 
-Part 1 is implemented; verification is in `verification.md`. Part 2 has a
-short `placement-proposal.md` and remains unimplemented per Bob's instruction.
-Leave this stitch waiting with `waiting.md` until he rules on placement.
+Part 1 is implemented. Part 2 implements option 2 exactly as approved in
+`ruling.md`: one text status strip below the tab bar and below the Remote
+header, with no dismiss/repair action and no duplicate Show notice.
+Verification and screenshots are in this stitch; the waiting gate is resolved.
 
 `1` made `InstallationState.save()` raise `OSError` after a failed load and
 posts a notice. Two gaps:

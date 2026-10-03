@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real-dashboard journey: failed state loads are visible and cannot wipe files."""
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -14,7 +15,7 @@ from playwright.sync_api import sync_playwright
 from verify_show_targets import free_port, wait_http, ROOT
 
 
-def run_phase(root, page, invalid_start):
+def run_phase(root, page, invalid_start, artifact_dir=None):
     state_path = root / "installation.json"
     venue = root / "installations" / "broken.json"
     original = state_path.read_bytes()
@@ -36,14 +37,62 @@ def run_phase(root, page, invalid_start):
             wait_http(base, server)
             page.goto(base)
             page.wait_for_selector("#ws-status.online", state="attached")
-            page.click("#tab-button-show")
+            page.wait_for_function("document.querySelector('#initial-loading').hidden")
+            notice = page.locator("#installation-notice")
+            for tab in ("control", "seats", "devices", "patches", "assets", "show"):
+                page.click(f"#tab-button-{tab}")
+                page.wait_for_selector(f"#tab-{tab}", state="visible")
+                assert notice.count() == 1
+                assert notice.get_attribute("role") == "status"
+                assert notice.locator("button, a").count() == 0
+                if invalid_start:
+                    notice.wait_for(state="visible")
+                    assert "saving is blocked" in notice.inner_text().lower()
+                    assert str(state_path) in notice.inner_text()
+                    assert page.locator("#show-root .show-warning-list").count() == 0
+                    assert page.evaluate("""() => {
+                        const notice = document.querySelector('#installation-notice');
+                        return notice.previousElementSibling.classList.contains('primary-tabs')
+                            && notice.nextElementSibling.classList.contains('tab-stage')
+                            && !notice.closest('[role=tabpanel]');
+                    }""")
+                else:
+                    assert notice.is_hidden()
+                if invalid_start and artifact_dir and tab in ("control", "seats"):
+                    page.screenshot(path=str(artifact_dir / f"notice-{tab}.png"))
+                print(f"[PASS] {tab} has one visible load notice" if invalid_start
+                      else f"[PASS] {tab} has no load notice after a valid load")
+
+            remote = page.context.new_page()
+            try:
+                remote.goto(base + "/facilitator")
+                remote.wait_for_selector("#ws-status.online", state="attached")
+                remote.wait_for_function("document.querySelector('#initial-loading').hidden")
+                remote_notice = remote.locator("#installation-notice")
+                assert remote_notice.count() == 1
+                assert remote_notice.get_attribute("role") == "status"
+                assert remote_notice.locator("button, a").count() == 0
+                assert remote.evaluate("""() =>
+                    document.querySelector('#installation-notice').previousElementSibling.tagName === 'HEADER'
+                """)
+                if invalid_start:
+                    remote_notice.wait_for(state="visible")
+                    assert "saving is blocked" in remote_notice.inner_text().lower()
+                    assert str(state_path) in remote_notice.inner_text()
+                    remote.reload()
+                    remote_notice.wait_for(state="visible")
+                    assert str(state_path) in remote_notice.inner_text()
+                else:
+                    assert remote_notice.is_hidden()
+                if invalid_start and artifact_dir:
+                    remote.set_viewport_size({"width": 768, "height": 1024})
+                    remote.screenshot(path=str(artifact_dir / "notice-remote.png"))
+                print("[PASS] Remote follows the same notice rule below its header, including reload")
+            finally:
+                remote.close()
+
             page.wait_for_selector("#show-create-form")
             if invalid_start:
-                notice = page.locator("#show-root .show-warning-list")
-                notice.wait_for(state="visible")
-                assert "saving is blocked" in notice.inner_text().lower()
-                assert str(state_path) in notice.inner_text()
-                print("[PASS] failed startup is visible even without a loaded Show")
                 page.evaluate("""() => {
                     window.masterResult = null;
                     ws.on('master', data => window.masterResult = data.value);
@@ -54,7 +103,7 @@ def run_phase(root, page, invalid_start):
                 assert state_path.read_bytes() == original
                 print("[PASS] an ordinary master change preserves original bytes")
             else:
-                assert page.locator("#show-root .show-warning-list").count() == 0
+                assert page.locator("#installation-notice").is_hidden()
                 page.evaluate("""() => {
                     window.masterResult = null;
                     ws.on('master', data => window.masterResult = data.value);
@@ -68,7 +117,7 @@ def run_phase(root, page, invalid_start):
                 original = state_path.read_bytes()
                 print("[PASS] repaired startup permits ordinary saves again")
                 page.evaluate("ws.send('load_venue', {name: 'broken'})")
-                notice = page.locator("#show-root .show-warning-list")
+                notice = page.locator("#installation-notice")
                 notice.wait_for(state="visible")
                 assert str(venue) in notice.inner_text()
                 assert state_path.read_bytes() == original
@@ -85,8 +134,8 @@ def run_phase(root, page, invalid_start):
             print("[PASS] saving over the invalid venue is refused without changing either file")
             if invalid_start:
                 page.reload()
-                page.wait_for_selector("#show-root .show-warning-list", state="visible")
-                assert "saving is blocked" in page.locator("#show-root .show-warning-list").inner_text()
+                page.wait_for_selector("#installation-notice", state="visible")
+                assert "saving is blocked" in page.locator("#installation-notice").inner_text()
                 print("[PASS] reconnect retains the startup notice")
         except Exception:
             print(log_path.read_text())
@@ -105,6 +154,11 @@ def run_phase(root, page, invalid_start):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--artifact-dir", type=Path)
+    args = parser.parse_args()
+    if args.artifact_dir:
+        args.artifact_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="bopos-load-safety-") as temporary:
         root = Path(temporary)
         for name in ("assets", "patches", "installations"):
@@ -115,10 +169,11 @@ def main():
         (root / "installations/broken.json").write_text(json.dumps(invalid))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            context = browser.new_context(viewport={"width": 1280, "height": 900})
             errors = []
-            page.on("pageerror", lambda error: errors.append(str(error)))
-            run_phase(root, page, invalid_start=True)
+            context.on("page", lambda page: page.on("pageerror", lambda error: errors.append(str(error))))
+            page = context.new_page()
+            run_phase(root, page, invalid_start=True, artifact_dir=args.artifact_dir)
             invalid["seats"]["2"]["groups"] = []
             invalid["device_registry"] = {}
             (root / "installation.json").write_text(json.dumps(invalid))

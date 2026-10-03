@@ -526,8 +526,7 @@
   }
 
   function renderWarnings() {
-    const notices = (currentInstallation().notices || []).map(message => ({message}));
-    const warnings = [...notices, ...showWarnings];
+    const warnings = showWarnings;
     return warnings.length
       ? `<div class="show-warning-list" role="status">${warnings.map(warning =>
           `<p>${escapeHtml(warning.message || warning)}</p>`).join("")}</div>` : "";

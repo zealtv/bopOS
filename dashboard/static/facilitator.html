@@ -18,10 +18,12 @@
 
 <link rel="stylesheet" href="/css/control-column.css">
 <link rel="stylesheet" href="/css/card-identity.css">
+<link rel="stylesheet" href="/css/installation-notice.css">
 </head>
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
   <header><a id="technical-link" href="/">All views</a><h1 id="venue-name">bopOS Dashboard</h1><label class="theme-control">theme <select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><span id="ws-status" class="offline">connecting…</span></header>
+  <div id="installation-notice" class="installation-notice" role="status" aria-live="polite" hidden></div>
   <!-- Remote derives every target through the shared card component. It has
        labels rather than Control's card pickers . -->
   <div id="control-column-host"></div>
@@ -30,4 +32,5 @@
     <button id="silence" class="danger">MUTE</button>
   </footer>
   <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/group-slots.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/target-picker.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-surface.js"></script><script src="/js/control-column.js"></script><script src="/js/facilitator.js"></script>
+  <script src="/js/installation-notice.js"></script>
 </body></html>

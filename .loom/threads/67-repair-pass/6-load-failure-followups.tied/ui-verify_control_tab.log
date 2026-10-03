@@ -1,0 +1,55 @@
+[PASS] the tab is labelled Control
+[PASS] an existing #dashboard bookmark still opens the tab
+[PASS] no tab is still called Dashboard
+[PASS] the standalone view is a tab-bar link named Remote
+[PASS] the Remote link points at the standalone view
+[PASS] the Remote link is outside the tablist
+[PASS] the primary tablist still holds exactly the six tabs
+[PASS] the dead Control heading is gone
+[PASS] the Control tab hosts no patch picker
+[PASS] the patch picker is still on the Patches tab
+[PASS] the picker is a reusable component, not a local widget
+[PASS] the picker offers All, the group and both Seats as chips
+[PASS] the retired top event panel is gone
+[PASS] events sit above parameters in the panel
+[PASS] All shows the aggregate card only
+[PASS] a group chip shows that group's card only
+[PASS] a second target replaces rather than mixes
+[PASS] All is exclusive with everything else
+[PASS] choosing a Seat elsewhere does not re-aim Control
+[PASS] choosing a Seat chip in the column does aim it
+[PASS] the Control card carries no device-command disclosure
+[PASS] Send all is behind the overflow, not in the head
+[PASS] the overflow holds Send all and the device hand-off
+[PASS] the hand-off opens that device on the Devices tab
+[PASS] a lost target is never widened to every Seat
+[PASS] the removed target removes its card and controls
+[PASS] legacy columns migrate to a unique target set
+[PASS] migration discards authored order and sorts All first
+[PASS] every committed card can be closed, including the last
+[PASS] + card creates one transient open picker
+[PASS] a second + focuses rather than duplicates the draft
+[PASS] targets already represented by cards are disabled
+[PASS] committing a draft re-sorts it between All and Seats
+[PASS] Control paints All and stable group identity strokes
+[PASS] Seat cards retain the neutral one-pixel face
+[PASS] only target membership is persisted
+[PASS] a Seat send preserves other Seat values and card targets
+[PASS] one live region per card
+[PASS] the target set and derived order survive reload
+[PASS] Open in Control adds a card for that Seat
+[PASS] asked twice, it focuses the card it already opened
+[PASS] closing a card removes its target
+[PASS] closing persists and no drag affordance remains
+[PASS] no page errors
+[PASS] Remote has labels rather than target pickers
+[PASS] Remote derives All, every group and every Seat
+[PASS] Remote consumes the same All and group strokes
+[PASS] Remote cards respect the 560px ceiling
+[PASS] Remote master and MUTE stay inline in a bottom bar
+[PASS] every Remote card carries its targeted command disclosure
+[PASS] Remote has no command strip outside target cards
+[PASS] Remote offers no Devices-tab hand-off
+[PASS] no standalone page errors
+
+Control tab checks passed

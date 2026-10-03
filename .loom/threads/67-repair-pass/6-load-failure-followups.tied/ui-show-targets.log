@@ -1,0 +1,11 @@
+[PASS] a missing named target warns at Show load and authoring time
+[PASS] group picker stores a portable name selector
+[PASS] saved Show carries the group name, not the venue id
+[PASS] picker renders the portable name and current wire id
+[PASS] copy/paste preserves typed parameter arguments
+[PASS] one undo removes the paste and leaves the original message
+[PASS] dividers are the same height as steps
+[PASS] a selected divider rings like a step, un-clippable
+[PASS] browser emitted no page errors
+
+0 failure(s)
