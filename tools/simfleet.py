@@ -2,18 +2,17 @@
 """Simulated bopOS fleet speaking the currently deployed OSC wire protocol.
 
 N fake devices heartbeat on 5550 and answer dashboard commands on 6660 exactly
-as a real Pi does today (PD bopos.osc.pd + bopos.py together, seen from the
-LAN). Use it to develop the dashboard, clock-sync, and scene work with zero
+as a real Pi's sole LAN listener, bopos.py, does. Use it to develop the
+dashboard, clock-sync, and scene work with zero
 hardware:
 
     python3 tools/simfleet.py --devices 5
     python3 tools/simfleet.py --devices 5 --drop 0.05 --jitter-ms 30 --unresponsive 1
     python3 tools/simfleet.py --devices 4 --devices-file bopos.devices --target 127.0.0.1
 
-Needs python-osc. The wire shapes are documented (and sourced) in the
-dashboard-0-sim-fleet stitch's wire-protocol-today.md; when a stitch changes an
-OSC message, extending this simulator is part of that stitch's deliverable —
-message bytes live only in LegacyProtocol so the v1 contract can swap in there.
+Needs python-osc. docs/OSC-CONTRACT.md defines the ratified wire shapes;
+docs/OSC-REFERENCE.md lists the concrete messages. When a stitch changes an
+OSC message, extending this simulator is part of that stitch's deliverable.
 """
 
 import argparse
@@ -237,14 +236,6 @@ class Device:
             os.path.join(DEVICE_ASSETS_DIR, name)
             for name in sorted(self.asset_slots)
         ]
-
-    def wire_id(self):
-        # list prepend 0 in bopos.osc.pd: reports carry id 0 until helper config lands
-        return 0.0 if self.state == "booting" else self.device_id
-
-    def match_id(self):
-        # route-by-id's creation arg: an unconfigured device *listens* on -1, not 0
-        return -1.0 if self.state == "booting" else self.device_id
 
     def display_state(self):
         return "unresponsive" if self.unresponsive and self.state != "off" else self.state

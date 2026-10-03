@@ -5,7 +5,6 @@ import collections
 import copy
 import contextlib
 import ipaddress
-import json
 import logging
 import math
 import os
@@ -345,27 +344,27 @@ class Dashboard:
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         serialized_mutations = {
-            "set_param", "set_live_param", "set_live_automation",
+            "set_live_param", "set_live_automation",
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
-            "action", "identify", "switch_patch", "set_fleet_patch",
+            "action", "identify", "set_fleet_patch",
             "set_device_patch", "clear_device_patch",
             "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
-            "send_distribution", "sync_distribution", "drop_distribution",
+            "send_distribution", "drop_distribution",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
-            "forget_device", "forget_offline_unbound", "set_room", "set_points",
+            "forget_device", "forget_offline_unbound", "set_room",
             "set_point", "clear_point", "save_venue", "load_venue",
             "set_facilitator_commands",
             "monitor_send", "monitor_probe",
         }
         edit_blocked_mutations = {
-            "set_param", "set_live_param", "set_live_automation",
-            "replay_live_params", "switch_patch",
+            "set_live_param", "set_live_automation",
+            "replay_live_params",
             "set_fleet_patch", "set_device_patch", "clear_device_patch",
             "revert_fleet_patch",
-            "set_room", "set_points", "set_point", "clear_point",
+            "set_room", "set_point", "clear_point",
             "save_venue", "load_venue",
         }
         # Editor-scoped writes are not fleet execution controls: they target
@@ -413,26 +412,6 @@ class Dashboard:
                     "type": "monitor_send_result",
                     "data": {"ok": True},
                 })
-        elif kind == "set_param":
-            name, value = str(data.get("name", "")), data.get("value")
-            selector = "all" if data.get("broadcast") or uid == "all" else self.selector(uid)
-            if not name or selector is None:
-                return
-            targets = self.state.devices.values() if selector == "all" else [self.state.devices[uid]]
-            if not isinstance(value, list):
-                if selector == "all":
-                    for seat in self.state.seats.values():
-                        seat["params"][name] = value
-                for device in targets:
-                    device["params"][name] = value
-                    seat = self.state.seat_for_uid(device["uid"])
-                    if seat is not None and selector != "all":
-                        seat["params"][name] = value
-            self.osc.set_param(selector, name, value)
-            if not isinstance(value, list):
-                self.state.save_debounced()
-            for device in targets:
-                await self.broadcast("device_update", device)
         elif kind == "set_live_param":
             scope = str(data.get("scope", ""))
             declaration = self.live_param_declaration(
@@ -660,37 +639,6 @@ class Dashboard:
         elif kind == "identify":
             if uid in self.state.devices:
                 self.osc.uid_action(uid, "identify")
-        elif kind == "switch_patch":
-            name = str(data.get("patch", "")).strip()
-            if re.fullmatch(r"[\w.-]+", name):
-                if self.state.data["simulation"].get("active"):
-                    if ws is not None and data.get("confirmed") is not True:
-                        await self.ws_error(ws, "Switching the simulated fleet requires confirmation.")
-                        return
-                    if self.supervisor_mode != "simulate":
-                        await self.ws_error(ws, "Simulation ended before the patch switch completed.")
-                        return
-                    manifest, error = patch_manifest.load(os.path.join(self.patches_dir, name))
-                    if manifest is None:
-                        await self.ws_error(ws, f"Cannot simulate patch {name!r}: {error}")
-                        return
-                    item = await self.catalog_patch(name)
-                    if item is None:
-                        return
-                    self.stage_catalog_patch(item)
-                    self.state.save_debounced()
-                    await self.restart_simulation()
-                    await self.broadcast("state")
-                    return
-                targets = self.distribution_targets(uid)
-                if uid == "all":
-                    targets = [device_uid for device_uid in targets
-                               if self.device_patch(device_uid, name)
-                               and self.device_patch(device_uid, name).get("manifest")]
-                for device_uid in targets:
-                    device = self.begin_patch_switch(device_uid, name)
-                    if device is not None:
-                        await self.broadcast("device_update", device)
         elif kind == "set_fleet_patch":
             if data.get("confirmed") is not True:
                 await self.ws_error(ws, "Setting the fleet patch requires confirmation.")
@@ -753,12 +701,12 @@ class Dashboard:
         elif kind == "request_patches":
             if uid in self.state.devices:
                 self.osc.request(uid, "patches")
-        elif kind in ("send_distribution", "sync_distribution"):
+        elif kind == "send_distribution":
             physical_target = (
                 uid in self.state.devices
                 and not self.state.devices[uid].get("virtual"))
             if (self.state.data["simulation"].get("active")
-                    and (kind != "send_distribution" or not physical_target)):
+                    and not physical_target):
                 if ws is not None:
                     await ws.send_json({"type": "error", "data": {"message":
                         "Simulation uses host patches directly; choose a patch and Switch "
@@ -766,20 +714,15 @@ class Dashboard:
                 return
             catalog = await self.catalog()
             await self.broadcast("distribution", catalog)
-            requested = []
-            if kind == "send_distribution":
-                item_kind = str(data.get("kind", ""))
-                name = str(data.get("name", ""))
-                if item_kind == "asset" and not self.single_asset_target(uid):
-                    await self.ws_error(
-                        ws, "Assets require one online, assigned physical device target.")
-                    return
-                requested = [item for group in catalog.values() for item in group
-                             if item["kind"] == item_kind and item["name"] == name
-                             and (item["kind"] != "patch" or item["valid"])]
-            else:
-                # Fleet asset sync moved to the separately gated rollout work.
-                requested = [item for item in catalog["patches"] if item["valid"]]
+            item_kind = str(data.get("kind", ""))
+            name = str(data.get("name", ""))
+            if item_kind == "asset" and not self.single_asset_target(uid):
+                await self.ws_error(
+                    ws, "Assets require one online, assigned physical device target.")
+                return
+            requested = [item for group in catalog.values() for item in group
+                         if item["kind"] == item_kind and item["name"] == name
+                         and (item["kind"] != "patch" or item["valid"])]
             targets = self.distribution_targets(uid)
             if (self.requires_active_confirmation(targets, requested)
                     and data.get("confirmed_active") is not True):
@@ -946,7 +889,7 @@ class Dashboard:
                 else:
                     await self.stop_edit()
             await self.broadcast("state")
-        elif kind in ("restart_edit", "relaunch_edit"):
+        elif kind == "relaunch_edit":
             async with self.supervisor_lock:
                 if self.supervisor_mode == "edit":
                     editor = self.state.data["editor"]
@@ -971,7 +914,7 @@ class Dashboard:
                 await self.ws_error(ws, "Seat IDs must be non-negative integers.")
                 return
             seat = self.state.clean_seat({"id": seat_id, "name": data.get("name", ""),
-                "positions": data.get("positions", []), "patch": data.get("patch", "demo-pd"),
+                "positions": data.get("positions", []),
                 "params": data.get("params", {}), "bound": None})
             if seat is None:
                 await self.ws_error(ws, "Seat IDs must be non-negative integers.")
@@ -1035,7 +978,7 @@ class Dashboard:
             if seat is None:
                 return
             candidate = dict(seat)
-            for key in ("name", "positions", "patch", "params"):
+            for key in ("name", "positions", "params"):
                 if key in data:
                     candidate[key] = data[key]
             cleaned = self.state.clean_seat(candidate)
@@ -1174,13 +1117,6 @@ class Dashboard:
             self.state.save_debounced()
             self.osc.send_audition_listener()
             await self.broadcast("listener", listener)
-        elif kind == "set_points":
-            # full-state authoring surface (contract sec 4.1); geometry only —
-            # decomposition is the nodes' job, never composed here (sec 1)
-            sanitized = points.sanitize_points(data.get("points"),
-                                               self.state.data.get("room"))
-            self.osc.set_points(sanitized)
-            await self.broadcast("points", {"points": sanitized})
         elif kind == "set_point":
             point = points.sanitize_point(data.get("point"),
                                           self.state.data.get("room"))
@@ -1265,9 +1201,6 @@ class Dashboard:
             else:
                 self.replay_current_assignments()
                 await self.ws_error(ws, "The venue could not be saved as current; no dashboard state changed.")
-        elif kind == "list_venues":
-            await self.broadcast("venues", {"venues": self.state.list_venues(),
-                                            "current": self.state.data.get("name")})
         elif kind == "list_shows":
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                            "current": self.state.data.get("current_show")})
@@ -1288,19 +1221,6 @@ class Dashboard:
                 return
             await self.show_engine.stop_all_steps()
             await self.set_current_show(name, show_model.load_show(self.shows_dir, name))
-        elif kind == "save_show_as":
-            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
-            if not name:
-                await self.ws_error(ws, "Show names must be text.")
-                return
-            doc = dict(self.show)
-            doc["name"] = name
-            try:
-                show_model.save_show(self.shows_dir, doc)
-            except OSError:
-                await self.ws_error(ws, "The show could not be saved.")
-                return
-            await self.set_current_show(name, doc)
         elif kind == "rename_show":
             name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
             if not name:
@@ -1525,17 +1445,6 @@ class Dashboard:
                     for declaration in declarations if "default" in declaration}
         self.state.reconcile_fleet_params(item["name"], identities, defaults)
         return self.state.stage_fleet_patch(item["name"], item["fingerprint"])
-
-    def active_param_identities(self):
-        """Return the staged manifest identities; fail closed when unavailable."""
-        patch_name = self.state.data.get("params_patch")
-        if not patch_name:
-            return set()
-        manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
-        if manifest is None:
-            return set()
-        return {patch_manifest.qualify_param(item)
-                for item in manifest.get("params", ())}
 
     def live_control_manifest(self, patch_name=None):
         """Return the validated manifest that owns operator controls.
@@ -2673,10 +2582,6 @@ class Dashboard:
         editor.update(active=False, status="off", engine_alive=None, points={})
         self.set_supervisor_mode("off")
         self.restore_live_state()
-
-    @staticmethod
-    def device_elements(device):
-        return list(device.get("positions", ()))
 
 
 def create_app(args):

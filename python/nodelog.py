@@ -182,7 +182,6 @@ def append(stream, values):
 
 
 def close():
-    global _instance
     with _instance_lock:
         if _instance is not None:
             _instance.close()

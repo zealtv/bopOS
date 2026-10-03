@@ -229,8 +229,8 @@ or fleet-wide). The node's already-running software performs the
 convergence itself: restores and pulls the checkout, preserves the active
 patch selection, updates submodules, reports its outcome receipt, and only
 reboots after success. Failures fail loudly with the phase that failed —
-never a silent half-update. `bash/update.sh` on the node is the equivalent
-manual check and never reboots.
+never a silent half-update. Framework convergence is implemented by
+`converge_framework` in `python/bopos.py`.
 
 Two rules follow from this design:
 

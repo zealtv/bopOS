@@ -1526,7 +1526,7 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         return True
     if parts[2] == "fetch":
         if len(args) < 2:
-            _fetched_reply(reply_socket, source[0], str(args[1]) if len(args) > 1 else "", "err")
+            _fetched_reply(reply_socket, source[0], "", "err")
             return True
         uri, slot = str(args[0]), str(args[1])
         asset_slot = identity.valid_asset_slot(slot)

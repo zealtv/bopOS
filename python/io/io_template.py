@@ -77,8 +77,8 @@ class PeripheralTemplate:
         
         This is called when PD sends: /mydevice/command [args...]
         """
-        command = kwargs.get('command', '')
-        args = kwargs.get('args', [])
+        # command = kwargs.get('command', '')
+        # args = kwargs.get('args', [])
         
         # Example: Set LED brightness
         # if command == 'brightness' and len(args) > 0:

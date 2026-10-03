@@ -5,7 +5,7 @@ Output-only peripheral: PD drives it with text/draw commands over OSC.
 default address: 0x3C
 """
 
-from PiicoDev_SSD1306 import create_PiicoDev_SSD1306, WIDTH, HEIGHT
+from PiicoDev_SSD1306 import create_PiicoDev_SSD1306, WIDTH
 
 LINE_HEIGHT = 10  # px between text rows; font is 8px tall, so 6 rows fit on 64px
 

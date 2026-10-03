@@ -204,7 +204,9 @@ update). An engine-only patch switch leaves the bridge running.
 
 ## Dependencies
 
-Dependencies are listed in `requirements.txt` and should be updated automatically when update.sh is run.
+Dependencies are listed in `requirements.txt`. Install them during device
+provisioning with `install-device.sh`; routine framework convergence does not
+install Python dependencies.
 
 ## Design Principles
 

@@ -6,7 +6,6 @@ Simple interface between I2C sensors and Pure Data via OSC
 
 import time
 import math
-import socket
 import threading
 import signal
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
@@ -291,15 +290,15 @@ class IOManager:
         """
         Main loop: poll sensors and send OSC bundle.
         """
-        print(f"\nBopOS I/O Bridge Running")
+        print("\nBopOS I/O Bridge Running")
         print(f"Python listening on port {PYTHON_PORT}")
         print(f"Sending to PD on port {PD_PORT}")
         print(f"Poll rate: {self.poll_rate} Hz")
-        print(f"\nCommands:")
-        print(f"  /io/create <name> <type> <address>")
-        print(f"  /io/poll <rate>   /io/report   /io/scan [bus]")
-        print(f"  /system/rssi|id|ip|uptime|rev|patch|info")
-        print(f"\nPress Ctrl+C to quit\n")
+        print("\nCommands:")
+        print("  /io/create <name> <type> <address>")
+        print("  /io/poll <rate>   /io/report   /io/scan [bus]")
+        print("  /system/rssi|id|ip|uptime|rev|patch|info")
+        print("\nPress Ctrl+C to quit\n")
         
         # Setup OSC server in separate thread
         server = OSCServer(("127.0.0.1", PYTHON_PORT))

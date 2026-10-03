@@ -22,7 +22,6 @@ import math
 import os
 import re
 import secrets
-import sys
 
 SCHEMA = 1
 UID_RE = re.compile(r"[0-9a-f]{8}")
@@ -37,11 +36,6 @@ THEN_ACTION_TYPES = frozenset((
 
 # Show arguments are OSC wire tags, not manifest declaration kinds. Keep this
 # grammar local so a declaration-language change cannot alter stored messages.
-_REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-if _REPO_DIR not in sys.path:
-    sys.path.insert(0, _REPO_DIR)
-from python import manifest as patch_manifest  # noqa: E402
-
 ARG_TYPES = ("i", "f", "s")
 
 

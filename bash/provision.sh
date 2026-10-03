@@ -47,4 +47,4 @@ systemctl daemon-reload
 systemctl enable bopos.service
 
 echo "Installed bopOS systemd service and privileged control authorization"
-echo "Run bash/update.sh as pi to verify convergence, then reboot when ready"
+echo "Use Update bopOS in the dashboard to converge the framework and reboot after success"
