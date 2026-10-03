@@ -23,6 +23,12 @@ surface and the code simpler?*
 2. **What goes.** Confirm or reject retiring per-device pins and live patch
    swapping (see parent). For each removal, say what the operator does instead.
    Name the verbs, fields, UI and tests that would be deleted.
+   The October code review found the pin machinery to delete (
+   `lore:2026-10-03-bopos-code-review-2026-10`): `device_operations` /
+   `device_generations` and `converge_device_patch` in `server.py`, the
+   `desired_patch` override in the device registry (`state.py`,
+   `device_aliases.py`), the `patch_pinned` projection, and the pin UI in
+   `dashboard.js`. `69-complexity` relies on this list.
 3. **Map today onto it.** Every field in `installation.json`, venue snapshots,
    shows, the Patches tab's patch choice, assets slots — where each lands, or
    that it's dropped.

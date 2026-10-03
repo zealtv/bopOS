@@ -50,7 +50,7 @@ unreachable, and values can't leave the device. Stitches `1`, `3`, `4`, `5`,
 ## Evidence
 
 - `../session-2026-08-05-ciro-toast.md`, `../ads.py`, `../watch.py`.
-- `feature-backlog/60-io-dispatch-silence` — same failure family; would this
+- `67-repair-pass/3-io-bridge-hardening` (absorbed `60`) — same failure family; would this
   design have surfaced it?
 - `python/io/README.md` — current namespace (`/io/<verb>`, `/io/<name> <cmd>`).
 - Contract §6 (no streamed telemetry, and why) and §11 (io plane).

@@ -1,5 +1,6 @@
 <!-- auto-generated; run lore.sh index to refresh -->
 
+- [2026-10-03-bopos-code-review-2026-10](items/2026-10-03-bopos-code-review-2026-10/) — bopOS broad code review, October 2026 — A whole-repository review (bugs, staleness, complexity, cleanliness, test health) at commit `0c1388d`, with evidence, reproductions and Bob's rulings on what to do next.
 - [2026-09-25-session-handoffs-2026-07](items/2026-09-25-session-handoffs-2026-07/) — Session handoffs, July 2026 — Every agent handoff note from 2026-07-08 to 2026-07-28, plus the guard-rot briefing and the retired running order — what each session did and left for the next.
 - [2026-09-25-sequencer-brainstorm-2026-07-15](items/2026-09-25-sequencer-brainstorm-2026-07-15/) — Sequencer brainstorm, 2026-07-15 — Clip-launcher sequencing and /field spatial-primitive brainstorm, with two external perspectives and a decision list — unratified input to the scene-sequencing co-design.
 - [2026-09-25-pd-edits-for-bob-2026-08](items/2026-09-25-pd-edits-for-bob-2026-08/) — Pd edits for Bob, through 2026-08-05 — The running list of Pure Data edits agents wrote for Bob during the engine-boundary rewrite and after, with exact spellings and verification steps.
