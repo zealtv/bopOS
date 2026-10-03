@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+
+repo_dir=$(git rev-parse --show-toplevel)
+echo "bopOS pre-commit: running fast tests"
+if ! "$repo_dir/tools/run-tests.sh" fast; then
+    echo "bopOS pre-commit: COMMIT REFUSED — fast tests failed (or could not run)." >&2
+    echo "Fix the failure and retry; setup: docs/VERIFICATION.md" >&2
+    exit 1
+fi

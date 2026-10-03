@@ -28,7 +28,7 @@ else
     test_python=${HOME}/.venvs/bopos/bin/python
 fi
 
-if [ ! -x "$test_python" ]; then
+if ! command -v "$test_python" >/dev/null 2>&1; then
     echo "bopOS test Python is not executable: $test_python" >&2
     echo "Set BOPOS_PYTHON to a project Python, or create the documented venv:" >&2
     echo "  python3 -m venv ~/.venvs/bopos" >&2

@@ -13,6 +13,39 @@ unresolved child stitches. Focused verifier scripts should also set
 
 ## Stable software tiers
 
+### Automatic gates
+
+Run `./tools/install-hooks.sh` once in each clone (also run by
+`./install-dashboard.sh`). It sets the local `core.hooksPath` to the versioned
+`tools/hooks`; Git then runs `tools/run-tests.sh fast` before every commit,
+including agent commits, and refuses the commit if tests fail or cannot run.
+Existing hook configurations are reported rather than overwritten. Hooks
+check the working tree; keep staged changes and tested files in sync.
+Use `BOPOS_PYTHON=/path/to/python git commit ...` for a custom venv. The fast
+tier also needs Node.js on PATH for JavaScript model checks.
+
+[Software tests](https://github.com/zealtv/bopOS/actions/workflows/tests.yml)
+runs fast tests on pushes and PRs. The browser job runs independently on PRs,
+daily at 17:23 UTC, and via **Run workflow**. GitHub schedules run from the
+default branch once the workflow is pushed there; a local commit alone does
+not activate the cadence. Both jobs also run on the scheduled/manual events.
+Failures make the job red; the browser job publishes its per-file summary and
+retains `browser.log` for 14 days. No failure is marked `continue-on-error`.
+
+CI uses Python 3.11, dashboard dependencies plus `pyOSC3`, Node.js for fast
+tests, and Playwright with Chromium and its Linux dependencies for browser
+tests. The living journeys construct temporary patch/asset/state fixtures or
+use static components; none needs the local gitignored patch library or Pd.
+All `tests/verify_*.py` run, including the known red journeys assigned to
+`67-repair-pass/5-browser-tier-red`; this gate does not suppress those failures.
+
+GitHub Actions was chosen over a laptop scheduler so runs survive a sleeping
+or offline laptop and share their results in the repository. See GitHub's
+[schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+(runs may be delayed; public-repo schedules can be disabled after 60 days
+without activity) and Playwright's
+[CI setup](https://playwright.dev/python/docs/ci).
+
 Run the repository entry point from any working directory:
 
 ```sh

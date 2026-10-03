@@ -36,11 +36,8 @@ exit 0
         self.temp.cleanup()
 
     def run_runner(self, *args, **extra_env):
-        environment = dict(
-            os.environ,
-            BOPOS_PYTHON=str(self.fake_python),
-            **extra_env,
-        )
+        environment = dict(os.environ, BOPOS_PYTHON=str(self.fake_python))
+        environment.update(extra_env)
         return subprocess.run(
             [str(RUNNER), *args],
             cwd=self.root,
@@ -86,6 +83,12 @@ exit 0
         self.assertEqual(result.returncode, 2)
         self.assertIn("BOPOS_PYTHON", result.stderr)
         self.assertIn("python3 -m venv ~/.venvs/bopos", result.stderr)
+
+    def test_python_override_can_be_a_command_on_path(self):
+        result = self.run_runner("fast", BOPOS_PYTHON="fake-python",
+                                 PATH=str(self.root) + os.pathsep + os.environ["PATH"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("FAKE_ARGS=-m unittest discover", result.stdout)
 
     def test_browser_continues_and_summarizes_every_surface(self):
         verifiers = sorted((REPO / "tests").glob("verify_*.py"))

@@ -14,8 +14,13 @@ One-time setup:
 
 ```sh
 python3 -m venv ~/.venvs/bopos
-~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt python-osc
+~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt pyOSC3
+./tools/install-hooks.sh
 ```
+
+`./install-dashboard.sh` performs both setup steps. The installed commit hook
+runs fast tests before each commit; test dependencies and the automatic browser
+cadence are documented in [Verification](../docs/VERIFICATION.md).
 
 Run the server (terminal 1, from the repo root):
 

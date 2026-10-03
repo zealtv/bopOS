@@ -3,6 +3,8 @@
 When checking a change, use `tools/run-tests.sh` from `~/.venvs/bopos` and pick the level from `docs/VERIFICATION.md`.
 
 - `./tools/run-tests.sh fast` — routine pre-tie (browser-free). `browser` — Playwright journeys. `all` — both.
+- Install `./tools/install-hooks.sh` in each clone (also part of `install-dashboard.sh`): every Git commit, including agent commits, runs fast tests and is refused on failure. Custom venv: `BOPOS_PYTHON=/path/to/python git commit ...`; fast tests also require Node.js.
+- GitHub Actions `.github/workflows/tests.yml`: fast on push/PR; browser on PR, nightly at 17:23 UTC, and manual dispatch, independently of fast results. Browser summaries and 14-day logs live in Actions. The schedule activates only after pushing the workflow to the default branch; all living journeys use self-contained fixtures, with known red journeys retained until the repair stitch lands.
 - Durable checks go into the code-surface-owned modules under `tests/`. `.loom/legacy-v1/tied/` guards are historical evidence, not a regression suite — don't sweep or repair them.
 - Venv setup: `python3 -m venv ~/.venvs/bopos && ~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt pyOSC3`; browser tests add `playwright` (+ `playwright install chromium --only-shell`) and pixel guards add `Pillow`.
 - No hardware: `tools/simfleet.py` fakes N nodes. `--sim-no-engine --sim-audio-backend none` reaches real edit/simulate modes without Pd.
