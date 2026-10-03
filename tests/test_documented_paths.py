@@ -46,10 +46,18 @@ def documented_sources():
             yield ROOT / path
 
 
+def git_ignored(token):
+    # Gitignored paths are runtime state (installation.json, saved venues):
+    # they exist on a working host but never in a clean checkout or CI.
+    return subprocess.run(["git", "check-ignore", "-q", "--no-index", token],
+                          cwd=ROOT).returncode == 0
+
+
 def missing_paths(document, root=ROOT):
     return [(line, token) for line, token in concrete_paths(document.read_text())
             if not (root / token).exists()
-            and not (document.parent / token).exists()]
+            and not (document.parent / token).exists()
+            and not git_ignored(token)]
 
 
 class DocumentedPathTests(unittest.TestCase):
@@ -78,6 +86,10 @@ class DocumentedPathTests(unittest.TestCase):
                 "`tests/verify_*.py` `run/io.log` `~/bopOS/assets/` "
                 "`/os/fetch` `https://example.test/a/b` `instrument/marimba/gain`")
         self.assertEqual(list(concrete_paths(text)), [])
+
+    def test_gitignored_runtime_state_is_allowed_but_tracked_typos_are_not(self):
+        self.assertTrue(git_ignored("dashboard/installation.json"))
+        self.assertFalse(git_ignored("pd/bopos.pd"))
 
     def test_history_is_ignored(self):
         text = ("`.loom/tied/old/file.md` `.lore/items/old/file.md` "
