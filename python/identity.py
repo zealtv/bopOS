@@ -18,7 +18,6 @@ if __package__:
 else:
     import asset_slots
 
-
 # per-file digests keyed by path, invalidated by stat signature, so repeated
 # fingerprints (a Zero answering /os/patches) re-hash only changed files
 _file_hashes = {}
@@ -27,8 +26,6 @@ _cache_lock = threading.RLock()
 
 def _signature(stat):
     return (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-
-
 
 
 def _walk_files(root):
@@ -100,7 +97,7 @@ def save_hash_cache(root):
             if not path.startswith(prefix) or not os.path.isfile(path):
                 continue
             relative = os.path.relpath(path, root).replace(os.sep, "/")
-            if (any(part.startswith(".") for part in relative.split("/"))):
+            if any(part.startswith(".") for part in relative.split("/")):
                 del _file_hashes[path]
                 continue
             files[relative] = {"signature": list(signature), "sha256": digest}

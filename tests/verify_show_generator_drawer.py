@@ -216,9 +216,15 @@ def main():
                 check("editing LFO phase keeps the parameter value row",
                       page.locator("#show-param-value").count() == 1
                       and page.locator("#show-param-slider").count() == 1)
-                row = page.locator("[data-show-param-row]")
-                grid = row.evaluate(
-                    "node => getComputedStyle(node).gridTemplateColumns.split(' ')")
+                # The phase write rebuilds the inspector. Resolve the live row
+                # and read its style together so a detached row cannot return
+                # an empty grid. Still assert the actual column widths below.
+                grid = page.wait_for_function("""() => {
+                    const row = document.querySelector('[data-show-param-row]');
+                    if (!row?.isConnected) return false;
+                    const grid = getComputedStyle(row).gridTemplateColumns;
+                    return grid ? grid.split(' ') : false;
+                }""", timeout=5000).json_value()
                 check("the Show row uses the control panel's 58px / slider / 18px grid",
                       len(grid) >= 3 and grid[0] == "58px" and grid[-1] == "18px",
                       repr(grid))

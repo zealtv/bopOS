@@ -1,0 +1,59 @@
+[PASS] Show uses the shared three-tab drawer
+[PASS] the drawer is the fixed instrument width
+[PASS] Show uses the panel waveform body
+[PASS] open state survives timer re-renders
+[PASS] field draft persists on the focused message
+[PASS] editing LFO phase keeps the parameter value row
+[FAIL] the Show row uses the control panel's 58px / slider / 18px grid -- ['']
+[PASS] a closed authored generator keeps the modulation indicator cyan
+[PASS] dragging a generated row takes over with a static value
+[PASS] fade round-trips into the shared face
+[PASS] a generator tab persists its canonical default
+[PASS] value stays an ordinary field, not a generator tab
+[PASS] the Show inspector's mod glyph is §5's 18px circle
+[PASS] the explicit Stop action preserves the stop wire form
+[PASS] Stop keeps the parameter row and removes the redundant Value action
+[PASS] typing in a stopped row takes over with a static value
+[PASS] browser emitted no page errors
+
+server log tail:
+ INFO:     Started server process [14108]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:52933 (Press CTRL+C to quit)
+INFO:     127.0.0.1:58466 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET /js/theme.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /css/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58471 - "GET /css/control-panel.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /css/value-box.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58473 - "GET /css/target-picker.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /css/param-generator.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET /css/control-column.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /js/ws.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /js/device-identity.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58471 - "GET /css/card-identity.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /js/osc-message.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58473 - "GET /js/group-slots.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET /js/spatial.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58473 - "GET /js/paramspec.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58471 - "GET /js/target-picker.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /js/control-surface.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /js/monitor.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /js/dashboard.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58471 - "GET /js/param-generator.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET /js/precision-field.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58473 - "GET /js/control-column.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /js/value-box.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /js/control-host.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /js/control-cards-model.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /js/show.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58474 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14108]
+
+
+1 failure(s)

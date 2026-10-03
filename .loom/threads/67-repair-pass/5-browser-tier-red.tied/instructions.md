@@ -1,15 +1,16 @@
 # 5-browser-tier-red
 
-**Status:** blocked on `2-remove-presets` (needs edge) · four journeys repaired
+**Status:** verified complete — full browser tier green after preset removal
 **Goal:** `tools/run-tests.sh browser` is green again, and every failure is
 either fixed or explained.
 
 ## Current outcome
 
-The four non-preset journeys now pass; see `verification.md` and `browser.log`.
-The full tier has 24 passes and the one confirmed preset timeout, retained as
-instructed below. Once `2-remove-presets` ties this becomes ready; run the full browser tier,
-and tie only once it is green (the parent thread's completion constraint).
+The full tier now passes all 23 living journeys; see `closeout.md` and
+`closeout-browser.log`. Preset-only journeys were retired with their feature
+in `2-remove-presets`. Earlier repair evidence remains in `verification.md`
+and `browser.log`. This close-out also corrects a detached-row CSS read in the
+Show generator test while preserving its exact grid-width assertion.
 
 ## Initial failures (every run, 2026-10-03)
 

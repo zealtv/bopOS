@@ -1,0 +1,608 @@
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+
+=== browser: verify_control_column_scroll.py ===
+[PASS] Control lays four cards into equal grid tracks
+[PASS] Control cards flex within the requested bounds
+[PASS] wide Control cards grow beyond their minimum
+[PASS] a sparse final Control row stays left packed
+[PASS] Control cards and host expose no nested scrollport
+[PASS] the long cards grow the document below the viewport
+[PASS] Control scrolls the page
+[PASS] the final Control row is reachable in the viewport
+[PASS] Remote derives four equal-width cards
+[PASS] Remote's final-row card keeps the shared track width
+[PASS] Remote also has no nested vertical scrollport
+[PASS] Remote grows the document below the viewport
+[PASS] Remote reaches its final row through page scroll
+[PASS] no page errors
+
+all control-column scroll checks passed
+
+=== browser: verify_control_surface_component.py ===
+[PASS] component is loaded on the facilitator page
+[PASS] all card renders rows through the component
+[PASS] nested path renders a param branch
+[PASS] string and toggle declarations render their own kinds
+[PASS] a focused text draft survives a heartbeat re-render
+[PASS] Enter commits the text value through the real simfleet
+[PASS] blur commits a changed text value through simfleet
+[PASS] the facilitator keeps value, slider, and ∿ atomic below its narrow breakpoint
+[PASS] group card renders rows through the component
+[PASS] seat cards render rows through the component
+[PASS] device-scoped value and automation presentation is markup-identical to seat scope
+[PASS] device-scoped row calls the host send with scope+uid
+[PASS] the row is [value box][name-in-slider][∿]
+[PASS] the parameter name lives inside the slider
+[PASS] the fill position follows the value
+[PASS] dragging the slider moves the fill with it
+[PASS] floats left-align in the value box, integers right
+[PASS] the native range is a transparent overlay
+[PASS] a generator-driven row hands the fill to its marker
+[PASS] a manual row keeps its own fill and marker line
+[PASS] a 0/1 int is a square latching box, not a checkbox
+[PASS] the toggle and enum label their box from beside it
+[PASS] the string row is one row tall, like every other kind
+[PASS] a mixed text aggregate keeps its word and shared hatch
+[PASS] text rows offer no generator
+[PASS] a toggle carries the ∿ icon like any numeric row
+[PASS] an enum renders its manifest option labels
+[PASS] choosing an enum option sends its integer index
+[PASS] an event declaration renders exactly arity boxes
+[PASS] the event row is live with a single fire button
+[PASS] the event row reads fire · elements · name
+[PASS] a periodic generator shows dots, not a stale number
+[PASS] a marker-bearing slider does not pulse — it shows the value exactly
+[PASS] a fade keeps its number: the rAF animator samples it
+[PASS] a generator-driven toggle pulses instead of flashing a value
+[PASS] a generator-driven enum pulses too
+[PASS] a disagreeing aggregate hatches its slider
+[PASS] editing a mixed row renders it solid at the new value
+[PASS] editing a mixed row sends the value to every member
+[PASS] a nested branch is a disclosure accordion, open by default
+[PASS] the accordion's children indent 12px
+[PASS] an open branch shows the ▾ disclosure glyph
+[PASS] clicking the summary collapses the branch
+[PASS] a collapsed branch shows the ▸ disclosure glyph
+[PASS] the collapse survives the heartbeat re-render
+[PASS] the collapse survives a reload
+[PASS] the collapse is keyed by scope and branch path
+[PASS] re-opening the branch restores its children and clears the stored collapse
+[PASS] facilitator emitted no page errors
+[PASS] component is loaded on the dashboard page
+[PASS] dashboard emitted no page errors
+
+Control surface component checks passed
+
+=== browser: verify_control_tab.py ===
+[PASS] the tab is labelled Control
+[PASS] an existing #dashboard bookmark still opens the tab
+[PASS] no tab is still called Dashboard
+[PASS] the standalone view is a tab-bar link named Remote
+[PASS] the Remote link points at the standalone view
+[PASS] the Remote link is outside the tablist
+[PASS] the primary tablist still holds exactly the six tabs
+[PASS] the dead Control heading is gone
+[PASS] the Control tab hosts no patch picker
+[PASS] the patch picker is still on the Patches tab
+[PASS] the picker is a reusable component, not a local widget
+[PASS] the picker offers All, the group and both Seats as chips
+[PASS] the retired top event panel is gone
+[PASS] events sit above parameters in the panel
+[PASS] All shows the aggregate card only
+[PASS] a group chip shows that group's card only
+[PASS] a second target replaces rather than mixes
+[PASS] All is exclusive with everything else
+[PASS] choosing a Seat elsewhere does not re-aim Control
+[PASS] choosing a Seat chip in the column does aim it
+[PASS] the Control card carries no device-command disclosure
+[PASS] Send all is behind the overflow, not in the head
+[PASS] the overflow holds Send all and the device hand-off
+[PASS] the hand-off opens that device on the Devices tab
+[PASS] a lost target is never widened to every Seat
+[PASS] the removed target removes its card and controls
+[PASS] legacy columns migrate to a unique target set
+[PASS] migration discards authored order and sorts All first
+[PASS] every committed card can be closed, including the last
+[PASS] + card creates one transient open picker
+[PASS] a second + focuses rather than duplicates the draft
+[PASS] targets already represented by cards are disabled
+[PASS] committing a draft re-sorts it between All and Seats
+[PASS] Control paints All and stable group identity strokes
+[PASS] Seat cards retain the neutral one-pixel face
+[PASS] only target membership is persisted
+[PASS] a Seat send preserves other Seat values and card targets
+[PASS] one live region per card
+[PASS] the target set and derived order survive reload
+[PASS] Open in Control adds a card for that Seat
+[PASS] asked twice, it focuses the card it already opened
+[PASS] closing a card removes its target
+[PASS] closing persists and no drag affordance remains
+[PASS] no page errors
+[PASS] Remote has labels rather than target pickers
+[PASS] Remote derives All, every group and every Seat
+[PASS] Remote consumes the same All and group strokes
+[PASS] Remote cards respect the 560px ceiling
+[PASS] Remote master and MUTE stay inline in a bottom bar
+[PASS] every Remote card carries its targeted command disclosure
+[PASS] Remote has no command strip outside target cards
+[PASS] Remote offers no Devices-tab hand-off
+[PASS] no standalone page errors
+
+Control tab checks passed
+
+=== browser: verify_device_control_modes.py ===
+[PASS] Devices UI presents positive enabled terminology
+[PASS] physical appearance converges desired Device enabled once
+[PASS] mismatched physical report triggers one enabled repair
+[PASS] entering Simulation emits no physical enabled command
+[PASS] Audio form hides mixer control and exposes operator settings
+[PASS] Simulation Audio apply reaches exact physical Device
+[PASS] Audio receipt renders active applied feedback
+[PASS] Simulation Device disable reaches the physical receiver
+[PASS] Simulation MUTE ALL gates audition and not the physical receiver
+[PASS] master changes remain gated while Simulation is muted
+[PASS] entering Patch Edit emits no physical enabled command
+[PASS] Patch Edit Device enable reaches the physical receiver
+[PASS] Patch Edit MUTE ALL resumes latest master on execution only
+[PASS] Live restore sends runtime state but no Device enabled
+[PASS] host-only alias change emits no physical command
+[PASS] browser emitted no page errors
+
+0 failure(s)
+
+=== browser: verify_device_control_panel.py ===
+[PASS] Device Actions is the second card below status
+[PASS] moved Device Actions retain their bindings
+[PASS] RSSI -60 dBm is good
+[PASS] RSSI -61 through -75 dBm is marginal
+[PASS] RSSI below -75 dBm is poor
+[PASS] wired or unavailable RSSI stays neutral
+[PASS] RSSI health remains visually distinct in both themes
+[PASS] device control is collapsed by default
+[PASS] the toggle opens the panel
+[PASS] the open choice is remembered across a reload
+[PASS] fresh unbound roster selection opens Imani detail
+[PASS] fresh unbound detail exposes administration surfaces
+[PASS] unbound controls show patch defaults and provenance
+[PASS] unbound disabled controls emit no content messages
+[PASS] the panel renders the shared component's rows
+[PASS] a device-scoped write reaches the wire
+[PASS] the write lands on that device's seat only
+[PASS] a pinned device renders its own patch's params
+[PASS] the panel names the patch it is showing
+[PASS] an offline device still shows its control panel
+[PASS] offline controls are disabled, not hidden
+[PASS] no page errors
+
+Device control panel checks passed
+
+=== browser: verify_device_patch_targeting.py ===
+[PASS] the deploy row is a single line
+[PASS] patch, target and actions share one vertical centre
+[PASS] target picker offers whole fleet plus each online device
+[PASS] selecting one device relabels Deploy to Pin to device
+[PASS] selecting the whole fleet restores the fleet deploy label
+[PASS] whole-fleet deploy converges both assigned devices
+[PASS] pinning one device leaves the other unpinned on the fleet patch
+[PASS] pinned device reports its pin as a separate axis from the badge
+[PASS] fleet-patch summary counts the pin
+[PASS] exactly one roster row shows the pin marker
+[PASS] the pin marker names the pinned patch
+[PASS] a fleet deploy converges only the unpinned device
+[PASS] a fleet deploy leaves the pinned device pinned to its own patch
+[PASS] the pin survives a page reload (durable UID registry)
+[PASS] follow fleet clears the pin and re-converges to the fleet patch
+[PASS] no page errors during the run
+
+Device-scoped patch targeting browser checks passed
+
+=== browser: verify_event_control_panel.py ===
+[PASS] the Control surface shows an Events section
+[PASS] the Events section contains the strike row
+[PASS] strike has two editable event element boxes
+[PASS] strike has one fire button and no sync toggle
+[PASS] All fires /all/e/strike to both devices
+[PASS] All carries the typed floats after shared time
+[PASS] Group 7 fires /g7/e/strike only to its member
+[PASS] Group carries the typed floats after shared time
+[PASS] Seat 2 fires /2/e/strike only to device 2
+[PASS] Seat carries the typed floats after shared time
+[PASS] fire takes the value box's column width
+[PASS] fire is a momentary-shaped panel object
+[PASS] the sweep runs for the scheduled lead
+[PASS] the button returns to rest after the flash
+[PASS] no page errors
+
+Event control panel checks passed
+
+=== browser: verify_generator_drawer.py ===
+[PASS] [agreeing] numeric row carries a ∿ generator icon
+[PASS] [agreeing] string row carries no generator icon
+[PASS] [agreeing] the icon is a disclosure, closed to start
+[PASS] [agreeing] gen opens an inline drawer
+[PASS] [agreeing] the drawer is a sibling of its row, not a popover
+[PASS] [agreeing] stop is a control inside the drawer
+[PASS] [agreeing] the row still carries exactly one ∿ icon
+[PASS] [agreeing] opening the drawer lights the icon
+[PASS] [agreeing] the drawer offers the generator kinds as tabs
+[PASS] [agreeing] exactly one kind tab is latched on
+[PASS] [agreeing] the drawer is built around a waveform display
+[PASS] [agreeing] shaping args are mini-sliders
+[PASS] [agreeing] min, max and period sit in one args row
+[PASS] [agreeing] the Show inspector's drawer markup is gone
+[PASS] [agreeing] a sine offers no curve control
+[PASS] [agreeing] a tri does offer curve
+[PASS] [agreeing] switching back to square takes curve away again
+[PASS] [agreeing] applying runs the generator on the node
+[PASS] [agreeing] the node accepted the grammar
+[PASS] [agreeing] the generator is recorded for every member seat
+[PASS] [agreeing] stop halts the generator on the node
+[PASS] [agreeing] stop clears the recorded automation
+[PASS] [agreeing] the from box starts off, and its field with it
+[PASS] [agreeing] with the box off the fade carries no from value
+[PASS] [agreeing] checking the box wakes its field
+[PASS] [agreeing] checking it puts that start value on the wire
+[PASS] [agreeing] the ∿ icon closes the drawer again
+[PASS] [agreeing] the underlying control is still usable
+[PASS] [agreeing] an enum row carries the ∿ icon
+[PASS] [agreeing] a generator on an enum runs on the node
+[PASS] [agreeing] enum generator ticks are whole indices in range
+[PASS] [agreeing] no server rejection alert fired
+[PASS] [agreeing] no page errors
+[PASS] [mixed] numeric row carries a ∿ generator icon
+[PASS] [mixed] string row carries no generator icon
+[PASS] [mixed] the icon is a disclosure, closed to start
+[PASS] [mixed] the aggregate row reports its mixed state
+[PASS] [mixed] the ∿ icon is NOT disabled by disagreement
+[PASS] [mixed] the value box hatches and shows dots
+[PASS] [mixed] the slider hatches across its whole width
+[PASS] [mixed] a mixed row carries no marker line
+[PASS] [mixed] no generator is involved, so the hatch stays gray
+[PASS] [mixed] gen opens an inline drawer
+[PASS] [mixed] the drawer is a sibling of its row, not a popover
+[PASS] [mixed] stop is a control inside the drawer
+[PASS] [mixed] the row still carries exactly one ∿ icon
+[PASS] [mixed] opening the drawer lights the icon
+[PASS] [mixed] the drawer offers the generator kinds as tabs
+[PASS] [mixed] exactly one kind tab is latched on
+[PASS] [mixed] the drawer is built around a waveform display
+[PASS] [mixed] shaping args are mini-sliders
+[PASS] [mixed] min, max and period sit in one args row
+[PASS] [mixed] the Show inspector's drawer markup is gone
+[PASS] [mixed] a sine offers no curve control
+[PASS] [mixed] a tri does offer curve
+[PASS] [mixed] switching back to square takes curve away again
+[PASS] [mixed] applying runs the generator on the node
+[PASS] [mixed] the node accepted the grammar
+[PASS] [mixed] the generator is recorded for every member seat
+[PASS] [mixed] stop halts the generator on the node
+[PASS] [mixed] stop clears the recorded automation
+[PASS] [mixed] the from box starts off, and its field with it
+[PASS] [mixed] with the box off the fade carries no from value
+[PASS] [mixed] checking the box wakes its field
+[PASS] [mixed] checking it puts that start value on the wire
+[PASS] [mixed] the ∿ icon closes the drawer again
+[PASS] [mixed] the underlying control is still usable
+[PASS] [mixed] an enum row carries the ∿ icon
+[PASS] [mixed] a generator on an enum runs on the node
+[PASS] [mixed] enum generator ticks are whole indices in range
+[PASS] [mixed] no server rejection alert fired
+[PASS] [mixed] no page errors
+
+Generator drawer checks passed
+
+=== browser: verify_global_controls_monitor.py ===
+[PASS] MUTE ALL has left the app header
+[PASS] the master fader has left the app header
+[PASS] the master fader has left the Control tab
+[PASS] the Show transport no longer carries event lead
+[PASS] no stray event-lead control survives the relocation
+[PASS] master, event lead, and MUTE ALL share the Globals panel
+[PASS] event lead sits with the master fader
+[PASS] MUTE ALL keeps its danger affordance
+[PASS] the Globals panel is reachable from the collapsed dock
+[PASS] the relocated master fader still sets master
+[PASS] the relocated event lead still sets the lead time
+[PASS] the relocated MUTE ALL still mutes
+[PASS] the collapsed dock hides the Globals panel
+[PASS] a muted fleet stays visible on the collapsed dock
+[PASS] the collapsed mute flag unmutes and then disappears
+[PASS] the Globals selection survives a reload
+[PASS] no page errors during the journey
+
+all global-control checks passed
+
+=== browser: verify_ground_and_card.py ===
+[PASS] §12: nothing sits on the ground -- Remote/light
+[PASS] header clears its tallest control -- 1280px/light
+[PASS] header clears its tallest control -- 900px/light
+[PASS] header clears its tallest control -- 700px/light
+[PASS] §12: nothing sits on the ground -- control/light
+[PASS] §12: nothing sits on the ground -- show/light
+[PASS] §12: nothing sits on the ground -- seats/light
+[PASS] §12: nothing sits on the ground -- devices/light
+[PASS] §12: nothing sits on the ground -- patches/light
+[PASS] §12: nothing sits on the ground -- assets/light
+[PASS] §12: nothing sits on the ground -- monitor/light
+[PASS] §12: nothing sits on the ground -- Remote/dark
+[PASS] header clears its tallest control -- 1280px/dark
+[PASS] header clears its tallest control -- 900px/dark
+[PASS] header clears its tallest control -- 700px/dark
+[PASS] §12: nothing sits on the ground -- control/dark
+[PASS] §12: nothing sits on the ground -- show/dark
+[PASS] §12: nothing sits on the ground -- seats/dark
+[PASS] §12: nothing sits on the ground -- devices/dark
+[PASS] §12: nothing sits on the ground -- patches/dark
+[PASS] §12: nothing sits on the ground -- assets/dark
+[PASS] §12: nothing sits on the ground -- monitor/dark
+
+Ground and card (§12) checks passed
+
+=== browser: verify_interaction_guard.py ===
+[PASS] onfocusin/onfocusout are still not IDL attributes
+[PASS] a primary click focuses the generator number field
+[PASS] the generator drawer's field is not rebuilt under focus
+[PASS] the clicked generator number remains editable
+[PASS] Remote primary click focuses the generator number field
+[PASS] Remote keeps the clicked number field through heartbeats
+[PASS] no page errors
+
+Interaction guard checks passed
+
+=== browser: verify_live_param_kinds.py ===
+[PASS] All card renders the 0/1 int param as a latching button
+[PASS] latching the toggle sends the numeric value to the wire
+[PASS] the latched value persists into installation.json seats
+[PASS] the toggle stays latched across heartbeat re-renders
+[PASS] no server rejection alert fired
+[PASS] unlatching sends 0 to the wire
+[PASS] the unlatched value persists into installation.json
+[PASS] keyboard focus and handlers survive heartbeat updates
+[PASS] slider change-commit reaches the wire numerically
+[PASS] an integer row steps by one to the wire
+[PASS] All card renders the enum param as a select
+[PASS] choosing an option sends its index to the wire
+[PASS] the enum index persists into installation.json seats
+[PASS] the enum selection survives heartbeat re-renders
+[PASS] no rejection alert across the whole run
+[PASS] no page errors
+
+Live-param kind browser checks passed
+
+=== browser: verify_log_destination.py ===
+[PASS] Logging block shows destination selector and effective state
+[PASS] USB choice sends the exact-uid log-config envelope
+[PASS] receipt records destination usb with visible internal fallback
+[PASS] fallback is surfaced to the operator
+[PASS] browser emitted no page errors
+
+0 failure(s)
+
+=== browser: verify_manifest_param_visibility.py ===
+[PASS] Control tab shows every manifest parameter
+[PASS] Control preserves the nested texture branch
+[PASS] unflagged numeric params retain generator authoring
+[PASS] every Remote target card shows each flagged parameter once
+[PASS] Device control shows every manifest parameter
+[PASS] desktop Device Actions ignore the Remote allowlist
+[PASS] Remote command editor is a visible venue sibling
+[PASS] venue command choices reflect installation state
+[PASS] venue command save does not dirty or rewrite the manifest
+[PASS] venue command save leaves patch content untouched
+[PASS] Remote puts the venue subset on every target card
+[PASS] Remote has no command strip outside its target cards
+[PASS] venue command choices survive dashboard reload
+[PASS] Patch-tab declaration editor uses the explicit kind grammar
+[PASS] Patch-tab declaration editor has no legacy type selector
+[PASS] kind changes replace inferred enum and toggle fields
+[PASS] Patch-tab checkbox is labelled Remote
+[PASS] parameter drag changes only presentation order
+[PASS] event drag reorders within the Events section
+[PASS] cross-section drag is a no-op
+[PASS] saved manifest persists parameter and event order
+[PASS] Control panel follows the saved parameter order
+[PASS] Control panel follows the saved event order
+[PASS] browser surfaces emitted no page errors
+
+Manifest parameter visibility checks passed
+
+=== browser: verify_osc_transport_monitor.py ===
+[PASS] transport error reveals the bounded System log
+[PASS] System log names the failed OSC address
+[PASS] System log includes destination and errno
+[PASS] System log exposes the actionable socket message
+[PASS] supervisor log stays hidden until something dies
+[PASS] supervisor death reveals the bounded System log
+[PASS] supervisor log names the mode and the cause
+[PASS] the System panel names the loaded show
+[PASS] deleting the loaded show empties the panel again
+[PASS] transport log renders without page errors
+
+0 failure(s)
+
+=== browser: verify_precision_param_input.py ===
+[PASS] plain numeric readout is a click-to-type precision field
+[PASS] typed float reaches the wire with full precision
+[PASS] typed float round-trips into UI state for every scoped seat
+[PASS] out-of-range typed value clamps to max on the wire
+[PASS] integer control rounds a typed fraction on the wire
+[PASS] Escape reverts the field and sends nothing
+[PASS] PrecisionField.round honours 6 significant figures and integers
+[PASS] facilitator emitted no page errors
+[PASS] PrecisionField helper is loaded on the dashboard page
+[PASS] editor numeric readouts are precise, but toggles/strings are not
+[PASS] shared helper clamps an over-max typed value to the bound on commit
+[PASS] shared helper commits nothing on Escape
+[PASS] dashboard emitted no page errors
+
+Precision param input browser checks passed
+
+=== browser: verify_set_patch_handoff.py ===
+[PASS] a bound device offers Set patch… in its diagnostics
+[PASS] Set patch… hands off to the Patches tab
+[PASS] the picker is pre-scoped to that device
+[PASS] the confirm reads Pin to device
+[PASS] there is still exactly one deployment picker
+[PASS] a crumb offers the way back to the device
+[PASS] the crumb returns to that device
+[PASS] the unbound device is unbound to start with
+[PASS] Set patch… gives an unbound device a Seat in one click
+[PASS] the hand-off completes once the binding lands
+[PASS] the Seat is an ordinary Seat, not a hidden one
+[PASS] binding a Seat does not mark the device pinned
+[PASS] pinning a patch is what makes a device pinned
+[PASS] no page errors
+
+Set patch hand-off checks passed
+
+=== browser: verify_show_generator_drawer.py ===
+[PASS] Show uses the shared three-tab drawer
+[PASS] the drawer is the fixed instrument width
+[PASS] Show uses the panel waveform body
+[PASS] open state survives timer re-renders
+[PASS] field draft persists on the focused message
+[PASS] editing LFO phase keeps the parameter value row
+[PASS] the Show row uses the control panel's 58px / slider / 18px grid
+[PASS] a closed authored generator keeps the modulation indicator cyan
+[PASS] dragging a generated row takes over with a static value
+[PASS] fade round-trips into the shared face
+[PASS] a generator tab persists its canonical default
+[PASS] value stays an ordinary field, not a generator tab
+[PASS] the Show inspector's mod glyph is §5's 18px circle
+[PASS] the explicit Stop action preserves the stop wire form
+[PASS] Stop keeps the parameter row and removes the redundant Value action
+[PASS] typing in a stopped row takes over with a static value
+[PASS] browser emitted no page errors
+
+0 failure(s)
+
+=== browser: verify_show_targets.py ===
+[PASS] a missing named target warns at Show load and authoring time
+[PASS] group picker stores a portable name selector
+[PASS] saved Show carries the group name, not the venue id
+[PASS] picker renders the portable name and current wire id
+[PASS] copy/paste preserves typed parameter arguments
+[PASS] one undo removes the paste and leaves the original message
+[PASS] dividers are the same height as steps
+[PASS] a selected divider rings like a step, un-clippable
+[PASS] browser emitted no page errors
+
+0 failure(s)
+
+=== browser: verify_state_load_safety.py ===
+[PASS] failed startup is visible even without a loaded Show
+[PASS] an ordinary master change preserves original bytes
+[PASS] saving over the invalid venue is refused without changing either file
+[PASS] reconnect retains the startup notice
+[PASS] shutdown preserves both source files
+[PASS] repaired startup permits ordinary saves again
+[PASS] rejected venue is broadcast as a visible notice without changing current state
+[PASS] saving over the invalid venue is refused without changing either file
+[PASS] shutdown preserves both source files
+[PASS] repairing the file and restarting clears the startup lock and notice
+
+=== browser: verify_target_picker.py ===
+[PASS] both domains render the same disclosure chrome
+[PASS] the seat domain offers All, groups and Seats
+[PASS] the device domain offers devices and no All
+[PASS] a group chip carries its portable alias alongside the wire id
+[PASS] an ineligible device is present but disabled
+[PASS] a seat picker starts on All
+[PASS] groups and Seats mix in one selection
+[PASS] the closed state names the mixture tersely
+[PASS] All is no longer pressed while a mixture is chosen
+[PASS] the summary row offers one removal per selected entry
+[PASS] removing an entry leaves the rest
+[PASS] All replaces everything else
+[PASS] choosing a chip from All drops All
+[PASS] deselecting the last entry falls back to All
+[PASS] every change reached the host
+[PASS] a single-select picker starts on its first eligible chip
+[PASS] a single-select choice REPLACES rather than accumulates
+[PASS] single-select has no summary row: the terse state names the choice
+[PASS] a chosen target that becomes ineligible advances to an eligible one
+[PASS] each host persists its own selection
+[PASS] the shared focus seat moves a following picker to that Seat
+[PASS] the focus seat is the one documented shared key
+[PASS] a picker that does not follow focus is unmoved by it
+[PASS] a re-render keeps keyboard focus on the same chip
+[PASS] a re-render keeps a scrolled roster where it was
+[PASS] a departed group is pruned from the selection
+[PASS] a selection with nothing left is EMPTY, never All
+[PASS] the picker names what it dropped, so the host can say so
+[PASS] an empty target STAYS empty across re-renders
+[PASS] the emptied selection is what persists, not a substituted All
+[PASS] the empty state reads as none, not as all
+[PASS] All is still OFFERED, it is just not the fallback
+[PASS] choosing All from the empty state still works
+[PASS] a host that did not opt in still falls back to All
+[PASS] a chip is a latching button: near-square, one row high
+[PASS] selection chrome is the purple accent, not modulation cyan
+[PASS] no page errors
+[PASS] the Assets tab's device picker is the shared component
+[PASS] the retired device <select> is gone
+[PASS] every discovered device is a chip
+[PASS] the assigned device is choosable and chosen
+[PASS] the unassigned device is a disabled chip wearing its reason
+[PASS] the catalog compares against the chosen device
+[PASS] no page errors
+
+Target picker checks passed
+
+=== browser: verify_value_box_component.py ===
+[PASS] native number fields adopt the component
+[PASS] standard width is 58px
+[PASS] float boxes align left
+[PASS] integer boxes align right
+[PASS] float commits round to six significant figures
+[PASS] normalized commits update input-backed drafts
+[PASS] integer commits round to whole values
+[PASS] commits clamp to declared bounds
+[PASS] dynamically rendered fields adopt the component
+[PASS] precision readouts use the same 58px face
+[PASS] precision editor keeps value-box geometry
+[PASS] precision commits share clamping
+[PASS] value boxes carry the spinner-free textfield face
+[PASS] drawer arg boxes inherit the face from the component
+[PASS] dynamically rendered fields inherit the face too
+[PASS] keyboard up still steps an integer box
+[PASS] keyboard down still steps an integer box
+[PASS] the component owns the webkit spinner rule
+[PASS] no surface re-scopes spinner suppression
+19 checks passed, 0 failures
+
+=== browser: verify_ws_snapshot_replay.py ===
+[PASS] the Control column paints although its script loaded after the connect burst
+[PASS] the late-mounted column renders real parameters
+[PASS] every connect-burst type is retained for replay
+[PASS] more than one consumer registered for state
+[PASS] a snapshot is not also left on the event queue
+[PASS] a handler registered later still receives the state
+[PASS] no page errors
+
+WebSocket snapshot replay checks passed
+
+=== browser summary ===
+PASS verify_control_column_scroll.py
+PASS verify_control_surface_component.py
+PASS verify_control_tab.py
+PASS verify_device_control_modes.py
+PASS verify_device_control_panel.py
+PASS verify_device_patch_targeting.py
+PASS verify_event_control_panel.py
+PASS verify_generator_drawer.py
+PASS verify_global_controls_monitor.py
+PASS verify_ground_and_card.py
+PASS verify_interaction_guard.py
+PASS verify_live_param_kinds.py
+PASS verify_log_destination.py
+PASS verify_manifest_param_visibility.py
+PASS verify_osc_transport_monitor.py
+PASS verify_precision_param_input.py
+PASS verify_set_patch_handoff.py
+PASS verify_show_generator_drawer.py
+PASS verify_show_targets.py
+PASS verify_state_load_safety.py
+PASS verify_target_picker.py
+PASS verify_value_box_component.py
+PASS verify_ws_snapshot_replay.py

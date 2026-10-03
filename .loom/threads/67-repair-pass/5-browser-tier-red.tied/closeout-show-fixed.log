@@ -1,0 +1,19 @@
+[PASS] Show uses the shared three-tab drawer
+[PASS] the drawer is the fixed instrument width
+[PASS] Show uses the panel waveform body
+[PASS] open state survives timer re-renders
+[PASS] field draft persists on the focused message
+[PASS] editing LFO phase keeps the parameter value row
+[PASS] the Show row uses the control panel's 58px / slider / 18px grid
+[PASS] a closed authored generator keeps the modulation indicator cyan
+[PASS] dragging a generated row takes over with a static value
+[PASS] fade round-trips into the shared face
+[PASS] a generator tab persists its canonical default
+[PASS] value stays an ordinary field, not a generator tab
+[PASS] the Show inspector's mod glyph is §5's 18px circle
+[PASS] the explicit Stop action preserves the stop wire form
+[PASS] Stop keeps the parameter row and removes the redundant Value action
+[PASS] typing in a stopped row takes over with a static value
+[PASS] browser emitted no page errors
+
+0 failure(s)
