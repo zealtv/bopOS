@@ -42,6 +42,12 @@ when the list is empty.
    audition output limit made explicit. See
    `.loom/threads/70-dead-code-sweep/1-dead-code.tied/element-recommendation.md`.
    Ruling → stitch "allow N", or keep two and document it as audition-only.
+8. **Engine `/id` type tag.** Assignment/unassignment send `/id` as float,
+   `/config` and ready replay send int; the contract doesn't fix the tag.
+   Recommendation: ratify `/id <n:int32>` everywhere (two send tags change).
+   Pd reads either. Coordinate the version with item 4. See
+   `.loom/threads/69-complexity/4-node-daemon-tidy.tied/id-type-proposal.md`.
+   Ruling → stitch the int change with a contract amendment, or document mixed.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
