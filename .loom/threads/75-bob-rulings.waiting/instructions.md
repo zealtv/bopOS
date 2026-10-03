@@ -36,6 +36,12 @@ when the list is empty.
 6. **Contract 1.18 wording (FYI).** The preset retirement's §15 entry was
    written by the agent under "do whatever is cleanest". Read it in
    `docs/OSC-CONTRACT.md` §15 if you want to confirm the text.
+7. **Patch editor: two elements or N?** The editor only auditions elements
+   0/1 (`set_editor_point_element` in `server.py`, two radios in `index.html`)
+   though positions support any number. Recommendation: allow N, with any
+   audition output limit made explicit. See
+   `.loom/threads/70-dead-code-sweep/1-dead-code.tied/element-recommendation.md`.
+   Ruling → stitch "allow N", or keep two and document it as audition-only.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
