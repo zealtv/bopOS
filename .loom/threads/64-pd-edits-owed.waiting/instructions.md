@@ -10,6 +10,14 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
 
 ## Owed
 
+- [ ] **Template retired patch-update action.** Remove the `update-patch`
+      message box in `patches/.templates/bopos-template.pd` (around line 71)
+      and its connection to `s to-bopos-admin`; retain the framework update,
+      shutdown and reboot examples. Contract v1.19 retired `/admin update-patch`
+      in `68-remove-git-patch-route`, so newly authored patches must not offer
+      an action the node now ignores. Verify in Pd that the remaining admin
+      examples stay connected, and that a new patch copied from the template
+      contains no `update-patch` message. Agents have not edited the template.
 - [ ] **`samplepacks` path templates.** The engine no longer creates the
       `bop/samplepacks` link, but `pd/bop/bop.stream~.pd` and
       `pd/bop/bop.sampler~.pd` still use `%s/samplepacks/$1/*/` and

@@ -816,7 +816,7 @@ def apply_assign(args, state=None):
         return False
     state.id = new_id
     msg = OSCMessage("/id")
-    msg.append(new_id, 'f')
+    msg.append(new_id, 'i')
     send_to_engine(msg)
     state.elements = [[positions[i], positions[i + 1]]
                       for i in range(0, len(positions) - 1, 2)]
@@ -842,7 +842,7 @@ def apply_unassign(state=None):
     state.id = -1
     state.elements = []
     msg = OSCMessage("/id")
-    msg.append(-1, 'f')
+    msg.append(-1, 'i')
     send_to_engine(msg)
     hb_wake.set()
     print(f"UNASSIGNED: {state.uid}")

@@ -119,7 +119,7 @@ class EngineReadyReplayTests(unittest.TestCase):
             bopos.load_callback(args=["gain"])
         self.assertEqual(self.client.sent, [])
 
-    def test_identity_tags_remain_unchanged_pending_bob_ruling(self):
+    def test_identity_is_int32_on_assignment_unassignment_ready_and_config(self):
         packets = []
         state = types.SimpleNamespace(
             uid="test-node", id=3, groups=(), elements=[],
@@ -133,7 +133,7 @@ class EngineReadyReplayTests(unittest.TestCase):
             with mock.patch.object(bopos, "node_state", state):
                 bopos.config_callback()
         self.assertEqual([packet[1:] for packet in packets if packet[0] == "/id"],
-                         [[",f", 4.0], [",f", -1.0], [",i", -1], [",i", -1]])
+                         [[",i", 4], [",i", -1], [",i", -1], [",i", -1]])
 
     def test_unwrapped_engine_send_path_does_not_raise_when_down(self):
         # config_callback sends /id to the engine with no local try/except; when

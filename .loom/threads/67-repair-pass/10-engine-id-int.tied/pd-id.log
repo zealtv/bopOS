@@ -1,0 +1,11 @@
+Pd-0.55.2 ("") compiled 00:30:37 Nov 17 2024
+Pd command: ['/Applications/Pd-0.55-2.app/Contents/Resources/bin/pd', '-nogui', '-noaudio', '-stderr', '-path', '/Users/bob/repos/bopOS/pd', '-open', '/Users/bob/repos/bopOS/pd/bopos~.pd', '-send', 'BOPOS_ENGINE_PORT 63381']
+bopos-context: id 0
+bopos-context: id 0
+PASS: /id 0 with f and i both yielded bopos-context: id 0
+bopos-context: id 7
+bopos-context: id 7
+PASS: /id 7 with f and i both yielded bopos-context: id 7
+bopos-context: id -1
+bopos-context: id -1
+PASS: /id -1 with f and i both yielded bopos-context: id -1

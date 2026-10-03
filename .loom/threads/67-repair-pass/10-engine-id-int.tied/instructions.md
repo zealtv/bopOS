@@ -1,6 +1,6 @@
 # 10-engine-id-int
 
-**Status:** ready after `68` · Bob ruled 2026-10-03 ("should be an integer
+**Status:** verified with real Pd · Bob ruled 2026-10-03 ("should be an integer
 as long as pd is happy")
 **Goal:** engines always receive `/id` as an int32.
 

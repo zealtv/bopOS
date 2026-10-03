@@ -232,7 +232,7 @@ audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
 
 | address | args | when |
 |---|---|---|
-| `/id <n:i>` | resolved Seat id | on assignment, and after `/config` |
+| `/id <n:int32>` | resolved Seat id; `-1` means unassigned | on assignment/unassignment, after `/config`, and on engine-ready replay |
 | `/os/master <0..1:f>` | the master term | on change, and on catch-up when a device (re)appears |
 | `/p/<segment>[/<segment>...] <values…>` | patch-declared | whenever a matching `/p/*` command arrives |
 | `/pt <point:i> <element:i> <value:f>` | one shaped scalar per point × element | ~20–30 Hz while moving |
@@ -256,7 +256,7 @@ refreshed on the next engine start after a slot is added or removed.
 
 | address | args | what it does | reply |
 |---|---|---|---|
-| `/config` | — | ask for identity; retry until `/id` arrives | `/id <n>` (6661) |
+| `/config` | — | ask for identity; retry until `/id` arrives | `/id <n:int32>` (6661) |
 | `/store <key:s> <values…>` | — | persistence write | — |
 | `/load <key:s>` | — | persistence read | `/load <key:s> <values…>` (6661) |
 | `/report <name:s> <values…>` | — | retain a typed value for `/os/probe` to pull later | — |
