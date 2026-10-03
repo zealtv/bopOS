@@ -13,16 +13,6 @@ Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-7. **Patch editor: elements 0/1 only.** In Patch Edit, the Point preview
-   section has a fieldset "send point values to: ○ element 0 ○ element 1"
-   (`index.html`, `#editor-point-target`). The audition engine sends each
-   point's computed value as `/pt <point> <element> <value>` to the chosen
-   element only; the server (`set_editor_point_element`) and audition
-   (`set_editor_element`) both reject anything but 0 or 1. So a patch whose
-   elements 2+ respond to points can't be previewed for them. Recommendation:
-   allow N (a number field instead of two radios). Asked for clarification
-   2026-10-03. Evidence:
-   `.loom/threads/70-dead-code-sweep/1-dead-code.tied/element-recommendation.md`.
 5. **IO error vocabulary** — in the IO design gate
    (`59-i2c-inventory/0a-io-design-review`, decision 1). No separate ruling.
 
@@ -38,6 +28,9 @@ Tie this when Open and Hardware checks are empty.
 6. Contract 1.18 wording — read to Bob. He clarified that "do whatever is
    cleanest" was spot advice for that question, not a standing ruling
    (recorded in glean `decision-gates`).
+7. Patch editor elements 0/1 — **keep two**: devices have one or two elements
+   for now; more are possible but not soon → document it,
+   `67-repair-pass/11-editor-element-limit`.
 8. Engine `/id` — **int, as long as Pd is happy** →
    `67-repair-pass/10-engine-id-int` (Pd check first; lands in 68's 1.19).
 
