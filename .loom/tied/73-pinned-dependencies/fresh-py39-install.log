@@ -1,0 +1,95 @@
+Collecting fastapi
+  Using cached fastapi-0.128.8-py3-none-any.whl (103 kB)
+Collecting uvicorn[standard]
+  Using cached uvicorn-0.39.0-py3-none-any.whl (68 kB)
+Collecting python-osc
+  Using cached python_osc-1.8.3-py3-none-any.whl (33 kB)
+Collecting websockets
+  Using cached websockets-15.0.1-cp39-cp39-macosx_11_0_arm64.whl (173 kB)
+Collecting pyOSC3
+  Using cached pyOSC3-1.2.tar.gz (48 kB)
+Collecting playwright
+  Using cached playwright-1.60.0-py3-none-macosx_11_0_arm64.whl (42.3 MB)
+Collecting Pillow
+  Using cached pillow-11.3.0-cp39-cp39-macosx_11_0_arm64.whl (4.7 MB)
+Collecting pyflakes
+  Using cached pyflakes-3.4.0-py2.py3-none-any.whl (63 kB)
+Collecting adafruit-circuitpython-ads1x15
+  Using cached adafruit_circuitpython_ads1x15-3.0.5-py3-none-any.whl (11 kB)
+Collecting adafruit-circuitpython-mpr121
+  Using cached adafruit_circuitpython_mpr121-2.1.27-py3-none-any.whl (6.5 kB)
+Collecting adafruit-circuitpython-busdevice
+  Using cached adafruit_circuitpython_busdevice-5.2.17-py3-none-any.whl (7.5 kB)
+Collecting piicodev
+  Using cached piicodev-1.11.0-py3-none-any.whl (110 kB)
+Collecting adafruit-blinka
+  Using cached adafruit_blinka-9.2.0-py3-none-any.whl (1.1 MB)
+Collecting hidapi
+  Downloading hidapi-0.15.0-cp39-cp39-macosx_11_0_arm64.whl (70 kB)
+Collecting starlette<1.0.0,>=0.40.0
+  Using cached starlette-0.49.3-py3-none-any.whl (74 kB)
+Collecting typing-extensions>=4.8.0
+  Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Collecting typing-inspection>=0.4.2
+  Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Collecting pydantic>=2.7.0
+  Using cached pydantic-2.13.5-py3-none-any.whl (472 kB)
+Collecting annotated-doc>=0.0.2
+  Using cached annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+Collecting click>=7.0
+  Using cached click-8.1.8-py3-none-any.whl (98 kB)
+Collecting h11>=0.8
+  Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+Collecting uvloop>=0.15.1
+  Using cached uvloop-0.23.0-cp39-cp39-macosx_10_9_universal2.whl (1.4 MB)
+Collecting httptools>=0.6.3
+  Using cached httptools-0.8.0-cp39-cp39-macosx_11_0_arm64.whl (114 kB)
+Collecting watchfiles>=0.13
+  Using cached watchfiles-1.1.1-cp39-cp39-macosx_11_0_arm64.whl (396 kB)
+Collecting python-dotenv>=0.13
+  Using cached python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+Collecting pyyaml>=5.1
+  Using cached pyyaml-6.0.3-cp39-cp39-macosx_11_0_arm64.whl (174 kB)
+Collecting greenlet<4.0.0,>=3.1.1
+  Using cached greenlet-3.2.5-cp39-cp39-macosx_11_0_universal2.whl (274 kB)
+Collecting pyee<14,>=13
+  Using cached pyee-13.0.1-py3-none-any.whl (15 kB)
+Collecting adafruit-circuitpython-typing
+  Using cached adafruit_circuitpython_typing-1.12.3-py3-none-any.whl (11 kB)
+Collecting smbus2>=0.4.1
+  Using cached smbus2-0.6.1-py2.py3-none-any.whl (11 kB)
+Collecting Adafruit-PureIO>=1.1.7
+  Using cached adafruit_pureio-1.1.12-py3-none-any.whl (10 kB)
+Collecting binho-host-adapter>=0.1.6
+  Using cached binho_host_adapter-0.1.6-py3-none-any.whl (10 kB)
+Collecting pyftdi>=0.40.0
+  Using cached pyftdi-0.57.2-py3-none-any.whl (146 kB)
+Collecting toml>=0.10.2
+  Using cached toml-0.10.2-py2.py3-none-any.whl (16 kB)
+Collecting Adafruit-PlatformDetect>=3.89.1
+  Using cached adafruit_platformdetect-3.89.1-py3-none-any.whl (27 kB)
+Collecting pyserial
+  Using cached pyserial-3.5-py2.py3-none-any.whl (90 kB)
+Collecting pydantic-core==2.46.5
+  Using cached pydantic_core-2.46.5-cp39-cp39-macosx_11_0_arm64.whl (1.9 MB)
+Collecting annotated-types>=0.6.0
+  Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Collecting pyusb!=1.2.0,>=1.0.0
+  Using cached pyusb-1.3.1-py3-none-any.whl (58 kB)
+Collecting anyio<5,>=3.6.2
+  Using cached anyio-4.12.1-py3-none-any.whl (113 kB)
+Collecting exceptiongroup>=1.0.2
+  Using cached exceptiongroup-1.3.1-py3-none-any.whl (16 kB)
+Collecting idna>=2.8
+  Using cached idna-3.20-py3-none-any.whl (69 kB)
+Collecting adafruit-circuitpython-requests
+  Using cached adafruit_circuitpython_requests-4.1.17-py3-none-any.whl (10 kB)
+Collecting Adafruit-Circuitpython-ConnectionManager
+  Using cached adafruit_circuitpython_connectionmanager-3.1.8-py3-none-any.whl (7.8 kB)
+Using legacy 'setup.py install' for pyOSC3, since package 'wheel' is not installed.
+Installing collected packages: pyusb, pyserial, toml, pyftdi, binho-host-adapter, Adafruit-PureIO, Adafruit-PlatformDetect, Adafruit-Circuitpython-ConnectionManager, adafruit-blinka, typing-extensions, adafruit-circuitpython-requests, idna, exceptiongroup, adafruit-circuitpython-typing, adafruit-circuitpython-busdevice, typing-inspection, pydantic-core, h11, click, anyio, annotated-types, websockets, watchfiles, uvloop, uvicorn, starlette, smbus2, pyyaml, python-dotenv, pyee, pydantic, httptools, greenlet, annotated-doc, python-osc, pyOSC3, pyflakes, playwright, Pillow, piicodev, hidapi, fastapi, adafruit-circuitpython-mpr121, adafruit-circuitpython-ads1x15
+    Running setup.py install for pyOSC3: started
+    Running setup.py install for pyOSC3: finished with status 'done'
+Successfully installed Adafruit-Circuitpython-ConnectionManager-3.1.8 Adafruit-PlatformDetect-3.89.1 Adafruit-PureIO-1.1.12 Pillow-11.3.0 adafruit-blinka-9.2.0 adafruit-circuitpython-ads1x15-3.0.5 adafruit-circuitpython-busdevice-5.2.17 adafruit-circuitpython-mpr121-2.1.27 adafruit-circuitpython-requests-4.1.17 adafruit-circuitpython-typing-1.12.3 annotated-doc-0.0.5 annotated-types-0.7.0 anyio-4.12.1 binho-host-adapter-0.1.6 click-8.1.8 exceptiongroup-1.3.1 fastapi-0.128.8 greenlet-3.2.5 h11-0.16.0 hidapi-0.15.0 httptools-0.8.0 idna-3.20 piicodev-1.11.0 playwright-1.60.0 pyOSC3-1.2 pydantic-2.13.5 pydantic-core-2.46.5 pyee-13.0.1 pyflakes-3.4.0 pyftdi-0.57.2 pyserial-3.5 python-dotenv-1.2.1 python-osc-1.8.3 pyusb-1.3.1 pyyaml-6.0.3 smbus2-0.6.1 starlette-0.49.3 toml-0.10.2 typing-extensions-4.16.0 typing-inspection-0.4.2 uvicorn-0.39.0 uvloop-0.23.0 watchfiles-1.1.1 websockets-15.0.1
+WARNING: You are using pip version 21.2.4; however, version 26.0.1 is available.
+You should consider upgrading via the '/private/tmp/bopos-pins-fresh-py39/bin/python -m pip install --upgrade pip' command.

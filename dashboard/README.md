@@ -14,7 +14,7 @@ One-time setup:
 
 ```sh
 python3 -m venv ~/.venvs/bopos
-~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt pyOSC3
+~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt
 ./tools/install-hooks.sh
 ```
 

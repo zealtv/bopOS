@@ -1,0 +1,15 @@
+Collecting sysv_ipc
+  Downloading sysv_ipc-1.2.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (2.4 kB)
+Collecting toml
+  Using cached toml-0.10.2-py2.py3-none-any.whl.metadata (7.1 kB)
+Collecting exceptiongroup
+  Downloading exceptiongroup-1.3.1-py3-none-any.whl.metadata (6.7 kB)
+Collecting hidapi
+  Downloading hidapi-0.15.0-cp314-cp314-macosx_11_0_arm64.whl.metadata (3.7 kB)
+Downloading sysv_ipc-1.2.0-cp314-cp314-macosx_11_0_arm64.whl (20 kB)
+Using cached toml-0.10.2-py2.py3-none-any.whl (16 kB)
+Downloading exceptiongroup-1.3.1-py3-none-any.whl (16 kB)
+Downloading hidapi-0.15.0-cp314-cp314-macosx_11_0_arm64.whl (69 kB)
+Installing collected packages: sysv_ipc, hidapi, toml, exceptiongroup
+
+Successfully installed exceptiongroup-1.3.1 hidapi-0.15.0 sysv_ipc-1.2.0 toml-0.10.2

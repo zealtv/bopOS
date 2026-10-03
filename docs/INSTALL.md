@@ -239,3 +239,92 @@ Two rules follow from this design:
 - **Privileged changes need a person.** Anything touching root-owned
   configuration (like the sudoers policy) means one manual
   `sudo bash/provision.sh` per node.
+
+## Python dependency pins
+
+`dashboard/requirements.txt`, `python/requirements.txt` (nodes), and
+`python/requirements-laptop.txt` all load the root `constraints.txt`.
+`requirements-dev.txt` adds pinned Playwright, Pillow and pyflakes to the
+complete dashboard/software-test environment. CI uses the dev file too.
+
+The Python 3.10+ dashboard/test constraints preserve the working host venv's
+2026-10-03 versions. Python 3.9 uses a separate, compatible set selected by
+markers; the newer packages do not support that floor. Both sets include
+transitive dependencies for macOS/Linux. Node sensor libraries and optional
+laptop adapters were resolved in scratch venvs because the working dashboard
+venv did not contain them. The laptop requirements use `piicodev`, which
+supplies the `PiicoDev_SSD1306` module; that module name is not a separate
+package requirement.
+
+**Rig versions are unchecked.** These are software-tested Python pins, not a
+claim that Finn Jet or Ciro Toast currently runs them or that the sensor/audio
+hardware has been tested with them. The earlier Trixie 64-bit Lite/Python 3.13.5
+build observation above is historical; the current Pi OS image, Python, Pd and
+JACK package versions on both devices remain unchecked. Apt packages are not
+locked by these Python constraints. `install-device.sh` still runs its existing
+`apt-get upgrade -y`; changing that policy is a recommendation awaiting Bob.
+
+Bob can run this exact read-only comparison on each device from its checkout
+(no package install, restart or network request):
+
+```sh
+cd ~/bopOS
+~/venv/bin/python - <<'PY'
+import importlib.metadata as metadata
+import platform
+from pathlib import Path
+import re
+import sys
+
+def key(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+installed = {key(d.metadata["Name"]): d.version for d in metadata.distributions()}
+expected = {}
+for line in Path("constraints.txt").read_text().splitlines():
+    if not line or line.startswith("#"):
+        continue
+    pin, _, marker = line.partition(";")
+    if marker and ((sys.version_info[:2] >= (3, 10)) != (">=" in marker)):
+        continue
+    name, version = pin.split("==")
+    expected[key(name)] = version
+print("Python", platform.python_version(), platform.machine())
+for name, version in sorted(installed.items()):
+    wanted = expected.get(name)
+    if wanted:
+        print(name, version, "OK" if version == wanted else "DIFF expected " + wanted)
+for line in Path("python/requirements.txt").read_text().splitlines():
+    if line and not line.startswith(("#", "-")) and key(line) not in installed:
+        print(key(line), "MISSING expected", expected.get(key(line), "unconstrained"))
+PY
+cat /etc/os-release
+dpkg-query -W -f='${Package} ${Version}\n' puredata puredata-core jackd2 libjack-jackd2-0
+```
+
+### Updating deliberately
+
+Change pins as a reviewed maintenance task, never as an implicit show-time
+upgrade. Capture the working environment, resolve candidate versions in a new
+scratch venv, and update the exact constraints (including transitives and the
+Python 3.9 branch). Leave the working show venv intact until verification and
+review are complete. Inspect `Requires-Python` and platform-specific dependencies;
+a macOS install cannot certify a Pi's binary builds or mixer/sensor behavior.
+
+For example, validate the resulting files from the repository root with a
+fresh directory outside the checkout (use a new path on each update):
+
+```sh
+python3 -m venv /tmp/bopos-pins-check
+/tmp/bopos-pins-check/bin/python -m pip install -r requirements-dev.txt
+/tmp/bopos-pins-check/bin/python -m pip check
+/tmp/bopos-pins-check/bin/python -m playwright install chromium --only-shell
+BOPOS_PYTHON=/tmp/bopos-pins-check/bin/python ./tools/run-tests.sh fast
+BOPOS_PYTHON=/tmp/bopos-pins-check/bin/python ./tools/run-tests.sh browser
+```
+
+Repeat with Python 3.9 when retaining that floor. Node/library pin changes also
+need Bob's rig comparison and relevant peripheral/audio checks before claiming
+hardware compatibility. Record versions, commands and results with the stitch.
+The constraints fix package versions, not artifact hashes, the interpreter,
+Node.js, or OS package versions; build tools remain platform prerequisites.

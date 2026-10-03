@@ -32,9 +32,9 @@ not activate the cadence. Both jobs also run on the scheduled/manual events.
 Failures make the job red; the browser job publishes its per-file summary and
 retains `browser.log` for 14 days. No failure is marked `continue-on-error`.
 
-CI uses Python 3.11, dashboard dependencies plus `pyOSC3`, Node.js for fast
-tests, and Playwright with Chromium and its Linux dependencies for browser
-tests. The living journeys construct temporary patch/asset/state fixtures or
+CI uses Python 3.11 and pinned `requirements-dev.txt`, Node.js for fast
+tests, and the pinned Playwright browser with its Linux dependencies for browser
+tests. Runtime and dev files load root `constraints.txt`; see [INSTALL.md](INSTALL.md#python-dependency-pins) for provenance and deliberate pin updates. The living journeys construct temporary patch/asset/state fixtures or
 use static components; none needs the local gitignored patch library or Pd.
 All `tests/verify_*.py` run; retired feature journeys are removed with their
 features, while shared control and automation coverage remains.

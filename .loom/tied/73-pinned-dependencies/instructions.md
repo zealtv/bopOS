@@ -1,6 +1,6 @@
 # 73-pinned-dependencies
 
-**Status:** ready
+**Status:** complete; fresh host and Python 3.9 environments verified
 **Goal:** a fresh dashboard or device install gets the versions that were
 tested, so nothing changes under a show.
 
@@ -25,3 +25,12 @@ tested, so nothing changes under a show.
 - Say how to update pins deliberately (a short note in `docs/INSTALL.md`).
 
 Done when: fresh venv from the pinned files passes fast + browser tiers.
+
+## Close-out
+
+Runtime, node, laptop and dev requirements load exact root constraints. The
+modern host versions and a compatible Python 3.9 set each pass 362 fast tests
+and all 23 browser journeys from fresh scratch venvs. See verification.md.
+Rig/image/Pd/JACK versions are unchecked; docs/INSTALL.md contains Bob’s exact
+read-only comparison command. os-upgrade-recommendation.md is a proposal only;
+install-device.sh’s apt upgrade policy remains unchanged. No device contacted.

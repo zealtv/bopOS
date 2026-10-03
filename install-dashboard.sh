@@ -46,7 +46,7 @@ fi
 
 echo "==> Installing dashboard dependencies"
 "$VENV/bin/pip" install --upgrade pip >/dev/null
-"$VENV/bin/pip" install -r "$SCRIPT_DIR/dashboard/requirements.txt" pyOSC3
+"$VENV/bin/pip" install -r "$SCRIPT_DIR/dashboard/requirements.txt"
 
 echo "==> Installing commit test gate"
 "$SCRIPT_DIR/tools/install-hooks.sh"

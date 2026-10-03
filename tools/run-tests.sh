@@ -32,7 +32,7 @@ if ! command -v "$test_python" >/dev/null 2>&1; then
     echo "bopOS test Python is not executable: $test_python" >&2
     echo "Set BOPOS_PYTHON to a project Python, or create the documented venv:" >&2
     echo "  python3 -m venv ~/.venvs/bopos" >&2
-    echo "  ~/.venvs/bopos/bin/pip install -r dashboard/requirements.txt pyOSC3" >&2
+    echo "  ~/.venvs/bopos/bin/pip install -r requirements-dev.txt" >&2
     exit 2
 fi
 

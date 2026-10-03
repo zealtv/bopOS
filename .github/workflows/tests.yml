@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: python -m pip install -r dashboard/requirements.txt pyOSC3
+      - run: python -m pip install -r requirements-dev.txt
       - run: ./tools/run-tests.sh fast
 
   browser:
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - run: python -m pip install -r dashboard/requirements.txt pyOSC3 playwright
+      - run: python -m pip install -r requirements-dev.txt
       - run: python -m playwright install --with-deps chromium --only-shell
       - name: Run every browser journey and retain failures
         shell: bash
