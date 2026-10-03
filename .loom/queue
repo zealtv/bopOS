@@ -1,11 +1,12 @@
-5-browser-tier-red
 4-contract-version-source
+1-preset-inventory
+2-remove-presets
+5-browser-tier-red
+6-load-failure-followups
 3-io-bridge-hardening
 4-invalid-manifest-lockout
 2-device-enabled-honesty
 73-pinned-dependencies
-1-preset-inventory
-2-remove-presets
 68-remove-git-patch-route
 1-dead-code
 2-doc-drift
