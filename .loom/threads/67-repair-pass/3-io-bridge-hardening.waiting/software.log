@@ -1,0 +1,10 @@
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.171s
+
+OK
+Warning: tilt already exists, replacing...
+✓ Created tilt (fake @ 0x19)
+  tilt: 3-axis accelerometer ready
+  tilt: 3-axis accelerometer ready
+  tilt: 3-axis accelerometer ready

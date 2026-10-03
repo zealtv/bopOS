@@ -1,6 +1,6 @@
 # 3-io-bridge-hardening
 
-**Status:** ready · absorbs `feature-backlog/60-io-dispatch-silence`
+**Status:** software verified; waiting on Bob’s Finn Jet hardware check and wire ratification · absorbs `feature-backlog/60-io-dispatch-silence`
 **Goal:** the io bridge never fails silently and never fights itself over a chip.
 
 Not the transport or ownership questions — those are `59/0a`. This is repair
@@ -30,3 +30,10 @@ inside `python/io/` as it stands.
 
 Defects 2 and 3 in `59/3-peripheral-lifecycle` (doubled read-error log;
 LIS3DH dead after replug) stay there — claim them together if convenient.
+
+## Current close-out
+
+Software repairs and 10 regression tests are complete; all 356 fast tests pass.
+See `verification.md` for exact claims and the explicitly pending hardware check.
+New error semantics are proposed in `wire-proposal.md`, not implemented.
+The stitch remains open in `.waiting`; no Pd or contract edits.

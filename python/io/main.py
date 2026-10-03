@@ -5,6 +5,7 @@ Simple interface between I2C sensors and Pure Data via OSC
 """
 
 import time
+import math
 import socket
 import threading
 import signal
@@ -37,6 +38,9 @@ PERIPHERAL_TYPES = {
 
 class IOManager:
     def __init__(self):
+        # One lock covers the registry and all chip operations, including
+        # scan/setup/cleanup and aliases that happen to share an address.
+        self.io_lock = threading.RLock()
         self.peripherals = {}  # name -> peripheral instance
         self.poll_rate = DEFAULT_POLL_RATE
         self.running = True
@@ -46,6 +50,10 @@ class IOManager:
         self.osc_client.connect(("127.0.0.1", PD_PORT))
     
     def create_peripheral(self, name, device_type, address):
+        with self.io_lock:
+            return self._create_peripheral(name, device_type, address)
+
+    def _create_peripheral(self, name, device_type, address):
         """
         Dynamically create a peripheral.
         
@@ -67,12 +75,19 @@ class IOManager:
             print(f"Available types: {list(PERIPHERAL_TYPES.keys())}")
             return False
         
+        peripheral = None
         try:
             # Import the peripheral class
             module_name, class_name = PERIPHERAL_TYPES[device_type]
             module = __import__(module_name)
             peripheral_class = getattr(module, class_name)
             
+            # Retire the old instance before setup touches the same chip.
+            old = self.peripherals.get(name)
+            if old is not None:
+                old.cleanup()
+                del self.peripherals[name]
+
             # Create instance
             peripheral = peripheral_class(bus=None, address=address)
             peripheral.name = name  # Override name with custom name
@@ -84,9 +99,18 @@ class IOManager:
             
         except Exception as e:
             print(f"✗ Failed to create {name}: {e}")
+            if peripheral is not None:
+                try:
+                    peripheral.cleanup()
+                except Exception as cleanup_error:
+                    print(f"Error cleaning failed create {name}: {cleanup_error}")
             return False
     
     def poll_and_send(self):
+        with self.io_lock:
+            self._poll_and_send()
+
+    def _poll_and_send(self):
         """
         Poll all peripherals and send single OSC bundle to PD.
         """
@@ -157,23 +181,47 @@ class IOManager:
                   f"(peripherals: {list(self.peripherals)})")
 
     def handle_io(self, parts, args):
+        with self.io_lock:
+            self._handle_io(parts, args)
+
+    def _handle_io(self, parts, args):
         """Bridge management: /io/create|poll|report|scan."""
         verb = parts[0] if parts else ''
 
         # /io/create <name> <type> <address>
-        if verb == 'create' and len(args) >= 3:
+        if verb == 'create':
+            if len(args) < 3:
+                print(f"Invalid /io/create arguments: {list(args)}")
+                # Missing-name/error-token semantics await wire ratification.
+                return
             name = str(args[0])
             if not have_bus():
                 self._send("/io/error", name, "no-bus")
                 return
             device_type = str(args[1])
-            i2c_addr = int(args[2], 16) if isinstance(args[2], str) else int(args[2])
+            try:
+                value = args[2]
+                i2c_addr = int(value, 16) if isinstance(value, str) else int(value)
+                if not 0x03 <= i2c_addr <= 0x77 or (
+                        not isinstance(value, str) and i2c_addr != value):
+                    raise ValueError("expected a usable 7-bit I2C address")
+            except (TypeError, ValueError, OverflowError) as e:
+                print(f"Invalid /io/create address for {name}: {e}")
+                # Extending create-failed to argument errors needs ratification.
+                return
             if not self.create_peripheral(name, device_type, i2c_addr):
                 self._send("/io/error", name, "create-failed")
 
         # /io/poll <rate>
-        elif verb == 'poll' and len(args) > 0:
-            self.poll_rate = max(0.1, float(args[0]))
+        elif verb == 'poll':
+            try:
+                rate = float(args[0])
+                if not math.isfinite(rate):
+                    raise ValueError("poll rate must be finite")
+            except (IndexError, TypeError, ValueError, OverflowError) as e:
+                print(f"Invalid /io/poll arguments {list(args)}: {e}")
+                return  # Error name/reason await wire ratification.
+            self.poll_rate = max(0.1, rate)
             print(f"Poll rate set to {self.poll_rate} Hz")
 
         # /io/report
@@ -185,7 +233,14 @@ class IOManager:
         # /io/scan [bus] -> reply /io/scan <addr> <addr> ... (present, ints)
         # Skips probing live peripherals (reports them from the registry).
         elif verb == 'scan':
-            bus = int(args[0]) if args else 1
+            try:
+                bus = int(args[0]) if args else 1
+                if bus < 0 or (args and not isinstance(args[0], str)
+                               and bus != args[0]):
+                    raise ValueError("bus must be a nonnegative integer")
+            except (TypeError, ValueError, OverflowError) as e:
+                print(f"Invalid /io/scan arguments {list(args)}: {e}")
+                return
             skip = [p.address for p in self.peripherals.values()
                     if getattr(p, 'address', None)]
             self._send("/io/scan", *scan_bus(bus, skip=skip))
@@ -278,8 +333,14 @@ class IOManager:
             server.close()
             
             # Cleanup all peripherals
-            for peripheral in self.peripherals.values():
-                peripheral.cleanup()
+            server_thread.join()
+            with self.io_lock:
+                for name, peripheral in self.peripherals.items():
+                    try:
+                        peripheral.cleanup()
+                    except Exception as e:
+                        print(f"Error cleaning {name}: {e}")
+                self.peripherals.clear()
 
 
 def main():
