@@ -216,16 +216,10 @@ useful for collaboration and history, never required.
 
 - Your repo lives at `patches/my-piece/` as before; bopOS ignores it either
   way. Author, commit, and push however you like.
-- A device-side patch copy is **either** host-mirrored (the Deploy flow
-  above) **or** Git-managed — never both. Deploy refuses to overwrite a
-  device patch containing `.git`, so the two modes can't silently mix.
-- To run Git-managed on devices, install the patch from its GitHub remote
-  with the dashboard's add-patch action (wire verb `/os/addpatch`), and
-  update devices with **Pull latest** (`/os/pullpatch`), which appears for
-  the active Git-managed patch (marked ◆) in the Patches tab.
-- Git-managed deployment needs the nodes to reach the remote — remember
-  the [venue network](INSTALL.md#the-venue-network) is often offline; the
-  host-mirror Deploy flow works air-gapped.
+Patches reach devices only through dashboard push, including patches previously
+cloned on a device: a successful staged, validated replacement removes local
+Git metadata; failures preserve or restore the existing copy. Host Git metadata
+is excluded from distribution and fingerprints.
 
 ## Quick reference
 

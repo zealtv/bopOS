@@ -168,7 +168,7 @@ class PhysicalPeer:
             self.send("/os/params", self.manifest_text)
         elif message.address.endswith("/os/patches"):
             self.send("/os/patches", json.dumps(
-                [{"name": "alpha", "active": True, "git": False, "manifest": True}]))
+                [{"name": "alpha", "active": True, "manifest": True}]))
         elif message.address.endswith("/os/assets"):
             self.send("/os/assets", "[]")
 

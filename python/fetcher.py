@@ -213,8 +213,6 @@ def _landing(slot, assets_root, patches_root):
             raise ValueError("patch destination escapes patches root")
         if os.path.lexists(destination) and not os.path.isdir(destination):
             raise ValueError("patch destination must be a directory")
-        if os.path.lexists(os.path.join(destination, ".git")):
-            raise ValueError("refusing to fetch over a git-managed patch")
         return destination, True
     if not identity.valid_asset_slot(slot):
         raise ValueError("invalid slot")

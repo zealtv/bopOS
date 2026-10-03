@@ -1,0 +1,191 @@
+.loom/legacy-v1/tied/2-engine-admin-requests/instructions.md:17:- Route to the existing callbacks: `pull_active_patch_callback`,
+.loom/legacy-v1/tied/2-engine-admin-requests/notes.md:11:    `pull_active_patch_callback` / `update_bopos_callback` / `shutdown_callback`
+.loom/legacy-v1/tied/2-engine-admin-requests/verify_admin_requests.py:133:    check("update-patch reuses the LAN pullpatch callback",
+.loom/legacy-v1/tied/2-engine-admin-requests/verify_admin_requests.py:135:          is bopos.PROVISION_VERBS["pullpatch"])
+.loom/legacy-v1/tied/30-gdown-retirement/bash-staleness-report.md:8:| `pull_active_patch.sh` | `python/bopos.py:1681`, executed at `python/bopos.py:1684` | LIVE | Implements the `/os/pullpatch` lifecycle path and returns a reboot-bearing result (`python/bopos.py:1677-1695`). |
+.loom/legacy-v1/tied/30-gdown-retirement/instructions.md:25:   pull_active_patch.sh rc.local restart.sh start-engine.sh start.sh
+.loom/legacy-v1/tied/30-gdown-retirement/notes.md:14:`bopos.py` (`start-engine.sh`/`stop-engine.sh`/`pull_active_patch.sh`),
+.loom/legacy-v1/tied/4-osc-quickref/notes.md:40:first draft claimed several provisioning verbs (`addpatch`, `pullpatch`,
+.loom/legacy-v1/tied/4-osc-quickref/notes.md:50:`converge_framework` helper); `add_patch_callback`, `pull_active_patch_
+.loom/legacy-v1/tied/4-osc-quickref/notes.md:63:`addpatch`/`pullpatch`/`droppatch`/`dropassets`/`patch`-refused are all
+.loom/legacy-v1/tied/4-osc-quickref/verify_osc_quickref.py:111:    # which names the internal callback verbs (pullpatch/updatebopos) too.
+.loom/legacy-v1/tied/4-osc-quickref/verify_osc_quickref.py:128:    # callback doesn't return a dict on the happy path) -- addpatch,
+.loom/legacy-v1/tied/4-osc-quickref/verify_osc_quickref.py:129:    # pullpatch, droppatch, dropassets, patch (switch) all lack `return {`.
+.loom/legacy-v1/tied/4-osc-quickref/verify_osc_quickref.py:131:        ("addpatch", "add_patch_callback"), ("pullpatch", "pull_active_patch_callback"),
+.loom/legacy-v1/tied/dashboard-0-sim-fleet/wire-protocol-today.md:21:| `/rpt <id> helper-reply <verb> [args]` | helper.py confirmations forwarded from 6661 (`reboot`, `shutdown`, `update`, `getsamples`, `addpatch <repo>`, `checkout`, `patch`) |
+.loom/legacy-v1/tied/dashboard-0-sim-fleet/wire-protocol-today.md:67:| `helper addpatch <user> <repo>` | clones repo; on success replies `/addpatch <repo>` → `/rpt <id> helper-reply addpatch <repo>`; PD self-triggers update |
+.loom/legacy-v1/tied/dashboard-0-sim-fleet/wire-protocol-today.md:68:| `helper pullpatch` | runs pull_active_patch.sh (no reply) |
+.loom/legacy-v1/tied/dashboard-1-core/design-deltas.md:47:| reboot/shutdown/update/getsamples/patch/addpatch/pullpatch/restart-engine | — (node has no `/os/*` admin listener yet; contract §7 rename pending node-side) | `/<sel>/helper/<verb>` |
+.loom/legacy-v1/tied/dashboard-4-patch-mgmt/instructions.md:8:      add from GitHub (`/addpatch <user> <repo>`), pull (`/pullpatch`), get samples
+.loom/legacy-v1/tied/dist-0-proposal/draft-notes.md:7:  `/os/patch <name>` (switch), `/os/addpatch <user> <repo>` (git),
+.loom/legacy-v1/tied/dist-0-proposal/draft-notes.md:8:  `/os/pullpatch`.
+.loom/legacy-v1/tied/dist-0-proposal/proposal.md:49:  git-managed (addpatch/pullpatch, updates itself from its remote) or
+.loom/legacy-v1/tied/dist-0-proposal/proposal.md:70:`addpatch`/`pullpatch`/`patch`/`update` keep their meanings. Bob's "device
+.loom/legacy-v1/tied/dist-0-proposal/proposal.md:72:`/os/pullpatch` does a git pull inside the active patch dir — the device
+.loom/legacy-v1/tied/dist-0-proposal/survey-fetch-assets-templates.md:65:  update/checkout (296), patch (302), addpatch (307), pullpatch, getsamples
+.loom/legacy-v1/tied/dist-0-proposal/survey-fetch-assets-templates.md:70:- No patch-fetch/template verb beyond git-based patch/addpatch/pullpatch.
+.loom/legacy-v1/tied/dist-0-proposal/survey-patch-pipeline.md:40:- `/os/addpatch <user> <repo>` (`python/bopos.py:912-959`): validates,
+.loom/legacy-v1/tied/dist-0-proposal/survey-patch-pipeline.md:46:- `/os/pullpatch` (`bopos.py:961-969` → `bash/pull_active_patch.sh`):
+.loom/legacy-v1/tied/dist-0-proposal/survey-patch-pipeline.md:56:  panel's Pull latest (`pullpatch`) / Switch (`patch`).
+.loom/legacy-v1/tied/engine-boundary-council/ground-truth.md:76:  `patch addpatch checkout` (each with a 500 ms `pipe` delay and a
+.loom/legacy-v1/tied/engine-boundary-council/ground-truth.md:78:  getsamples pullpatch`, re-formats with `oscformat`, → 7770. This is the
+.loom/legacy-v1/tied/engine-boundary-council/ground-truth.md:118:  /getsamples /shutdown /reboot /checkout /patch /addpatch /pullpatch
+.loom/legacy-v1/tied/engine-boundary-council/ground-truth.md:128:  `/update /shutdown /reboot /checkout /patch /addpatch /restart-engine`
+.loom/legacy-v1/tied/fp-0-design-proposal/proposal.md:40:   host-mirror fetch, updated via `pullpatch` (python/bopos.py:339-361).
+.loom/legacy-v1/tied/fp-1-identity-module/verify_fp1_identity.py:262:sim_request("/5/os/addpatch", ("someuser", "gitfake"))
+.loom/legacy-v1/tied/hb-identity/verification.md:65:   `/addpatch` clone/main.pd diagnostics.
+.loom/legacy-v1/tied/notify-patch-lifecycle/instructions.md:23:| **update-patch** (`/os/pullpatch`, engine `/admin update-patch`) | `pull_active_patch_callback` | ❌ none |
+.loom/legacy-v1/tied/notify-patch-lifecycle/instructions.md:44:   `pull_active_patch_callback` and `switch_patch_callback`, before the
+.loom/legacy-v1/tied/notify-patch-lifecycle/instructions.md:54:- No hardware needed. Drive `pull_active_patch_callback` /
+.loom/legacy-v1/tied/notify-patch-lifecycle/notes.md:3:`pull_active_patch_callback` and valid `switch_patch_callback` operations now
+.loom/legacy-v1/tied/notify-patch-lifecycle/verify_notify_patch_lifecycle.py:65:            result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/os-admin-verbs/instructions.md:14:  <name>`, `/<sel>/os/addpatch <user> <repo>`, `/<sel>/os/pullpatch`,
+.loom/legacy-v1/tied/osc-schema-contract/pd-edits-for-bob.md:44:  `route reboot shutdown update getsamples addpatch patch pullpatch config`
+.loom/legacy-v1/tied/osc-schema-contract/pd-edits-for-bob.md:45:  → `route reboot shutdown update getsamples addpatch patch pullpatch config restart-engine`
+.loom/legacy-v1/tied/patch-and-install-mgmt/instructions.md:5:(helper answers `/os/patch`, `/os/addpatch`, `/os/pullpatch`, `/os/getsamples`
+.loom/legacy-v1/tied/patch-and-install-mgmt/instructions.md:11:      switch (`/os/patch <name>`), add from GitHub (`/os/addpatch <user>
+.loom/legacy-v1/tied/patch-and-install-mgmt/instructions.md:12:      <repo>`), pull (`/os/pullpatch`), get samples (`/os/getsamples`)
+.loom/legacy-v1/tied/patch-and-install-mgmt/instructions.md:20:- Patch switch/addpatch/pullpatch reboot the node; the dashboard should show
+.loom/legacy-v1/tied/patch-and-install-mgmt/instructions.md:23:  patch-name input (like addpatch takes user/repo). A patch-listing verb would
+.loom/legacy-v1/tied/patch-and-install-mgmt/verification.md:13:- **Add from GitHub** sends `/os/addpatch <user> <repo>` (simfleet logs it)
+.loom/legacy-v1/tied/patch-and-install-mgmt/verification.md:14:- **Pull latest** sends `/os/pullpatch` (simfleet logs it)
+.loom/legacy-v1/tied/patch-and-install-mgmt/verification.md:33:  `/os/addpatch` cloning from GitHub (needs network + a real repo).
+.loom/legacy-v1/tied/patch-and-install-mgmt/verify_patch_install.py:125:            check("simfleet saw os/addpatch", "os/addpatch bopos wind-chimes" in log_text,
+.loom/legacy-v1/tied/patch-and-install-mgmt/verify_patch_install.py:127:            check("simfleet saw os/pullpatch", "os/pullpatch" in log_text, log_text[-400:])
+.loom/legacy-v1/tied/patch-fingerprint-warm/instructions.md:13:  patch-mutating verbs (`addpatch`, `droppatch`, `patch` switch).
+.loom/legacy-v1/tied/rev-outcome-receipts/instructions.md:5:`addpatch`, `pullpatch`, `droppatch`, `dropassets`, `patch` (switch) —
+.loom/legacy-v1/tied/rev-outcome-receipts/instructions.md:12:- Make `add_patch_callback`, `pull_active_patch_callback`,
+.loom/legacy-v1/tied/rev-outcome-receipts/instructions.md:31:- `pull_active_patch_callback` runs a script that ends in reboot — send the
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:3:Fixes the gap `.loom/tied/4-osc-quickref/notes.md` found: `addpatch`,
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:4:`pullpatch`, `droppatch`, `dropassets`, and `patch` (switch) in
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:12:- `switch_patch_callback`, `add_patch_callback`, `pull_active_patch_callback`,
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:18:- `bash/pull_active_patch.sh` no longer ends with a bare `reboot`. The
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:19:  script now only pulls and reports its exit code; `pull_active_patch_
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:50:- **`addpatch` (add_patch_callback):** `invalid-args` (fewer than 2 args),
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:57:- **`pullpatch` (pull_active_patch_callback):** maps
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:58:  `bash/pull_active_patch.sh` exit codes 1→`active-patch`, 2→`not-found`,
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:102:  `pull_active_patch.sh`. It needed restructuring (the script's own
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:108:- `add_patch_callback`'s existing "cloned but manifest invalid" warning
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:111:- `pull_active_patch_callback`'s exit codes 2 and 3 (no `.git` repo found;
+.loom/legacy-v1/tied/rev-outcome-receipts/notes.md:141:  `pull_active_patch_callback` through `run_admin_verb` with a fake reply
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:5:-- addpatch, pullpatch, droppatch, dropassets, patch (switch) -- always sent
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:244:def add_patch_checks():
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:247:        result = bopos.add_patch_callback(args=["onlyuser"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:248:        check("addpatch: too few args -> invalid-args",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:251:        result = bopos.add_patch_callback(args=["bad user", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:252:        check("addpatch: invalid user -> invalid-name",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:265:        result = bopos.add_patch_callback(args=["someone", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:266:        check("addpatch: repo not found -> not-found",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:279:        result = bopos.add_patch_callback(args=["someone", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:280:        check("addpatch: cannot remove existing dir -> remove-failed",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:293:        result = bopos.add_patch_callback(args=["someone", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:294:        check("addpatch: clone fails -> clone-failed",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:303:        result = bopos.add_patch_callback(args=["someone", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:304:        check("addpatch: clone times out -> clone-failed",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:316:        result = bopos.add_patch_callback(args=["someone", "repo"])
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:317:        check("addpatch: clean clone -> ok cloned",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:321:def pull_active_patch_checks():
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:329:            result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:330:            check(f"pullpatch: exit {code} -> {phase}",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:334:        result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:335:        check("pullpatch: unmapped exit code -> pull-failed",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:342:        result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:343:        check("pullpatch: timeout -> err timeout",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:350:        result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:351:        check("pullpatch: exception -> err exception",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:355:        result = bopos.pull_active_patch_callback()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:356:        check("pullpatch: success -> ok pulled, reboot requested",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:359:        # bash/pull_active_patch.sh itself must no longer reboot -- the
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:361:        script_path = os.path.join(REPO, "bash", "pull_active_patch.sh")
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:364:        check("pull_active_patch.sh no longer reboots itself",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:389:        bopos.run_admin_verb(bopos.pull_active_patch_callback, [], bopos.node_state,
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:391:        check("pullpatch success sends receipt before requesting reboot",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:493:          and bopos.PROVISION_VERBS["addpatch"] is bopos.add_patch_callback
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:494:          and bopos.PROVISION_VERBS["pullpatch"] is bopos.pull_active_patch_callback
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:497:    check("ENGINE_ADMIN_VERBS still reuses pull_active_patch_callback for update-patch",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:498:          bopos.ENGINE_ADMIN_VERBS["update-patch"] is bopos.pull_active_patch_callback)
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:541:    fleet.admin_verb(device, "addpatch", ["someone"], ("10.0.0.9", 6660))
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:542:    check("simfleet addpatch too few args -> err invalid-args",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:545:    fleet.admin_verb(device, "addpatch", ["someone", "repo"], ("10.0.0.9", 6660))
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:546:    check("simfleet addpatch success -> ok cloned",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:549:    fleet.admin_verb(device, "pullpatch", [], ("10.0.0.9", 6660))
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:550:    check("simfleet pullpatch -> ok pulled",
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:576:    add_patch_checks()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_rev_outcome_receipts.py:577:    pull_active_patch_checks()
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:23:/addpatch requires two arguments: user and repo
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:24:[PASS] addpatch: too few args -> invalid-args
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:26:[PASS] addpatch: invalid user -> invalid-name
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:28:[PASS] addpatch: repo not found -> not-found
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:31:[PASS] addpatch: cannot remove existing dir -> remove-failed
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:34:[PASS] addpatch: clone fails -> clone-failed
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:37:[PASS] addpatch: clone times out -> clone-failed
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:41:[PASS] addpatch: clean clone -> ok cloned
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:42:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:43:pull_active_patch.sh exited with code 1
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:44:[PASS] pullpatch: exit 1 -> active-patch
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:45:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:46:pull_active_patch.sh exited with code 2
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:47:[PASS] pullpatch: exit 2 -> not-found
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:48:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:49:pull_active_patch.sh exited with code 3
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:50:[PASS] pullpatch: exit 3 -> not-found
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:51:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:52:pull_active_patch.sh exited with code 4
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:53:[PASS] pullpatch: exit 4 -> pull-failed
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:54:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:55:pull_active_patch.sh exited with code 99
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:56:[PASS] pullpatch: unmapped exit code -> pull-failed
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:57:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:58:[pull_active_patch_callback] timed out
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:59:[PASS] pullpatch: timeout -> err timeout
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:60:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:61:[pull_active_patch_callback] Exception: boom
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:62:[PASS] pullpatch: exception -> err exception
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:63:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-rpe4ui42/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:64:[PASS] pullpatch: success -> ok pulled, reboot requested
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:65:[PASS] pull_active_patch.sh no longer reboots itself
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:66:Running: /var/folders/75/jh70m7t14h93sbnj_rm3bl0m0000gp/T/rev-outcome-receipts-bafqw8dm/bash/pull_active_patch.sh
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:67:[PASS] pullpatch success sends receipt before requesting reboot
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:91:[PASS] ENGINE_ADMIN_VERBS still reuses pull_active_patch_callback for update-patch
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:95:[PASS] simfleet addpatch too few args -> err invalid-args
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:96:[PASS] simfleet addpatch success -> ok cloned
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:97:[PASS] simfleet pullpatch -> ok pulled
+.loom/legacy-v1/tied/rev-outcome-receipts/verify_run.log:118:[PASS] update-patch reuses the LAN pullpatch callback
+.loom/legacy-v1/tied/schema-design-draft/expert-simplicity.md:143:DASHBOARD.pd; `bopos.devices`; patches-as-git-repos; `/addpatch`/`/patch`/`/pullpatch`;
+.loom/legacy-v1/tied/schema-design-draft/ground-truth.md:39:  addpatch patch pullpatch config checkout` (PD `route` list at bopos.osc.pd:129);
+.loom/legacy-v1/tied/schema-design-draft/ground-truth.md:45:  reboots), `/addpatch <user> <repo>` (**GitHub-only** URL construction), `/pullpatch`.
+.loom/legacy-v1/tied/schema-design-draft/judgment.md:19:  `pkill pd; pkill jackd` + `systemctl reboot` (`helper.py:127,141`). `/addpatch` is
+.loom/legacy-v1/tied/schema-design-draft/judgment.md:29:  admin `route reboot shutdown update getsamples addpatch patch pullpatch config`
+.loom/threads/67-repair-pass/instructions.md:8:Evidence and reproductions: `lore:2026-10-03-bopos-code-review-2026-10` (§ Bugs). The review's `addpatch` defect (B2)
+.loom/tied/70-dead-code-sweep/1-dead-code.tied/instructions.md:13:      it's needed. (`add_patch` goes with `68`.)
+.loom/tied/70-dead-code-sweep/1-dead-code.tied/verification.md:66:and inventory methods. They are unchanged. Compared the exact `add_patch`,
+.loom/tied/70-dead-code-sweep/1-dead-code.tied/verification.md:67:`pull_patch` and `set_editor_point_element` WebSocket branches: unchanged.
+.loom/tied/70-dead-code-sweep/1-dead-code.tied/verification.md:68:Also compared whole files for `pull_active_patch.sh`, `osc_bridge.py`,
+.lore/items/2026-07-07-osc-schema-council/content/expert-simplicity.md:143:DASHBOARD.pd; `bopos.devices`; patches-as-git-repos; `/addpatch`/`/patch`/`/pullpatch`;
+.lore/items/2026-07-07-osc-schema-council/content/ground-truth.md:39:  addpatch patch pullpatch config checkout` (PD `route` list at bopos.osc.pd:129);
+.lore/items/2026-07-07-osc-schema-council/content/ground-truth.md:45:  reboots), `/addpatch <user> <repo>` (**GitHub-only** URL construction), `/pullpatch`.
+.lore/items/2026-07-07-osc-schema-council/content/judgment.md:19:  `pkill pd; pkill jackd` + `systemctl reboot` (`helper.py:127,141`). `/addpatch` is
+.lore/items/2026-07-07-osc-schema-council/content/judgment.md:29:  admin `route reboot shutdown update getsamples addpatch patch pullpatch config`
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/proposal.md:49:  git-managed (addpatch/pullpatch, updates itself from its remote) or
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/proposal.md:70:`addpatch`/`pullpatch`/`patch`/`update` keep their meanings. Bob's "device
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/proposal.md:72:`/os/pullpatch` does a git pull inside the active patch dir — the device
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/survey-fetch-assets-templates.md:65:  update/checkout (296), patch (302), addpatch (307), pullpatch, getsamples
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/survey-fetch-assets-templates.md:70:- No patch-fetch/template verb beyond git-based patch/addpatch/pullpatch.
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/survey-patch-pipeline.md:40:- `/os/addpatch <user> <repo>` (`python/bopos.py:912-959`): validates,
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/survey-patch-pipeline.md:46:- `/os/pullpatch` (`bopos.py:961-969` → `bash/pull_active_patch.sh`):
+.lore/items/2026-07-13-patch-asset-sync-proposal/content/survey-patch-pipeline.md:56:  panel's Pull latest (`pullpatch`) / Switch (`patch`).
+.lore/items/2026-07-14-fleet-patch-design-ratified/content/proposal.md:40:   host-mirror fetch, updated via `pullpatch` (python/bopos.py:339-361).
+.lore/items/2026-09-25-architecture-overview-2026-06/content/architecture-overview.md:54:- Patches can be added from GitHub via /addpatch, switched via /patch, updated via /pullpatch
+.lore/items/2026-09-25-architecture-review-2026-07-05/content/architecture-review-2026-07-05.md:11:- **Patches as git repos** (`patches/`, `active_patch.txt`, `/addpatch` `/patch` `/pullpatch`).
+.lore/items/2026-09-25-design-references-2026-07/content/dashboard-development-context.md:90:│   ├── pull_active_patch.sh  # Git pull active patch
+.lore/items/2026-09-25-design-references-2026-07/content/dashboard-development-context.md:171:| `/<id>/helper/addpatch <u> <r>`| string: user, repo     | Clone patch from GitHub         |
+.lore/items/2026-09-25-design-references-2026-07/content/dashboard-development-context.md:172:| `/<id>/helper/pullpatch`       | (none)                 | Git pull active patch           |
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:66:### B2. `addpatch` deletes the existing patch before cloning
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:68:`add_patch_callback` (`python/bopos.py:1883`) `rmtree`s the destination, then
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:125:- **A second patch-distribution route via Git.** `addpatch` / `pullpatch`, a
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:126:  `git pull` inside `switch_patch_callback`, `bash/pull_active_patch.sh` (which
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:133:  `fire_event_to_engine`, `load_callback`, `add_patch_callback`, …).
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:145:- **Websocket verbs handled but never sent by the UI:** `add_patch`,
+.lore/items/2026-10-03-bopos-code-review-2026-10/content/review.md:156:  `pull_active_patch.sh` hard-codes `/home/pi/bopOS`; redundant conditional in
+docs/OSC-CONTRACT.md:708:  `patch:<name>` slot (§9). `/os/addpatch` and `/os/pullpatch` are removed;
+docs/OSC-CONTRACT.md:1007:| 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling |

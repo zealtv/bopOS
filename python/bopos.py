@@ -412,23 +412,17 @@ def _fetch_worker_loop():
         for reply_socket, requester in requesters:
             _fetch_progress_reply(reply_socket, requester, slot, "fetching")
         active_name = None
-        git_managed = False
         if slot.startswith("patch:"):
-            patch_name = slot[len("patch:"):]
             active_path = active_patch_path()
             active_name = os.path.basename(active_path) if active_path else None
-            git_managed = os.path.lexists(
-                os.path.join(BOPOS_DIR, "patches", patch_name, ".git"))
-        restart_engine = (slot.startswith("patch:") and not git_managed
+        restart_engine = (slot.startswith("patch:")
                           and active_name == slot[len("patch:"):])
         stopped = False
         if restart_engine:
             stopped = run_command(
                 ["bash", os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")]) == 0
         try:
-            if git_managed:
-                ok, detail = False, "refusing to fetch into a git-managed patch"
-            elif restart_engine and not stopped:
+            if restart_engine and not stopped:
                 ok, detail = False, "failed to stop active patch engine"
             else:
                 ok, detail = fetcher.fetch(uri, slot,
@@ -953,8 +947,7 @@ def installed_patches():
     except OSError:
         names = []
     for name in names:
-        # Listing includes git-installed repo names accepted by /os/addpatch,
-        # including dots; only hidden/control entries are framework-owned.
+        # Installed names may include dots; hidden/control entries are framework-owned.
         if name.startswith("."):
             continue
         patch_path = os.path.join(patches_dir, name)
@@ -964,7 +957,6 @@ def installed_patches():
         entry = {
             "name": name,
             "active": name == active_name,
-            "git": os.path.lexists(os.path.join(patch_path, ".git")),
             "manifest": patch_manifest is not None,
         }
         try:
@@ -1808,20 +1800,6 @@ def switch_patch_callback(path='', tags='', args='', source=''):
                 pass
             return False
 
-    # Updating an inactive target need not interrupt the currently playing
-    # engine. Host-mirrored patches have already converged through /os/fetch.
-    if os.path.isdir(os.path.join(patch_path, '.git')):
-        print(f"Pulling latest for {patch_name}...")
-        try:
-            result = subprocess.run(["git", "pull", "--recurse-submodules"], cwd=patch_path,
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
-            print(result.stdout.decode())
-            if result.returncode != 0:
-                print(f"git pull failed: {result.stderr.decode()}")
-        except Exception as error:
-            print(f"git pull failed: {error}")
-        warm_patch_cache()
-
     stop_script = os.path.join(BOPOS_DIR, "bash", "stop-engine.sh")
     start_script = os.path.join(BOPOS_DIR, "bash", "start-engine.sh")
     if run_command(["bash", stop_script]) != 0:
@@ -1844,91 +1822,6 @@ def switch_patch_callback(path='', tags='', args='', source=''):
         run_command(["bash", start_script], wait_for_start=True)
     hb_wake.set()
     return {"status": "err", "phase": "start-failed" if restored else "restore-failed"}
-
-
-def add_patch_callback(path='', tags='', args='', source=''):
-    patches_dir = os.path.join(BOPOS_DIR, 'patches')
-    if not args or len(args) < 2:
-        print("/addpatch requires two arguments: user and repo")
-        return {"status": "err", "phase": "invalid-args"}
-    user, repo = str(args[0]).strip(), str(args[1]).strip()
-    if not re.match(r'^[\w-]+$', user) or not re.match(r'^[\w.-]+$', repo):
-        print("Invalid user or repo")
-        return {"status": "err", "phase": "invalid-name"}
-    repo_url, dest_dir = f"https://github.com/{user}/{repo}.git", os.path.join(patches_dir, repo)
-    try:
-        result = subprocess.run(["git", "ls-remote", repo_url], stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, timeout=10)
-        if result.returncode != 0:
-            print(f"GitHub repo not found or not accessible: {repo_url}")
-            return {"status": "err", "phase": "not-found"}
-    except Exception as error:
-        print(f"Error checking repo: {error}")
-        return {"status": "err", "phase": "not-found"}
-    if os.path.isdir(dest_dir):
-        try:
-            print(f"Removing existing patch folder: {dest_dir}")
-            shutil.rmtree(dest_dir)
-        except Exception as error:
-            print(f"Failed to remove existing patch folder: {error}")
-            return {"status": "err", "phase": "remove-failed"}
-    try:
-        print(f"Cloning {repo_url} into {dest_dir}...")
-        result = subprocess.run(["git", "clone", "--recursive", repo_url, dest_dir],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
-        if result.returncode != 0:
-            print(f"Failed to clone repo: {result.stderr.decode().strip()}")
-            return {"status": "err", "phase": "clone-failed"}
-        print(f"Cloned {repo_url} into {dest_dir}")
-    except subprocess.TimeoutExpired:
-        print("Clone timed out after 120s — check network connection")
-        return {"status": "err", "phase": "clone-failed"}
-    except Exception as error:
-        print(f"Error cloning repo: {error}")
-        return {"status": "err", "phase": "clone-failed"}
-    _patch_manifest, manifest_error = manifest.load(dest_dir)
-    if _patch_manifest is None:
-        print(f"Warning: cloned patch '{repo}' will not launch: {manifest_error}")
-    warm_patch_cache()
-    try:
-        msg = OSCMessage("/addpatch")
-        msg.append(repo)
-        send_to_engine(msg)
-    except Exception as error:
-        print(f"Failed to send OSC confirmation: {error}")
-    return {"status": "ok", "phase": "cloned"}
-
-# bash/pull_active_patch.sh's exit codes, mapped to receipt phases. The
-# script itself no longer reboots (contract sec 7 receipt-before-reboot);
-# a successful pull asks run_admin_verb to request the reboot only after
-# the /os/rev receipt has already gone out, mirroring converge_framework.
-_PULL_ACTIVE_PATCH_PHASES = {
-    1: "active-patch",   # active_patch.txt missing
-    2: "not-found",      # no .git repo for the active patch
-    3: "not-found",      # cd into the patch dir failed
-    4: "pull-failed",    # git pull failed
-}
-
-
-def pull_active_patch_callback(path='', tags='', args='', source=''):
-    msg = OSCMessage("/notify")
-    msg.append("updatepatch", 's')
-    send_to_engine(msg)
-    script_path = os.path.join(BOPOS_DIR, 'bash/pull_active_patch.sh')
-    print(f"Running: {script_path}")
-    try:
-        result = subprocess.run(["bash", script_path], timeout=120)
-    except subprocess.TimeoutExpired:
-        print("[pull_active_patch_callback] timed out")
-        return {"status": "err", "phase": "timeout"}
-    except Exception as error:
-        print(f"[pull_active_patch_callback] Exception: {error}")
-        return {"status": "err", "phase": "exception"}
-    if result.returncode != 0:
-        print(f"pull_active_patch.sh exited with code {result.returncode}")
-        phase = _PULL_ACTIVE_PATCH_PHASES.get(result.returncode, "pull-failed")
-        return {"status": "err", "phase": phase}
-    return {"status": "ok", "phase": "pulled", "reboot": True}
 
 
 def drop_patch_callback(path='', tags='', args='', source=''):
@@ -2033,16 +1926,13 @@ PROVISION_VERBS = {
     "updatebopos": update_bopos_callback,
     "checkout": checkout_callback,
     "patch": switch_patch_callback,
-    "addpatch": add_patch_callback,
-    "pullpatch": pull_active_patch_callback,
     "droppatch": drop_patch_callback,
     "dropassets": drop_assets_callback,
 }
 
 # Engine-sent /admin action -> the same implementation callback the LAN
-# /os/* verbs use (contract sec 4.2, v1.7). Bounded: only these four names.
+# /os/* verbs use (contract sec 4.2, v1.7). Bounded: only these three names.
 ENGINE_ADMIN_VERBS = {
-    "update-patch": pull_active_patch_callback,
     "update-bopos": update_bopos_callback,
     "shutdown": shutdown_callback,
     "reboot": reboot_callback,

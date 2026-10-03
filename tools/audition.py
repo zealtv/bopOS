@@ -234,7 +234,6 @@ class AuditionRig:
             entry = {
                 "name": name,
                 "active": name == active_name,
-                "git": False,
                 "manifest": True,
             }
             try:
@@ -244,7 +243,7 @@ class AuditionRig:
                 pass
             listing.append(entry)
         if not any(item["name"] == active_name for item in listing):
-            entry = {"name": active_name, "active": True, "git": False,
+            entry = {"name": active_name, "active": True,
                      "manifest": True}
             try:
                 entry["fingerprint"] = identity.fingerprint(active_dir)

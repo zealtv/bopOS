@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.18** — base ratified 2026-07-07; latest revision 2026-10-03. The
+**Version 1.19** — base ratified 2026-07-07; latest revision 2026-10-03. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -443,15 +443,16 @@ same handful of node-lifecycle actions the dashboard can already trigger:
                                PD (§12) — the patch sends events or relative
                                intervals; the node owns the clock.
 /admin <action>                bounded admin request (v1.7, additive);
-                               action ∈ {update-patch, update-bopos, shutdown,
-                               reboot} — routes to the node's existing admin
-                               behaviour (the same code paths the dashboard
-                               verbs use: pull-active-patch, update, shutdown,
-                               reboot in python/bopos.py). No selector, no
-                               reply to the engine — these actions are
-                               terminal or restart the engine anyway; outcome
-                               receipts continue to flow to the LAN model
-                               where applicable (§7). Unknown actions are
+                               action ∈ {update-bopos, shutdown, reboot}
+                               — routes to the node's existing framework
+                               update, shutdown and reboot behaviour (the
+                               same code paths the dashboard verbs use in
+                               python/bopos.py). No selector, no reply to the
+                               engine — these actions are terminal or
+                               restart the engine anyway; outcome receipts
+                               continue to flow to the LAN model where
+                               applicable (§7). Unknown actions, including
+                               the removed update-patch action (v1.19), are
                                ignored with a logged warning, never fatal.
 ```
 
@@ -697,14 +698,19 @@ WHAT is fixed by the contract, HOW is chosen by the node's `update_model`:
 - `/os/updatebopos` updates the bopOS framework only — persistent: git pull +
   reboot (today's behaviour). Ephemeral: re-fetch the mutable layer and re-exec,
   or honestly no-op. The old `/os/update` spelling has no alias.
-- `/os/checkout <branch>`, `/os/patch <name>`, `/os/addpatch <user> <repo>`,
-  `/os/pullpatch` — as today, renamed.
+- `/os/checkout <branch>` selects and converges the bopOS framework branch;
+  it does not update patches.
 - `/os/patch <name>` keeps the OS and helper online: stop the current engine
   stack, select the validated installed patch, launch its engine, then send the
-  provisioning receipt. It never reboots the device.
+  provisioning receipt. It uses the installed bytes without a Git pull and
+  never reboots the device.
+- Patches reach devices through dashboard push using `/os/fetch` with a
+  `patch:<name>` slot (§9). `/os/addpatch` and `/os/pullpatch` are removed;
+  there are no aliases or compatibility handlers.
 - `/<id>/os/patches` → `/os/patches <json>` (unicast) lists installed
-  patches as objects `{name, active, git, manifest}`. The three flags are
+  patches as objects `{name, active, manifest}`. The two flags are
   booleans; `manifest` means `bopos.patch.json` is present and valid.
+  The former `git` field is removed; patches have no Git deployment mode.
   Each entry may also carry `fingerprint` (v1.4, additive): the 64-hex
   sha256 of the canonical directory-manifest JSON — identical to the host
   catalog fingerprint for the same bytes (dot-entries, symlinks, and `.part`
@@ -848,7 +854,7 @@ joins the job.
   Range-resume; works air-gapped) or `file:`. The legacy `gdrive:` scheme is
   removed.
 - **Asset landing convention:** each top-level asset slot lands in the
-  framework-owned, engine-neutral directory **outside the patch git tree** —
+  framework-owned, engine-neutral directory **outside the patch directory** —
   `~/bopOS/assets/<slot>/`. At launch, bopOS hands every installed slot to the
   engine as its absolute folder path through the §4.2 list
   (`bopos-context assets <absolute-path...>` for PD, JSON-array
@@ -858,9 +864,15 @@ joins the job.
   every asset consumer uses the run-context slot paths directly.
 - **Patch landing convention:** `patch:<name>` lands in
   `~/bopOS/patches/<name>/` with the same diff, resume, hash-verification and
-  prune-to-manifest convergence semantics as an asset slot. A device patch is
-  either git-managed or host-mirrored: fetch refuses with `err` when the target
-  contains `.git`.
+  prune-to-manifest convergence semantics as an asset slot. An existing
+  Git-cloned patch directory is treated as ordinary installed content:
+  a successful fetch replaces its bytes with the host's distributable content
+  and removes its local `.git` directory or `.git` file. A `.git` file's
+  external target is not followed or removed. The replacement is converged and
+  manifest-validated in staging before installation; fetch or validation
+  failure preserves the existing directory, including its Git metadata, and
+  installation failure restores it. Existing path and symlink safety checks
+  still apply. Git metadata is not distributed from the host.
 - Fetching the active patch is allowed. The node stops its engine, converges
   the patch, restarts the engine, then replies. The dashboard must confirm-gate
   this disruptive operation; the node does not refuse it.
@@ -992,3 +1004,4 @@ reasoning.
 | 1.16 | 2026-07-28 | Manifest event-element `labels` retired (§8): an event carries one label, its `name`; elements are numbered 0-based floats with optional `defaults`. Authoring surfaces stopped requiring a name per element. Stale `labels` keys are stripped on read, not rejected. | Bob, live session (thread `44-event-plane`) |
 | 1.17 | 2026-07-29 | Preset foundations, host-side and additive — **no wire form is added**. New §8.1 states that a preset is a sparse map from parameter identity to the `/p/*` argument list that reproduces it, applied as ordinary fan-out; defines the canonical parameter-schema fingerprint (`{identity, kind, min, max, options}` projection, sorted by identity, ordered enum labels, SHA-256); states that a capture holds declared params only, never events, never site-layer state, and records intended dashboard state rather than observed node output; and pins that a timed apply reuses the existing §3.3 fade form for `float`/`int` while every other kind sets full-state at t=0. §9 excludes `presets/` from the distribution manifest, the patch fingerprint, prune-to-manifest convergence, and the distribution HTTP surface, so saving a preset cannot restage the fleet patch. §3.2 and §3.3 are unchanged. **`morph` deferred, not overlooked:** an additive `morph <dur> [c:<n>] <spec…>` form interpolating generator argument vectors was designed, reviewed and ratified in outline, then dropped from v1 by Bob on 2026-07-29 because the workhorse case — sweeping scalars — is already the existing fade form, and the wire/engine risk served only generator interpolation. The settled design is parked in `feature-backlog/48-morph-interpolation`; nothing here forecloses it, since a preset entry already *is* the full-state argument list `morph` would consume. | `.loom/tied/1-preset-architecture-design/`; thread `41-preset-primitive` (`design-addendum.md`, `.loom/tied/3-addendum-review/review-2.md` §F1) |
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
+| 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling |

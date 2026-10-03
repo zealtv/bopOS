@@ -35,7 +35,7 @@ before the patch can launch.
 
 Composer-owned patch directories may be ordinary folders or independent Git
 repositories. They are ignored by the bopOS repository; only the demos are
-tracked. A device copy is either Git-managed or host-mirrored, never both.
+tracked. Device copies receive their content through dashboard push.
 
 ## Required manifest
 
@@ -80,10 +80,10 @@ node's `patches/<name>/` directory to the host copy, including pruning files
 that no longer exist on the host, then restarts the audio engines into the
 new patch.
 
-For the advanced Git workflow, `/os/addpatch` installs a Git-managed patch and
-`/os/pullpatch` updates it directly from its remote. Host-mirror sends refuse a
-device patch containing `.git`, which prevents the two workflows from being
-mixed.
+Patches reach devices only through dashboard push; a successful staged,
+validated push replaces an existing clone and removes its local Git metadata,
+with rollback on failure. Host authoring repositories remain supported; their
+Git metadata is not distributed.
 
 Assets live in sibling directories under `assets/` and are sent separately.
 At launch, the framework supplies the ordered list of absolute installed

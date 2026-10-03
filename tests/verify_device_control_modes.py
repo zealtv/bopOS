@@ -222,7 +222,7 @@ class PhysicalPeer:
             self.send("/os/params", self.manifest_text)
         elif message.address.endswith("/os/patches"):
             self.send("/os/patches", json.dumps([
-                {"name": "alpha", "active": True, "git": False,
+                {"name": "alpha", "active": True,
                  "manifest": True},
             ]))
         elif message.address.endswith("/os/assets"):
@@ -358,6 +358,13 @@ def main():
                 page.locator(
                     f'#device-roster .device-row[data-uid="{UID}"]').click()
                 page.wait_for_selector("#device-enabled-toggle")
+                page.wait_for_function("uid => installation.devices[uid]?.patches?.length > 0", arg=UID)
+                check("patch diagnostics show ordinary inventory without Git deployment UI",
+                      page.locator('#patch-diagnostics .patch-table th').all_text_contents()
+                      == ["Patch", "State", "Manifest", "Fingerprint / content identity"]
+                      and page.locator('#patch-diagnostics button').filter(has_text="Pull latest").count() == 0
+                      and "git-managed" not in page.locator('#patch-diagnostics').inner_text()
+                      and "host-mirrored" not in page.locator('#patch-diagnostics').inner_text())
                 page.wait_for_function(
                     "uid => installation.devices[uid]?.enabled_status === 'current'",
                     arg=UID)

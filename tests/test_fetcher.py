@@ -6,6 +6,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -191,8 +192,6 @@ class FileConvergenceTests(unittest.TestCase):
 
     def test_patch_and_asset_landings_reject_unsafe_destinations(self):
         write_patch(self.source)
-        write_patch(self.patches / "git-managed")
-        (self.patches / "git-managed" / ".git").mkdir()
         outside = self.root / "outside"
         outside.mkdir()
         unsafe_asset = self.assets / "unsafe"
@@ -200,9 +199,86 @@ class FileConvergenceTests(unittest.TestCase):
         (unsafe_asset / "nested").symlink_to(outside, target_is_directory=True)
 
         self.assertFalse(self.fetch("patch:../escape")[0])
-        self.assertFalse(self.fetch("patch:git-managed")[0])
         self.assertFalse(self.fetch("unsafe")[0])
         self.assertEqual(list(outside.iterdir()), [])
+
+    def test_existing_clone_is_converted_only_after_validation(self):
+        destination = self.patches / "stage"
+        write_patch(destination, b"old")
+        write_file(destination / ".git" / "config", b"old metadata")
+        write_file(destination / "obsolete.bin", b"obsolete")
+        write_patch(self.source, b"new")
+        write_file(self.source / ".git" / "config", b"host metadata")
+        real_load = fetcher.patch_manifest.load
+
+        def validate(staging):
+            self.assertEqual((destination / "main.bin").read_bytes(), b"old")
+            self.assertEqual((destination / ".git" / "config").read_bytes(), b"old metadata")
+            self.assertFalse(Path(staging, ".git").exists())
+            return real_load(staging)
+
+        with mock.patch.object(fetcher.patch_manifest, "load", side_effect=validate):
+            self.assertTrue(self.fetch("patch:stage")[0])
+        self.assertEqual((destination / "main.bin").read_bytes(), b"new")
+        self.assertFalse((destination / ".git").exists())
+        self.assertFalse((destination / "obsolete.bin").exists())
+        self.assertEqual(sorted(path.name for path in self.patches.iterdir()), ["stage"])
+
+    def test_git_pointer_file_is_removed_without_following_external_target(self):
+        destination = self.patches / "stage"
+        write_patch(destination, b"old")
+        external = self.root / "external-repository"
+        write_file(external / "config", b"external metadata")
+        (destination / ".git").write_text(f"gitdir: {external}\n")
+        write_patch(self.source, b"new")
+        self.assertTrue(self.fetch("patch:stage")[0])
+        self.assertFalse((destination / ".git").exists())
+        self.assertEqual((external / "config").read_bytes(), b"external metadata")
+
+    def test_clone_metadata_and_bytes_survive_fetch_validation_and_install_failures(self):
+        for metadata_file in (False, True):
+            for failure in ("fetch", "validation", "installation"):
+                with self.subTest(metadata_file=metadata_file, failure=failure), \
+                        tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    destination, source = root / "patches" / "stage", root / "source"
+                    write_patch(destination, b"old")
+                    metadata = destination / ".git" if metadata_file else destination / ".git/config"
+                    write_file(metadata, b"gitdir: /unused\n" if metadata_file else b"metadata")
+                    original = {p.relative_to(destination): p.read_bytes()
+                                for p in destination.rglob("*") if p.is_file()}
+                    write_patch(source, b"new")
+                    if failure == "validation":
+                        (source / manifest.MANIFEST_NAME).write_text("invalid JSON")
+                    if failure == "fetch":
+                        source = root / "missing"
+                    real_replace = os.replace
+
+                    def replace(src, dst):
+                        if failure == "installation" and Path(src).name.startswith(".fetch-") \
+                                and Path(dst) == destination:
+                            raise OSError("replacement failed")
+                        return real_replace(src, dst)
+
+                    with mock.patch.object(fetcher.os, "replace", side_effect=replace):
+                        ok, detail = fetcher.fetch(source.as_uri(), "patch:stage",
+                                                   str(root / "assets"), str(root / "patches"))
+                    self.assertFalse(ok, detail)
+                    self.assertEqual({p.relative_to(destination): p.read_bytes()
+                                      for p in destination.rglob("*") if p.is_file()}, original)
+                    self.assertEqual(sorted(p.name for p in destination.parent.iterdir()), ["stage"])
+
+    def test_clone_metadata_symlink_still_refuses_conversion(self):
+        destination = self.patches / "stage"
+        write_patch(destination, b"old")
+        external = self.root / "external"
+        write_file(external / "config", b"external")
+        (destination / ".git").symlink_to(external, target_is_directory=True)
+        write_patch(self.source, b"new")
+        self.assertFalse(self.fetch("patch:stage")[0])
+        self.assertEqual((destination / "main.bin").read_bytes(), b"old")
+        self.assertTrue((destination / ".git").is_symlink())
+        self.assertEqual((external / "config").read_bytes(), b"external")
 
 
 if __name__ == "__main__":

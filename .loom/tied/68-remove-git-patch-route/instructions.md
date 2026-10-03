@@ -1,6 +1,6 @@
 # 68-remove-git-patch-route
 
-**Status:** ready · Bob ruled 2026-10-03
+**Status:** verified · Bob ruled 2026-10-03 · phase 2 complete
 **Goal:** patches reach devices one way only — dashboard push. The Git route
 is gone from node, dashboard, simulators, docs and tests.
 

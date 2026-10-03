@@ -1503,7 +1503,6 @@ class OSCBridge:
                     continue
                 entry = {"name": patch["name"],
                          "active": bool(patch.get("active")),
-                         "git": bool(patch.get("git")),
                          "manifest": bool(patch.get("manifest"))}
                 # v1.4 additive content identity; absent (old node) stays absent
                 fingerprint = patch.get("fingerprint")

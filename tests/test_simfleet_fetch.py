@@ -5,6 +5,7 @@ import itertools
 import sys
 import tempfile
 import types
+import json
 import unittest
 from pathlib import Path
 
@@ -66,6 +67,13 @@ class SimfleetFetchTests(unittest.TestCase):
             if args and args[0] == slot
             and address in ("/os/fetch-progress", "/os/fetched")
         ]
+
+    def test_simulator_inventory_and_engine_admin_use_current_contract(self):
+        self.fleet.send_patch_list(self.first, ("10.0.0.8", 4000))
+        listing = json.loads(self.fleet.sock.calls[-1][1][0])
+        self.assertTrue(listing)
+        self.assertEqual(set(listing[0]), {"name", "active", "manifest", "fingerprint"})
+        self.assertEqual(set(self.fleet.ADMIN_ACTIONS), {"update-bopos", "shutdown", "reboot"})
 
     def test_distinct_jobs_serialize_per_device_but_devices_are_independent(self):
         source = ("10.0.0.8", 4000)

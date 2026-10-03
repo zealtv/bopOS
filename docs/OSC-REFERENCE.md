@@ -84,7 +84,7 @@ to be certain you're hitting exactly one physical device:
 | `updatebopos` | — | converge the bopOS framework (git pull + reboot on a persistent host) | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set; success is sent before the reboot request, a rejected reboot sends a second `err reboot` |
 | `unassign` | — | idempotently revoke: id → `-1`, positions cleared, group membership cleared, hostname retained | `/id -1` to its own engine + an immediate heartbeat (5550) as the revocation confirmation |
 
-Any other verb (`patch`, `checkout`, `addpatch`, `pullpatch`, `droppatch`,
+Any other verb (`patch`, `checkout`, `droppatch`,
 `dropassets`, patch parameters, probes, storage, distribution) is **not**
 reachable through this envelope by design (contract §3) — use the
 selector-addressed form below instead. Every listed verb above except
@@ -132,8 +132,6 @@ target one Seat, one group, or the whole fleet:
 | `updatebopos` | — | converge the bopOS framework (`/os/update` has no alias — removed) | `/os/rev … <status:s> <phase:s>` (5550) — this verb *does* set status/phase; success is sent before a reboot is requested, and a rejected reboot sends a second `err reboot` |
 | `checkout` | `<branch:s>` | checkout a branch, then converge | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set |
 | `patch` | `<name:s>` | stop engine, switch active patch, relaunch — never reboots | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set; phases: `invalid-name`, `not-found`, `stop-failed`, `write-failed`, `start-failed`, `restore-failed`, `ok switched` |
-| `addpatch` | `<user:s> <repo:s>` | `git clone` `https://github.com/<user>/<repo>.git` into `patches/` | `/addpatch <repo:s>` to the engine (localhost) **and** `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-args`, `invalid-name`, `not-found`, `remove-failed`, `clone-failed`, `ok cloned` |
-| `pullpatch` | — | `git pull` the active patch in place (this is what the engine-sent `/admin update-patch` also triggers, §3 below) | `/os/rev … <status:s> <phase:s>` (5550); success is sent before the reboot request (contract sec 7); phases: `active-patch`, `not-found`, `pull-failed`, `timeout`, `exception`, `ok pulled` |
 | `droppatch` | `<name:s>` | remove an installed, inactive patch (refuses the active one) | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `active-patch`, `remove-failed`, `ok dropped` |
 | `dropassets` | `<slot:s>` | remove an installed asset slot | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `remove-failed`, `ok dropped` |
 | `mute` | `<0\|1:i>` | same as `/all/os/mute` above, but selector-generic | — |
@@ -144,8 +142,8 @@ target one Seat, one group, or the whole fleet:
 status/phase on both success and failure, so `/os/rev` alone tells you
 whether the operation landed. Older nodes running framework builds before
 this revision may still send the bare three-field form for `patch`,
-`addpatch`, `pullpatch`, `droppatch`, and `dropassets` — if you see a bare
-reply from one of those five verbs, that's an old node, not a refusal.
+`droppatch` and `dropassets` — if you see a bare
+reply from one of those three verbs, that's an old node, not a refusal.
 
 An ephemeral (live-image) node answers every provisioning verb here with an
 honest no-op `/os/rev` (no filesystem write) rather than pretending to
@@ -160,11 +158,17 @@ persist.
 | verb | args | what it does | reply (port) |
 |---|---|---|---|
 | `params` | — | the active patch's raw `bopos.patch.json` | `/os/params <json:s>` (5550) |
-| `patches` | — | installed-patch inventory: `{name, active, git, manifest, fingerprint?}` | `/os/patches <json:s>` (5550) |
+| `patches` | — | installed-patch inventory: `{name, active, manifest, fingerprint?}` | `/os/patches <json:s>` (5550) |
 | `assets` | — | installed asset-slot inventory: `{name, fingerprint, files, bytes}` | `/os/assets <json:s>` (5550) |
-| `fetch` | `<source-uri:s> <slot:s>` (or `patch:<name>` as the slot) | pull an asset slot or a host-mirrored patch by diff (`http:`/`file:` schemes) | `/os/fetch-progress <slot:s> <queued\|fetching:s>` while pending, then `/os/fetched <slot:s> <ok\|err:s>` (5550) |
+| `fetch` | `<source-uri:s> <slot:s>` (or `patch:<name>` as the slot) | pull an asset slot or patch by diff (`http:`/`file:` schemes) | `/os/fetch-progress <slot:s> <queued\|fetching:s>` while pending, then `/os/fetched <slot:s> <ok\|err:s>` (5550) |
 | `store` | `<key:s> <values…>` | write to the node's persistence store | — |
 | `load` | `<key:s>` | read from the node's persistence store | `/os/load <key:s> <values…>` (5550) |
+
+Dashboard push is the patch deployment route. A successful fetch replaces an
+existing clone through staged convergence and manifest validation, removing
+its local `.git` directory or file without following an external Git pointer;
+fetch or validation failure preserves the old copy, and installation failure
+restores it (contract §9).
 
 ### Patch parameters, master, and spatial points
 
@@ -233,7 +237,7 @@ audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
 | `/p/<segment>[/<segment>...] <values…>` | patch-declared | whenever a matching `/p/*` command arrives |
 | `/pt <point:i> <element:i> <value:f>` | one shaped scalar per point × element | ~20–30 Hz while moving |
 | `/cue <id:s>` | bare cue id, no time | at the synced local deadline |
-| `/notify <event:s>` | `identify`, `checkout`, `updatebopos`, `shutdown`, `reboot`, `restart-engine` | on the matching admin action (`pullpatch`/`update-patch` does **not** notify — it just re-syncs the patch in place) |
+| `/notify <event:s>` | `identify`, `checkout`, `updatebopos`, `shutdown`, `reboot`, `restart-engine` | on the matching admin action |
 
 **Launch-delivered run context** (never over OSC — `-send` for PD at
 process start, environment variables for other engines): `seed`, `run-id`,
@@ -257,7 +261,7 @@ refreshed on the next engine start after a slot is added or removed.
 | `/load <key:s>` | — | persistence read | `/load <key:s> <values…>` (6661) |
 | `/report <name:s> <values…>` | — | retain a typed value for `/os/probe` to pull later | — |
 | `/log <stream:s> <values…>` | — | **v1.12, additive.** Append one node-stamped, tab-separated line to the per-stream daily append-only file `<stream>-YYYY-MM-DD.log` under the log destination (internal default `~/bopos-logs/`; internal/usb selection is a later revision). Fire-and-forget like `/store`. `stream` matches `[A-Za-z0-9_-]+`; an invalid or missing name is dropped with a logged warning, never fatal. | — |
-| `/admin <action:s>` | `action` ∈ `update-patch`, `update-bopos`, `shutdown`, `reboot` | **v1.7, additive.** A patch running on the Pi asks bopos.py for the same node-lifecycle action the LAN `/os/*` verbs already provide — routes to the identical implementation (`pullpatch`/`updatebopos`/`shutdown`/`reboot`). No selector, no reply to the engine (these are terminal or restart the engine anyway); `/os/rev` outcome receipts still flow to the LAN model where a real requester exists. An unknown or missing action logs a warning and is otherwise ignored — never fatal. |
+| `/admin <action:s>` | `action` ∈ `update-bopos`, `shutdown`, `reboot` | **v1.7, additive.** A patch running on the Pi asks bopos.py for the same node-lifecycle action the LAN `/os/*` verbs already provide — routes to the identical implementation (`updatebopos`/`shutdown`/`reboot`). No selector, no reply to the engine (these are terminal or restart the engine anyway); `/os/rev` outcome receipts still flow to the LAN model where a real requester exists. An unknown or missing action logs a warning and is otherwise ignored — never fatal. |
 
 The PD-side bus that would let a real `[bopos]`-using patch send `/admin` is
 not wired yet (`pd/bopos~.pd` — Bob's `.pd` edit, not an agent's); other
@@ -292,13 +296,6 @@ Or the same box addressed by uid through the admin envelope:
 oscsend 10.0.0.5 6660 /all/os/to ss "02:53:49:4d:00:01" reboot
 ```
 
-**Update the active patch** (git-pull it in place, no engine restart
-notification) on group 0's boxes:
-
-```sh
-oscsend 10.0.0.5 6660 /g0/os/pullpatch
-```
-
 **Switch which patch is active** fleet-wide, then watch for convergence:
 
 ```sh
@@ -327,7 +324,7 @@ actual handler tables in `python/bopos.py` — `handle_lan_datagram`,
 run against `tools/simfleet.py` (Device enabled and report). See
 `.loom/tied/4-osc-quickref/notes.md` for the original cross-check log that
 found the gap this doc now describes as fixed: through the 2026-07-17
-outcome-receipts revision, `addpatch`, `pullpatch`, `droppatch`,
+outcome-receipts revision, `droppatch`,
 `dropassets`, and `patch` always replied with a **bare** `/os/rev` even on
 refusal or failure — the contract's `[<status> <phase>]` was optional, and
 only `updatebopos`/`checkout` populated it. See

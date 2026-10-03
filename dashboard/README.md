@@ -175,9 +175,8 @@ global Fleet patch selector lists valid host catalog patches. **Deploy as
 fleet patch** is one confirmed operation: it converges the selected bytes
 across online assigned devices, then switches their audio engines. Row badges show
 fleet convergence; selecting a row opens its observed inventory, fingerprints,
-fetch phase, manifest/git facts, and Retry or Re-switch remediation. **Revert**
-stages the previous fleet patch through the same flow. A ◆ marker identifies an
-active Git-managed patch, which retains its **Pull latest** action.
+fetch phase, manifest and framework revision facts, and Retry or Re-switch remediation. **Revert**
+stages the previous fleet patch through the same flow.
 
 Asset distribution remains device-addressable: select a device, then Send one
 asset folder or Sync all assets. A successful receipt marks that host manifest

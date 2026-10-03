@@ -3,6 +3,8 @@
 
 import sys
 import types
+import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -62,6 +64,51 @@ class AdminOutcomeTests(unittest.TestCase):
             update_model="persistent",
             version="old",
         )
+
+    def test_admin_allowlists_keep_only_framework_and_installed_content_actions(self):
+        self.assertEqual(set(bopos.PROVISION_VERBS),
+                         {"updatebopos", "checkout", "patch", "droppatch", "dropassets"})
+        self.assertEqual(set(bopos.ENGINE_ADMIN_VERBS),
+                         {"update-bopos", "shutdown", "reboot"})
+        self.assertIs(bopos.PROVISION_VERBS["updatebopos"], bopos.update_bopos_callback)
+        self.assertIs(bopos.PROVISION_VERBS["checkout"], bopos.checkout_callback)
+
+    def test_select_existing_clone_uses_installed_bytes_without_git_subprocess(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            patch = root / "patches" / "stage"
+            patch.mkdir(parents=True)
+            (patch / ".git").mkdir()
+            (patch / "main.bin").write_bytes(b"installed")
+            (patch / "bopos.patch.json").write_text(json.dumps({
+                "engine": "test", "entrypoint": "main.bin", "params": [], "events": []}))
+            with (mock.patch.object(bopos, "BOPOS_DIR", str(root)),
+                  mock.patch.object(bopos, "send_to_engine"),
+                  mock.patch.object(bopos, "run_command", return_value=0) as command,
+                  mock.patch.object(bopos, "engine_alive", return_value=1),
+                  mock.patch.object(bopos.subprocess, "run") as subprocess_run):
+                self.assertEqual(bopos.switch_patch_callback(args=["stage"]),
+                                 {"status": "ok", "phase": "switched"})
+                subprocess_run.assert_not_called()
+                self.assertEqual([Path(call.args[0][1]).name for call in command.call_args_list],
+                                 ["stop-engine.sh", "start-engine.sh"])
+                listing = bopos.installed_patches()
+            self.assertEqual((root / "patches/active_patch.txt").read_text(), "stage\n")
+            self.assertTrue((patch / ".git").exists())
+            self.assertEqual(set(listing[0]), {"name", "active", "manifest", "fingerprint"})
+
+    def test_dashboard_patch_inventory_has_only_current_contract_fields(self):
+        device = {"uid": "node-a"}
+        bridge = object.__new__(osc_bridge.OSCBridge)
+        bridge.state = types.SimpleNamespace(devices={"node-a": device})
+        bridge.broadcast = mock.Mock()
+        bridge._device_for_reply = mock.Mock(return_value=device)
+        with mock.patch.object(osc_bridge, "reconcile_patch_switch_observation"):
+            bridge.handle("/os/patches", [json.dumps([{
+                "name": "stage", "active": True, "manifest": True,
+                "fingerprint": "a" * 64, "git": True}])], "192.0.2.8")
+        self.assertEqual(set(device["patches"][0]),
+                         {"name", "active", "manifest", "fingerprint"})
 
     def test_success_and_failure_are_attributable_with_open_ended_phases(self):
         outcomes = (

@@ -192,6 +192,8 @@ class NodeFetchDispatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="bopos-active-fetch-") as root:
             patch = Path(root) / "patches" / "live"
             patch.mkdir(parents=True)
+            (patch / ".git").mkdir()
+            (patch / ".git/config").write_text("existing clone")
             (patch / "entry.txt").write_text("entrypoint")
             invalid = {"engine": "fixture-engine", "entrypoint": "entry.txt",
                        "params": [{"name": "gain", "type": "f"}], "events": []}
@@ -227,6 +229,7 @@ class NodeFetchDispatchTests(unittest.TestCase):
                 events.append("converge")
                 self.assertEqual(events, ["stop-engine.sh", "converge"])
                 self.assertFalse(engine_running)
+                self.assertTrue((patch / ".git/config").exists())
                 return real_fetch(*args)
 
             with (
@@ -251,6 +254,7 @@ class NodeFetchDispatchTests(unittest.TestCase):
                 self.assertTrue(engine_running)
                 self.assertIsNotNone(bopos.manifest.load(str(patch))[0])
                 self.assertEqual((patch / "entry.txt").read_text(), "replacement entrypoint")
+                self.assertFalse((patch / ".git").exists())
 
         self.assertEqual(
             events,

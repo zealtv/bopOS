@@ -101,7 +101,7 @@ DEFAULT_MANIFEST_TEXT, _DEFAULT_DECLARED_PARAMS = load_manifest(DEFAULT_MANIFEST
 def host_patch_fingerprint(name):
     # captured *now*, not at listing time: a device's copy is whatever the
     # host held when it converged, so a later host edit reads as stale.
-    # Purely fake patches (git installs the sim never fetches) get a stable
+    # Purely fake patches that the sim never fetches get a stable
     # fake identity so dashboards can still exercise match/mismatch.
     path = os.path.join(PATCHES_DIR, name)
     if os.path.isdir(path) and not os.path.islink(path):
@@ -180,7 +180,7 @@ class Device:
         self.params = {}
         self.active_patch = "demo-pd"
         self.patches = {
-            "demo-pd": {"git": False, "manifest": DEFAULT_MANIFEST_TEXT is not None,
+            "demo-pd": {"manifest": DEFAULT_MANIFEST_TEXT is not None,
                         "fingerprint": host_patch_fingerprint("demo-pd")}
         }
         # Installed slots are snapshots: later host edits must not silently
@@ -447,7 +447,6 @@ class SimFleet:
             entry = {
                 "name": name,
                 "active": name == device.active_patch,
-                "git": facts["git"],
                 "manifest": facts["manifest"],
             }
             if facts.get("fingerprint"):
@@ -647,7 +646,7 @@ class SimFleet:
             if slot.startswith("patch:"):
                 name = slot.split(":", 1)[1]
                 # fetch converged the copy to the host's current content
-                device.patches[name] = {"git": False, "manifest": True,
+                device.patches[name] = {"manifest": True,
                                         "fingerprint": host_patch_fingerprint(name)}
             else:
                 device.asset_slots[slot] = host_asset_facts(self.assets_dir, slot)
@@ -703,7 +702,7 @@ class SimFleet:
         # bopos.py owns these, so a dead engine still answers
         self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
         provisioning = member in ("updatebopos", "checkout", "patch",
-                                  "addpatch", "pullpatch", "droppatch",
+                                  "droppatch",
                                   "dropassets")
         if provisioning and device.ephemeral:
             # ephemeral: honest no-op, receipt still sent (contract sec 7)
@@ -736,15 +735,6 @@ class SimFleet:
             device.active_patch = name
             device.engine_restart_until = float("inf")
             self.schedule(2.0, self.finish_patch_switch, device, source)
-        elif member == "addpatch":
-            if len(args) < 2:
-                self.send_rev(device, source, "err", "invalid-args")
-                return
-            device.patches[str(args[1])] = {"git": True, "manifest": True,
-                                            "fingerprint": host_patch_fingerprint(str(args[1]))}
-            self.schedule(1.0, self.send_rev, device, source, "ok", "cloned")
-        elif member == "pullpatch":
-            self.schedule(1.0, self.send_rev, device, source, "ok", "pulled")
         elif member == "droppatch":
             if not args:
                 self.send_rev(device, source, "err", "invalid-name")
@@ -888,7 +878,7 @@ class SimFleet:
                          f"fire_mono={time.monotonic_ns()}{suffix}"
                          + (" LATE" if late else ""))
 
-    ADMIN_ACTIONS = ("update-patch", "update-bopos", "shutdown", "reboot")
+    ADMIN_ACTIONS = ("update-bopos", "shutdown", "reboot")
 
     def admin_request(self, device, action):
         # a real node's engine sends /admin <action> to bopos.py on localhost
@@ -1113,9 +1103,7 @@ class SimFleet:
                 valid_slot = (re.fullmatch(r"[A-Za-z0-9_-]+", patch_name) is not None
                               if patch_name is not None
                               else identity.valid_asset_slot(slot))
-                git_target = (patch_name is not None and patch_name in device.patches
-                              and device.patches[patch_name]["git"])
-                ok = scheme in ("http", "https", "file") and valid_slot and not git_target
+                ok = scheme in ("http", "https", "file") and valid_slot
                 self.log(device, f"fetch {uri} {slot}")
                 if ok:
                     self.queue_fetch(device, source, uri, slot)
@@ -1126,7 +1114,7 @@ class SimFleet:
                     self.sock.sendto(builder.build().dgram,
                                      (source[0], self.args.report_port))
             elif member in ("reboot", "shutdown", "restart-engine", "updatebopos",
-                            "checkout", "patch", "addpatch", "pullpatch",
+                            "checkout", "patch",
                             "droppatch", "dropassets"):
                 self.admin_verb(device, member, list(args), source)
             elif member == "report":

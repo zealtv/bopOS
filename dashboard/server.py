@@ -349,7 +349,7 @@ class Dashboard:
             "set_device_hostname", "set_audio_config", "set_log_config",
             "action", "identify", "set_fleet_patch",
             "set_device_patch", "clear_device_patch",
-            "revert_fleet_patch", "retry_fleet_patch", "add_patch", "pull_patch",
+            "revert_fleet_patch", "retry_fleet_patch",
             "send_distribution", "drop_distribution",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
@@ -687,19 +687,6 @@ class Dashboard:
                 await self.converge_device_patch(uid, fleet_name, ws)
             else:
                 await self.broadcast("state")
-        elif kind == "add_patch":
-            user, repo = str(data.get("user", "")).strip(), str(data.get("repo", "")).strip()
-            selector = "all" if uid in (None, "all") else self.selector(uid)
-            if selector is not None and re.fullmatch(r"[\w-]+", user) and re.fullmatch(r"[\w.-]+", repo):
-                self.osc.os_command(selector, "addpatch", [user, repo])
-                for device_uid in self.distribution_targets(uid):
-                    self.spawn(self.refresh_patches_later(device_uid, 1.25))
-        elif kind == "pull_patch":
-            targets = self.distribution_targets(uid)
-            for device_uid in targets:
-                listing = self.state.devices[device_uid].get("patches") or ()
-                if any(patch.get("active") and patch.get("git") for patch in listing):
-                    self.osc.os_command(self.selector(device_uid), "pullpatch")
         elif kind == "request_patches":
             if uid in self.state.devices:
                 self.osc.request(uid, "patches")
@@ -742,9 +729,6 @@ class Dashboard:
                 return
             for device_uid in targets:
                 for item in requested:
-                    if (item["kind"] == "patch"
-                            and self.device_patch(device_uid, item["name"], git=True)):
-                        continue
                     path = "patches" if item["kind"] == "patch" else "assets"
                     slot = "patch:" + item["name"] if item["kind"] == "patch" else item["name"]
                     encoded_name = urllib.parse.quote(item["name"], safe="")
@@ -1422,9 +1406,9 @@ class Dashboard:
         return bool(device and device.get("online") and not device.get("virtual")
                     and self.selector(uid) is not None)
 
-    def device_patch(self, uid, name, git=None):
+    def device_patch(self, uid, name):
         for patch in self.state.devices.get(uid, {}).get("patches") or ():
-            if patch.get("name") == name and (git is None or patch.get("git") is git):
+            if patch.get("name") == name:
                 return patch
         return None
 
@@ -2066,8 +2050,6 @@ class Dashboard:
             if (entry and entry.get("manifest")
                     and entry.get("fingerprint") == fingerprint):
                 ready.add(uid)
-                continue
-            if entry and entry.get("git"):
                 continue
             uri = f"{base_urls[uid]}/patches/{name}/.manifest.json"
             started = self.osc.fetch(uid, uri, slot, fingerprint)

@@ -162,7 +162,7 @@ class DeviceControlRoutingTests(unittest.IsolatedAsyncioTestCase):
                 for member in ("params", "patches", "assets"):
                     self.bridge.pending[member].clear()
                     self.bridge.request("physical-1", member)
-                self.bridge.os_command(4, "pullpatch")
+                self.bridge.os_command(4, "restart-engine")
                 self.bridge.os_command(4, "patch", ["alpha"])
                 self.bridge.os_command(4, "dropassets", ["drums"])
                 self.bridge.fetch(
