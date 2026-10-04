@@ -20,13 +20,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
 
-11. **Clock-sync traffic design (71/1)**: `71-network-traffic/1-clock-sync-traffic.waiting/proposal.md`.
-    Step 1 (no wire change; aligns the code with contract §3.1): unicast each
-    offset instead of broadcasting it, so at 50 nodes broadcast sync drops from
-    102 to 2 packets/s. Step 2 (wire ruling plus real-fleet evidence): adaptive
-    per-node unicast probes, about 15 packets/s instead of 202 for a stable 50-node
-    fleet. Ratify step 1 to build now, and say whether to pursue step 2?
-
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
@@ -70,3 +63,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    wrap the header earlier** (~1279px) → follow-up on `66-projects/10-multiple-shows`.
 9. Clear Show wording — Bob, 2026-10-04: the one-step confirm ("Remove all 1 step…") is fine; **yes** to "Stop the show before clearing it." → `66-projects/9-clear-show`.
 10. Header wraps to two rows at 1440px with the Performance toggle: **keep it** (Bob, 2026-10-04, after seeing the screenshots on Tengu; `screenshots/header-performance-*-1440.png`) → `77-performance-mode`.
+11. Clock-sync traffic (71/1) — Bob, 2026-10-04: **approve stage A** (unicast offsets), **defer stage B** → building A in `71-network-traffic/1-clock-sync-traffic`.
