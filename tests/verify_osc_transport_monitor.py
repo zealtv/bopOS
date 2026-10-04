@@ -80,6 +80,9 @@ def main():
         state_path = str(project_path(temp))
         with open(state_path, "w", encoding="utf-8") as target:
             json.dump({"schema": 1, "name": "Transport log", "seats": {}}, target)
+        with open(os.path.join(os.path.dirname(state_path), "show.json"), "w",
+                  encoding="utf-8") as target:
+            json.dump({"schema": 1, "name": "opening", "items": []}, target)
         assets = os.path.join(temp, "assets")
         patches = os.path.join(temp, "patches")
         os.makedirs(assets)
@@ -154,37 +157,19 @@ def main():
                           "Patch Edit" in supervisor_text
                           and "no usable Pure Data executable" in supervisor_text,
                           supervisor_text)
-                    # The System panel must tell the truth about the loaded
-                    # show (08/4/4-current-show-broadcast). `set_current_show`
-                    # broadcast `shows`, `show` and `show_warnings` but never
-                    # `state`, and with NO periodic full-state broadcast
-                    # anywhere the panel read `none loaded` while a show was
-                    # loaded -- indefinitely, not briefly.
-                    #
-                    # Deliberately behavioural: it asserts what the operator
-                    # reads, not that a particular message fired, so a later
-                    # change of mechanism does not have to come and edit it.
-                    page.evaluate(
-                        "() => ws.send('create_show', {name: 'opening'})")
+                    # The System panel must name the project's show
+                    # (08/4/4-current-show-broadcast, then 66-projects/5: one
+                    # show per project, so it reads the show document rather
+                    # than a `current_show` pointer). Behavioural on purpose:
+                    # it asserts what the operator reads, not which message
+                    # carried it.
                     show_row = page.locator('[data-monitor-system="show"]')
                     page.wait_for_function(
                         """() => document.querySelector(
                           '[data-monitor-system="show"]')?.textContent
                           === 'opening'""")
-                    check("the System panel names the loaded show",
+                    check("the System panel names the project's show",
                           show_row.text_content() == "opening",
-                          repr(show_row.text_content()))
-                    # And says so again when the show goes away: `delete_show`
-                    # clears `current_show` without going through
-                    # `set_current_show`, so it needed the same broadcast.
-                    page.evaluate(
-                        "() => ws.send('delete_show', {name: 'opening'})")
-                    page.wait_for_function(
-                        """() => document.querySelector(
-                          '[data-monitor-system="show"]')?.textContent
-                          === 'none loaded'""")
-                    check("deleting the loaded show empties the panel again",
-                          show_row.text_content() == "none loaded",
                           repr(show_row.text_content()))
                     check("transport log renders without page errors",
                           errors == [], repr(errors))

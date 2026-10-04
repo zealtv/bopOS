@@ -122,7 +122,7 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
             finally:
                 remote.close()
 
-            page.wait_for_selector("#show-create-form")
+            page.wait_for_selector(".show-edit-bar", state="attached")
             if invalid_start:
                 page.evaluate("""() => {
                     window.masterResult = null;

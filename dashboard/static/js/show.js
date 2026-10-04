@@ -2,7 +2,6 @@
   const root = document.querySelector("#show-root");
   if (!root || typeof ws === "undefined") return;
 
-  let shows = {names: [], current: null};
   let show = {schema: 1, name: "", items: []};
   let showWarnings = [];
   let playback = {steps: {}};
@@ -410,24 +409,6 @@
     </div>`;
   }
 
-  function renderEmptyState() {
-    const names = shows.names || [];
-    const options = names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
-    root.innerHTML = `${renderWarnings()}<div class="show-empty">
-      <div>
-        <p class="dim">Create or load a show to start building performance steps.</p>
-      </div>
-      <form id="show-create-form" class="show-create-form">
-        <label>new show <input id="show-create-name" type="text" autocomplete="off" placeholder="opening-set"></label>
-        <button type="submit">Create show</button>
-      </form>
-      <div class="show-picker" ${names.length ? "" : "hidden"}>
-        <label>saved shows <select id="show-load-select">${options}</select></label>
-        <button id="show-load-button" type="button">Load show</button>
-      </div>
-    </div>`;
-  }
-
   function renderTransport() {
     const activeEntry = Object.entries(playback?.steps || {})
       .find(([_uid, state]) => ["playing", "paused"].includes(state?.state));
@@ -445,15 +426,7 @@
       : activeState === "paused" ? `Resume ${stepLabel(activeStep)}`
       : `Play ${stepLabel(stepByUid(startUid))}`;
     return `<div class="show-transport-strip">
-      <h2>${escapeHtml(show.name || shows.current || "Show")}</h2>
-      <div class="show-manage">
-        <select id="show-switch-select" aria-label="Saved shows">${(shows.names || []).map(name =>
-          `<option value="${escapeHtml(name)}" ${name === shows.current ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select>
-        <button id="show-switch-load" type="button">Load</button>
-        <button id="show-manage-new" type="button">New</button>
-        <button id="show-manage-rename" type="button">Rename</button>
-        <button id="show-manage-delete" class="danger" type="button">Delete</button>
-      </div>
+      <h2>${escapeHtml(show.name || "Show")}</h2>
       <div class="show-transport-actions">
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
@@ -803,16 +776,8 @@
       renderPending = true;
       return;
     }
-    // Re-rendering rebuilds the saved-shows picker with the current show
-    // selected, which would wipe an operator's uncommitted dropdown choice
-    // on every countdown tick. An uncommitted choice is a live value that
-    // differs from the option rendered selected; carry it across the rebuild.
-    const oldPicker = root.querySelector("#show-switch-select");
-    const renderedShow = oldPicker?.querySelector("option[selected]")?.value;
-    const pickedShow = oldPicker && oldPicker.value !== renderedShow ? oldPicker.value : null;
-    // Same rationale as the picker above: an unrelated broadcast mid-rename
-    // must not wipe an uncommitted inline name edit (step/divider/message; no
-    // per-keystroke saves).
+    // An unrelated broadcast mid-rename must not wipe an uncommitted inline
+    // name edit (step/divider/message; no per-keystroke saves).
     const oldNameInput = root.querySelector("[data-show-name-input]");
     const nameDraft = oldNameInput && document.activeElement === oldNameInput
       ? oldNameInput.value : null;
@@ -823,16 +788,9 @@
       if (oldRowsBox.clientHeight >= 160) showRowsHeight = oldRowsBox.clientHeight;
       showRowsScrollTop = oldRowsBox.scrollTop;
     }
-    if (!shows.current) renderEmptyState();
-    else renderLoadedShow();
+    renderLoadedShow();
     const rowsBox = root.querySelector(".show-rows-box");
     if (rowsBox) rowsBox.scrollTop = showRowsScrollTop;
-    if (pickedShow) {
-      const picker = root.querySelector("#show-switch-select");
-      if (picker && [...picker.options].some(option => option.value === pickedShow)) {
-        picker.value = pickedShow;
-      }
-    }
     if (nameEdit.kind) {
       const input = root.querySelector(`[data-show-name-input][data-show-name-kind="${nameEdit.kind}"][data-show-name-uid="${nameEdit.uid}"]`);
       if (input) {
@@ -1256,34 +1214,6 @@
       sendTransport(action.dataset.showAction, action.dataset.showUid);
       return;
     }
-    if (event.target.closest("#show-load-button")) {
-      const name = root.querySelector("#show-load-select")?.value;
-      if (name) ws.send("load_show", {name});
-      return;
-    }
-    if (event.target.closest("#show-switch-load")) {
-      const name = root.querySelector("#show-switch-select")?.value;
-      if (!name || name === shows.current) return;
-      const busy = Object.values(playback?.steps || {}).some(state => ["playing", "paused"].includes(state?.state));
-      if (busy && !confirm(`Load show "${name}"? Playback of the current show stops.`)) return;
-      ws.send("load_show", {name});
-      return;
-    }
-    if (event.target.closest("#show-manage-new")) {
-      const name = prompt("New show name:", "");
-      if (name?.trim()) ws.send("create_show", {name: name.trim()});
-      return;
-    }
-    if (event.target.closest("#show-manage-rename")) {
-      const name = prompt("Rename show:", shows.current || "");
-      if (name?.trim() && name.trim() !== shows.current) ws.send("rename_show", {name: name.trim()});
-      return;
-    }
-    if (event.target.closest("#show-manage-delete")) {
-      const name = root.querySelector("#show-switch-select")?.value;
-      if (name && confirm(`Delete show "${name}"? The file is removed.`)) ws.send("delete_show", {name});
-      return;
-    }
     // Ruled by Bob (02-inspector-sidebar decisions): a single click selects
     // silently (a collapsed sidebar stays collapsed), a double-click expands
     // onto that item. We detect the double-click ourselves rather than via the
@@ -1597,18 +1527,6 @@
     commitName(event.target);
   }, true);
 
-  root.addEventListener("submit", event => {
-    if (event.target.id !== "show-create-form") return;
-    event.preventDefault();
-    const name = root.querySelector("#show-create-name")?.value.trim();
-    if (name) ws.send("create_show", {name});
-  });
-
-  ws.on("shows", data => {
-    shows = {names: data?.names || [], current: data?.current || null};
-    if (!shows.current) focus = {kind: null, uid: null};
-    render();
-  });
   ws.on("show", data => {
     show = data || {schema: 1, name: "", items: []};
     if (pendingItemAdd) {
@@ -1675,7 +1593,7 @@
   ws.on("distribution", renderForRelevantStateChange);
   window.ShowInspectorError = message => {
     showError = message || "Show edit failed.";
-    if (shows.current) render();
+    render();
   };
   ws.on("error", data => {
     window.ShowInspectorError(data?.message);
