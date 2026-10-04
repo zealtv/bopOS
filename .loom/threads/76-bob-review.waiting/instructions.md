@@ -44,6 +44,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    card in Performance (tmpfs); the mode survives a hard power cut; the locks
    hold on the device; audio carries on uninterrupted when switching. Details
    in `77-performance-mode.tied/verification.md`.
+5. **IO streaming (59/8)**: on a Pi, 7771/5551 traffic while a stream is
+   open, the lease really stopping on expiry and on entering Performance, and
+   the engine and audio unaffected. Details in
+   `59-i2c-inventory/8-stream-port.tied/verification.md`.
 
 ## Ruled
 
