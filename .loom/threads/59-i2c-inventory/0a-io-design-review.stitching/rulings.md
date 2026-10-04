@@ -85,9 +85,14 @@ through in the session ("artifact not required").
   for now; recording and replaying streams; streaming from more than one device
   at once; cross-device sensor routing (sensor data driving other boxes as part
   of a piece — a composition feature, not this layer).
-- **Pending Bob:** simulated input injected into ONE targeted real device's
-  engine (not only the editor's audition engine), development-only.
-  Recommended: in scope.
+- **Future (Bob):** server-side decisions from aggregate or specific sensor
+  readings, as a separate show-time feed, not the development stream.
+- **Panels, settled third round:** interactive module panels live only in the
+  Monitor dock's Modules tab. The Device tab is the inventory with a "Show in
+  Monitor" checkbox. A live panel lets you watch inputs and drive outputs
+  (e.g. set the OLED); a simulated panel drives inputs and shows the patch's
+  outputs, editor only. Fake input into a real device's engine is deferred
+  (future, if needed). Bob: "sounds good".
 
 ## Still to decide
 
