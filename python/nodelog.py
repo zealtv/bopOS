@@ -29,11 +29,17 @@ Destination resolution is a hook (`destination_dir`). This module ships the
 internal default only (`~/bopos-logs/`); the internal/usb choice and its
 per-write effective resolution land in stitch `4-log-destination-config`,
 which supplies a callable without reshaping anything here.
+
+Performance resolves to tmpfs, or a bounded 4096-entry memory buffer when
+tmpfs is unavailable. A destination hook returning None chooses that buffer.
+`change_destination` excludes concurrent appends while the owner closes the
+old files and persists/changes its mode; RAM entries never flush back to disk.
 """
 
 import os
 import re
 import threading
+from collections import deque
 from datetime import datetime
 
 # Same rule as report names (bopos.py report_callback). No dots -> no path
@@ -66,10 +72,13 @@ class NodeLog:
         self._lock = threading.Lock()
         self._handles = {}       # absolute path -> open file object
         self._stream_path = {}   # stream name -> the path it last wrote to
+        self.memory = deque(maxlen=4096)
 
     def destination_dir(self):
         dest = self._destination
         path = dest() if callable(dest) else dest
+        if path is None:
+            return None
         return os.path.expanduser(str(path))
 
     def _target_path(self, directory, stream, date_str):
@@ -127,7 +136,11 @@ class NodeLog:
         line = "{}\t{}\t{}\n".format(stamp, stream, payload)
         with self._lock:
             try:
-                path = self._target_path(self.destination_dir(), stream, date_str)
+                directory = self.destination_dir()
+                if directory is None:
+                    self.memory.append(line[:4096])
+                    return True
+                path = self._target_path(directory, stream, date_str)
                 previous = self._stream_path.get(stream)
                 if previous is not None and previous != path:
                     # day rolled, cap tripped, or destination changed: fsync
@@ -148,6 +161,18 @@ class NodeLog:
             for path in list(self._handles):
                 self._retire(path)
             self._stream_path.clear()
+
+    def change_destination(self, update):
+        """Close prior handles and change the resolver's state atomically.
+
+        A concurrent append cannot reopen a disk stream between the close
+        and the Performance transition, or fsync it after that transition.
+        """
+        with self._lock:
+            for path in list(self._handles):
+                self._retire(path)
+            self._stream_path.clear()
+            update()
 
 
 # Module-level default facility so any subsystem can `nodelog.append(...)`
@@ -185,3 +210,7 @@ def close():
     with _instance_lock:
         if _instance is not None:
             _instance.close()
+
+
+def change_destination(update):
+    instance().change_destination(update)

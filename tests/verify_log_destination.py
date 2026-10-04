@@ -141,6 +141,7 @@ class PhysicalPeer:
             "update_model": "persistent", "contract_version": "1.16",
             "groups": [], "device_enabled": True, "mute_all": False,
             "output_enabled": True,
+            "performance": False,
             "log": self.log_state(),
         }))
 

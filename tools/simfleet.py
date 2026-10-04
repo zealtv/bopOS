@@ -53,6 +53,7 @@ import audio_config  # noqa: E402
 import log_config  # noqa: E402
 import wifi_config  # noqa: E402
 import osc_contract  # noqa: E402
+import performance_mode  # noqa: E402
 
 
 def device_log_state(device):
@@ -60,6 +61,8 @@ def device_log_state(device):
     # present; otherwise internal (the visible fallback).
     effective = ("usb" if device.log_destination == "usb" and device.usb_present
                  else "internal")
+    if getattr(device, "performance", False):
+        effective = "ram"
     return {
         "destination": device.log_destination,
         "effective": effective,
@@ -199,6 +202,7 @@ class Device:
         # a simulated USB presence a verify harness can flip. Effective mirrors
         # the real node -- usb only if chosen *and* the stick is present.
         self.log_destination = "internal"
+        self.performance = False
         self.usb_present = False
         self.wifi = ({"managed": False} if wired else {
             "managed": True, "country": "GB", "active": "imager-net",
@@ -248,7 +252,11 @@ class Device:
     def state_file(self, state_dir):
         return os.path.join(state_dir, self.mac.replace(":", "-") + ".json")
 
+    def performance_file(self, state_dir):
+        return self.state_file(state_dir) + ".performance"
+
     def load_assignment(self, state_dir):
+        self.performance = performance_mode.load(self.performance_file(state_dir))
         # boot resolution, node-side: persisted assignment wins over the seed;
         # ephemeral devices sacrifice persistence and re-hello each boot
         if self.ephemeral:
@@ -496,6 +504,7 @@ class SimFleet:
             "device_enabled": bool(device.device_enabled),
             "mute_all": bool(device.mute_all),
             "output_enabled": bool(device.output_enabled),
+            "performance": bool(device.performance),
             "audio": audio,
             "log": device_log_state(device),
             "wifi": wifi_config.redacted(device.wifi),
@@ -505,6 +514,14 @@ class SimFleet:
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
 
     def uid_admin(self, device, member, args, source):
+        if not performance_mode.allows(device.performance, member):
+            if member == "wifi-config":
+                builder = osc_message_builder.OscMessageBuilder(address="/os/wifi-config")
+                for value in (device.mac, "err", "performance",
+                              json.dumps(wifi_config.redacted(device.wifi))):
+                    builder.add_arg(value, arg_type="s")
+                self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            return
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
         if member == "enabled" and len(args) == 1:
@@ -665,7 +682,8 @@ class SimFleet:
         if job["active"]:
             device.capture_engine_context()
             device.engine_restart_until = 0.0
-        ok = job["ok"]
+        ok = job["ok"] and (not slot.startswith("patch:")
+                            or performance_mode.allows(device.performance, "patch-fetch"))
         if ok:
             if slot.startswith("patch:"):
                 name = slot.split(":", 1)[1]
@@ -723,6 +741,9 @@ class SimFleet:
         device.engine_restart_until = 0.0
 
     def admin_verb(self, device, member, args, source):
+        if not performance_mode.allows(device.performance, member):
+            self.send_rev(device, source, "err", "performance")
+            return
         # bopos.py owns these, so a dead engine still answers
         self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
         provisioning = member in ("updatebopos", "checkout", "patch",
@@ -985,6 +1006,24 @@ class SimFleet:
                     continue
                 self.uid_admin(device, member, member_args, source)
             return
+        if parts == ["all", "os", "performance"]:
+            if len(args) != 1 or type(args[0]) not in (int, float) or args[0] not in (0, 1):
+                return
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or random.random() < self.args.drop):
+                    continue
+                active = bool(args[0])
+                state_dir = getattr(self.args, "state_dir", None)
+                try:
+                    if state_dir:
+                        performance_mode.save(device.performance_file(state_dir), active)
+                except OSError:
+                    self.send_report(device, source)
+                    continue
+                device.performance = active
+                self.send_report(device, source)
+            return
         if parts == ["all", "os", "groups"]:
             if not args or not isinstance(args[0], str):
                 return
@@ -1127,7 +1166,9 @@ class SimFleet:
                 valid_slot = (re.fullmatch(r"[A-Za-z0-9_-]+", patch_name) is not None
                               if patch_name is not None
                               else identity.valid_asset_slot(slot))
-                ok = scheme in ("http", "https", "file") and valid_slot
+                ok = (scheme in ("http", "https", "file") and valid_slot
+                      and (patch_name is None
+                           or performance_mode.allows(device.performance, "patch-fetch")))
                 self.log(device, f"fetch {uri} {slot}")
                 if ok:
                     self.queue_fetch(device, source, uri, slot)
@@ -1144,6 +1185,8 @@ class SimFleet:
             elif member == "report":
                 self.send_report(device, source)
             elif member == "probe" and args:
+                if not performance_mode.allows(device.performance, "probe"):
+                    continue
                 what = str(args[0])
                 values = device.reports.get(what)
                 if values is None:

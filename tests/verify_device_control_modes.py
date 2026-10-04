@@ -169,6 +169,7 @@ class PhysicalPeer:
             "device_enabled": self.device_enabled,
             "mute_all": False,
             "output_enabled": self.device_enabled,
+            "performance": False,
             "audio": {
                 "configured": dict(self.audio_config),
                 "active": dict(self.audio_config),
