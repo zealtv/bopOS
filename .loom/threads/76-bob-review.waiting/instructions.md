@@ -12,9 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-3. **OSC contract editorial**: `docs/OSC-CONTRACT.md` (~line 859) still says
-   the facilitator allowlist lives in `installation.json`. Since 66/3 it's
-   `project.json`. Change the filename only? → `33b/2` notes.
 4. **Header tidy screenshot**: look at the new header before it's called done
    (Live rename; mode switch moved beside the project bar as a 30px pill with
    24px buttons; spacing tidied). Before and after, plus light, 900px and
@@ -24,14 +21,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    or make a new project". The Show tab has no clear action yet; steps are
    removed one at a time. Want a button? If so, what should it say, e.g.
    "Clear show…" with a confirm? → `66-projects/5-one-show`, possibly `7-project-menu`.
-6. **Venue snapshot `10x8-test` not converted**: its Seat ids don't match the
-   project's, so `tools/migrate_sites.py` left it in `dashboard/installations/`
-   (gitignored, untouched). Make it a site by hand, or drop it? Your local
-   project now has the `default` site. Backups: `project.json.pre-sites`
-   beside it.
-7. **"New patch…" kept on the Patches tab** beside Add Existing…. It isn't in
-   the mockups, but without it a project can't create a patch from the
-   template. Keep, move or drop? → `66-projects/6-patch-versions`.
 8. **FYI: my calls on the project menu (66/7)**. Names keep spaces as typed,
    because the folder name is the name ("Kite Choir", as in the mockups):
    letters, digits, spaces, `.` `_` `-`, starting with a letter or digit. New
@@ -55,3 +44,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    via Tengu) → recorded in `33b/2`.
 2. Migrate `dashboard/shows/test.json` into the project's `show.json` and delete
    `dashboard/shows/` — **yes** (Bob, 2026-10-04) → recorded in `66-projects/5-one-show`.
+3. OSC contract editorial — **rename it** (Bob, 2026-10-04). The facilitator
+   allowlist is now "a project-level allowlist in `project.json` … the project
+   promotes its verbs" (`docs/OSC-CONTRACT.md` ~859).
+4. Venue snapshot `10x8-test` — **drop it** (Bob, 2026-10-04). Removed from
+   `dashboard/installations/` (local, gitignored); a copy is in the lead
+   session's scratchpad.
+5. "New patch…" on the Patches tab — **keep** (Bob, 2026-10-04) → `66-projects/6-patch-versions`.

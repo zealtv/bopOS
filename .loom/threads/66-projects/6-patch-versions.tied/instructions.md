@@ -17,3 +17,5 @@ Work in slices that each verify (`tools/run-tests.sh`, browser journeys where UI
   (`kite-v2` → `kite-v3`) or appends `-v2`, editable. Editing and pushing the
   live patch in place stays.
 - Wording is ratified (Live, Set Live, New Version, Add Existing…).
+
+**Bob, 2026-10-04:** keep **New patch…** on the Patches tab beside Add Existing….

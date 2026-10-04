@@ -855,11 +855,11 @@ A patch ships **`bopos.patch.json`** in its patch root:
   surface (rendered as a labelled control on the device card; values flow as ordinary
   `/<sel>/p/<segment>[/<segment>...]`; a card with no
   promoted params is status-only). Promotion of **framework
-  verbs** is *never* a manifest concern: an install-level allowlist in
-  `installation.json` (`"facilitator_commands": […]`, **default empty**)
+  verbs** is *never* a manifest concern: a project-level allowlist in
+  `project.json` (`"facilitator_commands": […]`, **default empty**)
   opts specific verbs onto the surface, confirm-gated, with destructive
   convergence verbs (updatebopos/checkout/reboot/shutdown) at minimum
-  hold-to-confirm. The patch promotes its params; the venue promotes its
+  hold-to-confirm. The patch promotes its params; the project promotes its
   verbs. Loaders accept the legacy `facilitator` spelling and normalize it to
   `dashboard`; saves emit only `dashboard`. If both spellings are present with
   conflicting values, the manifest is invalid.
