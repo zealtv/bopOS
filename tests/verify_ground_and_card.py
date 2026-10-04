@@ -343,12 +343,8 @@ def main():
                           page.locator("#project-bar-project").inner_text() == "default")
                     check(f"project bar shows the fleet patch -- {theme}",
                           page.locator("#project-bar-patch").inner_text() == "alpha")
-                    page.evaluate("ws.send('save_venue', {name:'Broadwalk'})")
-                    page.wait_for_function("venues.venues.includes('Broadwalk')")
-                    page.evaluate("ws.send('load_venue', {name:'Broadwalk'})")
-                    page.wait_for_function("installation.name === 'Broadwalk'")
-                    check(f"venue load changes only Site in the project bar -- {theme}",
-                          page.locator("#project-bar-site").inner_text() == "Broadwalk"
+                    check(f"project bar shows the current Site -- {theme}",
+                          page.locator("#project-bar-site").inner_text() == "default"
                           and page.locator("#project-bar-project").inner_text() == "default")
                     for width in (1280, 900, 700):
                         report_header_controls(page, width, theme)

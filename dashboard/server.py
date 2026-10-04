@@ -320,9 +320,6 @@ class Dashboard:
         # A browser reconnect is another full-state convergence edge. Replaying
         # the private listener is idempotent in the audition relay.
         self.osc.send_audition_listener()
-        await ws.send_json({"type": "venues", "data": {
-            "venues": self.state.list_venues(),
-            "current": self.state.data.get("name")}})
         await ws.send_json({"type": "shows", "data": {
             "names": show_model.list_shows(self.shows_dir),
             "current": self.state.data.get("current_show")}})
@@ -358,7 +355,7 @@ class Dashboard:
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
             "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room",
-            "set_point", "clear_point", "save_venue", "load_venue",
+            "set_point", "clear_point", "select_site",
             "set_facilitator_commands",
             "monitor_send", "monitor_probe",
         }
@@ -367,7 +364,7 @@ class Dashboard:
             "replay_live_params",
             "set_fleet_patch",
             "set_room", "set_point", "clear_point",
-            "save_venue", "load_venue",
+            "select_site",
         }
         # Editor-scoped writes are not fleet execution controls: they target
         # the audition engine Patch Edit owns. The
@@ -883,7 +880,11 @@ class Dashboard:
             if str(seat_id) in self.state.seats:
                 await self.ws_error(ws, f"Seat ID {seat_id} already exists.")
                 return
+            positions = self.state.clean_positions(data.get("positions", []))
+            if positions is None:
+                return
             self.state.seats[str(seat_id)] = seat
+            self.state.data["positions"][str(seat_id)] = positions
             self.state.save_debounced()
             if self.state.data["simulation"].get("active"):
                 if self.supervisor_mode == "simulate":
@@ -939,12 +940,17 @@ class Dashboard:
             if seat is None:
                 return
             candidate = dict(seat)
-            for key in ("name", "positions", "params"):
+            for key in ("name", "params"):
                 if key in data:
                     candidate[key] = data[key]
             cleaned = self.state.clean_seat(candidate)
             if cleaned is None:
                 return
+            if "positions" in data:
+                positions = self.state.clean_positions(data["positions"])
+                if positions is None:
+                    return
+                self.state.data["positions"][str(cleaned["id"])] = positions
             self.state.seats[str(cleaned["id"])] = cleaned
             self.assign_seat(cleaned)
             self.state.save_debounced()
@@ -1114,54 +1120,22 @@ class Dashboard:
                 await self.broadcast("listener", listener)
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
-        elif kind == "save_venue":
-            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
-            if name:
-                try:
-                    self.state.save_venue(name)
-                except (OSError, TypeError, ValueError):
-                    await self.ws_error(ws, "The venue snapshot could not be saved.")
-                    await self.broadcast("state")
-                    return
-                await self.broadcast("venues", {"venues": self.state.list_venues(),
-                                                "current": self.state.data.get("name")})
-        elif kind == "load_venue":
-            name = str(data.get("name", "")).strip()
-            loaded, desired_seats = (self.state.read_venue(name)
-                                     if name in self.state.list_venues() else (None, None))
-            if loaded is None:
-                await self.ws_error(ws, "That venue could not be loaded.")
+        elif kind == "select_site":
+            name = data.get("name")
+            if not self.state.valid_site_name(name):
+                return
+            try:
+                self.state.select_site(name)
+            except (OSError, TypeError, ValueError):
+                self.state._load_invalid = True
+                self.state._invalid_file_notice(self.state.site_path(name))
                 await self.broadcast("state")
                 return
-            desired = {seat.get("bound"): seat["id"] for seat in desired_seats.values()
-                       if seat.get("bound")}
-            changed_uids = []
-            for current in self.state.seats.values():
-                current_uid = current.get("bound")
-                if current_uid and desired.get(current_uid) != current["id"]:
-                    changed_uids.append(current_uid)
-                    if not await self.revoke_online(current_uid, ws, "load this venue"):
-                        self.replay_current_assignments()
-                        return
-            if self.state.load_venue(name, (loaded, desired_seats)):
-                for changed_uid in changed_uids:
-                    self.mark_offline_revoking(changed_uid)
-                if (self.state.data["simulation"].get("active")
-                        and self.supervisor_mode == "simulate"):
-                    await self.restart_simulation()
-                for seat in self.state.seats.values():
-                    if seat.get("bound"):
-                        self.assign_seat(seat)
-                        self.osc.request(seat["bound"], "patches")
-                self.osc.send_audition_listener()
-                await self.broadcast("state")
-                await self.broadcast("venue_rebind", self.state.last_venue_rebind)
-                await self.broadcast("venues", {"venues": self.state.list_venues(),
-                                                "current": self.state.data.get("name")})
-                await self.broadcast("show_warnings", self.show_warnings())
-            else:
-                self.replay_current_assignments()
-                await self.ws_error(ws, "The venue could not be saved as current; no dashboard state changed.")
+            for seat in self.state.seats.values():
+                self.assign_seat(seat)
+                self.sync_seat_groups(seat)
+            self.osc.send_audition_listener()
+            await self.broadcast("state")
         elif kind == "list_shows":
             await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
                                            "current": self.state.data.get("current_show")})
@@ -2251,7 +2225,7 @@ class Dashboard:
     def assign_seat(self, seat):
         uid = seat.get("bound")
         if uid in self.state.devices:
-            self.osc.assign(uid, seat["id"], seat["name"], seat["positions"])
+            self.osc.assign(uid, seat["id"], seat["name"], self.state.positions_for(seat["id"]))
             self.state.devices[uid]["params"] = dict(seat["params"])
             if self.state.devices[uid].get("online"):
                 self.state.devices[uid]["revoking_assignment"] = False
@@ -2259,7 +2233,7 @@ class Dashboard:
             for virtual_uid, device in self.state.devices.items():
                 if (device.get("virtual")
                         and str(device.get("seat_id")) == str(seat["id"])):
-                    self.osc.assign(virtual_uid, seat["id"], seat["name"], seat["positions"])
+                    self.osc.assign(virtual_uid, seat["id"], seat["name"], self.state.positions_for(seat["id"]))
 
     def sync_seat_groups(self, seat):
         uid = seat.get("bound")
@@ -2539,7 +2513,7 @@ def create_app(args):
         lines = ["uid, name, id, pos1, pos2"]
         for seat in sorted(dashboard.state.seats.values(), key=lambda item: item["id"]):
             row = [seat.get("bound") or "", seat.get("name") or "", str(seat["id"])]
-            for position in seat.get("positions", [])[:2]:
+            for position in dashboard.state.positions_for(seat["id"])[:2]:
                 row.append(" ".join(format(value, "g") for value in position))
             lines.append(", ".join(row))
         return PlainTextResponse("\n".join(lines) + "\n")

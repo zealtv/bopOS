@@ -1,5 +1,5 @@
 // The standalone Remote view: one ControlColumn, plus the page furniture that
-// only this document has (venue name, master, mute).
+// only this document has (site name, master, mute).
 //
 // Until `3-iframe-retirement` this file was BOTH hosts — the Control tab
 // embedded this same page as an iframe with `?embedded=1`, and four behaviours
@@ -126,7 +126,7 @@ function render() {
 }
 
 function renderPageFurniture() {
-  $("#venue-name").textContent = installation.name || "bopOS";
+  $("#venue-name").textContent = installation.current_site || "bopOS";
   renderControls();
 }
 

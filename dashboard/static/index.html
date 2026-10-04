@@ -73,7 +73,6 @@
         </div>
         <div id="seat-sidebar-panel" role="tabpanel" aria-labelledby="seat-sidebar-tab">
           <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div>
-          <p id="venue-rebind" class="dim" hidden></p>
           <label class="seat-roster-filter">Filter Seats <input id="seat-roster-filter" type="text" placeholder="Names beginning with…"></label>
           <div id="assigned" class="seat-roster-list"></div>
           <p id="seat-roster-filter-empty" class="dim" hidden>No Seat names begin with this filter.</p>
@@ -83,7 +82,7 @@
           <div class="section-head"><div><h2>Groups</h2><small id="groups-summary" class="dim">0 shown · 0 total</small></div><button id="group-create">Create group</button></div>
           <div id="groups-content"></div>
         </div>
-        <div id="venue-bar" class="seat-inspector-section"><h3>Venue</h3><select id="venue-select"></select><button id="venue-load">Load</button><button id="venue-save">Save as…</button></div>
+        <div class="seat-inspector-section"><label>Site <select id="site-select" aria-label="Site"></select></label></div>
       </aside>
     </section>
     <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>

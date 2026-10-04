@@ -202,7 +202,7 @@ def main():
                 })""")
                 check("every connect-burst type is retained for replay",
                       set(observed["retained"]) >= {
-                          "state", "distribution", "venues", "shows",
+                          "state", "distribution", "shows",
                           "show", "show_warnings", "show_playback"},
                       repr(observed["retained"]))
                 check("more than one consumer registered for state",
@@ -222,11 +222,11 @@ def main():
                   const timer = setTimeout(() => resolve("__never__"), 5000);
                   ws.on('state', data => {
                     clearTimeout(timer);
-                    resolve(data?.name);
+                    resolve(data?.project);
                   });
                 })""")
                 check("a handler registered later still receives the state",
-                      current == "Snapshot replay rig", repr(current))
+                      current == "default", repr(current))
 
                 check("no page errors", not errors, repr(errors))
                 browser.close()

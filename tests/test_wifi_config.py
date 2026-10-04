@@ -185,7 +185,7 @@ class FleetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sent, request(secret))
         self.assertEqual(Path(dash.wifi_secrets.path).stat().st_mode & 0o777, 0o600)
         self.assertEqual(json.loads(Path(dash.wifi_secrets.path).read_text())["secrets"], {"show": secret})
-        dash.state.save_venue("test")
+        dash.state._write_json(dash.state.site_path("test"), dash.state.site_document())
         public = await dash.public_state()
         self.assertEqual(public["devices"]["node-a"]["wifi_sync"], "sending…")
         self.assertNotIn(secret, json.dumps(public) + json.dumps(self.messages) + json.dumps(self.events))
@@ -224,9 +224,9 @@ class FleetTests(unittest.IsolatedAsyncioTestCase):
         report = {"uid": "node-a", "wifi": dict(observed(), psk=secret)}
         dash.osc.handle("/os/report", [json.dumps(report)], "192.0.2.1")
         self.assertNotIn(secret, json.dumps(self.events) + json.dumps(await dash.public_state()))
-        dash.state.save_venue("venue")
+        dash.state._write_json(dash.state.site_path("venue"), dash.state.site_document())
         dash.state.data["wifi"] = {"country": "AU", "networks": []}
-        dash.state.load_venue("venue")
+        dash.state.select_site("venue")
         self.assertEqual(dash.state.data["wifi"], {"country": "AU", "networks": []})
 
     async def test_changed_secret_survives_restart_until_acknowledged(self):

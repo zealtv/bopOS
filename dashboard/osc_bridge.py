@@ -1194,7 +1194,7 @@ class OSCBridge:
                 for seat in self.state.seats.values():
                     uid = seat.get("bound")
                     if uid and uid.startswith("audition-") and uid in self.state.devices:
-                        self.assign(uid, seat["id"], seat["name"], seat["positions"])
+                        self.assign(uid, seat["id"], seat["name"], self.state.positions_for(seat["id"]))
                 self.send_audition_listener()
             return
         if address == "/hb" and len(args) >= 4:
@@ -1291,7 +1291,7 @@ class OSCBridge:
                 # nodes' ordered positions after the relay restarts. The ack
                 # heartbeat advertises configured_id while already online, so
                 # it cannot form a resend loop.
-                self.assign(uid, configured_id, seat["name"], seat["positions"])
+                self.assign(uid, configured_id, seat["name"], self.state.positions_for(seat["id"]))
                 self._assign_replayed[uid] = now
             if configured and not reassign and advertised_id == configured_id:
                 desired_groups = tuple(seat.get("groups", []))

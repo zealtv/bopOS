@@ -9,7 +9,6 @@ let groupMemberFilter = "";
 let seatRosterFilter = "";
 let seatSidebarMode = "seats";
 let groupMessage = "";
-let venueRebind = null;
 let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
@@ -233,25 +232,15 @@ ws.on("error", data => {
   }
   alert(data.message);
 });
-let venues = {venues: [], current: null};
-ws.on("venues", data => { venues = data; renderVenues(); });
-ws.on("venue_rebind", data => { venueRebind = data; render(); });
 ws.on("seat_reindexed", data => {
   selectedSeat=Number(data.new_id); selected=occupant(installation.seats?.[String(selectedSeat)])?.uid||null; render();
 });
-function renderVenues() {
-  const select = $("#venue-select"); if (!select) return;
-  const options = venues.venues.map(name => `<option ${name===venues.current?'selected':''}>${esc(name)}</option>`).join("");
-  select.innerHTML = options || '<option disabled>none saved</option>';
-}
-(function bindVenues() {
-  const save = $("#venue-save"), load = $("#venue-load");
-  if (save) save.onclick = () => { const name = prompt("Save current installation as:", venues.current || ""); if (name) ws.send("save_venue", {name}); };
-  if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
-})();
 function render() {
   $("#project-bar-project").textContent=installation.project||"—";
-  $("#project-bar-site").textContent=installation.name||"—";
+  $("#project-bar-site").textContent=installation.current_site||"—";
+  const siteSelect = $("#site-select");
+  siteSelect.innerHTML = (installation.sites || []).map(name => `<option value="${esc(name)}" ${name===installation.current_site?"selected":""}>${esc(name)}</option>`).join("");
+  siteSelect.onchange = () => ws.send("select_site", {name:siteSelect.value});
   $("#project-bar-patch").textContent=installation.fleet_patch?.name||"—";
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
@@ -291,15 +280,7 @@ function render() {
     const id=nextFreeId(); selectedSeat=id; selected=null;
     ws.send("add_seat",{id,name:`Seat ${id}`,positions:[]});
   };
-  const rebind=$("#venue-rebind");
-  if (rebind) {
-    rebind.hidden=!venueRebind;
-    const labels=entries=>(entries||[]).map(entry=>{
-      const seat=installation.seats?.[String(entry.id)];
-      return `${seat?.name||`Seat ${entry.id}`} (${entry.uid})`;
-    }).join(', ')||'none';
-    rebind.textContent=venueRebind ? `Rebound: ${labels(venueRebind.rebound)} · Waiting: ${labels(venueRebind.waiting)}` : '';
-  }
+
   renderEditor();
   renderFleetPatch();
   renderAssets();
@@ -1130,7 +1111,7 @@ function renderSeatDetail() {
   // column already showing this Seat, else append one -- and it performs the
   // tab switch the ambient version never did.
   $("#seat-open-control").onclick=()=>{window.ControlHost?.openSeat(Number(seat.id));activateTab("control");};
-  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Live parameter values follow the new ID; saved venues stay unchanged.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
+  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Live parameter values follow the new ID.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
   $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its live parameter values will also be removed.`))ws.send("remove_seat",{id:seat.id});};
   panel.querySelectorAll("[data-seat-group]").forEach(input=>input.onchange=()=>{const next=new Set((seat.groups||[]).map(Number));input.checked?next.add(Number(input.dataset.seatGroup)):next.delete(Number(input.dataset.seatGroup));seat.groups=[...next].sort((a,b)=>a-b);ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});renderGroups();renderGroupMap();Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());});
   const chosen=()=>$("#seat-device").value;

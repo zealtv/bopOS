@@ -24,7 +24,7 @@
   // pins this list against the server's actual connect burst, because the two
   // are genuinely coupled and drift would reintroduce the bug in silence.
   const SNAPSHOT_TYPES = new Set([
-    "state", "distribution", "venues", "shows",
+    "state", "distribution", "shows",
     "show", "show_warnings", "show_playback",
   ]);
 

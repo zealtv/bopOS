@@ -255,8 +255,8 @@
       if (!target.startsWith("group:")) return [];
       const name = target.slice(6);
       const matches = catalog.filter(group => group.name === name);
-      if (!matches.length) return [`Group "${name}" does not exist in this venue.`];
-      if (matches.length > 1) return [`Group "${name}" is ambiguous in this venue.`];
+      if (!matches.length) return [`Group "${name}" does not exist in this project.`];
+      if (matches.length > 1) return [`Group "${name}" is ambiguous in this project.`];
       return [];
     });
   }

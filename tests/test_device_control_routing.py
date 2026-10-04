@@ -45,6 +45,9 @@ class State:
             "physical-1": {"device_enabled": True},
         }
 
+    def positions_for(self, seat_id):
+        return []
+
     def public(self):
         return self.data
 

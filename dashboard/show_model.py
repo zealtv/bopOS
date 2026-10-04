@@ -150,7 +150,7 @@ def _group_entries(groups):
 
 
 def resolve_targets(value, groups):
-    """Resolve portable group names to the current venue's wire selectors.
+    """Resolve portable group names to the current project's wire selectors.
 
     Missing or ambiguous names are omitted from the result and returned as
     non-blocking warnings. Other valid selectors pass through unchanged.
@@ -177,14 +177,14 @@ def resolve_targets(value, groups):
             warnings.append({
                 "code": "missing_group",
                 "target": target,
-                "message": f'Group "{name}" does not exist in this venue.',
+                "message": f'Group "{name}" does not exist in this project.',
             })
             continue
         if len(matches) > 1:
             warnings.append({
                 "code": "ambiguous_group",
                 "target": target,
-                "message": f'Group "{name}" is ambiguous in this venue.',
+                "message": f'Group "{name}" is ambiguous in this project.',
             })
             continue
         selector = f'g{matches[0]["id"]}'
@@ -676,7 +676,7 @@ def remove_message(show, uid):
 
 # --------------------------------------------------------------------------
 # Persistence -- dashboard/shows/<name>.json, atomic .tmp+os.replace like
-# InstallationState.venues_dir()/save_venue()/read_venue().
+# The project and its site geometry are held by InstallationState.
 # --------------------------------------------------------------------------
 
 def shows_dir(state_path):

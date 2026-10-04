@@ -220,7 +220,7 @@ def main():
                 page.wait_for_function(
                     "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'Front'")
 
-                check("saved Show carries the group name, not the venue id",
+                check("saved Show carries the group name, not the project group id",
                       wait_for(lambda: saved_messages()[0]["target"] == ["group:Front"]
                                if saved_messages() else False),
                       repr(saved_messages()))

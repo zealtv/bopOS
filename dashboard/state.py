@@ -126,7 +126,7 @@ class InstallationState:
         self.path = os.path.join(self.data_dir, "projects",
                                  self.project if not selection_invalid else "default",
                                  "project.json")
-        self.data = {"schema": SCHEMA, "name": "bopOS", "seats": {},
+        self.data = {"schema": SCHEMA, "current_site": "default", "positions": {}, "seats": {},
                      "groups": {}, "next_group_id": 0,
                      "devices": {}, "device_registry": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0,
@@ -145,13 +145,15 @@ class InstallationState:
         self._load_invalid = False
         self._registry_migrated = False
         self._group_names_migrated = False
-        self.last_venue_rebind = {"rebound": [], "waiting": []}
+        self._site_remaps = {}
         if selection_invalid:
             self._load_invalid = True
             self._invalid_file_notice(self.current_path)
         else:
             self._load_registry()
             self._load()
+            if not self._load_invalid:
+                self._load_site()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
         changed = self._registry_migrated or self._group_names_migrated
@@ -199,10 +201,13 @@ class InstallationState:
                     self._load_invalid = True
                     self._invalid_file_notice(self.path)
                     return
-                self.data["name"] = loaded.get("name", "bopOS")
-                room = self.clean_room(loaded.get("room"))
-                if room is not None:
-                    self.data["room"] = room
+                current_site = loaded.get("current_site", "default")
+                if (not self.valid_site_name(current_site) or any(key in loaded for key in ("room", "listener", "name"))
+                        or any("positions" in seat for seat in loaded["seats"].values())):
+                    self._load_invalid = True
+                    self._invalid_file_notice(self.path)
+                    return
+                self.data["current_site"] = current_site
                 self.data["master"] = self.clean_master(loaded.get("master"))
                 self.data["event_lead_ms"] = self.clean_event_lead_ms(
                     loaded.get("event_lead_ms"))
@@ -215,16 +220,13 @@ class InstallationState:
                 if self.data["fleet_patch"]:
                     # simulation["patch"] is a read-through of the fleet choice
                     self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
-                listener = self.clean_listener(loaded.get("listener"))
-                if listener is not None:
-                    self.data["listener"] = listener
                 self.data["seats"] = rebuilt
                 self.data["groups"] = groups
                 if adoptions:
                     self._group_names_migrated = True
                     self.data["notices"].append(
                         self.group_name_adoption_notice(
-                            self.data["name"], adoptions))
+                            self.project, adoptions))
                 self.data["next_group_id"] = next_group_id
             else:
                 self._load_invalid = True
@@ -255,9 +257,7 @@ class InstallationState:
             self._invalid_file_notice(self.registry_path)
 
     def _invalid_file_notice(self, path):
-        recovery = ('Repair the file and restart the dashboard before saving.'
-                    if path in (self.path, self.registry_path, self.current_path) else
-                    'Repair the file before loading or saving this venue.')
+        recovery = 'Repair the file and restart the dashboard before saving.'
         notice = (f'State file "{path}" could not be fully loaded. '
                   'The original file is preserved and saving is blocked. '
                   + recovery)
@@ -327,7 +327,8 @@ class InstallationState:
                         or any(seat.get("bound") == uid for seat in self.seats.values())):
                     continue
                 self.seats[str(device_id)] = {"id": device_id, "name": name,
-                    "positions": positions, "params": {}, "groups": [], "bound": uid}
+                    "params": {}, "groups": [], "bound": uid}
+                self.data["positions"][str(device_id)] = positions
 
     def ensure(self, uid):
         if uid not in self.devices:
@@ -412,11 +413,13 @@ class InstallationState:
         return True
 
     def public(self):
-        return dict(self.data, project=self.project)
+        # Geometry is a derived view for map/inspector clients, never Seat storage.
+        return dict(self.data, project=self.project, sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
+                    seats={key: dict(seat, positions=self.positions_for(seat["id"]))
+                           for key, seat in self.seats.items()})
 
     def durable(self):
-        return {"schema": SCHEMA, "name": self.data.get("name", "bopOS"),
-                "room": self.data.get("room", dict(self.DEFAULT_ROOM)),
+        return {"schema": SCHEMA, "current_site": self.data["current_site"],
                 "master": self.data.get("master", 1.0),
                 "event_lead_ms": self.clean_event_lead_ms(
                     self.data.get("event_lead_ms")),
@@ -425,7 +428,6 @@ class InstallationState:
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
                 "wifi": wifi_config.clean_list(self.data.get("wifi")),
                 "current_show": self.clean_current_show(self.data.get("current_show")),
-                "listener": dict(self.data["listener"]),
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
                 "next_group_id": self.data.get("next_group_id", 0),
@@ -455,9 +457,6 @@ class InstallationState:
         seat_id = self.clean_seat_id(value.get("id"))
         if seat_id is None:
             return None
-        positions = self.clean_positions(value.get("positions", []))
-        if seat_id < 0 or positions is None:
-            return None
         name = str(value.get("name", "")).strip()[:32]
         # no per-seat patch: the desired patch is fleet-scoped (fp-0, Bob Q1);
         # a "patch" key in an older state file is dropped silently here
@@ -470,7 +469,7 @@ class InstallationState:
             bound = bound.strip()
         if groups is None:
             return None
-        return {"id": seat_id, "name": name, "positions": positions,
+        return {"id": seat_id, "name": name,
                 "params": dict(params) if isinstance(params, dict) else {},
                 "groups": groups,
                 "bound": bound}
@@ -587,13 +586,13 @@ class InstallationState:
         return rebuilt, changes
 
     @staticmethod
-    def group_name_adoption_notice(venue_name, changes):
+    def group_name_adoption_notice(project_name, changes):
         renames = ", ".join(
             f'g{change["id"]} '
             f'{change["from"] if change["from"] else "(blank)"} → {change["to"]}'
             for change in changes)
         return (
-            f'Venue "{venue_name}" group names were repaired for portable Shows: '
+            f'Project "{project_name}" group names were repaired for portable Shows: '
             f"{renames}."
         )
 
@@ -642,7 +641,7 @@ class InstallationState:
         if cleaned is None:
             return None, "Group names must be non-empty text."
         if not self.group_name_available(cleaned["name"]):
-            return None, "Group names must be unique within the venue."
+            return None, "Group names must be unique within the project."
         group_id = self.clean_next_group_id(
             self.data.get("next_group_id"), self.data.get("groups", {}))
         if group_id is None or group_id > MAX_GROUP_ID:
@@ -671,7 +670,7 @@ class InstallationState:
         if key not in self.data.get("groups", {}):
             return None, "Group no longer exists."
         if not self.group_name_available(candidate["name"], except_id=group_id):
-            return None, "Group names must be unique within the venue."
+            return None, "Group names must be unique within the project."
         previous = dict(self.data["groups"][key])
         self.data["groups"][key] = candidate
         try:
@@ -760,10 +759,12 @@ class InstallationState:
             return None, "The reindexed Seat would make the installation invalid."
         previous_seats = self.data["seats"]
         self.data["seats"] = seats
+        self._site_remaps = {old_key: new_key}
         try:
             self.save()
         except (OSError, TypeError, ValueError):
             self.data["seats"] = previous_seats
+            self._site_remaps = {}
             return None, "Could not save the reindexed Seat; no changes were made."
         return seat, None
 
@@ -775,10 +776,12 @@ class InstallationState:
         seat = seats.pop(key)
         previous_seats = self.data["seats"]
         self.data["seats"] = seats
+        self._site_remaps = {key: None}
         try:
             self.save()
         except (OSError, TypeError, ValueError):
             self.data["seats"] = previous_seats
+            self._site_remaps = {}
             return None
         return seat
 
@@ -927,13 +930,13 @@ class InstallationState:
     def clean_facilitator_commands(value):
         if not isinstance(value, list):
             return []
-        # Venue files written by hand may list commands in any order. Publish
+        # Project files written by hand may list commands in any order. Publish
         # and persist one fixed order so the Remote controls never shuffle.
         return [command for command in FACILITATOR_COMMANDS
                 if command in value]
 
     def set_facilitator_commands(self, value):
-        """Persist the venue's Remote verb allowlist transactionally."""
+        """Persist the project's Remote verb allowlist transactionally."""
         previous = list(self.data.get("facilitator_commands", ()))
         self.data["facilitator_commands"] = self.clean_facilitator_commands(value)
         try:
@@ -995,23 +998,68 @@ class InstallationState:
 
     def save(self):
         self._require_valid_load()
-        self._write_json(self.registry_path, self.device_registry)
-        self._write_json(self.path, self.durable())
-        if not os.path.exists(self.current_path):
-            temporary = self.current_path + ".tmp"
-            with open(temporary, "w", encoding="utf-8") as target:
-                target.write(self.project + "\n")
-            os.replace(temporary, self.current_path)
+        documents = {self.registry_path: self.device_registry, self.path: self.durable()}
+        allowed = set(self.seats) | set(self._site_remaps)
+        current = self.clean_site(self.site_document(), allowed)
+        for name in set(self.list_sites()) | {self.data["current_site"]}:
+            site = current if name == self.data["current_site"] else self.read_site(name, allowed)
+            positions = dict(site["positions"])
+            for old, new in self._site_remaps.items():
+                value = positions.pop(old, [])
+                if new is not None:
+                    positions[new] = value
+            mapped = {key: positions.get(key, []) for key in self.seats}
+            if name != self.data["current_site"] and site["positions"] == mapped:
+                continue
+            site["positions"] = mapped
+            documents[self.site_path(name)] = site
+        backups, written = {}, []
+        try:
+            # Serialize first, before any destination can change.
+            bodies = {path: json.dumps(doc, indent=2, sort_keys=True) + "\n"
+                      for path, doc in documents.items()}
+            for path in bodies:
+                if os.path.islink(path):
+                    raise OSError("Refusing to replace a symlink")
+                if os.path.exists(path):
+                    with open(path, "rb") as source:
+                        backups[path] = source.read()
+                else:
+                    backups[path] = None
+            for path in bodies:
+                self._write_json(path, documents[path])
+                written.append(path)
+            if not os.path.exists(self.current_path):
+                temporary = self.current_path + ".tmp"
+                with open(temporary, "w", encoding="utf-8") as target:
+                    target.write(self.project + "\n")
+                os.replace(temporary, self.current_path)
+        except Exception:
+            for path in reversed(written):
+                if backups[path] is None:
+                    os.unlink(path)
+                else:
+                    temporary = path + ".tmp"
+                    with open(temporary, "wb") as target:
+                        target.write(backups[path])
+                    os.replace(temporary, path)
+            raise
+        self.data["positions"] = documents[self.site_path()]["positions"]
+        self._site_remaps = {}
 
     @staticmethod
     def _write_json(path, data):
         directory = os.path.dirname(os.path.abspath(path))
         os.makedirs(directory, exist_ok=True)
         temporary = path + ".tmp"
-        with open(temporary, "w", encoding="utf-8") as target:
-            json.dump(data, target, indent=2, sort_keys=True)
-            target.write("\n")
-        os.replace(temporary, path)
+        try:
+            with open(temporary, "w", encoding="utf-8") as target:
+                json.dump(data, target, indent=2, sort_keys=True)
+                target.write("\n")
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
     def save_debounced(self):
         if self._load_invalid:
@@ -1027,140 +1075,84 @@ class InstallationState:
         except asyncio.CancelledError:
             pass
 
-    def venues_dir(self):
-        directory = os.path.join(self.data_dir, "installations")
-        os.makedirs(directory, exist_ok=True)
-        return directory
+    @staticmethod
+    def valid_site_name(name):
+        return isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name) is not None
 
-    def list_venues(self):
+    def sites_dir(self):
+        return os.path.join(os.path.dirname(self.path), "sites")
+
+    def site_path(self, name=None):
+        name = self.data["current_site"] if name is None else name
+        if not self.valid_site_name(name):
+            raise ValueError("Site")
+        return os.path.join(self.sites_dir(), name + ".json")
+
+    def list_sites(self):
         try:
-            return sorted(name[:-5] for name in os.listdir(self.venues_dir())
-                          if name.endswith(".json"))
+            return sorted(name[:-5] for name in os.listdir(self.sites_dir())
+                          if name.endswith(".json") and self.valid_site_name(name[:-5]))
         except OSError:
             return []
 
-    def save_venue(self, name):
-        # Snapshot the durable state under a venue name; runtime liveness is
-        # not part of a venue.
-        self._require_valid_load()
-        path = os.path.join(self.venues_dir(), name + ".json")
-        if os.path.lexists(path) and self.read_venue(name)[0] is None:
-            raise OSError(f"Refusing to overwrite a venue that failed to load: {path}")
-        temporary = path + ".tmp"
-        snapshot = self.durable()
-        snapshot["name"] = name
-        # Physical-box identity belongs to this dashboard host, never a venue.
-        snapshot.pop("device_registry", None)
-        # Which show is loaded is an authoring-session fact, not venue
-        # topology (room/seats/patch) -- a venue load leaves it untouched.
-        snapshot.pop("current_show", None)
-        # Wi-Fi is project fleet configuration, not venue topology.
-        snapshot.pop("wifi", None)
-        with open(temporary, "w", encoding="utf-8") as target:
-            json.dump(snapshot, target, indent=2, sort_keys=True)
-            target.write("\n")
-        os.replace(temporary, path)
+    def positions_for(self, seat_id):
+        return self.data["positions"].get(str(seat_id), [])
 
-    def read_venue(self, name):
-        path = os.path.join(self.venues_dir(), name + ".json")
+    def site_document(self):
+        return {"room": copy.deepcopy(self.data["room"]),
+                "listener": dict(self.data["listener"]),
+                "positions": copy.deepcopy(self.data["positions"])}
+
+    def clean_site(self, doc, seat_ids=None):
+        if not isinstance(doc, dict) or set(doc) != {"room", "listener", "positions"}:
+            raise ValueError("Site")
+        room = self.clean_room(doc["room"])
+        positions = doc["positions"]
+        allowed = set(self.seats) if seat_ids is None else set(seat_ids)
+        if room is None or not isinstance(positions, dict) or not set(positions).issubset(allowed):
+            raise ValueError("Site")
+        cleaned = {key: self.clean_positions(value) for key, value in positions.items()}
+        if any(value is None for value in cleaned.values()):
+            raise ValueError("Site")
+        previous = self.data["room"]
         try:
-            with open(path, encoding="utf-8") as source:
-                loaded = json.load(source)
-        except (OSError, ValueError):
-            self._invalid_file_notice(path)
-            return None, None
-        if (not isinstance(loaded, dict) or loaded.get("schema") != SCHEMA
-                or not isinstance(loaded.get("seats"), dict)):
-            self._invalid_file_notice(path)
-            return None, None
-        adopted_groups, adoptions = self.adopt_group_names(
-            loaded.get("groups", {}))
-        groups = self.clean_groups(adopted_groups)
-        next_group_id = self.clean_next_group_id(
-            loaded.get("next_group_id"), groups,
-            missing="next_group_id" not in loaded)
-        rebuilt = self.clean_seats(loaded["seats"], groups)
-        if groups is None or next_group_id is None or rebuilt is None:
-            self._invalid_file_notice(path)
-            return None, None
-        loaded = {key: value for key, value in loaded.items()
-                  if key in self.durable()}
-        loaded["groups"] = groups
-        loaded["next_group_id"] = next_group_id
-        if adoptions:
-            persisted = dict(loaded)
-            temporary = path + ".tmp"
-            try:
-                with open(temporary, "w", encoding="utf-8") as target:
-                    json.dump(persisted, target, indent=2, sort_keys=True)
-                    target.write("\n")
-                os.replace(temporary, path)
-            except OSError:
-                try:
-                    os.remove(temporary)
-                except OSError:
-                    pass
-                return None, None
-            loaded["_group_name_adoptions"] = adoptions
-        return loaded, rebuilt
-
-    def load_venue(self, name, prepared=None):
-        # replace the current installation with a saved venue; keeps live
-        # runtime fields (online/ip/…) only for devices the venue also knows
-        loaded, source_seats = prepared or self.read_venue(name)
-        if loaded is None:
-            return False
-        rebuilt = {}
-        rebound, waiting = [], []
-        for key, source_seat in source_seats.items():
-            seat = dict(source_seat)
-            uid = seat.get("bound")
-            if uid not in self.devices or not self.devices[uid].get("online"):
-                if uid:
-                    waiting.append({"id": seat["id"], "uid": uid})
-            elif uid:
-                rebound.append({"id": seat["id"], "uid": uid})
-            rebuilt[str(seat["id"])] = seat
-        keys = ("name", "room", "master", "event_lead_ms", "facilitator_commands", "groups",
-                "next_group_id",
-                "fleet_patch", "listener", "seats", "simulation")
-        previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
-        previous_rebind = copy.deepcopy(self.last_venue_rebind)
-        self.data["name"] = name
-        room = self.clean_room(loaded.get("room"))
-        if room is not None:
             self.data["room"] = room
-        self.data["master"] = self.clean_master(loaded.get("master"))
-        self.data["event_lead_ms"] = self.clean_event_lead_ms(
-            loaded.get("event_lead_ms"))
-        self.data["facilitator_commands"] = self.clean_facilitator_commands(
-            loaded.get("facilitator_commands"))
-        self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
-        if self.data["fleet_patch"]:
-            self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
-        else:
-            self.data["simulation"].pop("patch", None)
-        self.data["listener"] = (self.clean_listener(loaded.get("listener"))
-                                 or self.default_listener())
-        self.data["groups"] = loaded.get("groups", {})
-        # Venue structure can roll back, but the wire-identity allocator never
-        # may: nodes offline during a venue load can retain any ID ever issued.
-        self.data["next_group_id"] = max(
-            int(self.data.get("next_group_id", 0)),
-            int(loaded.get("next_group_id", 0)))
-        self.data["seats"] = rebuilt
-        self.last_venue_rebind = {"rebound": rebound, "waiting": waiting}
+            listener = self.clean_listener(doc["listener"])
+        finally:
+            self.data["room"] = previous
+        if listener is None:
+            raise ValueError("Site")
+        return {"room": room, "listener": listener, "positions": cleaned}
+
+    def read_site(self, name, seat_ids=None):
+        with open(self.site_path(name), encoding="utf-8") as source:
+            return self.clean_site(json.load(source), seat_ids)
+
+    def _load_site(self):
+        try:
+            site = self.read_site(self.data["current_site"])
+            self.data.update(site)
+        except (OSError, ValueError, TypeError):
+            # A wholly new project can start with an empty default room.
+            if not os.path.lexists(self.path) and not os.path.lexists(self.site_path()):
+                return
+            self._load_invalid = True
+            self._invalid_file_notice(self.site_path())
+
+    def select_site(self, name):
+        self._require_valid_load()
+        if name == self.data["current_site"]:
+            return True
+        site = self.read_site(name)
+        # Flush the outgoing site's last edits before changing the pointer.
+        self.save()
+        previous = {key: self.data[key] for key in ("current_site", "room", "listener", "positions")}
+        self.data.update(site, current_site=name)
         try:
             self.save()
-        except (OSError, TypeError, ValueError):
-            for key, value in previous.items():
-                self.data[key] = value
-            self.last_venue_rebind = previous_rebind
-            return False
-        adoptions = loaded.get("_group_name_adoptions", [])
-        if adoptions:
-            self.data["notices"].append(
-                self.group_name_adoption_notice(name, adoptions))
+        except (OSError, ValueError, TypeError):
+            self.data.update(previous)
+            raise
         return True
 
     async def close(self):

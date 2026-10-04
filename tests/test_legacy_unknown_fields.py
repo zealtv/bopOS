@@ -67,25 +67,6 @@ class VenueUnknownFieldRetirementTests(unittest.TestCase):
             self.assertEqual(state.delete_seat(5)["id"], 5)
             self.assertEqual(state.seats, {})
 
-    def test_legacy_venue_snapshot_loads_without_propagating_obsolete_field(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            state = InstallationState(data_root(str(project_path(root))))
-            venues = root / "installations"
-            venues.mkdir()
-            venue_path = venues / "legacy.json"
-            venue_path.write_text(
-                json.dumps(legacy_document()), encoding="utf-8")
-
-            loaded, seats = state.read_venue("legacy")
-
-            self.assertNotIn("obsolete_field", loaded)
-            self.assertTrue(state.load_venue("legacy", (loaded, seats)))
-            self.assertNotIn("obsolete_field", state.public())
-            state.save_venue("legacy")
-            self.assertNotIn(
-                "obsolete_field", json.loads(venue_path.read_text(encoding="utf-8")))
-
 
 if __name__ == "__main__":
     unittest.main()

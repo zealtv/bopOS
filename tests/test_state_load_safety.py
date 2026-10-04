@@ -1,5 +1,5 @@
 from project_fixture import project_path, data_root
-"""A failed installation/venue load must never destroy its source file."""
+"""A failed project/site load must never destroy its source file."""
 import asyncio
 import ast
 import copy
@@ -16,9 +16,9 @@ from state import InstallationState
 
 
 def document():
-    return {"schema": 1, "name": "Room", "groups": {"0": {"id": 0, "name": "Front"}},
+    return {"schema": 1, "current_site": "default", "groups": {"0": {"id": 0, "name": "Front"}},
             "next_group_id": 1, "device_registry": {}, "seats": {
-                "2": {"id": 2, "name": "Seat 2", "positions": [[1, 2]],
+                "2": {"id": 2, "name": "Seat 2",
                       "groups": [0], "bound": "node-a", "params": {"gain": .4}}}}
 
 
@@ -30,7 +30,7 @@ def invalid_documents():
         doc = document()
         doc[key] = value
         yield json.dumps(doc).encode()
-    for key, value in (("groups", [9]), ("positions", [["bad", 2]]), ("bound", 4)):
+    for key, value in (("groups", [9]), ("bound", 4)):
         doc = document()
         doc["seats"]["2"][key] = value
         yield json.dumps(doc).encode()
@@ -43,7 +43,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.path = project_path(self.root)
 
-    def test_invalid_files_preserved_after_ordinary_and_venue_saves(self):
+    def test_invalid_files_preserved_after_ordinary_saves(self):
         for original in invalid_documents():
             with self.subTest(original=original):
                 self.path.write_bytes(original)
@@ -54,11 +54,8 @@ class StateLoadSafetyTests(unittest.TestCase):
                 state.ensure_device_alias("new-node")
                 with self.assertRaises(OSError):
                     state.save()
-                with self.assertRaises(OSError):
-                    state.save_venue("empty")
                 self.assertEqual(self.path.read_bytes(), original)
                 self.assertFalse(Path(str(self.path) + ".tmp").exists())
-                self.assertFalse((self.root / "installations/empty.json").exists())
 
     def test_unreadable_file_blocks_later_writes(self):
         original = json.dumps(document()).encode()
@@ -98,22 +95,6 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.assertEqual(self.path.read_bytes(), original)
         self.assertIn("Repair the file", state.public()["notices"][0])
 
-    def test_invalid_venue_preserves_current_state_and_cannot_be_overwritten(self):
-        self.path.write_text(json.dumps(document()))
-        state = InstallationState(data_root(str(self.path)))
-        before = copy.deepcopy(state.durable())
-        original = b'{"schema":1,"seats":{"2":{"id":2,"groups":[99]}}}'
-        venue = Path(state.venues_dir()) / "broken.json"
-        venue.write_bytes(original)
-        self.assertFalse(state.load_venue("broken"))
-        self.assertEqual(state.durable(), before)
-        self.assertEqual(venue.read_bytes(), original)
-        with self.assertRaises(OSError):
-            state.save_venue("broken")
-        self.assertEqual(venue.read_bytes(), original)
-        self.assertEqual(len(state.public()["notices"]), 1)
-        state.save()
-        self.assertEqual(InstallationState(data_root(str(self.path))).durable(), before)
 
     def test_name_adoption_cannot_rewrite_an_otherwise_invalid_file(self):
         doc = document()
@@ -123,10 +104,6 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.path.write_bytes(original)
         state = InstallationState(data_root(str(self.path)))
         self.assertEqual(self.path.read_bytes(), original)
-        venue = Path(state.venues_dir()) / "broken.json"
-        venue.write_bytes(original)
-        self.assertEqual(state.read_venue("broken"), (None, None))
-        self.assertEqual(venue.read_bytes(), original)
 
     def test_retired_patch_fields_are_stripped_on_load_and_save(self):
         doc = document()
@@ -142,12 +119,6 @@ class StateLoadSafetyTests(unittest.TestCase):
         saved = json.loads(self.path.read_text())
         self.assertNotIn("params_patch", saved)
         self.assertNotIn("previous", saved["fleet_patch"])
-        venue = Path(state.venues_dir()) / "legacy.json"
-        venue.write_text(json.dumps(doc))
-        self.assertTrue(state.load_venue("legacy"))
-        self.assertNotIn("params_patch", state.public())
-        self.assertNotIn("previous", state.data["fleet_patch"])
-
 
     def test_parameter_reconciliation_uses_the_fleet_patch_name(self):
         self.path.write_text(json.dumps(document()))
@@ -168,8 +139,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.path.write_text(json.dumps(document()))
         state = InstallationState(data_root(str(self.path)))
         state.data["master"] = .25
-        state.save_venue("valid")
-        self.assertTrue(state.load_venue("valid"))
+        state.save()
         self.assertEqual(InstallationState(data_root(str(self.path))).data["master"], .25)
         self.assertEqual(state.public()["notices"], [])
 

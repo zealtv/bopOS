@@ -13,6 +13,7 @@ import tempfile
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "dashboard"))
 from state import InstallationState
+from migrate_sites import split_geometry, venue_sites
 
 
 def migrate(source, data_dir, project=None):
@@ -36,7 +37,13 @@ def migrate(source, data_dir, project=None):
         staging = Path(temporary)
         path = staging / "projects" / project / "project.json"
         path.parent.mkdir(parents=True)
-        path.write_text(json.dumps(doc), encoding="utf-8")
+        project_body, default_site = split_geometry(doc)
+        sites, skipped = venue_sites(source.parent / "installations", project_body["seats"])
+        sites["default"] = default_site
+        (path.parent / "sites").mkdir()
+        for name, site in sites.items():
+            (path.parent / "sites" / (name + ".json")).write_text(json.dumps(site))
+        path.write_text(json.dumps(project_body), encoding="utf-8")
         (staging / "devices.json").write_text(
             json.dumps(doc.get("device_registry", {})), encoding="utf-8")
         (staging / "current-project").write_text(project + "\n", encoding="utf-8")
@@ -47,6 +54,13 @@ def migrate(source, data_dir, project=None):
     directory.mkdir(parents=True, exist_ok=False)
     created = []
     try:
+        (directory / "sites").mkdir()
+        for name, site in sites.items():
+            site_path = directory / "sites" / (name + ".json")
+            with site_path.open("x", encoding="utf-8") as target:
+                created.append(site_path)
+                json.dump(site, target, indent=2, sort_keys=True)
+                target.write("\n")
         for path, body in zip(destinations, (
                 json.dumps(project_doc, indent=2, sort_keys=True) + "\n",
                 json.dumps(registry, indent=2, sort_keys=True) + "\n", project + "\n")):
@@ -56,8 +70,11 @@ def migrate(source, data_dir, project=None):
     except Exception:
         for path in reversed(created):
             path.unlink()
+        (directory / "sites").rmdir()
         directory.rmdir()
         raise
+    for path, reason in skipped:
+        print(f"Left {path}: {reason}")
     return destinations
 
 

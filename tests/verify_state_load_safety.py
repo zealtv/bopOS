@@ -50,9 +50,7 @@ def check_notice_themes(page, surface, artifact_dir):
 
 def run_phase(root, page, invalid_start, artifact_dir=None):
     state_path = project_path(root)
-    venue = root / "installations" / "broken.json"
     original = state_path.read_bytes()
-    venue_original = venue.read_bytes()
     port = free_port(socket.SOCK_STREAM)
     base = f"http://127.0.0.1:{port}"
     log_path = root / ("invalid.log" if invalid_start else "repaired.log")
@@ -149,22 +147,6 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
                     time.sleep(.1)
                 original = state_path.read_bytes()
                 print("[PASS] repaired startup permits ordinary saves again")
-                page.evaluate("ws.send('load_venue', {name: 'broken'})")
-                notice = page.locator("#installation-notice")
-                notice.wait_for(state="visible")
-                assert str(venue) in notice.inner_text()
-                assert state_path.read_bytes() == original
-                print("[PASS] rejected venue is broadcast as a visible notice without changing current state")
-
-            page.evaluate("""() => {
-                window.saveError = '';
-                ws.on('error', data => window.saveError = data.message);
-                ws.send('save_venue', {name: 'broken'});
-            }""")
-            page.wait_for_function("window.saveError.includes('could not be saved')")
-            assert venue.read_bytes() == venue_original
-            assert state_path.read_bytes() == original
-            print("[PASS] saving over the invalid venue is refused without changing either file")
             if invalid_start:
                 page.reload()
                 page.wait_for_selector("#installation-notice", state="visible")
@@ -182,8 +164,7 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
                 server.kill()
                 server.wait(timeout=5)
     assert state_path.read_bytes() == original
-    assert venue.read_bytes() == venue_original
-    print("[PASS] shutdown preserves both source files")
+    print("[PASS] shutdown preserves the source file")
 
 
 def main():
@@ -194,12 +175,11 @@ def main():
         args.artifact_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="bopos-load-safety-") as temporary:
         root = Path(temporary)
-        for name in ("assets", "patches", "installations"):
+        for name in ("assets", "patches"):
             (root / name).mkdir()
-        invalid = {"schema": 1, "name": "Room", "seats": {
-            "2": {"id": 2, "groups": [99], "positions": [[1, 2]]}}}
+        invalid = {"schema": 1, "current_site": "default", "seats": {
+            "2": {"id": 2, "groups": [99]}}}
         (project_path(root)).write_text(json.dumps(invalid))
-        (root / "installations/broken.json").write_text(json.dumps(invalid))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             context = browser.new_context(viewport={"width": 1280, "height": 900})

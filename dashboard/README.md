@@ -39,7 +39,7 @@ Then open:
 - **<http://localhost:8080/>** — Show, Dashboard, Seats, Devices, Patches,
   and Assets tabs. The landed controls cover device inspection, spatial
   authoring, patch editing, host-to-node distribution, discovery/assignment,
-  synced events, venues, single-device asset delivery, and
+  synced events, sites, single-device asset delivery, and
   show authoring/playback (see "The Show tab" below).
 - **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
   with the patch's promoted (`dashboard: true`) params as labelled controls,
@@ -200,31 +200,38 @@ ignored when loaded and stripped on the next save; the editor no longer shows
 them.
 
 Project state lives in `dashboard/projects/<project>/project.json` (Seats,
-groups, fleet patch, positions, room, listener, master and Remote commands).
+groups, fleet patch, current site, master and Remote commands). Geometry lives
+in `projects/<project>/sites/<site>.json`: room, listener and a positions map
+keyed by Seat id. Seats have no stored positions.
 The host device registry lives in `dashboard/devices.json`, and
 `dashboard/current-project` names the open project. The Seats and Devices tabs let
 you type each element's x/y relative to that origin; the dashboard converts it
-through the same assignment path used by map dragging. Named snapshots live in
-`dashboard/installations/<venue>.json`
-via the Venue save/load buttons. All runtime data paths are gitignored.
+through the same assignment path used by map dragging. The Site selector on
+Seats switches geometry and replays assignments and groups to bound devices.
+All runtime data paths are gitignored.
 
 The read-only header shows Project · Site · Patch. Project is the selected
-directory name; Site is the current room/venue label. Loading a venue changes
-Site without changing the selected project.
+directory name; Site is the selected site filename without its extension.
+Switching sites preserves project identity, Seats, groups and parameter values.
 
 Before starting an existing installation with this layout, run
 `python tools/migrate_project.py dashboard/installation.json` once. It creates
 the first project and host registry, leaves the source untouched, and refuses
-to overwrite existing destination data. An empty data root starts a default
+to overwrite existing destination data. For a project already converted by
+the earlier project-storage migration, run
+`python tools/migrate_sites.py dashboard/projects/<project>/project.json`.
+Both migrations create a default site from the old geometry and convert legacy
+venue snapshots whose Seat ids match. They report unmatched snapshots and
+preserve all sources; the site migration keeps `project.json.pre-sites`.
+An empty data root starts a default
 project. A missing selection opens `default`; an existing unreadable or invalid
 selection blocks saves.
 
-If the dashboard cannot fully load its project or registry files, the Show tab displays
+If the dashboard cannot fully load its project, current site or registry files, the Show tab displays
 a notice and saves are blocked for that session. The original file stays in
 place, including malformed JSON or dangling group references; repair the file
-named in the notice and restart the dashboard. Invalid venue snapshots are
-also rejected without replacing the current state, and cannot be overwritten
-by Venue save until repaired.
+named in the notice and restart the dashboard. Invalid sites are rejected
+without replacing the current geometry.
 
 The desktop Control tab and Device control panel show every parameter declared
 by the active patch. The standalone facilitator/iPad view is curated:

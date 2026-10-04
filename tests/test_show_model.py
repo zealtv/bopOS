@@ -336,32 +336,6 @@ class GroupNameInvariantTests(unittest.TestCase):
             self.assertIsNone(error)
             self.assertEqual(renamed["name"], "Front")
 
-    def test_saved_venue_is_adopted_and_surfaces_the_renames_on_load(self):
-        legacy_groups = {
-            "4": {"id": 4, "name": ""},
-            "5": {"id": 5, "name": "Side"},
-            "6": {"id": 6, "name": "Side"},
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            state = InstallationState(data_root(str(project_path(root))))
-            venues = root / "installations"
-            venues.mkdir()
-            venue_path = venues / "legacy.json"
-            venue_path.write_text(json.dumps(
-                self.state_document(legacy_groups, next_group_id=7)
-            ))
-
-            loaded, seats = state.read_venue("legacy")
-            self.assertEqual(
-                [group["name"] for group in loaded["groups"].values()],
-                ["group-4", "Side", "Side-2"],
-            )
-            persisted = json.loads(venue_path.read_text())
-            self.assertEqual(persisted["groups"], loaded["groups"])
-            self.assertTrue(state.load_venue("legacy", (loaded, seats)))
-            self.assertIn("g4 (blank) → group-4", state.data["notices"][-1])
-
 
 class ShowPersistenceTests(unittest.TestCase):
     def test_round_trip_preserves_item_and_message_order_without_temp_residue(self):

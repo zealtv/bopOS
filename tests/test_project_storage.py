@@ -34,10 +34,12 @@ class ProjectStorageTests(unittest.TestCase):
         self.assertEqual(reloaded.device_registry, state.device_registry)
         other = self.root / "projects" / "other" / "project.json"
         other.parent.mkdir()
-        other.write_text(json.dumps({"schema": 1, "name": "Other", "seats": {}}))
+        other.write_text(json.dumps({"schema": 1, "current_site": "default", "seats": {}}))
+        (other.parent / "sites").mkdir()
+        (other.parent / "sites/default.json").write_text(json.dumps(state.site_document()))
         (self.root / "current-project").write_text("other\n")
         opened = InstallationState(self.root)
-        self.assertEqual(opened.data["name"], "Other")
+        self.assertEqual(opened.project, "other")
         self.assertEqual(opened.device_registry, state.device_registry)
         self.assertEqual(json.loads(Path(state.path).read_text()), doc)
 
@@ -61,18 +63,17 @@ class ProjectStorageTests(unittest.TestCase):
 
     def test_missing_selection_opens_default_even_with_other_projects(self):
         state = InstallationState(self.root)
-        state.data["name"] = "Workshop"
         state.save()
         marker = self.root / "current-project"
         marker.unlink()
         other = self.root / "projects" / "other" / "project.json"
         other.parent.mkdir()
-        other.write_text(json.dumps({"schema": 1, "name": "Other", "seats": {}}))
+        other.write_text(json.dumps({"schema": 1, "current_site": "default", "seats": {}}))
         original = other.read_bytes()
         opened = InstallationState(self.root)
         self.assertFalse(opened._load_invalid)
         self.assertEqual(opened.project, "default")
-        self.assertEqual(opened.data["name"], "Workshop")
+        self.assertEqual(opened.data["current_site"], "default")
         opened.save()
         self.assertEqual(marker.read_text(), "default\n")
         self.assertEqual(other.read_bytes(), original)
@@ -107,7 +108,7 @@ class ProjectStorageTests(unittest.TestCase):
         self.assertEqual(state.public()["project"], "Kite-Choir")
         self.assertNotIn("project", state.durable())
         self.assertNotIn("project_name", state.durable())
-        self.assertEqual(state.seats["0"]["positions"], [[1, 2]])
+        self.assertEqual(state.positions_for(0), [[1, 2]])
         self.assertEqual(state.seats["0"]["params"], {"gain": .4})
         self.assertFalse(state.device_registry["node-a"]["device_enabled"])
         self.assertNotIn("desired_patch", state.device_registry["node-a"])
@@ -119,16 +120,6 @@ class ProjectStorageTests(unittest.TestCase):
         self.assertEqual([p.read_bytes() for p in paths], before)
         self.assertEqual(source.read_text(), original)
 
-    def test_venue_load_changes_site_label_without_changing_project_identity(self):
-        state = InstallationState(self.root)
-        state.data["name"] = "Workshop"
-        state.save()
-        state.save_venue("Broadwalk")
-        self.assertTrue(state.load_venue("Broadwalk"))
-        self.assertEqual(state.public()["name"], "Broadwalk")
-        self.assertEqual(state.public()["project"], "default")
-        self.assertEqual((self.root / "current-project").read_text(), "default\n")
-        self.assertEqual(InstallationState(self.root).project, "default")
 
     def test_invalid_migration_creates_no_destination(self):
         source = self.root / "installation.json"
