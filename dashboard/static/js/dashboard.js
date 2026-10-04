@@ -1397,7 +1397,11 @@ function renderDeviceDetail() {
   const d=installation.devices?.[selected];
   if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
   const active=document.activeElement;
-  if ($("#detail").contains(active) && active.matches('input,select')) { updateDeviceEnabledControls(d);updateDeviceHostnameControls(d);return; }
+  if ($("#detail").contains(active) && active.matches('input,select')) {
+    updateDeviceEnabledControls(d); updateDeviceHostnameControls(d);
+    DeviceIO.update($("#detail"), d, (kind, data) => ws.send(kind, data));
+    return;
+  }
   const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
   const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
   const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
@@ -1426,9 +1430,11 @@ function renderDeviceDetail() {
     ${deviceControlSection(d)}
     ${audioSection(d)}
     ${logSection(d)}
+    ${DeviceIO.section(d)}
     <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
     <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
   bindDeviceDetailControls(d); bindPatchDiagnostics(d);
+  DeviceIO.bind($("#detail"), d, (kind, data) => ws.send(kind, data));
 }
 
 function rssiPresentation(raw) {
