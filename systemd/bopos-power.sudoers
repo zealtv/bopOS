@@ -1,2 +1,2 @@
 # bopOS narrow privileged controls; installed as /etc/sudoers.d/bopos-power
-pi ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/bopos-set-hostname *
+pi ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff, /usr/local/sbin/bopos-set-hostname *, /usr/local/sbin/bopos-set-wifi "", /usr/local/sbin/bopos-set-wifi --status

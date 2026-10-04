@@ -22,6 +22,7 @@ REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import manifest as patch_manifest
+from python import wifi_config
 from python.paramgen import ParamGrammarError, parse_message
 # Imported after the repo root joins sys.path: live_params reaches into
 # python.paramgen at module scope.
@@ -142,6 +143,9 @@ class OSCBridge:
         self._asset_requeries = {}
         self._audio_apply_timeouts = {}
         self._log_apply_timeouts = {}
+        self._wifi_apply_timeouts = {}
+        self._wifi_secret_sent = {}
+        self.wifi_applied = lambda uid, ssids: None
         # Last generator the dashboard sent, deliberately runtime-only.  The
         # durable state serializer has an explicit allowlist and omits this.
         self.automation = {}
@@ -190,6 +194,10 @@ class OSCBridge:
         for timeout in self._log_apply_timeouts.values():
             timeout.cancel()
         self._log_apply_timeouts.clear()
+        for timeout in self._wifi_apply_timeouts.values():
+            timeout.cancel()
+        self._wifi_apply_timeouts.clear()
+        self._wifi_secret_sent.clear()
         for waiter in self._unassign_waiters.values():
             if not waiter.done():
                 waiter.cancel()
@@ -251,6 +259,27 @@ class OSCBridge:
         # str/int/float already, anything exotic degrades to its repr.
         return [arg if isinstance(arg, (str, int, float, bool)) else str(arg)
                 for arg in args]
+
+    @staticmethod
+    def _safe_wifi_args(address, args):
+        args = list(args)
+        if address == "/all/os/to" and len(args) >= 2 and args[1] == "wifi-config":
+            return args[:2] + ["[redacted]"]
+        if address == "/os/wifi-config" and len(args) >= 4:
+            try:
+                args[3] = json.dumps(wifi_config.redacted(json.loads(args[3])))
+            except (ValueError, TypeError):
+                args[3] = '{"managed":false}'
+            return args[:4] + ["[redacted]" for _ in args[4:]]
+        if address == "/os/report" and args:
+            try:
+                report = json.loads(args[0])
+                if isinstance(report, dict) and "wifi" in report:
+                    report["wifi"] = wifi_config.redacted(report["wifi"])
+                    args[0] = json.dumps(report)
+            except (ValueError, TypeError):
+                args[0] = "[redacted]"
+        return args
 
     @staticmethod
     def _new_sender(source=None):
@@ -371,7 +400,7 @@ class OSCBridge:
         # legally happen before the asyncio loop exists.
         try:
             self.broadcast("osc_out", {"ts": time.time(), "address": address,
-                                       "args": self._console_args(args),
+                                       "args": self._console_args(self._safe_wifi_args(address, args)),
                                        "target": destination[0], "route": route})
         except RuntimeError:
             pass
@@ -694,6 +723,24 @@ class OSCBridge:
         }
         self.broadcast("device_update", device)
         self.request(uid, "report")
+
+    def set_wifi_config(self, uid, config):
+        previous = self._wifi_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._wifi_secret_sent[uid] = {row["ssid"] for row in config["networks"] if row["psk"] is not None}
+        self._wifi_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_wifi_apply, uid)
+        self.uid_command(uid, "wifi-config", [json.dumps(config, separators=(",", ":"))])
+
+    def _expire_wifi_apply(self, uid):
+        self._wifi_apply_timeouts.pop(uid, None)
+        self._wifi_secret_sent.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is not None:
+            device["wifi_apply"] = {"status": "err", "phase": "timeout"}
+            self.broadcast("device_update", device)
+            self.request(uid, "report")
 
     def set_log_config(self, uid, destination):
         """Persist one bounded log destination on an exact physical Device.
@@ -1098,6 +1145,7 @@ class OSCBridge:
             self._schedule_asset_requery(uid)
 
     def handle(self, address, args, ip):
+        args = self._safe_wifi_args(address, args)
         # Console tap (design note sec 3): everything observed on the LAN
         # receive side, heartbeats included. Always-on; filtering is
         # client-side. Same no-loop guard as the outgoing tap.
@@ -1364,6 +1412,31 @@ class OSCBridge:
             }
             self.broadcast("report", device)
             self.request(uid, "report")
+            return
+        if address == "/os/wifi-config" and len(args) == 4:
+            uid, status, phase = map(str, args[:3])
+            device = self.state.devices.get(uid)
+            if (device is None or status not in ("ok", "err")
+                    or phase not in ("applied", "invalid", "unavailable", "failed")
+                    or (status == "ok") != (phase == "applied")):
+                return
+            try:
+                observed = wifi_config.redacted(json.loads(args[3]))
+            except (ValueError, TypeError):
+                return
+            if status == "ok" and not observed["managed"]:
+                return
+            timeout = self._wifi_apply_timeouts.pop(uid, None)
+            if timeout:
+                timeout.cancel()
+            sent = self._wifi_secret_sent.pop(uid, set())
+            if status == "ok":
+                self.wifi_applied(uid, sent)
+            if not isinstance(device.get("report"), dict):
+                device["report"] = {}
+            device["report"]["wifi"] = observed
+            device["wifi_apply"] = {"status": status, "phase": phase}
+            self.broadcast("report", device)
             return
         if address == "/os/log-config" and len(args) >= 3:
             uid, status = str(args[0]), str(args[1])

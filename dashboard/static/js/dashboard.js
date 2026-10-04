@@ -277,6 +277,7 @@ function render() {
   if (rosterFilter) rosterFilter.oninput=applyRosterFilter;
   applyRosterFilter();
   $("#device-roster").innerHTML = visible.map(device=>row(device,seats.find(seat=>seat.bound===device.uid))).join("") || '<p class="dim">No matching devices</p>';
+  window.WifiNetworks?.status();
   document.querySelectorAll(".seat-row").forEach(el => {
     el.onclick = event => { if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId)); };
     const input = el.querySelector("[data-seat-name]");
@@ -980,7 +981,10 @@ function row(d, seat) {
   const heartbeatAt = heartbeats.get(d.uid);
   const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
   const telemetry=[d.version,d.rssi != null ? `${d.rssi} dBm` : null].filter(Boolean).join(" · ");
-  return `<button class="device-row ${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small></span>${deviceEnabledIndicator(d)}${patchBadge(d.patch_badge)}</button>`;
+  const classes = `${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}`;
+  const button = `<button class="device-row ${classes}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small><small class="wifi-chip" data-wifi-sync>${esc(d.wifi_sync||"no Wi-Fi")}</small></span>${deviceEnabledIndicator(d)}${patchBadge(d.patch_badge)}</button>`;
+  const unmanaged = window.WifiNetworks?.unmanaged(d) || "";
+  return unmanaged ? `<div class="wifi-device-card ${classes}">${button}${unmanaged}</div>` : button;
 }
 
 function deviceEnabledPresentation(d) {

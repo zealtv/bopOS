@@ -1,0 +1,23 @@
+#wifi-panel{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;padding:16px;background:var(--panel)}
+#wifi-panel .section-head{margin-bottom:12px}
+#wifi-panel footer{display:flex;gap:8px;margin-top:12px;justify-content:space-between}
+#wifi-add{text-transform:none}
+.wifi-network{display:grid;grid-template-columns:64px minmax(150px,1fr) auto auto minmax(170px,1fr) 32px;gap:14px;align-items:center;margin:10px 0}
+.wifi-network label{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--dim)}
+.wifi-network label:has(input[type=password]),.wifi-network label:has(input[data-field=ssid]){display:grid;gap:4px}
+.wifi-network input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box}
+.wifi-priority{display:flex;gap:4px}.wifi-priority button{padding:5px}
+#wifi-warning{display:block;white-space:pre-line;color:var(--amber);font-size:13px}
+.wifi-chip{color:var(--accent-cyan-soft);font-size:10px}
+.wifi-device-card{border-radius:6px;overflow:hidden}
+.wifi-device-card:hover,.wifi-device-card.selected{background:var(--hover)}
+.wifi-device-card.patch-exception{box-shadow:inset 3px 0 0 var(--amber);background:var(--warning-bg)}
+.wifi-device-card.patch-exception:hover,.wifi-device-card.patch-exception.selected{background:var(--warning-bg-hover)}
+.wifi-device-card>.device-row{box-shadow:none;background:transparent}
+.wifi-unmanaged{display:flex;gap:8px;align-items:center;padding:2px 12px 10px;font-size:12px;color:var(--dim)}
+.wifi-unmanaged button{font-size:10px;padding:3px 6px}
+#wifi-confirm{max-width:480px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);padding:24px}
+#wifi-confirm p{color:var(--accent-warm);line-height:1.6;margin:0 0 20px}
+#wifi-confirm form{display:flex;justify-content:flex-end;gap:12px}
+#wifi-confirm::backdrop{background:rgba(0,0,0,.65)}
+@media(max-width:800px){.wifi-network{grid-template-columns:54px minmax(120px,1fr) auto}.wifi-network label:has(input[type=password]){grid-column:2}.wifi-network>button[data-remove]{grid-column:3;grid-row:1}.wifi-network{border-bottom:1px solid var(--line);padding-bottom:12px}}

@@ -19,6 +19,9 @@ LEGACY_RC_LOCAL_BACKUP="/etc/rc.local.bopos-legacy"
 
 install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-hostname" \
     /usr/local/sbin/bopos-set-hostname
+install -d -o root -g root -m 0755 /usr/local/lib/bopos
+install -o root -g root -m 0644 "$BOPOS_DIR/python/wifi_config.py" /usr/local/lib/bopos/wifi_config.py
+install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-wifi" /usr/local/sbin/bopos-set-wifi
 "$SCRIPT_DIR/install-power-control.sh"
 "$SCRIPT_DIR/install-usb-automount.sh"
 chown -R pi:pi "$BOPOS_DIR"

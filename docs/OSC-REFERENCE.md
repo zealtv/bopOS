@@ -77,6 +77,7 @@ to be certain you're hitting exactly one physical device:
 | `audio-config` | `<json:s>` | validates and transactionally applies one complete detected-card/JACK configuration, restarting the audio engine and rolling back on failure | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
 | `log-config` | `<json:s>` | **v1.13.** persists one bounded log destination `{"destination":"internal"\|"usb"}` as `LOG_DESTINATION` in `bopos.config`; no engine restart, no rollback; `usb` falls back to `internal` when the stick is absent (resolved per log entry) | `/os/log-config <uid:s> <ok\|err:s> <json:s>` (5550) |
 | `identify` | — | chirp/flash | — |
+| `wifi-config` | `<json:s>` | **v1.20.** complete ordered WPA-Personal list plus country; null PSK keeps the device secret; argument-less privileged helper; replies before network re-evaluation, no rollback; installation-LAN broadcast readable by every host — provision only on an operator-controlled network, with dashboard warning before any passphrase send | `/os/wifi-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
 | `report` | — | static-facts JSON | `/os/report <json:s>` (5550) |
 | `reboot` | — | reboot the node | bare `/os/rev <sha:s> <model:s> <uid:s>` (5550), sent before the box goes down |
 | `shutdown` | — | power off | bare `/os/rev …` (5550), sent before power-off |
@@ -88,9 +89,32 @@ Any other verb (`patch`, `checkout`, `droppatch`,
 `dropassets`, patch parameters, probes, storage, distribution) is **not**
 reachable through this envelope by design (contract §3) — use the
 selector-addressed form below instead. Every listed verb above except
-`enabled`/`hostname`/`audio-config`/`log-config` takes **zero** arguments; sending any
+`enabled`/`hostname`/`audio-config`/`log-config`/`wifi-config` takes **zero** arguments; sending any
 triggers a silent
 reject (no reply, no effect).
+
+### Wi-Fi configuration (v1.20)
+
+Request JSON is exactly `{"country":"GB","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"psk":null}]}`.
+`country` is a known ISO 3166-1 alpha-2 code; SSIDs are unique, 1–32 UTF-8
+bytes; hidden/enabled are booleans; PSKs are null (keep an existing device
+secret) or 8–63 printable ASCII characters. List order is priority. Missing,
+extra, wrongly typed, partial, duplicate, out-of-range or no-enabled-network
+requests reject whole, as does null without an existing device secret.
+Open/enterprise networks, Ethernet and static IP are excluded.
+
+Phases: `applied` (`ok`), `invalid`, `unavailable` (no Wi-Fi/helper/authorization),
+`failed` (helper/network manager refused), all others `err`. Receipt and
+`/os/report` carry only `{"managed":true,"country":"GB","active":"workshop","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"secret":true}],"unmanaged":["imager-net"]}`;
+`active` can be null. Without Wi-Fi or a helper: `{"managed":false}` only.
+Listing an unmanaged SSID adopts that profile; unspecified unmanaged profiles
+are never deleted. Disabled networks keep their secrets but are never joined.
+The pre-provisioned helper takes JSON on stdin, never process arguments;
+`--status` returns redacted state. Receipts precede network re-evaluation;
+the returning heartbeat confirms recovery. No rollback — recovery is physical.
+Passphrases never appear in public state, reports, receipts, console taps or
+project/venue files. Field devices join only hidden, passphrase-protected
+networks; requests broadcast on the LAN and are readable by every host there.
 
 ### Seat-group membership (v1.5)
 
@@ -211,6 +235,7 @@ sending the commands above, or unprompted (heartbeats):
 | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | terminal reply to exact-uid `audio-config`; phase is `applied`, `invalid`, `rolled-back`, or `rollback-failed` |
 | `/os/log-config <uid:s> <ok\|err:s> <json:s>` | — | reply to exact-uid `log-config`; json is the complete `log` state object (`destination`, `effective`, `usb_present`) |
 | `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
+| `/os/wifi-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | **v1.20.** terminal reply to exact-uid `wifi-config`; phases `applied`, `invalid`, `unavailable`, `failed`; JSON is the redacted `wifi` object also carried by `/os/report`, never a passphrase |
 | `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
 | `/os/load <key:s> <values…>` | — | reply to `load` |
 | `/os/params <json:s>` | — | reply to `params` |

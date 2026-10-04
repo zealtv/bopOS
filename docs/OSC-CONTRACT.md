@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.19** — base ratified 2026-07-07; latest revision 2026-10-03. The
+**Version 1.20** — base ratified 2026-07-07; latest revision 2026-10-04. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -587,6 +587,8 @@ deferred and unratified.
     → /os/audio-config <uid> <ok|err> <phase> <json>
 /all/os/to <uid> log-config <json>
     → /os/log-config <uid> <ok|err> <json>
+/all/os/to <uid> wifi-config <json>
+    → /os/wifi-config <uid> <ok|err> <phase> <json>
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -614,7 +616,7 @@ move to the uniform envelope.
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
   `device_enabled`, execution `mute_all`, effective `output_enabled`, the
-  `audio` object below, and the `log` object below. This
+  `audio`, `log`, and redacted `wifi` objects below. This
   is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
 - **The framework output gate is safety-critical.** It is a transport-level
@@ -686,6 +688,57 @@ move to the uniform envelope.
   `usb_present` (media presence) — configured vs effective vs media are all
   visible without SSH. Log *content* is not browsable over OSC in v1; retrieval
   is the USB stick or SSH.
+
+### Exact-device Wi-Fi configuration (v1.20, additive)
+
+`/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok|err>
+<phase> <json>`. The request is the complete ordered list of bopOS-managed
+WPA-Personal networks plus the Wi-Fi country; list order is priority.
+Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null`
+keeps the device's existing secret. Invalid, partial or duplicate lists, and
+lists with no enabled network, reject whole. The node applies through a
+pre-provisioned argument-less privileged helper, replies, then lets the
+network manager re-evaluate; there is no rollback. Receipts and `/os/report`
+carry a redacted `wifi` object (`managed`, `country`, `active`, `networks`
+with `secret: true|false`, `unmanaged` SSIDs) and never a passphrase.
+**Trust:** the request travels as an installation-LAN broadcast like every
+exact-device verb, readable by any host on that network; it is intended for
+provisioning on an operator-controlled network only, and the dashboard
+warns before any send that carries a passphrase. Devices in the field
+join only hidden, passphrase-protected networks.
+
+The complete request has exactly `country` (an ISO 3166-1 alpha-2 code) and
+`networks` (an ordered array). Each row has exactly `ssid` (1–32 UTF-8 bytes,
+unique in the list), `hidden` and `enabled` (booleans), and `psk` (null or
+8–63 printable ASCII characters). Missing, extra or wrongly typed fields,
+unknown country codes, duplicate SSIDs, out-of-range values, no enabled
+network, or a null PSK without an existing device secret reject the whole
+request as `invalid`. Open networks, enterprise Wi-Fi, Ethernet and static
+IP settings are outside this form.
+
+```json
+{"country":"GB","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"psk":null}]}
+```
+
+Receipts use phases `applied`, `invalid`, `unavailable` (no Wi-Fi or no
+installed/authorized helper), or `failed` (helper/network manager refused).
+`ok` pairs with `applied`; all other phases pair with `err`. The receipt JSON
+and report `wifi` field have the same redacted shape:
+
+```json
+{"managed":true,"country":"GB","active":"workshop","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"secret":true}],"unmanaged":["imager-net"]}
+```
+
+`active` is the currently joined SSID or null. Without Wi-Fi or a helper the
+object is exactly `{"managed":false}`. Listing an unmanaged SSID adopts its
+profile into bopOS control; profiles not listed for adoption are never
+deleted. Disabled managed profiles retain their secrets but are never
+joined. The privileged helper accepts no arguments and reads the request
+from stdin; `--status` returns only the redacted object. Passphrases never
+enter process arguments, node config or persistence, reports, receipts,
+dashboard console taps, public WebSocket state, project or venue files.
+After `applied`, a network change may briefly drop the device; its returning
+heartbeat confirms it is back. Recovery is physical, without rollback.
 
 ## 7. Admin and convergence (`/os/*` verbs)
 
@@ -1006,3 +1059,4 @@ reasoning.
 | 1.17 | 2026-07-29 | Preset foundations, host-side and additive — **no wire form is added**. New §8.1 states that a preset is a sparse map from parameter identity to the `/p/*` argument list that reproduces it, applied as ordinary fan-out; defines the canonical parameter-schema fingerprint (`{identity, kind, min, max, options}` projection, sorted by identity, ordered enum labels, SHA-256); states that a capture holds declared params only, never events, never site-layer state, and records intended dashboard state rather than observed node output; and pins that a timed apply reuses the existing §3.3 fade form for `float`/`int` while every other kind sets full-state at t=0. §9 excludes `presets/` from the distribution manifest, the patch fingerprint, prune-to-manifest convergence, and the distribution HTTP surface, so saving a preset cannot restage the fleet patch. §3.2 and §3.3 are unchanged. **`morph` deferred, not overlooked:** an additive `morph <dur> [c:<n>] <spec…>` form interpolating generator argument vectors was designed, reviewed and ratified in outline, then dropped from v1 by Bob on 2026-07-29 because the workhorse case — sweeping scalars — is already the existing fade form, and the wire/engine risk served only generator interpolation. The settled design is parked in `feature-backlog/48-morph-interpolation`; nothing here forecloses it, since a preset entry already *is* the full-state argument list `morph` would consume. | `.loom/tied/1-preset-architecture-design/`; thread `41-preset-primitive` (`design-addendum.md`, `.loom/tied/3-addendum-review/review-2.md` §F1) |
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
+| 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |

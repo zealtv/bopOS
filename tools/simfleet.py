@@ -51,6 +51,7 @@ import groups as group_protocol  # noqa: E402
 import paramgen  # noqa: E402
 import audio_config  # noqa: E402
 import log_config  # noqa: E402
+import wifi_config  # noqa: E402
 import osc_contract  # noqa: E402
 
 
@@ -199,6 +200,9 @@ class Device:
         # the real node -- usb only if chosen *and* the stick is present.
         self.log_destination = "internal"
         self.usb_present = False
+        self.wifi = ({"managed": False} if wired else {
+            "managed": True, "country": "GB", "active": "imager-net",
+            "networks": [], "unmanaged": ["imager-net"]})
         self.last_hb = None
         self.last_command = "-"
         self.wired = wired
@@ -494,6 +498,7 @@ class SimFleet:
             "output_enabled": bool(device.output_enabled),
             "audio": audio,
             "log": device_log_state(device),
+            "wifi": wifi_config.redacted(device.wifi),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
@@ -596,6 +601,25 @@ class SimFleet:
             self.sock.sendto(builder.build().dgram,
                              (source[0], self.args.report_port))
             self.log(device, f"log-config {device.log_destination} {status}")
+            return
+        if member == "wifi-config" and len(args) == 1:
+            status, phase = "err", "unavailable"
+            if device.wifi["managed"]:
+                try:
+                    existing = {row["ssid"] for row in device.wifi["networks"] if row["secret"]} | set(device.wifi["unmanaged"])
+                    candidate = wifi_config.validate(json.loads(args[0]), existing)
+                    names = {row["ssid"] for row in candidate["networks"]}
+                    device.wifi = {"managed": True, "country": candidate["country"],
+                                   "active": next(row["ssid"] for row in candidate["networks"] if row["enabled"]),
+                                   "networks": [dict(row, secret=True) for row in wifi_config.metadata(candidate)["networks"]],
+                                   "unmanaged": [name for name in device.wifi["unmanaged"] if name not in names]}
+                    status, phase = "ok", "applied"
+                except (ValueError, TypeError):
+                    phase = "invalid"
+            builder = osc_message_builder.OscMessageBuilder(address="/os/wifi-config")
+            for value in (device.mac, status, phase, json.dumps(device.wifi)):
+                builder.add_arg(value, arg_type="s")
+            self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
             return
         if member not in allowed or args:
             return

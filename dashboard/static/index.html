@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101316"><title>bopOS</title><script src="/js/theme.js"></script><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/project-bar.css"><link rel="stylesheet" href="/css/param-generator.css"><link rel="stylesheet" href="/css/control-panel.css"><link rel="stylesheet" href="/css/value-box.css"><link rel="stylesheet" href="/css/target-picker.css"><link rel="stylesheet" href="/css/control-column.css"><link rel="stylesheet" href="/css/card-identity.css"><link rel="stylesheet" href="/css/installation-notice.css">
+<link rel="stylesheet" href="/css/wifi-networks.css">
 </head>
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
@@ -86,6 +87,13 @@
       </aside>
     </section>
     <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
+      <section id="wifi-panel" aria-labelledby="wifi-title">
+        <div class="section-head"><h2 id="wifi-title">Wi-Fi networks</h2><label>Country <select id="wifi-country" aria-label="Wi-Fi country"></select></label></div>
+        <div id="wifi-networks"></div>
+        <output id="wifi-warning" aria-live="polite"></output>
+        <footer><button id="wifi-add">+ Add network</button><button id="wifi-send">Send to all devices</button></footer>
+      </section>
+      <dialog id="wifi-confirm" aria-labelledby="wifi-confirm-warning"><p id="wifi-confirm-warning"></p><form method="dialog"><button value="cancel" aria-label="✕">✕</button><button value="send">Send to all devices</button></form></dialog>
       <aside class="device-sidebar">
         <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
         <div id="device-roster" class="device-roster-list"></div>
@@ -177,4 +185,5 @@
   </div>
   <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/group-slots.js"></script><script src="/js/spatial.js"></script><script src="/js/target-picker.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-column.js"></script><script src="/js/control-cards-model.js"></script><script src="/js/control-host.js"></script><script src="/js/show.js"></script>
   <script src="/js/installation-notice.js"></script>
+  <script src="/js/wifi-networks.js"></script>
 </body></html>

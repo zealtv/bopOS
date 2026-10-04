@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+"""Privileged stdin-only Wi-Fi helper. Platform backend awaits a real Pi check."""
+import json
+import sys
+
+sys.path.insert(0, "/usr/local/lib/bopos")
+import wifi_config
+
+
+def backend_status():
+    # PLATFORM SEAM: choose and verify the network manager with Bob's Pi up.
+    return {"managed": False}
+
+
+def backend_apply(config):
+    # PLATFORM SEAM: future implementation writes profiles, defers activation
+    # until after the receipt, and never removes unspecified unmanaged profiles.
+    return 3, backend_status()
+
+
+def main():
+    if sys.argv[1:] == ["--status"]:
+        print(json.dumps(wifi_config.redacted(backend_status())))
+        return 0
+    if sys.argv[1:]:
+        print('{"managed":false}')
+        return 2
+    try:
+        payload = sys.stdin.read(65537)
+        if len(payload) > 65536:
+            raise ValueError("invalid")
+        config = wifi_config.validate(json.loads(payload))
+    except (ValueError, TypeError):
+        print('{"managed":false}')
+        return 2
+    code, observed = backend_apply(config)
+    print(json.dumps(wifi_config.redacted(observed)))
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

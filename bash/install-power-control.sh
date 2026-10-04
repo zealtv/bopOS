@@ -21,7 +21,9 @@ as_root() {
 if [ "${EUID:-$(id -u)}" -ne 0 ] \
         && sudo -n -l /usr/bin/systemctl reboot >/dev/null 2>&1 \
         && sudo -n -l /usr/bin/systemctl poweroff >/dev/null 2>&1 \
-        && sudo -n -l /usr/local/sbin/bopos-set-hostname bopos-check >/dev/null 2>&1; then
+        && sudo -n -l /usr/local/sbin/bopos-set-hostname bopos-check >/dev/null 2>&1 \
+        && sudo -n -l /usr/local/sbin/bopos-set-wifi >/dev/null 2>&1 \
+        && sudo -n -l /usr/local/sbin/bopos-set-wifi --status >/dev/null 2>&1; then
     echo "bopOS privileged control authorization is already installed"
     exit 0
 fi

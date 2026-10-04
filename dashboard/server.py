@@ -74,6 +74,8 @@ def supervisor_cause(lines):
 from state import (FACILITATOR_COMMANDS, InstallationState, observed_active_patch, patch_badge,
                    reconcile_patch_switch_success)
 from python import identity
+from python import wifi_config
+from wifi_secrets import WifiSecrets
 from python import asset_slots
 from python import manifest as patch_manifest
 
@@ -166,10 +168,13 @@ class Dashboard:
     def __init__(self, args):
         self.args = args
         self.state = InstallationState(args.data_dir, args.devices_file)
+        self.wifi_secrets = WifiSecrets(self.state.data_dir)
+        self.wifi_confirmations = {}
         self.clients = set()
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
                              args.send_port, args.osc_target,
                              self.replay_live_params_for_seat)
+        self.osc.wifi_applied = self.wifi_applied
         self.tasks = set()
         self.sim_process = None
         self.supervisor_lock = asyncio.Lock()
@@ -335,6 +340,7 @@ class Dashboard:
             pass
         finally:
             self.clients.discard(ws)
+            self.wifi_confirmations.pop(ws, None)
 
     async def handle_ws(self, message, ws=None, supervisor_locked=False,
                         manifest_locked=False):
@@ -344,6 +350,7 @@ class Dashboard:
             "set_live_param", "set_live_automation",
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
+            "set_wifi_networks", "send_wifi_networks",
             "action", "identify", "set_fleet_patch",
             "retry_fleet_patch",
             "send_distribution", "drop_distribution",
@@ -569,6 +576,18 @@ class Dashboard:
             }
             self.osc.set_log_config(log_uid, destination)
             await self.broadcast("device_update", device)
+        elif kind in ("set_wifi_networks", "send_wifi_networks"):
+            try:
+                if kind == "send_wifi_networks":
+                    if data.get("confirmed") is not True or ws not in self.wifi_confirmations:
+                        raise ValueError("invalid")
+                    config, confirmed_count = self.wifi_confirmations.pop(ws)
+                else:
+                    confirmed_count = None
+                    config = wifi_config.validate(data.get("config"))
+                await self.send_wifi(config, ws, confirmed_count=confirmed_count)
+            except (ValueError, OSError):
+                await self.ws_error(ws, "invalid")
         elif kind == "set_editor_param":
             name, value = str(data.get("name", "")), data.get("value")
             editor = self.state.data["editor"]
@@ -1578,6 +1597,100 @@ class Dashboard:
             desired["fingerprint"] = item["fingerprint"]
         return desired
 
+    @property
+    def wifi_changed(self):
+        return self.wifi_secrets.pending
+
+    def wifi_applied(self, uid, ssids):
+        if not ssids:
+            return
+        pending = {key: set(names) for key, names in self.wifi_changed.items()}
+        pending.setdefault(uid, set()).difference_update(ssids)
+        try:
+            self.wifi_secrets.save(self.wifi_secrets.values, pending)
+        except OSError:
+            # Retain the pending flags; a later send can safely retry the PSKs.
+            pass
+
+    def wifi_plans(self, config, secrets, changed):
+        plans = []
+        for uid, device in self.state.devices.items():
+            if not device.get("online"):
+                continue
+            observed = wifi_config.redacted((device.get("report") or {}).get("wifi"))
+            if not observed["managed"]:
+                continue
+            known = {row["ssid"] for row in observed["networks"] if row["secret"]} | set(observed["unmanaged"])
+            rows = []
+            for row in config["networks"]:
+                name = row["ssid"]
+                needed = name not in known or name in changed or name in self.wifi_changed.get(uid, ())
+                secret = secrets.get(name) if needed else None
+                if needed and secret is None:
+                    raise ValueError("needs passphrase")
+                rows.append(dict(row, psk=secret))
+            plans.append((uid, {"country": config["country"], "networks": rows}))
+        return plans
+
+    async def send_wifi(self, config, ws, confirmed_count=None):
+        secrets = {row["ssid"]: row["psk"] or self.wifi_secrets.values.get(row["ssid"])
+                   for row in config["networks"]}
+        secrets = {name: value for name, value in secrets.items() if value is not None}
+        changed = {row["ssid"] for row in config["networks"] if row["psk"] is not None
+                   and row["psk"] != self.wifi_secrets.values.get(row["ssid"])}
+        try:
+            plans = self.wifi_plans(config, secrets, changed)
+        except ValueError:
+            await self.ws_error(ws, "needs passphrase")
+            return
+        count = len({row["ssid"] for _, plan in plans for row in plan["networks"]
+                     if row["psk"] is not None})
+        if count and (confirmed_count is None or count > confirmed_count):
+            if ws is not None:
+                self.wifi_confirmations[ws] = (config, count)
+                await ws.send_json({"type": "wifi_confirm", "data": {"passphrases": count}})
+            return
+        self.state._require_valid_load()
+        previous_secrets, previous_list = dict(self.wifi_secrets.values), self.state.data["wifi"]
+        previous_pending = {uid: set(names) for uid, names in self.wifi_changed.items()}
+        pending = {uid: set(names) for uid, names in previous_pending.items()}
+        for uid in set(self.state.devices) | set(self.state.device_registry):
+            pending.setdefault(uid, set()).update(changed)
+        self.wifi_secrets.save(secrets, pending)
+        self.state.data["wifi"] = wifi_config.metadata(config)
+        try:
+            self.state.save()
+        except OSError:
+            self.state.data["wifi"] = previous_list
+            self.wifi_secrets.save(previous_secrets, previous_pending)
+            raise
+        for uid, plan in plans:
+            self.state.devices[uid]["wifi_apply"] = {"status": "pending", "phase": "applying"}
+            self.osc.set_wifi_config(uid, plan)
+        await self.broadcast("state")
+        if ws is not None:
+            await ws.send_json({"type": "wifi_saved", "data": {}})
+
+    def wifi_sync(self, device):
+        observed = wifi_config.redacted((device.get("report") or {}).get("wifi"))
+        attempt = device.get("wifi_apply") or {}
+        if attempt.get("status") == "pending":
+            return "sending…"
+        if attempt.get("status") == "err":
+            return "error"
+        if not observed["managed"]:
+            return "no Wi-Fi"
+        desired = self.state.data["wifi"]
+        known = {row["ssid"] for row in observed["networks"] if row["secret"]} | set(observed["unmanaged"])
+        if any(row["ssid"] not in known and row["ssid"] not in self.wifi_secrets.values
+               for row in desired["networks"]):
+            return "needs passphrase"
+        if (self.wifi_changed.get(device["uid"]) or desired["country"] != observed["country"]
+                or desired["networks"] != [{key: row[key] for key in ("ssid", "hidden", "enabled")}
+                                           for row in observed["networks"]]):
+            return "differs"
+        return "in sync"
+
     async def public_device(self, device, desired=None):
         desired = desired if desired is not None else await self.live_fleet_patch()
         public = dict(device)
@@ -1603,11 +1716,14 @@ class Dashboard:
                 output_enabled=device.get("output_enabled"),
                 enabled_status=enabled_status)
         public["patch_badge"] = patch_badge(device, desired)
+        public["wifi_sync"] = self.wifi_sync(device)
         return public
 
     async def public_state(self):
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
+        public["wifi_secret_ssids"] = sorted(self.wifi_secrets.values)
+        public["wifi_countries"] = sorted(wifi_config.COUNTRIES)
         # The durable record captures the identity staged by the operator, but
         # host edits make the live catalog identity the desired convergence
         # target.  Expose the same resolved identity used for row badges so UI

@@ -5,7 +5,13 @@ import json
 import math
 import os
 import re
+import sys
 import time
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python import wifi_config
 
 try:
     from . import device_aliases
@@ -127,6 +133,7 @@ class InstallationState:
                      "event_lead_ms": 500,
                      "facilitator_commands": [],
                      "fleet_patch": None,
+                     "wifi": {"country": "GB", "networks": []},
                      "current_show": None,
                      "listener": None,
                      # Runtime-only operator notices. Adoption messages live
@@ -202,6 +209,7 @@ class InstallationState:
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+                self.data["wifi"] = wifi_config.clean_list(loaded.get("wifi"))
                 self.data["current_show"] = self.clean_current_show(
                     loaded.get("current_show"))
                 if self.data["fleet_patch"]:
@@ -415,6 +423,7 @@ class InstallationState:
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
+                "wifi": wifi_config.clean_list(self.data.get("wifi")),
                 "current_show": self.clean_current_show(self.data.get("current_show")),
                 "listener": dict(self.data["listener"]),
                 "groups": {str(group["id"]): dict(group)
@@ -1045,6 +1054,8 @@ class InstallationState:
         # Which show is loaded is an authoring-session fact, not venue
         # topology (room/seats/patch) -- a venue load leaves it untouched.
         snapshot.pop("current_show", None)
+        # Wi-Fi is project fleet configuration, not venue topology.
+        snapshot.pop("wifi", None)
         with open(temporary, "w", encoding="utf-8") as target:
             json.dump(snapshot, target, indent=2, sort_keys=True)
             target.write("\n")

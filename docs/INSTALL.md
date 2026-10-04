@@ -141,17 +141,39 @@ sudo ./bash/provision.sh
 ```
 
 `provision.sh` is the **one-time privileged step**. It installs the boot
-service, the validated hostname helper, the initial device config, narrow
+service, the validated hostname and Wi-Fi helpers, the initial device config, narrow
 sudoers rules that let the unprivileged node software reboot, power off, or
-apply a hostname — and nothing else — and the USB auto-mount udev rule +
+apply a hostname or Wi-Fi list, and the USB auto-mount udev rule +
 mount unit (a stick is mounted at the stable path `/media/bopos-usb` so the
 node logging facility can write to it). Everything after this runs as `pi`;
 the mount itself needs no privilege at runtime.
 
-> Existing fleet Pis that predate the hostname helper or the USB auto-mount
+> Existing fleet Pis that predate either helper or the USB auto-mount
 > need one manual `sudo bash/provision.sh` after updating; the routine
 > **Update bopOS** action deliberately cannot install root-owned pieces.
 > `provision.sh` is idempotent — a re-run installs only the missing pieces.
+
+The root-owned Wi-Fi helper is `/usr/local/sbin/bopos-set-wifi`; its validator
+is installed root-owned at `/usr/local/lib/bopos/wifi_config.py`. Sudoers
+authorizes only the argument-less stdin form and `--status`. **The platform
+backend currently reports `unavailable`**: the supported Pi OS network manager
+must be inspected on a real Pi before profile writes and deferred activation
+are implemented. The dashboard and simulator flow is testable now; installing
+this helper does not yet change a Pi's Wi-Fi.
+
+Provision Wi-Fi in the workshop on your own network. The Devices tab's
+**Wi-Fi networks** panel sends the ordered fleet list; any supplied
+passphrases travel as LAN broadcasts readable by every host currently on that
+network, with a warning and confirmation before sending. At the venue, use
+only hidden, passphrase-protected show networks; normally disable the visible
+testing network before bump-in. Hidden SSIDs are not secret — WPA protection
+and network isolation provide the accepted trust boundary. Recovery is
+physical; there is no automatic rollback.
+
+The dashboard stores only list metadata in the selected `project.json`.
+Host passphrases are kept at `<data-dir>/state/wifi-secrets.json`, mode 0600
+(default `dashboard/state/wifi-secrets.json`), outside project and venue files.
+They are never returned to browsers, reports, receipts or logs.
 
 ### If the pip step fails to build `lgpio`
 

@@ -30,6 +30,7 @@ import paramgen
 import asset_slots
 import audio_config
 import log_config
+import wifi_config
 import nodelog
 import osc_contract
 
@@ -1126,6 +1127,17 @@ def apply_log_config(payload, reply_socket, requester, state=None):
     return True
 
 
+def apply_wifi_config(payload, reply_socket, requester, state=None):
+    # Do not log request arguments or helper stderr: either can contain PSKs.
+    state = state or node_state
+    status, phase, observed = wifi_config.apply(payload)
+    msg = OSCMessage("/os/wifi-config")
+    for value in (str(state.uid), status, phase, json.dumps(observed)):
+        msg.append(value, 's')
+    reply_socket.sendto(msg.getBinary(), (requester, 5550))
+    return status == "ok"
+
+
 def audio_config_reply(reply_socket, requester, status, phase, state=None):
     state = state or node_state
     msg = OSCMessage("/os/audio-config")
@@ -1281,6 +1293,7 @@ def report_reply(reply_socket, requester, state=None):
         "output_enabled": output_enabled(state),
         "audio": audio_report(state),
         "log": log_report(state),
+        "wifi": wifi_config.helper_status(),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -1334,6 +1347,11 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
         return True
     if member == "log-config" and len(args) == 1:
         threading.Thread(target=apply_log_config,
+                         args=(args[0], reply_socket, requester, state),
+                         daemon=True).start()
+        return True
+    if member == "wifi-config" and len(args) == 1:
+        threading.Thread(target=apply_wifi_config,
                          args=(args[0], reply_socket, requester, state),
                          daemon=True).start()
         return True
