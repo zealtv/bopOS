@@ -28,6 +28,11 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 2. **Wi-Fi switchover rehearsal**: both APs up, push the list, disable
    *testing*, devices reappear on the hidden show network; disable show 1, and
    the fallback takes over. → same stitch.
+3. **IO control path (59/1)**: on a Pi, bridge replies reach `bopos.py` on
+   7771; `io-scan` shows real addresses with kernel-claimed (`UU`, the DAC)
+   marked; a scan doesn't disturb live peripherals; real driver writes and
+   errors; the Finn Jet wrong-address LIS3DH case. Details in
+   `59-i2c-inventory/1-scan-transport.tied/verification.md`.
 
 ## Ruled
 
