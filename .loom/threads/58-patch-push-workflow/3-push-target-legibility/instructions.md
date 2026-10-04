@@ -1,6 +1,6 @@
 # 3-push-target-legibility
 
-**Status:** waits on `66-projects/0-project-design` · re-scope before claiming
+**Status:** after `66-projects/1-remove-device-pins` · re-scoped 2026-10-04
 **Goal:** when a device can't receive a patch, say why — never silently drop it
 from the target list or re-aim a push.
 
@@ -16,9 +16,10 @@ from the target list or re-aim a push.
 This is why Bob concluded "pin to device won't push": Ciro Toast wasn't in the
 list.
 
-## After `66/0`
+## Re-scoped from the ratified projects design (2026-10-04)
 
-If per-device targets go away with pinning, the silent re-aim may vanish with
-them. Whatever survives must show ineligible devices with a reason (`offline`,
+`66/1` removes the per-device target picker, so the silent re-aim goes with
+it — confirm that, then this is about the whole-fleet push saying who won't
+get it. Whatever survives must show ineligible devices with a reason (`offline`,
 `unassigned`, `simulated`) and never change a push's target without saying so.
 Tests assert on the reason text, not option counts.

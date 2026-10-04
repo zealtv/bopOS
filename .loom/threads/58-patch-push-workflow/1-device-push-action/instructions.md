@@ -1,6 +1,6 @@
 # 1-device-push-action
 
-**Status:** waits on `66-projects/0-project-design` · re-scope before claiming
+**Status:** after `66-projects/1-remove-device-pins` · re-scoped 2026-10-04
 **Goal:** the Device page always offers "push the patch to this device" when
 the device can take it — not only when its badge shows a fault.
 
@@ -12,16 +12,18 @@ pinned/fleet patch", sends `retry_fleet_patch`) only for fault badges
 `current` and there's no button. The label names the mechanism, not the intent
 (Bob says "update patch").
 
-## After `66/0`
+## Re-scoped from the ratified projects design (2026-10-04)
 
-With one patch per fleet and no pins, this likely becomes a plain "re-push the
-project patch to this device" action — or disappears into the project's own
-push. Rewrite this stitch from the ratified design, or drop it.
+One patch per fleet, no pins. This becomes a plain **push the Patch to this
+device** action on the Device page, always offered when the device can take
+it — for a box that missed a push or was just swapped in. Label it in Bob's
+words ("update patch"), not the mechanism. Replace `retry_fleet_patch`'s
+fault-only button.
 
 ## Keep regardless
 
 - Disabled-with-reason rather than hidden when the device can't take a push
   (offline, unassigned, simulated).
 - Pushing restarts the engine → confirm.
-- Test in `tests/verify_device_patch_targeting.py`; hardware push on the rig is
+- Test in a whole-fleet journey (`verify_device_patch_targeting.py` is deleted by `66/1`); hardware push on the rig is
   a separate claim.

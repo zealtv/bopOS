@@ -1,6 +1,6 @@
 # Projects — design proposal
 
-**Status:** for ratification, 2026-10-04 · mockups in `mockups/` (drawn into
+**Status:** ratified by Bob, 2026-10-04 · mockups in `mockups/` (drawn into
 the running dashboard by `mockups/project_mockups.py`)
 **Builds on:** `rulings.md` (Seats per project, versions are patch folders,
 fleet = boxes bound to Seats, one show per project; naming, unassign, New

@@ -4,8 +4,8 @@
 its fleet, its patch (and that patch's iterations), its sites and its show. The
 dashboard and code get simpler because of it — not more complicated.
 
-**Status:** new (2026-10-03). Design first (`0`), co-designed with Bob.
-Implementation stitches come from the ratified design.
+**Status:** design ratified by Bob 2026-10-04 (`0-project-design/proposal.md`).
+Building in slices `1`–`8`.
 
 ## Bob, 2026-10-03
 
@@ -53,4 +53,12 @@ Implementation stitches come from the ratified design.
 
 ## Stitches
 
-- `0-project-design` — the model, what it replaces, and the operator surface.
+- `0-project-design` — the model, what it replaces, the operator surface (ratified).
+- `1-remove-device-pins` — pure deletion.
+- `2-drop-params-patch-and-revert` — controls follow the fleet patch.
+- `3-project-storage` — project folder + devices.json, one-off migration, read-only project bar.
+- `4-sites` — positions into sites; venue bar goes.
+- `5-one-show` — one show per project.
+- `6-patch-versions` — Patches tab as sidebar + detail, Live / Set Live / New Version.
+- `7-project-menu` — open/new/rename projects and sites; unassign boxes outside the project.
+- `8-header-tidy` — Live rename, mode switch placement and sizing.

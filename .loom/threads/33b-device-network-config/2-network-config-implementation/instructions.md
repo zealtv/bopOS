@@ -38,7 +38,9 @@ paths are the precedent; follow their shape file by file.
 
 ## 3. Dashboard back end (`dashboard/osc_bridge.py`, `server.py`, `state.py`)
 
-- Fleet list (SSIDs, hidden, enabled, order, country) in installation state.
+- Fleet list (SSIDs, hidden, enabled, order, country) in installation state —
+  which, once `66-projects/3-project-storage` lands, is `project.json` (the
+  fleet is the project's). Queued after that slice so the list is placed once.
 - Passphrases in `state/wifi-secrets.json`, mode 0600; never in WS state,
   installation/venue files or logs; never sent to the browser.
 - Send per device: include `psk` only where the device reports `secret: false`

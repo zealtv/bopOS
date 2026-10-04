@@ -52,3 +52,8 @@ Bob: *"mockups look good. project and patch tabs much improved. the radio
 button is better - top bar is still a bit messy but fine for now"*.
 The header tidy (slice 8) stays a later pass; the round-2 layout is good
 enough to build on.
+
+## Ratified — Bob, 2026-10-04
+
+*"yes, ratify it and set up the build stitches"* — the proposal as revised
+(round-2 mockups) is ratified. Build stitches `1`–`8` follow its §7 order.
