@@ -57,3 +57,5 @@ enough to build on.
 
 *"yes, ratify it and set up the build stitches"* — the proposal as revised
 (round-2 mockups) is ratified. Build stitches `1`–`8` follow its §7 order.
+
+**Bob, 2026-10-04 (later):** multiple shows per project after all — the picker goes in the project menu → `10-multiple-shows`. Rule 4 stands for sites (geometry only).
