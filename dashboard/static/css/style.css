@@ -108,7 +108,7 @@ header h1{margin:0;flex:none}.app-brand{white-space:nowrap}
 #ws-status.online::before{background:var(--green);box-shadow:0 0 6px color-mix(in srgb,var(--green) 55%,transparent)}
 #mute-all{min-height:40px;white-space:nowrap}
 .theme-control{display:flex;align-items:center;gap:7px;margin:0}.theme-control select{height:30px;min-height:30px}
-@media(max-width:1299px){
+@media(max-width:1599px){
   header{flex-wrap:wrap;height:auto;min-height:var(--header-h);row-gap:6px;padding:5px 16px}
   header h1{order:0;margin-right:auto}
   .app-health{order:1}

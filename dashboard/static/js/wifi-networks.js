@@ -8,6 +8,7 @@
   const send = document.getElementById("wifi-send");
   const dialog = document.getElementById("wifi-confirm");
   function status() {
+    const performance=installation.performance===true;
     const messages = [];
     const enabled = new Set(draft.networks.filter(row => row.enabled).map(row => row.ssid));
     const active = new Map();
@@ -21,7 +22,17 @@
         messages.push(`⚠ ${count} devices are on ${name} now; they'll move to the next enabled network they can see`);
     }
     warning.textContent = messages.join("\n");
-    send.disabled = !draft.networks.some(row => row.enabled) || awaiting;
+    send.disabled = performance || !draft.networks.some(row => row.enabled) || awaiting;
+    country.disabled=performance;
+    document.getElementById("wifi-add").disabled=performance;
+    rows.querySelectorAll("input, button").forEach(control=>{
+      const move=control.dataset.move;
+      const index=[...rows.children].indexOf(control.closest(".wifi-network"));
+      control.disabled=performance || (move==="-1"&&index===0)
+        || (move==="1"&&index===draft.networks.length-1);
+    });
+    document.querySelectorAll("[data-wifi-adopt]").forEach(button=>{button.disabled=performance;});
+    if(performance&&dialog.open)dialog.close("cancel");
   }
   function paint() {
     country.value = draft.country;

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -164,6 +166,124 @@ class NodeControlTests(unittest.TestCase):
         self.control.handle('/io/registry', ['{}'])
         self.assertEqual(self.control.snapshot(), io_protocol.empty_io())
 
+    def test_performance_refuses_write_without_module_fault_and_allows_scan(self):
+        self.control.handle('/io/registry', [json.dumps(facts())])
+        self.control.write_allowed = lambda: False
+        self.control.request('write', json.dumps(write()), self.reply, '192.0.2.1')
+        self.send.assert_not_called()
+        self.assertEqual(self.reply.calls, [('/os/io-write', ['node-a', 'err',
+            json.dumps({'name': 'adc', 'command': 'threshold', 'error': 'performance'})],
+            ('192.0.2.1', 5550))])
+        self.assertFalse(self.control.pending['write'])
+        self.assertFalse(self.timers)
+        self.control.handle('/io/error', ['adc', 'performance'])
+        self.errors.assert_not_called()
+        self.assertEqual(self.control.snapshot(), facts())
+        with self.assertRaises(ValueError):
+            io_protocol.validate_io(dict(facts(), modules={'adc': dict(
+                facts()['modules']['adc'], state='errored', error='performance')}))
+        self.control.request('scan', None, self.reply, '192.0.2.1')
+        self.send.assert_called_once_with('/io/scan', [])
+        self.control.handle('/io/scanned', [json.dumps(facts(True))])
+        self.assertEqual(self.reply.calls[-1][0], '/os/io-scan')
+
+    def test_queued_writes_recheck_on_success_error_and_timeout(self):
+        for completion in ('success', 'error', 'timeout'):
+            with self.subTest(completion=completion):
+                self.control.write_allowed = lambda: True
+                self.send.reset_mock()
+                self.errors.reset_mock()
+                self.reply.calls.clear()
+                self.control.request('write', json.dumps(write()), self.reply, '192.0.2.1')
+                self.control.request('write', json.dumps(write('lights', 'fill')),
+                                     self.reply, '192.0.2.2')
+                self.control.write_allowed = lambda: False
+                if completion == 'success':
+                    self.control.handle('/io/written', ['adc', 'threshold'])
+                elif completion == 'error':
+                    self.control.handle('/io/error', ['adc', 'write-failed'])
+                else:
+                    self.timers[-1].fire()
+                self.send.assert_called_once_with('/io/adc', ['threshold', 1, 2])
+                self.assertEqual(json.loads(self.reply.calls[-1][1][2]),
+                    {'name': 'lights', 'command': 'fill', 'error': 'performance'})
+                self.assertEqual(self.reply.calls[-1][2], ('192.0.2.2', 5550))
+                self.assertFalse(self.control.pending['write'])
+                self.assertNotIn('write', self.control.timeouts)
+                if completion != 'error':
+                    self.errors.assert_not_called()
+
+    def test_node_mode_entry_refuses_waiting_writes_and_exit_does_not_replay(self):
+        import test_log_config as fixture
+        node = fixture.bopos
+        with tempfile.TemporaryDirectory() as root:
+            state = SimpleNamespace(uid='node-a', performance=False,
+                performance_path=str(Path(root) / 'performance.json'), io_control=self.control)
+            self.control.write_allowed = lambda: node.development_allowed('io-write', state)
+            for name, host in (('adc', '192.0.2.1'), ('lights', '192.0.2.2'),
+                               ('other', '192.0.2.3')):
+                node.dispatch_uid_admin('io-write', [json.dumps(write(name))],
+                                        state, self.reply, host)
+            self.control.handle('/io/registry', [json.dumps(facts())])
+            with patch.object(node, 'report_reply', return_value=True), \
+                    patch.object(node.nodelog, 'change_destination', side_effect=lambda update: update()):
+                self.assertTrue(node.set_performance(1, self.reply, '192.0.2.4', state))
+                self.assertTrue(state.performance)
+                self.assertEqual([json.loads(call[1][2])['name'] for call in self.reply.calls],
+                                 ['lights', 'other'])
+                self.assertTrue(all(json.loads(call[1][2])['error'] == 'performance'
+                                    for call in self.reply.calls))
+                self.assertEqual(len(self.control.pending['write']), 1)
+                self.assertFalse(self.timers[0].cancelled)
+                self.control.handle('/io/written', ['adc', 'threshold'])
+                self.assertEqual(self.reply.calls[-1][1][1], 'ok')
+                self.assertEqual(self.control.snapshot(), facts())
+                self.errors.assert_not_called()
+                self.assertTrue(node.set_performance(0, self.reply, '192.0.2.4', state))
+                self.send.assert_called_once_with('/io/adc', ['threshold', 1, 2])
+                self.assertFalse(self.control.pending['write'])
+                node.dispatch_uid_admin('io-write', [json.dumps(write())], state,
+                                        self.reply, '192.0.2.1')
+                self.assertEqual(self.send.call_count, 2)
+
+    def test_performance_entry_serializes_with_a_bridge_send_in_progress(self):
+        import test_log_config as fixture
+        node = fixture.bopos
+        sending, release, changing, acknowledged = (threading.Event() for _ in range(4))
+        def send(address, values):
+            sending.set()
+            if not release.wait(3):
+                raise RuntimeError('fixture bridge send was not released')
+        self.send.side_effect = send
+        with tempfile.TemporaryDirectory() as root:
+            state = SimpleNamespace(uid='node-a', performance=False,
+                performance_path=str(Path(root) / 'performance.json'), io_control=self.control)
+            self.control.write_allowed = lambda: node.development_allowed('io-write', state)
+            def enter():
+                changing.set()
+                node.set_performance(1, self.reply, '192.0.2.2', state)
+            with patch.object(node, 'report_reply', side_effect=lambda *args: acknowledged.set()), \
+                    patch.object(node.nodelog, 'change_destination', side_effect=lambda update: update()), \
+                    ThreadPoolExecutor(max_workers=2) as workers:
+                write_job = workers.submit(node.dispatch_uid_admin, 'io-write',
+                    [json.dumps(write())], state, self.reply, '192.0.2.1')
+                try:
+                    self.assertTrue(sending.wait(2))
+                    mode_job = workers.submit(enter)
+                    self.assertTrue(changing.wait(2))
+                    self.assertFalse(acknowledged.wait(.05))
+                    self.assertFalse(state.performance)
+                finally:
+                    release.set()
+                self.assertTrue(write_job.result(timeout=2))
+                mode_job.result(timeout=2)
+                self.assertTrue(acknowledged.is_set())
+                self.assertTrue(state.performance)
+                node.dispatch_uid_admin('io-write', [json.dumps(write('lights'))],
+                                        state, self.reply, '192.0.2.3')
+                self.send.assert_called_once_with('/io/adc', ['threshold', 1, 2])
+                self.assertEqual(json.loads(self.reply.calls[-1][1][2])['error'], 'performance')
+
     def test_error_updates_cache_and_broadcast_failure_does_not_block_receipt(self):
         self.control.handle('/io/registry', [json.dumps(facts())])
         self.control.request('write', json.dumps(write()), self.reply, '192.0.2.1')
@@ -295,6 +415,22 @@ class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(dash.osc._io_timeouts)
         dash.osc.request.assert_called_with('node-a', 'report')
 
+    async def test_performance_receipt_clears_pending_without_module_fault(self):
+        dash = self.dashboard
+        self.device['report']['io'] = facts(True)
+        await dash.handle_ws({'type': 'io_write', 'data': {'uid': 'node-a', 'config': write()}})
+        result = {'name': 'adc', 'command': 'threshold', 'error': 'performance'}
+        dash.osc.handle('/os/io-write', ['node-a', 'err', json.dumps(result)], '192.0.2.1')
+        self.assertEqual(self.device['io_write'], dict(result, status='err'))
+        self.assertNotIn(('node-a', 'write'), dash.osc._io_timeouts)
+        self.assertEqual(self.device['report']['io'], facts(True))
+        self.assertNotIn('io_error', self.device)
+        before = len([event for event in self.events if event[0] == 'report'])
+        dash.osc.handle('/os/io-error', ['node-a', 'adc', 'performance'], '192.0.2.1')
+        self.assertEqual(len([event for event in self.events if event[0] == 'report']), before)
+        self.assertNotIn('io_error', self.device)
+        self.assertEqual(self.device['report']['io'], facts(True))
+
     async def test_replaced_and_closed_dashboard_timers_are_cancelled(self):
         dash = self.dashboard
         await dash.handle_ws({'type': 'io_scan', 'data': {'uid': 'node-a'}})
@@ -319,6 +455,31 @@ class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SimFleetIOTests(unittest.TestCase):
+    def test_performance_refuses_without_fault_and_keeps_scan_and_exit_working(self):
+        device = simfleet.Device('node-a', 'sim1', -1, 'abc1234')
+        device.io = facts()
+        device.io_addresses = facts(True)['addresses']
+        device.performance = True
+        fleet = simfleet.SimFleet.__new__(simfleet.SimFleet)
+        fleet.args = SimpleNamespace(report_port=15559, target='127.0.0.1')
+        fleet.sock = ReplySocket()
+        source = ('127.0.0.1', 9999)
+        fleet.uid_admin(device, 'io-write', [json.dumps(write())], source)
+        self.assertEqual(len(fleet.sock.calls), 1)
+        self.assertEqual(fleet.sock.calls[0][:2], ('/os/io-write', ['node-a', 'err',
+            json.dumps({'name': 'adc', 'command': 'threshold', 'error': 'performance'})]))
+        self.assertEqual(device.io, facts())
+        self.assertFalse(device.io_writes)
+        fleet.uid_admin(device, 'io-scan', [], source)
+        self.assertEqual(fleet.sock.calls[-1][0], '/os/io-scan')
+        self.assertTrue(device.io['scanned'])
+        fleet.uid_admin(device, 'io-write', ['{}'], source)
+        self.assertEqual(json.loads(fleet.sock.calls[-1][1][2])['error'], 'invalid-arguments')
+        device.performance = False
+        fleet.uid_admin(device, 'io-write', [json.dumps(write())], source)
+        self.assertEqual(fleet.sock.calls[-1][1][1], 'ok')
+        self.assertEqual(device.io_writes, [write()])
+
     def test_scan_write_error_report_and_configurable_fake_inventory(self):
         device = simfleet.Device('node-a', 'sim1', -1, 'abc1234')
         device.io = facts()

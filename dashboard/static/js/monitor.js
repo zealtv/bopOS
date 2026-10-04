@@ -572,6 +572,7 @@
   const sendFeedback = panels.send.querySelector("[data-monitor-send-feedback]");
   sendForm.addEventListener("submit", event => {
     event.preventDefault();
+    if (installation.performance) return;
     try {
       const message = window.OscMessage.parseLine(sendLine.value);
       const command = sendLine.value.trim();
@@ -660,6 +661,7 @@
 
   reportForm.addEventListener("submit", event => {
     event.preventDefault();
+    if (installation.performance) return;
     if (!reportForm.reportValidity()) return;
     const uid = reportDevice.value;
     const name = reportName.value.trim();
@@ -683,6 +685,13 @@
     appendReportResult(result);
   });
   ws.on("state", renderReportTargets);
+  ws.on("state", state => {
+    for (const form of [sendForm, reportForm]) {
+      form.querySelectorAll("input, select, button").forEach(control=>{
+        control.disabled=state.performance===true;
+      });
+    }
+  });
   ws.on("device_update", () => renderReportTargets({devices: installation.devices}));
   ws.on("device_offline", () => renderReportTargets({devices: installation.devices}));
 

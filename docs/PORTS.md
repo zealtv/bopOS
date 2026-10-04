@@ -7,19 +7,22 @@ the complete message-by-message list (every address you can construct by
 hand, with the port it goes on), see
 [OSC-REFERENCE.md](OSC-REFERENCE.md).
 
-## The six ports
+## The eight ports
 
-Only two ports ever cross the network. The other four are localhost plumbing
-inside each node.
+The ratified map has three LAN ports and five localhost ports. The active
+LAN ports are 5550 and 6660; 5551 is reserved for the development IO stream
+that follows in stitch 59/8. IO control replies on 7771 ship in v1.21.
 
 | port | scope | listener | sender | carries |
 |---:|---|---|---|---|
 | **5550** | LAN | dashboard | `bopos.py` on every node | heartbeats, status, command replies |
-| **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, cues, point frames |
+| 5551 | LAN unicast (reserved) | dashboard | `bopos.py` | development IO value streams; implementation pending |
+| **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, events, point frames |
 | 6661 | localhost | active engine | `bopos.py` | the selector-stripped engine surface |
-| 6662 | localhost | active engine | `python/io/main.py` | bundled peripheral sensor data |
+| 6662 | localhost | active engine | `python/io/main.py` | bundled peripheral sensor data and IO control replies |
 | 7770 | localhost | `bopos.py` | active engine | engine requests: config, store, load, report, admin (v1.7) |
-| 8880 | localhost | `python/io/main.py` | active engine | peripheral and I/O commands |
+| 7771 | localhost | `bopos.py` | `python/io/main.py` | IO control replies; stream value bundles follow in 59/8 |
+| 8880 | localhost | `python/io/main.py` | active engine, `bopos.py` | peripheral and I/O commands |
 
 ```mermaid
 flowchart LR
@@ -35,6 +38,8 @@ flowchart LR
     engine -- "7770" --> bopos
     io -- "6662" --> engine
     engine -- "8880" --> io
+    bopos -- "8880" --> io
+    io -- "7771" --> bopos
 ```
 
 ## Rules worth remembering
@@ -43,7 +48,7 @@ flowchart LR
   bind 6660 or send on 5550 — engine death therefore never looks like node
   death.
 - **Broadcast vs unicast:** 6660 traffic is broadcast only for genuinely
-  one-to-many, low-rate, idempotent messages (heartbeat requests, cues,
+  one-to-many, low-rate, idempotent messages (heartbeat requests, events,
   point frames, mute, master). All request/reply traffic returns unicast to
   the requester on 5550.
 - **Audition instances move the number, not the shape:** a preview engine on

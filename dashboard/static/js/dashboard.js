@@ -33,6 +33,8 @@ let pendingCreatedPatch = null;
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const Identity = window.DeviceIdentity;
+const performanceActive = () => installation.performance === true;
+$("#performance-toggle").onclick = () => ws.send("set_performance", {active: !performanceActive()});
 
 async function copyFullIdentity(button) {
   const value=button.dataset.copyIdentity;
@@ -520,7 +522,7 @@ function renderPatchesTab() {
   $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
   const taken=new Set((distribution.patches||[]).map(item=>item.name));
   const newVersion=$("#patch-new-version");
-  newVersion.disabled=!live||!catalogPatch(live)?.valid;
+  newVersion.disabled=performanceActive()||!live||!catalogPatch(live)?.valid;
   newVersion.onclick=()=>openVersionDialog(live,taken);
   const addable=(distribution.patches||[]).filter(item=>item.valid&&!names.includes(item.name)).map(item=>item.name);
   const addExisting=$("#patch-add-existing");
@@ -541,9 +543,9 @@ function renderPatchesTab() {
     <p class="dim">${isLive?'The live fleet runs this patch. Edit and push it in place, or make a New Version.':'Not live. Set Live pushes it to the fleet and switches every device to it.'}</p>
     <dl><dt>Devices</dt><dd>${isLive?`<output id="fleet-patch-summary">${esc(fleetPatchSummary())}</output>`:(live?`on ${esc(live)} (live)`:esc(fleetPatchSummary()))}</dd>${lastPushed?`<dt>Last pushed</dt><dd>${esc(lastPushed)}</dd>`:''}<dt>Engine</dt><dd>${esc(item?.valid?patchEngine(item):PATCH_BADGE_LABELS.missing)}</dd></dl>`;
   const edit=$("#patch-edit"), deploy=$("#patch-deploy");
-  edit.disabled=!item?.valid&&!editingThis;
+  edit.disabled=performanceActive()||(!item?.valid&&!editingThis);
   edit.onclick=()=>launchEditor(patch);
-  deploy.disabled=!item?.valid||editing;
+  deploy.disabled=performanceActive()||!item?.valid||editing;
   deploy.onclick=()=>deployPatch(patch);
 }
 function openVersionDialog(live,taken) {
@@ -576,6 +578,7 @@ function contextualExecutionPatch() {
 }
 
 function setExecutionTarget(target) {
+  if (target==="edit" && performanceActive()) return;
   const mode=installation.supervisor?.mode||"off";
   if (target==="off") {
     if (mode==="simulate") {
@@ -633,7 +636,7 @@ function manifestSource(editor, patches, patch) {
     params:Array.isArray(params)?params:[],
     events:Array.isArray(events)?events:[],
     available:Array.isArray(params)||Array.isArray(events)||Boolean(current.engine||embedded.engine||item.engine),
-    editable:Boolean(editor.active&&editor.patch===patch),
+    editable:Boolean(!performanceActive()&&editor.active&&editor.patch===patch),
   };
 }
 function resetManifestDraft(patch, source) {
@@ -958,6 +961,13 @@ function renderEditorPreview(editor) {
 }
 function renderEditor() {
   renderRemoteCommandEditor();
+  $("#editor-panel").hidden=performanceActive();
+  if (performanceActive()) {
+    for (const selector of ["#patch-version-dialog", "#patch-add-dialog"]) {
+      const dialog=$(selector);
+      if (dialog?.open) dialog.close("cancel");
+    }
+  }
   const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}};
   const patches=(distribution.patches||[]).filter(item=>item.valid);
   // The Patches list is the picker: keep a chosen patch while it is the
@@ -976,6 +986,7 @@ function renderEditor() {
     editorPatchChoice=[editor.active?editor.patch:null,installation.fleet_patch?.name,names[0]].find(selectable)||null;
   }
   const newPatch=$("#editor-new-patch");
+  newPatch.disabled=performanceActive();
   newPatch.onclick=()=>{
     const name=prompt("New patch name (letters, numbers, . _ or -):","")?.trim();
     if (!name) return;
@@ -1069,7 +1080,18 @@ function renderHeader() {
   $("#online-count").textContent = `${online} / ${ds.length} online`;
   $("#host-version").textContent = installation.host_version || "—";
   const mode=installation.supervisor?.mode||"off";
+  const activePerformance=performanceActive();
+  $("#performance-toggle").setAttribute("aria-checked",String(activePerformance));
+  const physical=ds.filter(device=>!device.virtual);
+  const pending=physical.filter(device=>device.report?.performance!==activePerformance
+    && (device.online||typeof device.report?.performance==="boolean")).length;
+  const unknown=physical.some(device=>device.online&&typeof device.report?.performance!=="boolean");
+  const warning=$("#performance-warning");
+  warning.hidden=pending===0;
+  warning.textContent=pending ? (activePerformance&&!unknown
+    ? `⚠ ${pending} devices still in development` : `⚠ Performance · ${pending} / ${physical.length}`) : "";
   document.querySelectorAll("[data-execution-target]").forEach(button=>{
+    button.disabled=activePerformance&&button.dataset.executionTarget==="edit";
     const active=button.dataset.executionTarget===mode;
     button.setAttribute("aria-pressed",active?"true":"false");
   });
@@ -1122,6 +1144,7 @@ function patchDiagnostics(d, allowRemediation) {
 }
 function bindPatchDiagnostics(d) {
   const retry=$("#fleet-patch-retry");
+  if(retry) retry.disabled=performanceActive();
   if(retry) retry.onclick=()=>ws.send("retry_fleet_patch",{uid:d.uid});
 }
 
@@ -1238,7 +1261,7 @@ function logSection(d) {
     :receipt?.phase==="timeout"?"Log destination apply timed out; refreshing observed state."
     :receipt?.status==="pending"?"Saving log destination…"
     :fellBack?"USB selected but no stick is mounted — logging to internal storage.":"";
-  const sub=`Writing to ${effective==="usb"?"USB stick":"internal storage"}${fellBack?" (USB not mounted)":""} · USB ${usbPresent?"present":"absent"}`;
+  const sub=effective==="ram"?"Performance":`Writing to ${effective==="usb"?"USB stick":"internal storage"}${fellBack?" (USB not mounted)":""} · USB ${usbPresent?"present":"absent"}`;
   const opt=(value,label)=>`<option value="${value}" ${value===choice?'selected':''}>${label}</option>`;
   return `<section id="device-log" data-log-effective="${esc(effective||'internal')}" data-log-usb="${usbPresent?'1':'0'}">
     <div class="section-head"><div><h2>Logging</h2><p class="dim">${esc(sub)}</p></div><span class="log-state">${esc(effective||'internal')}</span></div>

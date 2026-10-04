@@ -583,6 +583,7 @@ deferred and unratified.
 /<id>/os/identify           →  the box chirps/flashes          (locate on install day)
 /<id>/os/probe <what>       →  /os/probe <id> <what> <values…> (unicast, one-shot)
 /all/os/mute <0|1>                                             (safety)
+/all/os/performance <0|1>    → /os/report <json> (each responding node, unicast)
 /all/os/to <uid> enabled <0|1> → /os/enabled <uid> <device-enabled> <output-enabled>
 /all/os/to <uid> hostname <name> → /os/hostname <uid> <name> <ok|err>
 /all/os/to <uid> audio-config <json>
@@ -621,10 +622,43 @@ move to the uniform envelope.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
-  `device_enabled`, execution `mute_all`, effective `output_enabled`, the
-  `audio`, `log`, redacted `wifi`, and `io` (§11) objects below. This
+  `device_enabled`, execution `mute_all`, effective `output_enabled`,
+  persistent boolean `performance`, and the `audio`, `log`, redacted `wifi`,
+  and `io` (§11) objects below. This
   is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
+- **Performance (v1.21)** is the explicit global session switch, independent
+  of Live / Simulation / Patch Edit and show playback. First installs start
+  in development (`0`). Each node persists the value only on change and
+  remembers it across reboot, including ephemeral engine-store nodes. There
+  is no timeout. `/all/os/performance` is literal fleet-wide, accepts only
+  numeric `0` or `1`, and is never refused because Performance is active.
+  Its confirmation is the existing uid-bearing `/os/report` with boolean
+  `performance`. The host saves its own global mode independently of projects
+  and re-sends it when a device appears or reports a different mode.
+  Devices enforce the locks: probes, operator module writes (`io-write`),
+  development sensor streams (`io-stream`), stream-to-editor, Wi-Fi changes,
+  and patch distribution/switch/removal. Assets and show-time audio controls
+  remain available. Patch fetch refusals return `/os/fetched <slot> err`;
+  patch switch/removal return the existing `/os/rev` error receipt with phase
+  `performance`; Wi-Fi returns its existing error receipt with that phase.
+  Operator `io-write` returns `/os/io-write <uid> err` with JSON
+  `{"name","command","error":"performance"}`. This is an administrative
+  refusal: it never marks a module errored or emits `/os/io-error`.
+  Read-only `io-scan` remains allowed. Queued writes are refused on entry;
+  a write already sent to the bridge keeps its normal terminal receipt.
+  Probes are silently unanswered. The dashboard also blocks Monitor sends,
+  pushes, Set Live, New Version, manifest saves, and Patch Edit (including
+  viewing); entering Performance stops an already-open editor. Development
+  IO writes use the same device-side predicate; streaming handlers will use
+  it when they ship.
+  Node `/log` entries and both service stdout/stderr sinks use RAM only in
+  Performance: tmpfs on Linux, bounded process memory where tmpfs is absent.
+  The configured log destination is retained; `log.effective` is `ram` until
+  Performance ends. RAM entries are never copied back to SD or USB. The
+  transition's mode write is intentional; this is a logging guarantee, not
+  a read-only-filesystem mode. Actual Pi SD-write cessation still requires
+  hardware verification.
 - **The framework output gate is safety-critical.** It is a transport-level
   kill enforced below patch logic (amixer on Pi; degrades to
   engine-stop where no mixer exists). Broadcast, idempotent, spam-safe — repeated
@@ -707,9 +741,17 @@ bridge, then returns the complete §11 `io` object unicast to the requester on
 (an array of OSC scalar values). It addresses the existing driver through
 `/io/<name> <command> <args…>` on localhost 8880. The terminal JSON reply has
 exactly `name`, `command`, and `error`; `ok` carries `error: null`, and `err`
-carries a §11 reason. Invalid payloads return `invalid-arguments` without
+carries a §11 peripheral reason or the administrative refusal `performance`.
+In Performance, valid writes return `err` with
+`{"name":"<requested module>","command":"<requested command>","error":"performance"}`
+without touching the driver, marking the module errored, or emitting
+`/os/io-error`. Invalid payloads return `invalid-arguments` without
 touching a driver. The node keeps one outstanding request per kind and queues
 the rest; a successful write is acknowledged only after `/io/written`.
+Entering Performance refuses queued writes immediately; the gate is also
+rechecked before every queued write is sent. A write already sent to the
+bridge retains its terminal receipt and timeout attribution. Refused writes
+are discarded rather than replayed when Performance ends; scans stay allowed.
 After 3 seconds without a local receipt (`BRIDGE_REPLY_TIMEOUT_SECONDS`), the
 node drops that request and serves the next without emitting any timeout reply
 or new reason token. The dashboard expires its own pending scan/write after
@@ -719,8 +761,8 @@ refreshes the report. These deadlines do not change the wire vocabulary.
 Bridge errors also travel as unsolicited `/os/io-error <uid> <name> <reason>`
 on the normal fleet → dashboard path, LAN broadcast to 5550. The dashboard
 stores the IO facts and receipts and broadcasts the observed state to clients.
-Development streaming and Performance enforcement follow in their own
-stitches; this control-path increment sends no IO values onto the LAN.
+Development streaming follows in its own stitch; this control-path increment
+sends no IO values onto the LAN. Performance enforcement is shared with §6.
 
 ### Exact-device Wi-Fi configuration (v1.20, additive)
 
@@ -1137,4 +1179,4 @@ reasoning.
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
-| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped in 59/1: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and error vocabulary (§4, §6, §11); `io-modules` dropped (§8a). Streaming, manifest ownership and Performance mode remain separate increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §8, §8a and `rulings.md`; stitch `1-scan-transport` |
+| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Streaming and manifest ownership remain separate increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `77-performance-mode` |

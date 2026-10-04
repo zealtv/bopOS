@@ -151,7 +151,7 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.state.devices["one"]["params"]["gain"], 0.333333)
 
     async def test_failed_load_stop_rolls_back_and_reports_error_without_sending(self):
-        path = self.root / "broken.json"
+        path = project_path(self.root / "broken-data")
         original = b"broken installation JSON"
         path.write_bytes(original)
         failed_state = InstallationState(data_root(str(path)))

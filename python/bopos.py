@@ -34,6 +34,7 @@ import wifi_config
 import nodelog
 import osc_contract
 import io_control
+import performance_mode
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -247,6 +248,8 @@ def resolve_version():
 class NodeState:
     def __init__(self, argv=None):
         self.config = read_node_config()
+        self.performance_path = os.path.join(BOPOS_DIR, "state", "performance.json")
+        self.performance = performance_mode.load(self.performance_path)
         self.update_model = ("ephemeral" if self.config.get("UPDATE_MODEL") == "ephemeral"
                              else "persistent")
         self.store = Store(os.path.join(BOPOS_DIR, "state", "store"),
@@ -280,7 +283,44 @@ node_state = NodeState()
 # config, so a `usb` choice follows a hot-inserted stick and falls back to
 # internal when it is absent -- no restart, no dropped entries (contract
 # sec 4.2 /log; log-destination design .loom/legacy-v1/tied/1-logging-seed-design/ §3).
-nodelog.configure(lambda: log_config.effective_dir(node_state.config))
+nodelog.configure(lambda: node_log_directory(node_state))
+
+
+def development_allowed(operation, state=None):
+    """Device-side gate shared by development operations and IO writes."""
+    state = state or node_state
+    return performance_mode.allows(getattr(state, "performance", False), operation)
+
+
+def node_log_directory(state):
+    if getattr(state, "performance", False):
+        return performance_mode.ram_directory(BOPOS_DIR)
+    return log_config.effective_dir(state.config)
+
+
+def set_performance(value, reply_socket, requester, state=None):
+    state = state or node_state
+    if type(value) not in (int, float) or value not in (0, 1):
+        return False
+    with admin_lock:
+        active = bool(value)
+        if active != getattr(state, "performance", False):
+            def update():
+                performance_mode.save(state.performance_path, active)
+                state.performance = active
+            try:
+                # Flush the old destination before entering Performance.
+                # Serialize the mode change with bridge sends. Requests
+                # already sent may finish; queued writes are refused now.
+                control = node_io(state)
+                with control.lock:
+                    nodelog.change_destination(update)
+                    control.recheck_writes()
+            except OSError as error:
+                print("WARNING: could not persist Performance:", error)
+                return report_reply(reply_socket, requester, state)
+        # The report confirms both a change and an idempotent fleet assertion.
+        return report_reply(reply_socket, requester, state)
 
 
 def process_is(pid, name):
@@ -403,16 +443,13 @@ def _fetch_progress_reply(reply_socket, requester, slot, status):
         print("WARNING: fetch progress reply failed:", error)
 
 
-def _fetch_worker_loop():
-    global fetch_active_key
-    while True:
-        key = fetch_queue.get()
-        uri, slot = key
-        with fetch_lock:
-            fetch_active_key = key
-            requesters = list(fetch_jobs.get(key, []))
-        for reply_socket, requester in requesters:
-            _fetch_progress_reply(reply_socket, requester, slot, "fetching")
+def _execute_fetch(uri, slot, state=None):
+    # A queued patch fetch rechecks the gate at execution, under the same lock
+    # as mode changes. An in-flight mutation finishes before Performance is
+    # acknowledged; nothing queued can start afterwards.
+    with admin_lock:
+        if slot.startswith("patch:") and not development_allowed("patch-fetch", state):
+            return False, "performance"
         active_name = None
         if slot.startswith("patch:"):
             active_path = active_patch_path()
@@ -440,6 +477,20 @@ def _fetch_worker_loop():
                 if start_status != 0 or engine_alive() != 1:
                     ok = False
                     detail = "{}; failed to restart active patch engine".format(detail)
+        return ok, detail
+
+
+def _fetch_worker_loop():
+    global fetch_active_key
+    while True:
+        key = fetch_queue.get()
+        uri, slot = key
+        with fetch_lock:
+            fetch_active_key = key
+            requesters = list(fetch_jobs.get(key, []))
+        for reply_socket, requester in requesters:
+            _fetch_progress_reply(reply_socket, requester, slot, "fetching")
+        ok, detail = _execute_fetch(uri, slot)
         with fetch_lock:
             requesters = fetch_jobs.pop(key, [])
             fetch_active_key = None
@@ -1058,6 +1109,12 @@ def installed_assets(assets_root=None):
 def run_admin_verb(callback, args, state, reply_socket=None, requester=None):
     # serialized so two provisioning verbs can't interleave in one git tree
     with admin_lock:
+        operation = next((name for name, handler in PROVISION_VERBS.items()
+                          if handler is callback), None)
+        if operation and not development_allowed(operation, state):
+            if reply_socket is not None:
+                rev_reply(reply_socket, requester, state, "err", "performance")
+            return
         outcome = None
         try:
             outcome = callback('', '', [str(value) for value in args], '')
@@ -1091,7 +1148,10 @@ def audio_report(state=None):
 
 def log_report(state=None):
     state = state or node_state
-    return log_config.status_object(state.config)
+    report = log_config.status_object(state.config)
+    if getattr(state, "performance", False):
+        report["effective"] = "ram"
+    return report
 
 
 def log_config_reply(reply_socket, requester, status, state=None):
@@ -1131,7 +1191,11 @@ def apply_log_config(payload, reply_socket, requester, state=None):
 def apply_wifi_config(payload, reply_socket, requester, state=None):
     # Do not log request arguments or helper stderr: either can contain PSKs.
     state = state or node_state
-    status, phase, observed = wifi_config.apply(payload)
+    with admin_lock:
+        if not development_allowed("wifi-config", state):
+            status, phase, observed = "err", "performance", wifi_config.helper_status()
+        else:
+            status, phase, observed = wifi_config.apply(payload)
     msg = OSCMessage("/os/wifi-config")
     for value in (str(state.uid), status, phase, json.dumps(observed)):
         msg.append(value, 's')
@@ -1292,6 +1356,7 @@ def report_reply(reply_socket, requester, state=None):
         "device_enabled": bool(getattr(state, "device_enabled", True)),
         "mute_all": bool(getattr(state, "mute_all", False)),
         "output_enabled": output_enabled(state),
+        "performance": bool(getattr(state, "performance", False)),
         "audio": audio_report(state),
         "log": log_report(state),
         "wifi": wifi_config.helper_status(),
@@ -1304,6 +1369,9 @@ def report_reply(reply_socket, requester, state=None):
 
 
 def dispatch_admin_verb(member, args, state, reply_socket, requester):
+    if not development_allowed(member, state):
+        rev_reply(reply_socket, requester, state, "err", "performance")
+        return True
     if member in LIFECYCLE_VERBS:
         # lifecycle cannot reply after executing -- reply first (contract sec 7)
         rev_reply(reply_socket, requester, state)
@@ -1349,7 +1417,9 @@ def node_io(state=None):
                 sock.sendto(message.getBinary(),
                             (state.config.get('HB_TARGET', '255.255.255.255'), 5550))
 
-        state.io_control = io_control.IOControl(state.uid, send_bridge, broadcast_error)
+        state.io_control = io_control.IOControl(
+            state.uid, send_bridge, broadcast_error,
+            write_allowed=lambda: development_allowed('io-write', state))
     return state.io_control
 
 
@@ -1364,6 +1434,14 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
         return True
     if member == 'io-write' and len(args) == 1:
         node_io(state).request('write', args[0], reply_socket, requester)
+        return True
+    if not development_allowed(member, state):
+        if member == "wifi-config":
+            msg = OSCMessage("/os/wifi-config")
+            for value in (state.uid, "err", "performance",
+                          json.dumps(wifi_config.helper_status())):
+                msg.append(str(value), 's')
+            reply_socket.sendto(msg.getBinary(), (requester, 5550))
         return True
     if member == "enabled" and len(args) == 1:
         return set_device_enabled(args[0], reply_socket, requester, state)
@@ -1510,6 +1588,9 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                                   reply_socket, source[0])
     if parts == ["all", "os", "groups"]:
         return apply_groups(args, reply_socket, source[0], state)
+    if parts == ["all", "os", "performance"]:
+        return (len(args) == 1
+                and set_performance(args[0], reply_socket, source[0], state))
     if parts == ["all", "os", "assign"]:
         return apply_assign(args, state)
     if (len(parts) != 3 or parts[1] != "os"
@@ -1541,6 +1622,9 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
             _fetched_reply(reply_socket, source[0], "", "err")
             return True
         uri, slot = str(args[0]), str(args[1])
+        if slot.startswith("patch:") and not development_allowed("patch-fetch", state):
+            _fetched_reply(reply_socket, source[0], slot, "err")
+            return True
         asset_slot = identity.valid_asset_slot(slot)
         patch_slot = re.fullmatch(r"patch:[A-Za-z0-9_-]+", slot)
         if not asset_slot and patch_slot is None:
@@ -1571,6 +1655,8 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
         identify(args[0] if args else None, state)
         return True
     if parts[2] == "probe" and args:
+        if not development_allowed("probe", state):
+            return True
         what = str(args[0])
         with state.reports_lock:
             values = state.reports.get(what)

@@ -128,6 +128,7 @@ class OSCBridge:
         self.fetch_pending = {}
         self.pending_timeouts = {}
         self.probe_pending = {}
+        self._performance_replayed = {}
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
@@ -1006,6 +1007,25 @@ class OSCBridge:
         else:
             raise ValueError(f"invalid OSC route {route!r}")
 
+    def set_performance(self, active):
+        self._performance_replayed.clear()
+        self.send_physical("/all/os/performance", [int(bool(active))])
+        if self.destination != self.physical_destination:
+            self.send("/all/os/performance", [int(bool(active))])
+
+    def converge_performance(self, device):
+        desired = bool(getattr(self.state, "performance", False))
+        observed = (device.get("report") or {}).get("performance")
+        uid = device["uid"]
+        if isinstance(observed, bool) and observed == desired:
+            self._performance_replayed.pop(uid, None)
+            return
+        now = time.monotonic()
+        if now - self._performance_replayed.get(uid, float("-inf")) < 3.0:
+            return
+        self._performance_replayed[uid] = now
+        self.send_for_uid(uid, "/all/os/performance", [int(desired)])
+
     def assign(self, uid, device_id, name, elements=()):
         # idempotent full-state; only the node whose uid matches applies it,
         # and it persists the lot for standalone operation (contract sec 5).
@@ -1321,6 +1341,11 @@ class OSCBridge:
             device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
                           rssi=args[4] if len(args) > 4 else None, ip=ip, online=True,
                           last_seen=time.time())
+            if first_seen or not old["online"]:
+                # A reboot invalidates the previous observed mode.
+                if isinstance(device.get("report"), dict):
+                    device["report"].pop("performance", None)
+            self.converge_performance(device)
             if (revoking and advertised_id == -1 and unassign_waiter is not None
                     and not unassign_waiter.done()):
                 unassign_waiter.set_result(True)
@@ -1454,7 +1479,7 @@ class OSCBridge:
                         or not isinstance(result['command'], str)
                         or (result['error'] is not None and
                             (not isinstance(result['error'], str)
-                             or result['error'] not in io_protocol.ERRORS))
+                             or result['error'] not in io_protocol.WRITE_ERRORS))
                         or (args[1] == 'ok') != (result['error'] is None)):
                     return
                 device['io_write'] = dict(result, status=args[1])
@@ -1628,6 +1653,7 @@ class OSCBridge:
             device = self._device_for_reply("report", ip, report)
             if device:
                 device["report"] = report
+                self.converge_performance(device)
                 if isinstance(report.get("hostname"), str):
                     device["hostname"] = report["hostname"]
                 if isinstance(report.get("device_enabled"), bool):

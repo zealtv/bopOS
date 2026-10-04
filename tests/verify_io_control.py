@@ -155,6 +155,43 @@ async def journey(http_port):
                             and event['data']['uid'] == second
                             and (event['data'].get('io_error') or {}).get('error') == 'unknown-command')
         assert event['data']['io_write']['status'] == 'err'
+
+        async def set_performance(active):
+            await ws.send(json.dumps({'type': 'set_performance', 'data': {'active': active}}))
+            confirmed = set()
+            def converged(event):
+                if (event['type'] == 'report' and event['data']['uid'] in (first, second)
+                        and event['data'].get('report', {}).get('performance') is active):
+                    confirmed.add(event['data']['uid'])
+                return len(confirmed) == 2
+            await until(converged)
+
+        await set_performance(True)
+        payload['name'] = 'adc'
+        await ws.send(json.dumps({'type': 'io_write', 'data': {'uid': first, 'config': payload}}))
+        event = await until(lambda event: event['type'] == 'report'
+                            and event['data']['uid'] == first
+                            and (event['data'].get('io_write') or {}).get('error') == 'performance')
+        assert event['data']['io_write'] == {'name': 'adc', 'command': 'threshold',
+                                           'error': 'performance', 'status': 'err'}
+        module = event['data']['report']['io']['modules']['adc']
+        assert module['state'] == 'running' and module['error'] is None
+        assert not event['data'].get('io_error')
+        await ws.send(json.dumps({'type': 'io_scan', 'data': {'uid': first}}))
+        await until(lambda event: event['type'] == 'device_update'
+                    and event['data']['uid'] == first and event['data'].get('io_scan_pending'))
+        event = await until(lambda event: event['type'] == 'report'
+                            and event['data']['uid'] == first
+                            and event['data'].get('io_scan_pending') is False)
+        assert event['data']['report']['performance'] is True
+        assert event['data']['io_scan']['status'] == 'ok'
+        await set_performance(False)
+        await ws.send(json.dumps({'type': 'io_write', 'data': {'uid': first, 'config': payload}}))
+        event = await until(lambda event: event['type'] == 'report'
+                            and event['data']['uid'] == first
+                            and (event['data'].get('io_write') or {}).get('status') == 'ok')
+        assert event['data']['io_write']['error'] is None
+        print('PASS: real dashboard/simfleet Performance refusal receipt, healthy module, allowed scan and unlocked write')
         # A fresh client sees the observed IO facts in its initial snapshot.
     async with websockets.connect(f'ws://127.0.0.1:{http_port}/ws') as ws:
         snapshot = json.loads(await asyncio.wait_for(ws.recv(), 10))

@@ -34,7 +34,7 @@ class WifiPeers(PhysicalPeer):
 
     def report(self, uid=UID):
         self.send("/os/report", json.dumps({"uid": uid, "hostname": "wifi-peer",
-                                           "patch": "alpha", "wifi": self.wifi[uid]}))
+                                           "patch": "alpha", "wifi": self.wifi[uid], "performance": False}))
 
     def handle(self, datagram):
         message = OscMessage(datagram)

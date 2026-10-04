@@ -17,7 +17,8 @@ BRIDGE_REPLY_TIMEOUT_SECONDS = 3.0
 
 
 class IOControl:
-    def __init__(self, uid, send_bridge, broadcast_error, timer_factory=None):
+    def __init__(self, uid, send_bridge, broadcast_error, timer_factory=None,
+                 write_allowed=None):
         self.uid = uid
         self.send_bridge = send_bridge
         self.broadcast_error = broadcast_error
@@ -26,6 +27,7 @@ class IOControl:
         self.pending = {'scan': deque(), 'write': deque()}
         self.timeouts = {}
         self.timer_factory = timer_factory or threading.Timer
+        self.write_allowed = write_allowed or (lambda: True)
 
     def close(self):
         with self.lock:
@@ -73,12 +75,22 @@ class IOControl:
                 self._reply(kind, (payload, reply_socket, requester), 'invalid-arguments')
                 return
         with self.lock:
+            if kind == 'write' and not self.write_allowed():
+                self._reply(kind, (payload, reply_socket, requester), 'performance')
+                return
             jobs = self.pending[kind]
             jobs.append((payload, reply_socket, requester))
             if len(jobs) == 1:
                 self._start(kind)
 
     def _start(self, kind):
+        # A write can have waited behind a bridge request while the mode
+        # changed. Never forward it based on its admission-time decision.
+        jobs = self.pending[kind]
+        while kind == 'write' and jobs and not self.write_allowed():
+            self._reply(kind, jobs.popleft(), 'performance')
+        if not jobs:
+            return
         job = self.pending[kind][0]
         payload = job[0]
         timer = self.timer_factory(BRIDGE_REPLY_TIMEOUT_SECONDS, self._expire,
@@ -94,6 +106,17 @@ class IOControl:
                                  [payload['command'], *payload['args']])
         except OSError as failure:
             print('IO bridge send dropped:', failure)
+
+    def recheck_writes(self):
+        """Refuse waiting writes; the already-sent head keeps its receipt."""
+        with self.lock:
+            jobs = self.pending['write']
+            if self.write_allowed() or len(jobs) < 2:
+                return
+            active = jobs.popleft()
+            while jobs:
+                self._reply('write', jobs.popleft(), 'performance')
+            jobs.append(active)
 
     def _expire(self, kind, job):
         with self.lock:

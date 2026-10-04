@@ -33,6 +33,7 @@ import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from python.paramgen import ParamGrammarError, parse_message
+from python import performance_mode
 
 # The supervisor's stderr is the only place a launch failure explains itself:
 # audition.py dies before send_ready() and the dashboard has already reported
@@ -338,6 +339,7 @@ class Dashboard:
         kind, data = message.get("type"), message.get("data", {})
         uid = data.get("uid")
         serialized_mutations = {
+            "set_performance", "save_patch_manifest", "create_patch", "new_patch_version",
             "set_live_param", "set_live_automation",
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
@@ -383,15 +385,46 @@ class Dashboard:
         if editor_scoped and self.supervisor_mode != "edit":
             await self.ws_error(ws, "The patch editor is not running.")
             return
-        if kind in {"save_patch_manifest", "create_patch"} and not manifest_locked:
+        if kind in {"save_patch_manifest", "create_patch", "new_patch_version",
+                    "set_performance"} and not manifest_locked:
             async with self.manifest_lock:
                 return await self.handle_ws(
                     message, ws, supervisor_locked=supervisor_locked,
                     manifest_locked=True)
         if kind in serialized_mutations and not supervisor_locked:
             async with self.supervisor_lock:
-                return await self.handle_ws(message, ws, supervisor_locked=True)
-        if kind == "monitor_probe":
+                return await self.handle_ws(message, ws, supervisor_locked=True,
+                                            manifest_locked=manifest_locked)
+        locked = kind in {
+            "monitor_probe", "monitor_send", "set_wifi_networks", "send_wifi_networks",
+            "set_fleet_patch", "retry_fleet_patch", "save_patch_manifest",
+            "create_patch", "new_patch_version", "relaunch_edit",
+        }
+        locked = locked or (kind == "set_edit" and data.get("active", False))
+        locked = locked or (kind in {"send_distribution", "drop_distribution"}
+                            and data.get("kind") == "patch")
+        locked = locked or (kind == "action" and data.get("verb") in {"patch", "droppatch"})
+        if locked and getattr(self.state, "performance", False):
+            await self.ws_error(ws, "Performance")
+            return
+        if kind == "set_performance":
+            active = data.get("active")
+            if not isinstance(active, bool):
+                return
+            try:
+                performance_mode.save(self.state.performance_path, active)
+            except OSError:
+                await self.ws_error(ws, "Performance")
+                return
+            self.state.performance = active
+            if active:
+                self.supersede_fleet_operation()
+                self.wifi_confirmations.clear()
+                if self.supervisor_mode == "edit":
+                    await self.stop_supervisor()
+            self.osc.set_performance(active)
+            await self.broadcast("state")
+        elif kind == "monitor_probe":
             ok, error = self.osc.probe(uid, data.get("name"))
             if ws is not None:
                 await ws.send_json({
@@ -1796,6 +1829,7 @@ class Dashboard:
     async def public_state(self):
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
+        public["performance"] = self.state.performance
         public["wifi_secret_ssids"] = sorted(self.wifi_secrets.values)
         public["wifi_countries"] = sorted(wifi_config.COUNTRIES)
         # The durable record captures the identity staged by the operator, but

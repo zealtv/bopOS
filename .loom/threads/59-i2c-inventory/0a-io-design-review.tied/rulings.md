@@ -105,3 +105,7 @@ Bob ratified `proposal.md`: ports 5551/7771 fine; Performance mode remembered on
 ## Payload schemas, 2026-10-04
 
 `59/1` found §8 gave verbs but no JSON. The lead proposed schemas (proposal §8a), dropping `io-modules`; Bob: *"simple is good"*, ratified as written.
+
+## Performance refusal word, 2026-10-04
+
+The 77 merge needed a reason for refusing `io-write` in Performance; 77 had already used `performance` as a phase for `/os/rev` and Wi-Fi without a ruling. The lead proposed one word, `performance`, everywhere; Bob: *"sounds good"* (proposal §8b).

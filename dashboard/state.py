@@ -117,6 +117,10 @@ class InstallationState:
 
     def __init__(self, data_dir, devices_file=None, *, project=None, read_only=False):
         self.data_dir = os.path.abspath(data_dir)
+        # Host-global session choice, never replaced by opening a project.
+        from python import performance_mode
+        self.performance_path = os.path.join(self.data_dir, "performance.json")
+        self.performance = performance_mode.load(self.performance_path)
         self.current_path = os.path.join(self.data_dir, "current-project")
         self.registry_path = os.path.join(self.data_dir, "devices.json")
         self.project = "default"
