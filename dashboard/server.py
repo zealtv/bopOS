@@ -639,6 +639,10 @@ class Dashboard:
             await self.save_patch_manifest(data, ws)
         elif kind == "create_patch":
             await self.create_patch(data, ws)
+        elif kind == "add_project_patch":
+            await self.add_project_patch(data, ws)
+        elif kind == "new_patch_version":
+            await self.new_patch_version(data, ws)
         elif kind == "action" and data.get("verb") in {"reboot", "shutdown", "restart-engine",
                                                        "updatebopos"}:
             scope = data.get("scope")
@@ -1974,6 +1978,50 @@ class Dashboard:
         if ws is not None:
             await ws.send_json({"type": "patch_created", "data": response})
         await self.broadcast("distribution", await self.catalog())
+        if self.state.add_project_patch(name):
+            self.state.save_debounced()
+            await self.broadcast("state")
+
+    async def add_project_patch(self, data, ws):
+        """Add Existing: list a valid catalog folder among the project's patches."""
+        name = str(data.get("patch", "")).strip()
+        if await self.catalog_patch(name) is None:
+            await self.ws_error(ws, f"Cannot add {name!r}: no valid host patch.")
+            return
+        if self.state.add_project_patch(name):
+            self.state.save_debounced()
+            await self.broadcast("state")
+
+    async def new_patch_version(self, data, ws):
+        """New Version: copy the live patch folder under a new name.
+
+        The fleet keeps running the Patch; the copy joins the project's
+        patches and goes live only through Set Live.
+        """
+        live = (self.state.data.get("fleet_patch") or {}).get("name")
+        source = self.patch_path(live or "")
+        if source is None or not os.path.isdir(source):
+            await self.ws_error(ws, "No fleet patch set")
+            return
+        name = str(data.get("name", "")).strip()
+        target = self.patch_path(name)
+        if target is None:
+            await self.ws_error(ws, "Patch name: start with a letter or digit; then use letters, digits, dot, _ or -.")
+            return
+        if os.path.lexists(target):
+            await self.ws_error(ws, f"Patch {name!r} already exists.")
+            return
+        try:
+            await asyncio.to_thread(shutil.copytree, source, target, symlinks=True)
+        except (OSError, shutil.Error) as error:
+            if not isinstance(error, FileExistsError):
+                await asyncio.to_thread(shutil.rmtree, target, True)
+            await self.ws_error(ws, f"Could not create patch {name!r}: {error}")
+            return
+        self.state.add_project_patch(name)
+        self.state.save_debounced()
+        await self.broadcast("distribution", await self.catalog())
+        await self.broadcast("state")
 
     async def stage_and_converge(self, name, ws):
         item = await self.catalog_patch(name)
