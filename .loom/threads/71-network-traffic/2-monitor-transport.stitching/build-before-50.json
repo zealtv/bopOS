@@ -1,0 +1,218 @@
+{
+  "scope": "Loopback transport peers; no browser rendering, hardware or Wi-Fi",
+  "environment": {
+    "platform": "macOS-14.6.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "nodes": 50,
+  "heartbeat_interval_s": 10,
+  "warmup_s": 12,
+  "compression": false,
+  "source_hashes": {
+    "dashboard/server.py": "9aabd5f05c08f9be242d619d1ed68e25039b504e343c3af9da8db89d8867d220",
+    "dashboard/osc_bridge.py": "4706d4143d0211a78aa9554f1557d75da402df6731df5805d2c8a61e7b334868",
+    "dashboard/static/js/monitor.js": "558b4ba9fbb96b411d1f435b0199b2a041e925a20d619de1f737aa47d42daba9",
+    "dashboard/static/js/ws.js": "dfd892e20749fb04a142b4919583efceb8697c67632b56bf8040d02e679282f0",
+    "tools/simfleet.py": "62dea0349fde489b45b7ceb59e044c7e06ca4a0b364597bfff8ae23b8326c203"
+  },
+  "source_unchanged_during_run": true,
+  "phases": [
+    {
+      "name": "no-clients-static",
+      "clients": 0,
+      "moving": false,
+      "queued": {
+        "osc_out": 1224,
+        "osc_in": 1250,
+        "sync": 1200,
+        "heartbeat": 50,
+        "device_update": 41
+      },
+      "publications": {
+        "osc_out": 1224,
+        "osc_in": 1250,
+        "sync": 1200,
+        "heartbeat": 50,
+        "device_update": 41
+      },
+      "tap_classes": {
+        "sync": 2424,
+        "heartbeat": 50
+      },
+      "peers": [],
+      "elapsed_s": 12.000394083093852
+    },
+    {
+      "name": "one-client-static",
+      "clients": 1,
+      "moving": false,
+      "queued": {
+        "osc_in": 1247,
+        "heartbeat": 97,
+        "device_update": 73,
+        "osc_out": 1173,
+        "sync": 1150
+      },
+      "publications": {
+        "osc_in": 1247,
+        "heartbeat": 97,
+        "device_update": 73,
+        "osc_out": 1173,
+        "sync": 1150
+      },
+      "tap_classes": {
+        "heartbeat": 97,
+        "sync": 2323
+      },
+      "peers": [
+        {
+          "frames": {
+            "osc_in": 1247,
+            "heartbeat": 97,
+            "device_update": 73,
+            "osc_out": 1173,
+            "sync": 1150
+          },
+          "bytes": {
+            "osc_in": 198361,
+            "heartbeat": 8273,
+            "device_update": 152236,
+            "osc_out": 162338,
+            "sync": 155650
+          }
+        }
+      ],
+      "elapsed_s": 12.000463292002678
+    },
+    {
+      "name": "one-client-moving",
+      "clients": 1,
+      "moving": true,
+      "queued": {
+        "osc_out": 1512,
+        "point_frame": 288,
+        "osc_in": 1250,
+        "sync": 1200,
+        "heartbeat": 50,
+        "device_update": 40
+      },
+      "publications": {
+        "osc_out": 1512,
+        "point_frame": 288,
+        "osc_in": 1250,
+        "sync": 1200,
+        "heartbeat": 50,
+        "device_update": 40
+      },
+      "tap_classes": {
+        "points": 288,
+        "sync": 2424,
+        "heartbeat": 50
+      },
+      "peers": [
+        {
+          "frames": {
+            "osc_out": 1512,
+            "point_frame": 288,
+            "osc_in": 1250,
+            "sync": 1200,
+            "heartbeat": 50,
+            "device_update": 40
+          },
+          "bytes": {
+            "osc_out": 216898,
+            "point_frame": 24665,
+            "osc_in": 200915,
+            "sync": 162750,
+            "heartbeat": 4257,
+            "device_update": 83443
+          }
+        }
+      ],
+      "elapsed_s": 12.002060082973912
+    },
+    {
+      "name": "three-clients-moving",
+      "clients": 3,
+      "moving": true,
+      "queued": {
+        "osc_out": 1410,
+        "point_frame": 288,
+        "osc_in": 1197,
+        "heartbeat": 97,
+        "device_update": 70,
+        "sync": 1100
+      },
+      "publications": {
+        "osc_out": 1410,
+        "point_frame": 288,
+        "osc_in": 1197,
+        "heartbeat": 97,
+        "device_update": 70,
+        "sync": 1100
+      },
+      "tap_classes": {
+        "points": 288,
+        "heartbeat": 97,
+        "sync": 2222
+      },
+      "peers": [
+        {
+          "frames": {
+            "osc_out": 1410,
+            "point_frame": 288,
+            "osc_in": 1197,
+            "heartbeat": 97,
+            "device_update": 70,
+            "sync": 1100
+          },
+          "bytes": {
+            "osc_out": 202989,
+            "point_frame": 24661,
+            "osc_in": 191386,
+            "heartbeat": 8261,
+            "device_update": 146056,
+            "sync": 149627
+          }
+        },
+        {
+          "frames": {
+            "osc_out": 1410,
+            "point_frame": 288,
+            "osc_in": 1197,
+            "heartbeat": 97,
+            "device_update": 70,
+            "sync": 1100
+          },
+          "bytes": {
+            "osc_out": 202989,
+            "point_frame": 24661,
+            "osc_in": 191386,
+            "heartbeat": 8261,
+            "device_update": 146056,
+            "sync": 149627
+          }
+        },
+        {
+          "frames": {
+            "osc_out": 1410,
+            "point_frame": 288,
+            "osc_in": 1197,
+            "heartbeat": 97,
+            "device_update": 70,
+            "sync": 1100
+          },
+          "bytes": {
+            "osc_out": 202989,
+            "point_frame": 24661,
+            "osc_in": 191386,
+            "heartbeat": 8261,
+            "device_update": 146056,
+            "sync": 149627
+          }
+        }
+      ],
+      "elapsed_s": 12.002076292061247
+    }
+  ]
+}

@@ -381,7 +381,10 @@ class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
         self.dashboard = Dashboard(args)
         self.events, self.frames = [], []
         # Async handle_ws awaits Dashboard.broadcast; OSCBridge uses a sync callback.
-        async def broadcast(kind, data):
+        async def broadcast(kind, data, **options):
+            if kind == 'device_update' and (data.get('io_scan_pending')
+                    or data.get('io_write', {}).get('status') == 'pending'):
+                self.assertTrue(options.get('priority'))
             self.events.append((kind, copy.deepcopy(data)))
         self.dashboard.broadcast = broadcast
         self.dashboard.osc.broadcast = lambda kind, data: self.events.append((kind, copy.deepcopy(data)))

@@ -177,7 +177,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
             dashboard.state.performance = True
             device = {'uid': 'node', 'online': True, 'report': {}}
             dashboard.state.devices['node'] = device
-            dashboard.broadcast = Mock(side_effect=lambda *args: asyncio.sleep(0))
+            dashboard.broadcast = Mock(side_effect=lambda *args, **kwargs: asyncio.sleep(0))
             dashboard.osc.broadcast = Mock()
             dashboard.osc.send_for_uid = Mock()
             dashboard.osc.request = Mock()
@@ -185,6 +185,7 @@ class HostTests(unittest.IsolatedAsyncioTestCase):
                 for _ in range(2):
                     await dashboard.handle_ws({'type': 'io_reinit', 'data': {'uid': 'node', 'name': 'adc'}})
                 dashboard.osc.send_for_uid.assert_called_once_with('node', '/all/os/to', ['node', 'io-reinit', 'adc'])
+                dashboard.broadcast.assert_called_with('device_update', device, priority=True)
                 dashboard.osc.handle('/os/io-reinit', ['node', 'ok', json.dumps({'name': 'adc', 'error': None})], '192.0.2.1')
                 self.assertEqual(device['io_reinit']['adc']['status'], 'ok')
                 self.assertNotIn(('node', 'reinit:adc'), dashboard.osc._io_timeouts)

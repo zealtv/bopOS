@@ -76,11 +76,26 @@
              data-monitor-panel="${kind}" data-console="${kind}">
           <div class="monitor-console-bar">
             <input data-console-filter type="text" autocomplete="off" spellcheck="false"
-                   placeholder="filter: /p/* !/sync"
-                   aria-label="${kind === "out" ? "Outgoing" : "Incoming"} OSC filter">
+                   placeholder="Search retained lines: /p/* !/sync"
+                   aria-label="${kind === "out" ? "Outgoing" : "Incoming"} retained lines search">
             <button type="button" data-console-pause>Pause</button>
             <button type="button" data-console-clear>Clear</button>
           </div>
+          <details class="monitor-capture-filters">
+            <summary>Capture filters</summary>
+            <div class="monitor-capture-fields">
+              <label>Address starts with <input data-capture-field="include" placeholder="/os/ /p/"></label>
+              <label>Exclude addresses <input data-capture-field="exclude" placeholder="/os/report"></label>
+              <label>Device UIDs <input data-capture-field="uids" placeholder="All devices"></label>
+              <div class="monitor-capture-classes">Include raw lines:
+                ${["sync", "heartbeat", "points"].map(name => `<label><input type="checkbox"
+                  data-capture-class="${name}">${{sync: "Sync", heartbeat: "Heartbeats", points: "Points"}[name]}</label>`).join("")}
+              </div>
+              <small>Shared by both panes. Space-separated prefixes and exact UIDs. Excluded traffic never enters history.</small>
+            </div>
+          </details>
+          <small class="monitor-capture-summary" data-capture-summary></small>
+          <small class="monitor-capture-loss" data-capture-loss hidden role="status"></small>
           <div class="monitor-console-log" data-console-log tabindex="0"></div>
         </div>`).join("")}
       <div id="monitor-panel-send" class="monitor-panel" role="tabpanel"
@@ -139,8 +154,8 @@
           </section>
           <section class="monitor-system-card">
             <h3>Clock</h3>
-            <strong data-monitor-system="clock">0 / 0 settled</strong>
-            <small>at least three offset samples</small>
+            <strong data-monitor-system="clock">0 / 0 with 3+ samples</strong>
+            <small>Refreshes each second while this panel is visible</small>
           </section>
           <section class="monitor-system-card">
             <h3>Show</h3>
@@ -235,6 +250,11 @@
     in: {entries: [], paused: false, filter: "", autoScroll: true, dirty: false, total: 0},
   };
   let consoleFlush = null;
+  const captureFilters = {include: [], exclude: [], uids: [], classes: []};
+  let captureReady = false;
+  let capturedDirections = [];
+  let captureGeneration = -1;
+  let captureError = "";
   const sendHistory = [];
   let sendHistoryIndex = 0;
   let reportDevices = {};
@@ -330,6 +350,45 @@
         tabButtons[kind].draggable = false;
       }
     }
+    updateCapture();
+  }
+
+  function captureVisible(kind) {
+    return !layout.collapsed && !document.hidden && !panels[kind].hidden
+      && !panels[kind].closest("[data-monitor-pane]").hidden;
+  }
+
+  function addConsoleNote(kind, line) {
+    const state = consoles[kind];
+    state.entries.push({line});
+    if (state.entries.length > CONSOLE_LIMIT) state.entries.shift();
+    state.dirty = true;
+    scheduleConsoleFlush();
+  }
+
+  function updateCapture() {
+    if (!captureReady) return;
+    const directions = ["out", "in"].filter(kind => captureVisible(kind) && !consoles[kind].paused);
+    for (const kind of directions) {
+      if (!capturedDirections.includes(kind)) addConsoleNote(kind,
+        "Capture started; hidden or paused traffic was not retained.");
+    }
+    capturedDirections = directions;
+    ws.requestCapture({...captureFilters, directions, clock: captureVisible("system")});
+    if (captureGeneration !== ws.generation) {
+      captureGeneration = ws.generation;
+      for (const kind of ["out", "in"]) {
+        Object.assign(consoles[kind], {dropped: 0, truncated: 0, pendingGap: 0, clearDropped: 0, clearTruncated: 0});
+        consolePanel(kind).querySelector("[data-capture-loss]").hidden = true;
+      }
+    }
+    for (const kind of ["out", "in"]) {
+      const excluded = [["sync", "Sync"], ["heartbeat", "heartbeats"], ["points", "points"]]
+        .filter(([name]) => !captureFilters.classes.includes(name)).map(([, label]) => label);
+      const summary = consolePanel(kind).querySelector("[data-capture-summary]");
+      summary.dataset.excluded = excluded.length ? `${excluded.join(", ")} excluded.` : "All traffic classes included.";
+      summary.textContent = consoles[kind].paused ? "Capture paused; no history is collected." : summary.dataset.excluded;
+    }
   }
 
   function setActive(kind, {expand = false, persist = true} = {}) {
@@ -395,7 +454,8 @@
       + "." + String(Math.floor((entry.ts % 1) * 1000)).padStart(3, "0");
     const args = (entry.args || []).map(String).join(" ");
     const peer = kind === "out" ? `-> ${entry.target || ""}` : `<- ${entry.source || ""}`;
-    return `${stamp}  ${entry.address}${args ? "  " + args : ""}  ${peer}`;
+    const omitted = entry.truncated ? `  [preview shortened: ${entry.omitted_bytes} bytes${entry.omitted_values ? `, ${entry.omitted_values} values` : ""} omitted]` : "";
+    return `${stamp}  ${entry.address}${args ? "  " + args : ""}  ${peer}${omitted}`;
   }
 
   function consolePanel(kind) {
@@ -428,17 +488,22 @@
 
   function scheduleConsoleFlush() {
     if (consoleFlush !== null) return;
-    consoleFlush = setTimeout(() => {
+    consoleFlush = requestAnimationFrame(() => {
       consoleFlush = null;
       for (const kind of ["out", "in"]) {
         if (consoles[kind].dirty && !consoles[kind].paused) renderConsole(kind);
       }
-    }, 150);
+    });
   }
 
   function pushConsole(kind, data) {
     if (!data || typeof data.address !== "string") return;
     const state = consoles[kind];
+    if (state.paused || !capturedDirections.includes(kind)) return;
+    if (state.pendingGap) {
+      addConsoleNote(kind, `${state.pendingGap} matching messages dropped`);
+      state.pendingGap = 0;
+    }
     state.total += 1;
     state.entries.push({line: consoleLine(kind, data)});
     if (state.entries.length > CONSOLE_LIMIT) state.entries.shift();
@@ -453,6 +518,24 @@
     state.filter = event.target.value;
     renderConsole(panel.dataset.console);
   });
+
+  monitor.addEventListener("change", event => {
+    const field = event.target.dataset.captureField;
+    const rawClass = event.target.dataset.captureClass;
+    if (!field && !rawClass) return;
+    if (field) {
+      captureFilters[field] = event.target.value.trim().split(/\s+/).filter(Boolean);
+      for (const input of monitor.querySelectorAll(`[data-capture-field="${field}"]`)) input.value = event.target.value;
+    } else {
+      const classes = new Set(captureFilters.classes);
+      event.target.checked ? classes.add(rawClass) : classes.delete(rawClass);
+      captureFilters.classes = [...classes].sort();
+      for (const input of monitor.querySelectorAll(`[data-capture-class="${rawClass}"]`)) input.checked = event.target.checked;
+    }
+    for (const kind of capturedDirections) addConsoleNote(kind, "Capture filters changed; earlier history is unchanged.");
+    updateCapture();
+  });
+  document.addEventListener("visibilitychange", updateCapture);
 
   monitor.addEventListener("click", event => {
     if (event.target.closest("[data-monitor-mute-flag]")) {
@@ -485,11 +568,17 @@
     if (event.target.matches("[data-console-pause]")) {
       state.paused = !state.paused;
       event.target.textContent = state.paused ? "Resume" : "Pause";
+      if (state.paused) addConsoleNote(panel.dataset.console, "Capture paused; no history is collected.");
+      updateCapture();
       if (!state.paused) renderConsole(panel.dataset.console);
     }
     if (event.target.matches("[data-console-clear]")) {
       state.entries = [];
       state.total = 0;
+      state.clearDropped = state.dropped;
+      state.clearTruncated = state.truncated;
+      state.pendingGap = 0;
+      panel.querySelector("[data-capture-loss]").hidden = true;
       renderConsole(panel.dataset.console);
     }
   });
@@ -714,7 +803,7 @@
     systemText("mute", state?.muted ? "MUTE ALL active" : "output safety open");
     systemText("fleet", `${online.length} / ${devices.length} online`);
     systemText("engines", `${engines} engine${engines === 1 ? "" : "s"} alive`);
-    systemText("clock", `${clocked} / ${online.length} settled`);
+    systemText("clock", `${clocked} / ${online.length} with 3+ samples`);
     systemText("patch", patch.name || "not set");
     systemText("fingerprint", patch.fingerprint
       ? `fingerprint …${String(patch.fingerprint).slice(-8)}`
@@ -765,6 +854,13 @@
 
   ws.on("connection", connected => {
     systemConnected = Boolean(connected);
+    if (connected) {
+      for (const kind of ["out", "in"]) addConsoleNote(kind, "Connection opened; capture starts a new history period.");
+      captureGeneration = -1;
+      updateCapture();
+    } else {
+      for (const kind of capturedDirections) addConsoleNote(kind, "Connection lost; traffic during the gap is unknown.");
+    }
     renderSystem();
   });
   ws.on("state", renderSystem);
@@ -848,10 +944,53 @@
   new ResizeObserver(() => renderLayout()).observe(monitor);
   window.addEventListener("resize", () => applyHeight(layout.height, false));
 
+  captureReady = true;
   applyHeight(layout.height, false);
   setCollapsed(layout.collapsed, false);
   setActive(layout.active, {persist: false});
   for (const kind of ["out", "in"]) renderConsole(kind);
   ws.on("osc_out", data => pushConsole("out", data));
   ws.on("osc_in", data => pushConsole("in", data));
+  ws.on("capture_status", data => {
+    captureError = data.error || "";
+    if (!data.error) return;
+    for (const key of Object.keys(captureFilters)) captureFilters[key] = ws.capture[key];
+    for (const input of monitor.querySelectorAll("[data-capture-field]")) {
+      input.value = captureFilters[input.dataset.captureField].join(" ");
+    }
+    for (const input of monitor.querySelectorAll("[data-capture-class]")) {
+      input.checked = captureFilters.classes.includes(input.dataset.captureClass);
+    }
+    capturedDirections = ws.capture.directions;
+    for (const kind of ["out", "in"]) {
+      const warning = consolePanel(kind).querySelector("[data-capture-loss]");
+      warning.hidden = false;
+      warning.textContent = `⚠ ${data.error} Previous capture selection remains active.`;
+    }
+  });
+  ws.on("capture_counters", status => {
+    for (const kind of ["out", "in"]) {
+      const state = consoles[kind], counts = status[kind] || {};
+      state.dropped = counts.dropped_since_subscribe || 0;
+      state.truncated = counts.truncated || 0;
+      state.pendingGap = (state.pendingGap || 0) + (counts.dropped_interval || 0);
+      const dropped = state.dropped - (state.clearDropped || 0);
+      const truncated = state.truncated - (state.clearTruncated || 0);
+      const warning = consolePanel(kind).querySelector("[data-capture-loss]");
+      warning.hidden = !dropped && !truncated && !captureError;
+      warning.textContent = captureError ? `⚠ ${captureError} Previous capture selection remains active.`
+        : `⚠ ${dropped} matching messages dropped · ${truncated} previews shortened`;
+      if (status.rates && !state.paused) {
+        const rates = status.rates[kind] || {};
+        const summary = consolePanel(kind).querySelector("[data-capture-summary]");
+        summary.textContent = `${summary.dataset.excluded} Rates/s: sync ${(rates.sync || 0).toFixed(1)}, heartbeats ${(rates.heartbeat || 0).toFixed(1)}, points ${(rates.points || 0).toFixed(1)}. ${counts.filtered || 0} filtered · ${counts.unattributed || 0} unattributed`;
+      }
+    }
+  });
+  ws.on("clock_summary", data => {
+    for (const [uid, sync] of Object.entries(data.devices || {})) {
+      if (installation.devices?.[uid]) installation.devices[uid].sync = sync;
+    }
+    renderSystem();
+  });
 })();

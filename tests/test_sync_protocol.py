@@ -68,7 +68,9 @@ class SyncProtocolTests(unittest.TestCase):
         self.assertEqual(sent, [("/7/sync/offset", ["100"], ("192.0.2.7", 16660), "physical")])
         self.assertEqual(bridge.state.devices[uid]["sync"]["offset"], 100)
         self.assertEqual(bridge.state.devices[uid]["sync"]["samples"], 3)
-        self.assertTrue(broadcasts)
+        # Device facts converge through the subscribed one-second clock
+        # summary; no unconsumed per-pong WebSocket event is published.
+        self.assertEqual(broadcasts, [])
 
     def test_unassigned_or_implausibly_late_pong_is_ignored(self):
         uid = "node-a"

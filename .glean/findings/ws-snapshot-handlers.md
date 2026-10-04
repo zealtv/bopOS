@@ -6,6 +6,15 @@ There is no periodic full-`state` broadcast (heartbeats are `device_update`), so
 
 Probe protocol shape: `{"type": …, "data": {"uid": …}}` — a top-level `uid` is silently ignored.
 
+Monitor transport (71/2): `BopSocket` unwraps generation-tagged `telemetry`
+batches into the existing handlers. Install stream handlers before calling
+`requestCapture`; a complete `capture_selection` replaces the window's interest.
+Unconsumed streams are discarded, and ordinary pre-handler events are bounded
+to 50 records/64 KiB total with five-second expiry. Full snapshot replay remains
+latest-per-type. Modules (59/9) shares this broker above `subscribe_io`, with
+ordered original-value samples; no second socket or all-browser IO feed.
+See `docs/MONITOR-TRANSPORT.md` for the API, bounds and hidden-panel policy.
+
 ## Triggers
 
 - SNAPSHOT_TYPES
