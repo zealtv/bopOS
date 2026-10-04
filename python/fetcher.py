@@ -168,19 +168,7 @@ def _file_fetch(uri, destination, cache_root=None):
     source = urllib.request.url2pathname(parsed.path)
     if not os.path.isdir(source):
         raise ValueError("file source is not a directory")
-    files = []
-    for directory, dirs, names in os.walk(source):
-        dirs[:] = [
-            name for name in dirs
-            if not name.startswith(".")
-        ]
-        for name in names:
-            if name.startswith(".") or name.endswith(".part"):
-                continue
-            source_path = os.path.join(directory, name)
-            relative = safe_path(os.path.relpath(source_path, source))
-            files.append({"path": relative, "size": os.path.getsize(source_path),
-                          "sha256": sha256(source_path)})
+    files = parse_manifest(identity.directory_manifest(source))
     os.makedirs(destination, exist_ok=True)
     for item in files:
         target = os.path.join(destination, item["path"])
