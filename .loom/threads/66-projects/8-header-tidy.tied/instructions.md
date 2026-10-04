@@ -13,3 +13,5 @@ Work in slices that each verify (`tools/run-tests.sh`, browser journeys where UI
 - Bob, 2026-10-04: the top bar *"is still a bit messy but fine for now"* — a
   further tidy pass is welcome here; show him a screenshot from the running
   app before calling it done.
+
+**Bob, 2026-10-04:** header screenshots "look fine" — done.

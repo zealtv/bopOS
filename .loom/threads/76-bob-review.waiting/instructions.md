@@ -12,11 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-4. **Header tidy screenshot**: look at the new header before it's called done
-   (Live rename; mode switch moved beside the project bar as a 30px pill with
-   24px buttons; spacing tidied). Before and after, plus light, 900px and
-   420px: `66-projects/8-header-tidy.waiting/screenshots/`. Code is committed;
-   the stitch is parked until you OK it.
 5. **Clearing the project's show**: the proposal says "to start fresh, clear it
    or make a new project". The Show tab has no clear action yet; steps are
    removed one at a time. Want a button? If so, what should it say, e.g.
@@ -51,3 +46,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    `dashboard/installations/` (local, gitignored); a copy is in the lead
    session's scratchpad.
 5. "New patch…" on the Patches tab — **keep** (Bob, 2026-10-04) → `66-projects/6-patch-versions`.
+6. Header tidy screenshots — **look fine** (Bob, 2026-10-04) → `66-projects/8-header-tidy` tied.
