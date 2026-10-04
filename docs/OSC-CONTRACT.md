@@ -596,6 +596,8 @@ deferred and unratified.
 /all/os/to <uid> io-scan       → /os/io-scan <uid> <io-json>
 /all/os/to <uid> io-write <json>
     → /os/io-write <uid> <ok|err> <json>
+/all/os/to <uid> io-reinit <name>
+    → /os/io-reinit <uid> <ok|err> <json>
 /all/os/to <uid> io-stream <0|1>
     → /os/io-stream <uid> <ok|err> <json>       unicast receipt on 5550
 /io/stream <uid:string> <bundle:OSC blob>      leased values, unicast on 5551
@@ -652,7 +654,7 @@ move to the uniform envelope.
   `io-stream` returns `/os/io-stream <uid> err` with
   `{"active":false,"error":"performance"}`; entering Performance closes
   an open stream immediately and cancels the dashboard's consumer renewer.
-  Read-only `io-scan` remains allowed. Queued writes are refused on entry;
+  Read-only `io-scan` and repair `io-reinit` remain allowed. Queued writes are refused on entry;
   a write already sent to the bridge keeps its normal terminal receipt.
   Probes are silently unanswered. The dashboard also blocks Monitor sends,
   pushes, Set Live, New Version, manifest saves, and Patch Edit (including
@@ -752,8 +754,9 @@ In Performance, valid writes return `err` with
 `{"name":"<requested module>","command":"<requested command>","error":"performance"}`
 without touching the driver, marking the module errored, or emitting
 `/os/io-error`. Invalid payloads return `invalid-arguments` without
-touching a driver. The node keeps one outstanding request per kind and queues
-the rest; a successful write is acknowledged only after `/io/written`.
+touching a driver. The node keeps one scan and one mutation outstanding,
+queuing writes and Re-init together; a successful write is acknowledged only
+after `/io/written`.
 Entering Performance refuses queued writes immediately; the gate is also
 rechecked before every queued write is sent. A write already sent to the
 bridge retains its terminal receipt and timeout attribution. Refused writes
@@ -769,6 +772,30 @@ on the normal fleet → dashboard path, LAN broadcast to 5550. The dashboard
 stores the IO facts and receipts and broadcasts the observed state to clients.
 IO value streams use the dedicated port below; control replies and heartbeats
 remain on 5550. Performance enforcement is shared with §6.
+
+**Per-module Re-init.** `/all/os/to <uid> io-reinit <name>` takes exactly one
+valid, non-reserved module name. It repairs declared modules only: the bridge
+reads the type and address from the device's active manifest, retires the
+target instance and runs its setup again under the same IO lock as writes,
+polls and scans. Other module instances and registry rows are untouched.
+Unlike a matching `/io/create`, this repair actually recreates a running
+instance. **Allowed in Performance**, as a repair action.
+
+`/os/io-reinit <uid> <ok|err> <json>` returns unicast on 5550 with exactly
+`{"name":"<name>","error":null|"<reason>"}`. Success has `ok,error:null`;
+failure has `err` and an existing reason: `invalid-arguments` for a malformed
+request, `unknown-command` for an undeclared target, `no-bus` for an unusable
+bus, or `create-failed` for an absent chip or failed retirement/setup. Missing
+hardware remains `missing` with null registry error; retirement/setup failure
+is `errored` with `create-failed`; success is `running` with null error.
+Malformed and undeclared requests do not change a live instance's health.
+Bridge registry and error updates retain their existing paths. Writes and
+repairs share the node FIFO so one `/io/error <name> <reason>` completes one
+active mutation. On entry into Performance, queued writes are refused but
+queued repairs remain. The same three-second silent node receipt timeout and
+four-second dashboard timeout apply; timeout adds no wire reason. The Device
+tab offers Re-init per row, disabled offline, pending or when the module is
+not declared; receipt and report updates refresh its state.
 
 ### Leased development IO streams (v1.21, additive)
 
@@ -1112,11 +1139,17 @@ control grammar is:
 /io/registry <json>
 /io/error <name> <reason>
 /io/written <name> <command>
+/io/reinitialized <name>
 ```
 
 `/io/scanned` carries the complete IO object after scanning. `/io/registry`
 carries that same complete object on `/io/report`, registry changes and module
 status changes. `/io/written` confirms the driver write returned successfully.
+Local `/io/reinit <name>` on 8880 repairs the named active-manifest declaration
+under the IO lock; `/io/reinitialized <name>` confirms its setup returned
+successfully, after the refreshed registry. Failure uses the existing
+`/io/error <name> <reason>` and registry health rules in §6. `reinit` is a
+reserved module name alongside the other management verbs.
 The node holds the latest object for `/os/report.io`. Scanning stays in the
 bridge and skips live peripheral addresses under the shared IO lock.
 
@@ -1248,4 +1281,4 @@ reasoning.
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
-| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport now ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Module panels and editor input remain later increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.stitching/proposal-stream-wire.md`, ratified 2026-10-04 |
+| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Per-module Re-init now ships (§6, §11): `io-reinit <name>` returns `/os/io-reinit <uid> <ok\|err> {name,error}`; local `/io/reinit` / `/io/reinitialized` repair only the active-manifest declaration under the IO lock, sharing the write FIFO and existing timeouts/reasons. Repair remains allowed in Performance, and the Device-tab button is disabled offline/pending/undeclared; simfleet has matching behavior. Module panels and editor input remain later increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b, §8d and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.tied/proposal-stream-wire.md`, ratified 2026-10-04; `2-device-tab-inventory.stitching/reinit-verification.md` |

@@ -89,7 +89,7 @@ def main():
                         window.ioMessages = [];
                         const original = ws.send.bind(ws);
                         ws.send = (kind, data) => {
-                            if (kind === 'io_scan') ioMessages.push({kind, data});
+                            if (kind === 'io_scan' || kind === 'io_reinit') ioMessages.push({kind, data});
                             original(kind, data);
                         };
                     }""")
@@ -180,7 +180,8 @@ def main():
                     assert stale
                     print('PASS optional absence is neutral; required absence keeps its warning', flush=True)
                     assert card.locator('input[type="checkbox"]').count() == 0
-                    assert card.get_by_text("Re-init", exact=True).count() == 0
+                    assert card.get_by_text("Re-init", exact=True).count() == 4
+                    assert card.locator('[data-io-reinit="adc"]').is_disabled()
                     assert card.get_by_text("Show in Monitor", exact=True).count() == 0
                     print("PASS sorted hex addresses, kernel claim, tentative hints and module states/reason", flush=True)
 
@@ -190,6 +191,28 @@ def main():
                     scan_bus()
                     state("addresses")
                     print("PASS scan remains usable in Performance", flush=True)
+
+                    repair = card.locator('[data-io-reinit="touch"]')
+                    assert repair.is_enabled()
+                    repair.evaluate('button => button.click()')
+                    page.wait_for_function("uid => installation.devices[uid]?.io_reinit?.touch?.error === 'create-failed'", arg=UID_A)
+                    assert repair.is_enabled()
+                    assert required_row.locator('.device-io-state').get_attribute('data-state') == 'missing'
+                    # Add a declaration to the active installed manifest, without
+                    # restarting the simulated instance: the repair must read it.
+                    declarations.append(dict(name='adc', type='ads1115', address='0x48'))
+                    installed = json.loads((host_patch / 'bopos.patch.json').read_text())
+                    installed['io_modules'] = declarations
+                    (host_patch / 'bopos.patch.json').write_text(json.dumps(installed))
+                    page.evaluate("() => ws.send('refresh_distribution', {})")
+                    page.wait_for_function("() => distribution.patches.find(p=>p.name==='demo-pd')?.manifest?.io_modules?.length===3")
+                    adc_repair = card.locator('[data-io-reinit="adc"]')
+                    page.wait_for_function("() => !document.querySelector('[data-io-reinit=adc]').disabled")
+                    adc_repair.evaluate('button => button.click()')
+                    page.wait_for_function("uid => installation.devices[uid]?.io_reinit?.adc?.status === 'ok'", arg=UID_A)
+                    assert adc_repair.is_enabled()
+                    assert card.locator('[data-io-module="tilt"] .device-io-state').get_attribute('data-state') == 'errored'
+                    print('PASS declared-only Re-init reads active manifest, succeeds/fails in Performance and leaves other modules unchanged', flush=True)
 
                     if SCREENSHOTS:
                         destination = Path(SCREENSHOTS)
@@ -209,6 +232,14 @@ def main():
                     # A missing reply is a timeout, not an empty-bus assertion.
                     last_scanned = card.locator("[data-io-last-scan]").inner_text()
                     stop(fleet)
+                    count = page.evaluate('ioMessages.length')
+                    adc_repair.evaluate('button => button.click()')
+                    assert adc_repair.is_disabled()
+                    adc_repair.evaluate('button => button.click()')
+                    assert page.evaluate('ioMessages.length') == count + 1
+                    page.wait_for_function("() => document.querySelector('[data-io-module=adc]')?.textContent.includes('Re-init timed out')")
+                    assert adc_repair.is_enabled()
+                    print('PASS pending Re-init prevents duplicate clicks and timeout permits retry', flush=True)
                     count = page.evaluate("ioMessages.length")
                     scan.click()
                     assert scan.is_disabled()
@@ -222,6 +253,7 @@ def main():
 
                     page.evaluate("uid => {installation.devices[uid].online=false; renderDeviceDetail();}", UID_A)
                     assert scan.is_disabled()
+                    assert all(button.is_disabled() for button in card.locator('[data-io-reinit]').all())
                     assert card.locator("[data-io-module]").count() == 4
                     scan.evaluate("button => button.click()")
                     assert page.evaluate("ioMessages.length") == count + 1

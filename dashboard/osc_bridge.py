@@ -737,6 +737,12 @@ class OSCBridge:
         self._arm_io_timeout(uid, 'write')
         self.uid_command(uid, 'io-write', [json.dumps(payload)])
 
+    def io_reinit(self, uid, name):
+        if not io_protocol.valid_name(name):
+            raise ValueError('invalid-arguments')
+        self._arm_io_timeout(uid, 'reinit:' + name)
+        self.uid_command(uid, 'io-reinit', [name])
+
     def _arm_io_timeout(self, uid, kind):
         self._clear_io_timeout(uid, kind)
         self._io_timeouts[(uid, kind)] = asyncio.get_running_loop().call_later(
@@ -754,7 +760,9 @@ class OSCBridge:
             return
         if kind == 'scan':
             device['io_scan_pending'] = False
-        device.setdefault('io_' + kind, {}).update(
+        result = (device.setdefault('io_reinit', {}).setdefault(kind[7:], {})
+                  if kind.startswith('reinit:') else device.setdefault('io_' + kind, {}))
+        result.update(
             status='err', phase='timeout', at=time.time())
         self.broadcast('device_update', device)
         self.request(uid, 'report')
@@ -1474,7 +1482,7 @@ class OSCBridge:
                 device["hostname"] = hostname
             self.broadcast("device_update", device)
             return
-        if address in ('/os/io-scan', '/os/io-write', '/os/io-error', '/os/io-stream'):
+        if address in ('/os/io-scan', '/os/io-write', '/os/io-error', '/os/io-stream', '/os/io-reinit'):
             if not args:
                 return
             device = self.state.devices.get(str(args[0]))
@@ -1507,6 +1515,21 @@ class OSCBridge:
                     return
                 device['io_write'] = dict(result, status=args[1])
                 self._clear_io_timeout(device['uid'], 'write')
+                self.request(device['uid'], 'report')
+            elif address == '/os/io-reinit' and len(args) == 3:
+                try:
+                    result = json.loads(args[2])
+                except (ValueError, TypeError):
+                    return
+                if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                        or set(result) != {'name', 'error'}
+                        or not isinstance(result['name'], str)
+                        or result['error'] not in (None, 'invalid-arguments', 'unknown-command',
+                                                   'no-bus', 'create-failed')
+                        or (args[1] == 'ok') != (result['error'] is None)):
+                    return
+                device.setdefault('io_reinit', {})[result['name']] = dict(result, status=args[1])
+                self._clear_io_timeout(device['uid'], 'reinit:' + result['name'])
                 self.request(device['uid'], 'report')
             elif address == '/os/io-stream' and len(args) == 3:
                 try:

@@ -1,6 +1,6 @@
 """Node-side IO control cache and FIFO attribution on the localhost boundary.
 
-The local protocol has no request IDs: keep one scan and one write outstanding,
+The local protocol has no request IDs: keep one scan and one mutation outstanding,
 and advance each queue on its terminal reply or after 3 seconds without one.
 Timeouts drop the request silently on the wire. Value bundles are not
 handled here (the development stream is a separate stitch).
@@ -46,11 +46,14 @@ class IOControl:
 
     def _reply(self, kind, job, error=None):
         payload, reply_socket, requester = job
+        if kind == 'write' and payload.get('_kind') == 'reinit':
+            kind = 'reinit'
         message = OSCMessage('/os/io-' + kind)
         message.append(self.uid, 's')
-        if kind == 'write':
+        if kind in ('write', 'reinit'):
             message.append('err' if error else 'ok', 's')
-            result = {key: payload[key] for key in ('name', 'command')}
+            result = {key: payload[key] for key in
+                      (('name', 'command') if kind == 'write' else ('name',))}
             result['error'] = error
         else:
             result = self.io
@@ -62,7 +65,15 @@ class IOControl:
 
     def request(self, kind, raw, reply_socket, requester):
         payload = None
-        if kind == 'write':
+        if kind == 'reinit':
+            payload = {'name': raw if isinstance(raw, str) else 'bridge', '_kind': 'reinit'}
+            if not io_protocol.valid_name(raw):
+                self._reply(kind, (payload, reply_socket, requester), 'invalid-arguments')
+                return
+            # Share the write FIFO: /io/error carries only a module name and
+            # cannot distinguish simultaneous write and repair requests.
+            kind = 'write'
+        if kind == 'write' and payload is None:
             value = None
             try:
                 value = json.loads(raw)
@@ -75,7 +86,7 @@ class IOControl:
                 self._reply(kind, (payload, reply_socket, requester), 'invalid-arguments')
                 return
         with self.lock:
-            if kind == 'write' and not self.write_allowed():
+            if kind == 'write' and payload.get('_kind') != 'reinit' and not self.write_allowed():
                 self._reply(kind, (payload, reply_socket, requester), 'performance')
                 return
             jobs = self.pending[kind]
@@ -87,7 +98,8 @@ class IOControl:
         # A write can have waited behind a bridge request while the mode
         # changed. Never forward it based on its admission-time decision.
         jobs = self.pending[kind]
-        while kind == 'write' and jobs and not self.write_allowed():
+        while (kind == 'write' and jobs and jobs[0][0].get('_kind') != 'reinit'
+               and not self.write_allowed()):
             self._reply(kind, jobs.popleft(), 'performance')
         if not jobs:
             return
@@ -101,6 +113,8 @@ class IOControl:
         try:
             if kind == 'scan':
                 self.send_bridge('/io/scan', [])
+            elif payload.get('_kind') == 'reinit':
+                self.send_bridge('/io/reinit', [payload['name']])
             else:
                 self.send_bridge('/io/' + payload['name'],
                                  [payload['command'], *payload['args']])
@@ -114,9 +128,15 @@ class IOControl:
             if self.write_allowed() or len(jobs) < 2:
                 return
             active = jobs.popleft()
+            repairs = deque()
             while jobs:
-                self._reply('write', jobs.popleft(), 'performance')
+                job = jobs.popleft()
+                if job[0].get('_kind') == 'reinit':
+                    repairs.append(job)
+                else:
+                    self._reply('write', job, 'performance')
             jobs.append(active)
+            jobs.extend(repairs)
 
     def _expire(self, kind, job):
         with self.lock:
@@ -147,8 +167,13 @@ class IOControl:
                     self._finish('scan')
             elif address == '/io/written' and len(args) == 2:
                 jobs = self.pending['write']
-                if jobs and (args[0], args[1]) == (
+                if jobs and jobs[0][0].get('_kind') != 'reinit' and (args[0], args[1]) == (
                         jobs[0][0]['name'], jobs[0][0]['command']):
+                    self._finish('write')
+            elif address == '/io/reinitialized' and len(args) == 1:
+                jobs = self.pending['write']
+                if (jobs and jobs[0][0].get('_kind') == 'reinit'
+                        and jobs[0][0]['name'] == args[0]):
                     self._finish('write')
             elif address == '/io/error' and len(args) == 2:
                 name, reason = args
@@ -163,5 +188,6 @@ class IOControl:
                 except OSError as failure:
                     print('IO error broadcast dropped:', failure)
                 jobs = self.pending['write']
-                if jobs and jobs[0][0]['name'] == name:
+                if (jobs and jobs[0][0]['name'] == name
+                        and (jobs[0][0].get('_kind') != 'reinit' or reason != 'write-failed')):
                     self._finish('write', reason)

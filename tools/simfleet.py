@@ -615,6 +615,30 @@ class SimFleet:
             return
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
+        if member == 'io-reinit':
+            name = args[0] if args and isinstance(args[0], str) else 'bridge'
+            reason = None
+            if len(args) != 1 or not io_protocol.valid_name(name):
+                reason = 'invalid-arguments'
+            else:
+                patch_dir = os.path.join(getattr(self.args, 'patches_dir', PATCHES_DIR), device.active_patch)
+                manifest, _error = patch_manifest.load(patch_dir)
+                if manifest is None:
+                    manifest = json.loads(getattr(self, 'manifest_text', '{}'))
+                row = next((row for row in manifest.get('io_modules', []) if row['name'] == name), None)
+                if row is None:
+                    reason = 'unknown-command'
+                else:
+                    reason = ('no-bus' if device.io['bus'] is None else
+                              'create-failed' if row['address'] not in
+                              {item['address'] for item in device.io_addresses} else None)
+                    device.io['modules'][name] = dict(type=row['type'], address=row['address'],
+                        state='missing' if reason else 'running', error=None)
+            self.send_io(device, '/os/io-reinit', ['err' if reason else 'ok',
+                         json.dumps({'name': name, 'error': reason})], source[0])
+            if reason and reason != 'invalid-arguments':
+                self.send_io(device, '/os/io-error', [name, reason], self.args.target)
+            return
         if member == 'io-scan' and not args:
             device.io['scanned'] = True
             device.io['addresses'] = (copy.deepcopy(device.io_addresses)

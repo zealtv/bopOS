@@ -1480,6 +1480,10 @@ def dispatch_uid_admin(member, args, state, reply_socket, requester):
     if member == 'io-stream':
         node_stream(state).request(args, reply_socket, requester)
         return True
+    if member == 'io-reinit':
+        node_io(state).request('reinit', args[0] if len(args) == 1 else None,
+                               reply_socket, requester)
+        return True
     if member == 'io-scan' and not args:
         node_io(state).request('scan', None, reply_socket, requester)
         return True
@@ -2194,7 +2198,7 @@ io_server = None
 if __name__ == "__main__":
     control = node_io()
     io_server = io_stream.BridgeReplyServer(('127.0.0.1', 7771), node_stream())
-    for address in ('/io/scanned', '/io/registry', '/io/error', '/io/written'):
+    for address in ('/io/scanned', '/io/registry', '/io/error', '/io/written', '/io/reinitialized'):
         io_server.addMsgHandler(address, io_callback)
     threading.Thread(target=io_server.serve_forever, daemon=True).start()
     control.refresh()
