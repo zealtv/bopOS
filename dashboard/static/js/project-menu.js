@@ -5,9 +5,15 @@
   const name = document.querySelector('#project-site-name');
   const source = document.querySelector('#project-site-source');
   const count = (n, singular, plural) => `${n ?? '—'} ${n === 1 ? singular : plural}`;
-  const currentFirst = (rows, current, key) => [...rows].sort((a,b) => Number(key(b) === current) - Number(key(a) === current));
-  function render() {
-    if (!menu.matches(':popover-open') || menu.contains(document.activeElement)) return;
+  // Mockup 4: the current row first (highlighted), the rest by name, ignoring case.
+  const currentFirst = (rows, current, key) => [...rows].sort((a,b) =>
+    Number(key(b) === current) - Number(key(a) === current)
+    || String(key(a)).localeCompare(String(key(b)), undefined, {sensitivity: 'base', numeric: true}));
+  // Opening always rebuilds, before the menu shows: hidden, it still holds the
+  // last open's rows, and focus can still sit on one of its buttons. A state
+  // update while it is open leaves a focused row alone.
+  function render(opening = false) {
+    if (!opening && (!menu.matches(':popover-open') || menu.contains(document.activeElement))) return;
     const locked = installation.supervisor?.mode && installation.supervisor.mode !== 'off';
     menu.innerHTML = `<h3>Project</h3>${currentFirst(installation.projects || [], installation.project, row => row.name).map(row => {
       const current = row.name === installation.project;
@@ -25,9 +31,9 @@
       const rect = bar.getBoundingClientRect();
       menu.style.top = `${rect.bottom + 2}px`;
       menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 408))}px`;
+      render(true);
     }
   });
-  menu.addEventListener('toggle', event => { if (event.newState === 'open') render(); });
   menu.addEventListener('click', event => {
     const button = event.target.closest('button[data-action]');
     if (!button) return;

@@ -20,6 +20,30 @@ def menu(page):
     page.wait_for_selector("#project-menu:popover-open [data-action=new-site]")
 
 
+def menu_rows(page, heading):
+    """Row names under one menu heading, and which row is highlighted."""
+    return page.evaluate("""heading => {
+      const rows = [], marks = [];
+      let section = null;
+      for (const node of document.querySelector('#project-menu').children) {
+        if (node.tagName === 'H3') section = node.textContent.trim();
+        else if (section === heading && node.classList.contains('project-menu-row')) {
+          rows.push(node.querySelector('strong').textContent);
+          marks.push(node.classList.contains('current'));
+        }
+      }
+      return {rows, current: rows.filter((_row, index) => marks[index])};
+    }""", heading)
+
+
+def check_order(page, heading, current, rest):
+    """Mockup 4: the current row first and highlighted, the rest by name."""
+    menu(page)
+    seen = menu_rows(page, heading)
+    assert seen == {"rows": [current, *rest], "current": [current]}, (heading, seen)
+    page.keyboard.press("Escape")
+
+
 def action(page, name, selector=""):
     menu(page)
     page.locator(f'#project-menu [data-action="{name}"]{selector}').click()
@@ -78,6 +102,8 @@ def main():
                     screenshot = os.environ.get("BOPOS_PROJECT_MENU_SCREENSHOT")
                     if screenshot: page.screenshot(path=screenshot)
                     page.keyboard.press("Escape")
+                    check_order(page, "Project", "default", ["The Plants"])
+                    check_order(page, "Site", "default", [])
                     assert not page.locator("#project-menu").is_visible()
                     action(page,"new-site")
                     page.wait_for_selector("#project-site-dialog[open]")
@@ -95,8 +121,10 @@ def main():
                     page.get_by_role("button",name="Create Site",exact=True).click()
                     page.wait_for_function("installation.current_site === 'Empty'")
                     assert page.evaluate("installation.seats['1'].positions") == []
+                    check_order(page, "Site", "Empty", ["default", "Town Hall"])
                     action(page,"use",'[data-site="Town Hall"]')
                     page.wait_for_function("installation.current_site === 'Town Hall'")
+                    check_order(page, "Site", "Town Hall", ["default", "Empty"])
                     registry = (root / "devices.json").read_bytes()
                     action(page,"open",'[data-project="The Plants"]')
                     page.wait_for_function("installation.project === 'The Plants'")
@@ -104,6 +132,7 @@ def main():
                     page.wait_for_function("uid => installation.devices[uid].id === 8",arg=UID_A)
                     assert page.evaluate("installation.seats['8'].positions") == [[7,8]]
                     assert page.evaluate("installation.patches") == ["beta"]
+                    check_order(page, "Project", "The Plants", ["default"])
                     assert (root / "devices.json").read_bytes() == registry
                     page.reload()
                     page.wait_for_function("installation.project === 'The Plants'")

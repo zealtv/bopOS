@@ -32,6 +32,13 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 7. **"New patch…" kept on the Patches tab** beside Add Existing…. It isn't in
    the mockups, but without it a project can't create a patch from the
    template. Keep, move or drop? → `66-projects/6-patch-versions`.
+8. **FYI: my calls on the project menu (66/7)**. Names keep spaces as typed,
+   because the folder name is the name ("Kite Choir", as in the mockups):
+   letters, digits, spaces, `.` `_` `-`, starting with a letter or digit. New
+   error lines follow the existing pattern: "That project could not be
+   opened." / "The project could not be created." / "The project could not be
+   renamed." / "The site could not be created." Switching project is refused
+   outside Live. Say if any of these should change.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
