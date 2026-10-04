@@ -12,15 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-1. **Passphrase warning wording** (operator-visible). It reads: "⚠ This sends 2
-   passphrases over the network. Anything on this network right now can read
-   them. Send only on your own network." N counts distinct networks, with
-   proper plurals. To see it: run `BOPOS_WIFI_SCREENSHOTS=<dir>
-   tests/verify_wifi_networks.py`, or Devices tab → Wi-Fi networks → Send. →
-   `33b-device-network-config/2-network-config-implementation.waiting`.
-2. **Your `dashboard/shows/test.json`**: may stitch 5 migrate it (keeping your
-   uncommitted edits) into the project's `show.json` and delete
-   `dashboard/shows/`? → `66-projects/5-one-show`.
 3. **OSC contract editorial**: `docs/OSC-CONTRACT.md` (~line 859) still says
    the facilitator allowlist lives in `installation.json`. Since 66/3 it's
    `project.json`. Change the filename only? → `33b/2` notes.
@@ -36,4 +27,7 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Ruled
 
-(none yet)
+1. Passphrase warning wording — **yes**, as it reads in the app (Bob, 2026-10-04,
+   via Tengu) → recorded in `33b/2`.
+2. Migrate `dashboard/shows/test.json` into the project's `show.json` and delete
+   `dashboard/shows/` — **yes** (Bob, 2026-10-04) → recorded in `66-projects/5-one-show`.
