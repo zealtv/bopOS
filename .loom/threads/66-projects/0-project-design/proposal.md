@@ -1,7 +1,7 @@
 # Projects — design proposal
 
-**Status:** draft for Bob, 2026-10-04 · text first; mockups follow once the
-shape is agreed
+**Status:** for ratification, 2026-10-04 · mockups in `mockups/` (drawn into
+the running dashboard by `mockups/project_mockups.py`)
 **Builds on:** `rulings.md` (Seats per project, versions are patch folders,
 fleet = boxes bound to Seats, one show per project; naming, unassign, New
 Version and Remote commands ruled 2026-10-04).
@@ -99,7 +99,9 @@ here prevents it, it's just not a feature.
   **Project · Site · Patch** on every tab, e.g.
   *Kite Choir · Northern Broadwalk · kite-v2*. Clicking it opens a small menu:
   open project, new project, rename; change site, new site (copies the
-  current one).
+  current one); and the project's **Remote device commands** (moved from the
+  Patches tab, where today they're labelled a venue setting).
+  Mockups 1–2.
 - **Opening a project** re-sends assignments and groups to its fleet,
   **unassigns online boxes not bound in it** (they go quiet, `id -1`), and
   shows the usual patch badges if the boxes aren't on the Patch — pushing
@@ -109,15 +111,14 @@ here prevents it, it's just not a feature.
   - **Show** — the project's show; the show picker goes.
   - **Devices** — device admin, the Wi-Fi panel (33b); pin controls go.
   - **Seats** — Seats, groups, bindings; the room view edits the current
-    site's room and positions; the venue bar goes. Remote device commands stay
-    here as a project setting (no longer labelled a venue setting).
+    site's room and positions; the venue bar goes (mockup 4).
   - **Patches** — the project's versions: list, the **Patch** marked, *make
     it the Patch*, Patch edit on any version. **New Version** copies the Patch
     into a new folder under a suggested name — the trailing number bumped
     (`kite-v2` → `kite-v3`), or `-v2` appended (`kite` → `kite-v2`) — which
     you can change before confirming. Editing and pushing the current Patch
     in place without a new version stays, as today. Folders outside the
-    project are a secondary "add existing" list.
+    project are a secondary "add existing" list. Mockups 1 and 3.
   - **Assets** — unchanged.
 
 ## 6. Migration
