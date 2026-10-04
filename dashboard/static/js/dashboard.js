@@ -911,7 +911,7 @@ function renderManifestEditor(source) {
       <label>Type<select data-io-field="type">${Object.keys(installation.io_types||{}).map(type=>`<option ${module.type===type?'selected':''}>${esc(type)}</option>`).join('')}</select></label>
       <label>Address<input data-io-field="address" value="${esc(module.address)}" placeholder="0x48"></label>
       <label class="manifest-check"><input data-io-field="optional" type="checkbox" ${module.optional?'checked':''}>Optional</label>
-      <button data-remove-io="${index}" aria-label="Remove IO module">✕</button>
+      <button data-remove-io="${index}" aria-label="Remove IO module" title="Remove IO module">✕</button>
     </div>`).join('')||'<p class="dim">No IO modules declared.</p>';
   const addIO=$('#manifest-add-io');
   addIO.disabled=!source.editable;
