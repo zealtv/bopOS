@@ -28,6 +28,7 @@ from python.paramgen import ParamGrammarError, parse_message
 # Imported after the repo root joins sys.path: live_params reaches into
 # python.paramgen at module scope.
 import live_params
+from io_streams import IOStreams
 
 
 LEGACY_DECLARATIONS = [
@@ -105,7 +106,7 @@ class OSCProtocol(asyncio.DatagramProtocol):
 
 class OSCBridge:
     def __init__(self, state, broadcast, listen_port, send_port, target,
-                 live_param_replay=None):
+                 live_param_replay=None, stream_port=5551):
         self.state = state
         self.broadcast = broadcast
         self.listen_port = listen_port
@@ -115,6 +116,9 @@ class OSCBridge:
         self.physical_destination = (target, send_port)
         self.destination = self.physical_destination
         self.transport = None
+        self.stream_port = stream_port
+        self.stream_transport = None
+        self.io_streams = IOStreams(state, self.uid_command)
         self.sender = None
         self.lan_sender = None
         self.lan_source = None
@@ -170,10 +174,20 @@ class OSCBridge:
         loop = asyncio.get_running_loop()
         self.transport, _ = await loop.create_datagram_endpoint(lambda: OSCProtocol(self), sock=sock)
         self.sender = self._new_sender()
+        try:
+            self.stream_transport, _ = await loop.create_datagram_endpoint(
+                lambda: self.io_streams, local_addr=('', self.stream_port),
+                family=socket.AF_INET)
+        except Exception:
+            self.close()
+            raise
         self._ping_task = asyncio.create_task(self.sync_ping_loop())
         self._points_task = asyncio.create_task(self.points_loop())
 
     def close(self):
+        self.io_streams.close()
+        if self.stream_transport:
+            self.stream_transport.close()
         if self._ping_task:
             self._ping_task.cancel()
         if self._points_task:
@@ -711,6 +725,13 @@ class OSCBridge:
         self._arm_io_timeout(uid, 'scan')
         self.uid_command(uid, 'io-scan')
 
+    def subscribe_io(self, uid, consumer, callback):
+        """Share the sole device stream; callback receives bundle and module values."""
+        self.io_streams.subscribe(uid, consumer, callback)
+
+    def unsubscribe_io(self, uid, consumer):
+        self.io_streams.unsubscribe(uid, consumer)
+
     def io_write(self, uid, payload):
         payload = io_protocol.validate_write(payload)
         self._arm_io_timeout(uid, 'write')
@@ -1008,6 +1029,8 @@ class OSCBridge:
             raise ValueError(f"invalid OSC route {route!r}")
 
     def set_performance(self, active):
+        if active:
+            self.io_streams.close()
         self._performance_replayed.clear()
         self.send_physical("/all/os/performance", [int(bool(active))])
         if self.destination != self.physical_destination:
@@ -1451,7 +1474,7 @@ class OSCBridge:
                 device["hostname"] = hostname
             self.broadcast("device_update", device)
             return
-        if address in ('/os/io-scan', '/os/io-write', '/os/io-error'):
+        if address in ('/os/io-scan', '/os/io-write', '/os/io-error', '/os/io-stream'):
             if not args:
                 return
             device = self.state.devices.get(str(args[0]))
@@ -1485,6 +1508,21 @@ class OSCBridge:
                 device['io_write'] = dict(result, status=args[1])
                 self._clear_io_timeout(device['uid'], 'write')
                 self.request(device['uid'], 'report')
+            elif address == '/os/io-stream' and len(args) == 3:
+                try:
+                    result = json.loads(args[2])
+                except (ValueError, TypeError):
+                    return
+                if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                        or set(result) != {'active', 'error'}
+                        or type(result['active']) is not bool
+                        or result['error'] not in (None, 'performance', 'invalid-arguments')
+                        or (args[1] == 'ok') != (result['error'] is None)
+                        or (result['error'] == 'performance' and result['active'])):
+                    return
+                device['io_stream'] = dict(result, status=args[1])
+                if self.io_streams.uid == device['uid'] and not result['active']:
+                    self.io_streams.close(send=False)
             elif address == '/os/io-error' and len(args) == 3:
                 name, reason = args[1:]
                 if (not isinstance(name, str) or not isinstance(reason, str)

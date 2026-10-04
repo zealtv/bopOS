@@ -176,7 +176,8 @@ class Dashboard:
         self.clients = set()
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
                              args.send_port, args.osc_target,
-                             self.replay_live_params_for_seat)
+                             self.replay_live_params_for_seat,
+                             stream_port=getattr(args, 'stream_port', 5551))
         self.osc.wifi_applied = self.wifi_applied
         self.tasks = set()
         self.sim_process = None
@@ -2727,6 +2728,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="bopOS web dashboard")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--listen-port", type=int, default=5550)
+    parser.add_argument("--stream-port", type=int, default=5551)
     parser.add_argument("--send-port", type=int, default=6660)
     parser.add_argument("--osc-target", default="255.255.255.255")
     parser.add_argument("--data-dir", default=os.path.dirname(__file__),

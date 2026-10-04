@@ -34,6 +34,7 @@ import wifi_config
 import nodelog
 import osc_contract
 import io_control
+import io_stream
 import performance_mode
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
@@ -332,9 +333,12 @@ def set_performance(value, reply_socket, requester, state=None):
                 # Serialize the mode change with bridge sends. Requests
                 # already sent may finish; queued writes are refused now.
                 control = node_io(state)
-                with control.lock:
+                stream = node_stream(state)
+                with control.lock, stream.lock:
                     nodelog.change_destination(update)
                     control.recheck_writes()
+                    if active:
+                        stream.close()
             except OSError as error:
                 print("WARNING: could not persist Performance:", error)
                 return report_reply(reply_socket, requester, state)
@@ -1444,12 +1448,38 @@ def node_io(state=None):
     return state.io_control
 
 
+def node_stream(state=None):
+    state = state or node_state
+    # All entry points create this under the IO control lock, before taking
+    # the stream lock. Performance transitions use the same lock order.
+    with node_io(state).lock:
+        if not hasattr(state, 'io_stream'):
+            def send_bridge(address, values):
+                message = OSCMessage(address)
+                for value in values:
+                    message.append(value)
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.sendto(message.getBinary(), ('127.0.0.1', 8880))
+
+            def send_value(packet, target):
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                    sock.sendto(packet, target)
+
+            state.io_stream = io_stream.NodeStream(
+                state.uid, send_bridge, send_value,
+                lambda: development_allowed('io-stream', state))
+        return state.io_stream
+
+
 def io_callback(path, tags, args, source):
     node_io().handle(path, args)
 
 
 def dispatch_uid_admin(member, args, state, reply_socket, requester):
     """Dispatch the exact UID allowlist and its narrow argument verbs."""
+    if member == 'io-stream':
+        node_stream(state).request(args, reply_socket, requester)
+        return True
     if member == 'io-scan' and not args:
         node_io(state).request('scan', None, reply_socket, requester)
         return True
@@ -2144,6 +2174,8 @@ def exit_handler():
     nodelog.close()
     if hasattr(node_state, 'io_control'):
         node_state.io_control.close()
+    if hasattr(node_state, 'io_stream'):
+        node_state.io_stream.close()
     server.close()
     if io_server is not None:
         io_server.close()
@@ -2161,7 +2193,7 @@ io_server = None
 
 if __name__ == "__main__":
     control = node_io()
-    io_server = OSCServer(('127.0.0.1', 7771))
+    io_server = io_stream.BridgeReplyServer(('127.0.0.1', 7771), node_stream())
     for address in ('/io/scanned', '/io/registry', '/io/error', '/io/written'):
         io_server.addMsgHandler(address, io_callback)
     threading.Thread(target=io_server.serve_forever, daemon=True).start()
