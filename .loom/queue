@@ -3,6 +3,7 @@
 4-invalid-manifest-lockout
 2-device-enabled-honesty
 0-project-design
+2-network-config-implementation
 0a-io-design-review
 1-clock-sync-traffic
 2-monitor-transport
