@@ -135,7 +135,6 @@ class OSCBridge:
         self._performance_replayed = {}
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
-        self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
         self._ping_task = None
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
@@ -418,11 +417,13 @@ class OSCBridge:
                 self._refresh_lan_sender()
             self._report_transport_error(address, destination, error)
             return False
-        # Console tap (design note sec 3): everything the dashboard sends,
-        # any tab. Always-on; filtering is client-side. Guarded: sends can
-        # legally happen before the asyncio loop exists.
+        # The dashboard's subscription broker filters before formatting args.
+        # Standalone bridge consumers retain their existing callback seam.
         try:
-            self.broadcast("osc_out", {"ts": time.time(), "address": address,
+            if getattr(self, 'tap', None):
+                self.tap('out', address, args, destination[0], route)
+            else:
+                self.broadcast("osc_out", {"ts": time.time(), "address": address,
                                        "args": self._console_args(self._safe_wifi_args(address, args)),
                                        "target": destination[0], "route": route})
         except RuntimeError:
@@ -1236,11 +1237,12 @@ class OSCBridge:
 
     def handle(self, address, args, ip):
         args = self._safe_wifi_args(address, args)
-        # Console tap (design note sec 3): everything observed on the LAN
-        # receive side, heartbeats included. Always-on; filtering is
-        # client-side. Same no-loop guard as the outgoing tap.
+        # This tap never gates ordinary OSC handling or administration replies.
         try:
-            self.broadcast("osc_in", {"ts": time.time(), "address": address,
+            if getattr(self, 'tap', None):
+                self.tap('in', address, args, ip)
+            else:
+                self.broadcast("osc_in", {"ts": time.time(), "address": address,
                                       "args": self._console_args(args),
                                       "source": ip})
         except RuntimeError:
@@ -2007,7 +2009,3 @@ class OSCBridge:
                           "samples": len(window["offsets"]), "at": time.time()}
         if len(window["offsets"]) >= SYNC_MIN_SAMPLES:
             self.send(f"/{int(seat['id'])}/sync/offset", [str(estimate)])
-        now = time.time()
-        if now - self._sync_sent.get(uid, 0) >= 0.2:
-            self._sync_sent[uid] = now
-            self.broadcast("sync", {"uid": uid, **device["sync"]})

@@ -89,6 +89,13 @@ performance-control surface: author steps of OSC messages with durations
 and follow actions, play them against the fleet, and watch the outgoing
 and incoming OSC consoles.
 
+The **Monitor** captures raw traffic only in visible, unpaused console panes.
+Sync, heartbeats and points appear as rates by default; **Capture filters**
+opts into their raw lines and selects address prefixes or device UIDs. The
+separate search filters retained lines. Pause suspends capture; resuming has
+no backlog. See [Monitor capture and transport](MONITOR-TRANSPORT.md) for
+history, loss indicators, bounds and the internal subscription API.
+
 ## 4. Try the loop
 
 A two-minute exercise to feel the system move:

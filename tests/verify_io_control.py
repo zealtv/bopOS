@@ -141,10 +141,17 @@ def local_journey():
 async def journey(http_port):
     import websockets
     async with websockets.connect(f'ws://127.0.0.1:{http_port}/ws') as ws:
+        pending = []
         async def until(predicate):
             async def receive():
                 while True:
-                    event = json.loads(await ws.recv())
+                    if pending:
+                        event = pending.pop(0)
+                    else:
+                        event = json.loads(await ws.recv())
+                        if event['type'] == 'telemetry':
+                            pending.extend(event['data']['entries'])
+                            continue
                     if predicate(event):
                         return event
             return await asyncio.wait_for(receive(), timeout=15)

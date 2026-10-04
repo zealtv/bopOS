@@ -43,7 +43,6 @@ class SyncProtocolTests(unittest.TestCase):
         bridge = object.__new__(osc_bridge.OSCBridge)
         bridge.state = State()
         bridge._sync = {}
-        bridge._sync_sent = {}
         sent, broadcasts = [], []
         bridge.send = lambda address, args: sent.append((address, args))
         bridge.broadcast = (
@@ -67,7 +66,9 @@ class SyncProtocolTests(unittest.TestCase):
         self.assertEqual(sent, [("/7/sync/offset", ["100"])])
         self.assertEqual(bridge.state.devices[uid]["sync"]["offset"], 100)
         self.assertEqual(bridge.state.devices[uid]["sync"]["samples"], 3)
-        self.assertTrue(broadcasts)
+        # Device facts converge through the subscribed one-second clock
+        # summary; no unconsumed per-pong WebSocket event is published.
+        self.assertEqual(broadcasts, [])
 
     def test_unassigned_or_implausibly_late_pong_is_ignored(self):
         uid = "node-a"
@@ -82,7 +83,6 @@ class SyncProtocolTests(unittest.TestCase):
         bridge = object.__new__(osc_bridge.OSCBridge)
         bridge.state = State()
         bridge._sync = {}
-        bridge._sync_sent = {}
         bridge.send = mock.Mock()
         bridge.broadcast = mock.Mock()
 

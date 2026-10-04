@@ -1,55 +1,53 @@
 (function () {
-  // The server opens every connection with a burst of SNAPSHOT messages
-  // (`Dashboard.websocket`): the current state of things, sent so a fresh
-  // client can draw itself. They are not events — each one supersedes the last
-  // and every consumer already expects to receive one at connect.
-  //
-  // That burst can arrive before all consumers have registered. The scripts are
-  // separate classic `<script>` tags, so between `dashboard.js` (which opens
-  // the socket and registers first) and `control-host.js`, `monitor.js` or
-  // `show.js` the browser must FETCH several more files, and the event loop is
-  // free to deliver socket messages during those fetches. The window is exactly
-  // network-latency wide, which is why it opens under load.
-  //
-  // `pending` alone did not cover this: it buffered only while a type had NO
-  // handlers, so it protected the FIRST registrant and silently dropped the
-  // burst for every later one. Six `state` handlers register after
-  // `dashboard.js`; the visible symptom (51) was a Control tab that never
-  // painted a card, because `venueKnown` waits for a `state` that had already
-  // been delivered to somebody else. Nothing recovered it: heartbeats are
-  // `device_update`, and there is no periodic full-`state` broadcast.
-  //
-  // So snapshots are remembered — the LATEST per type, not a backlog — and
-  // replayed to any handler that registers later. `tests/test_ws_snapshot.py`
-  // pins this list against the server's actual connect burst, because the two
-  // are genuinely coupled and drift would reintroduce the bug in silence.
+  // Snapshots replay latest-per-type. Pre-handler events expire; unconsumed
+  // streams are discarded. Subscriptions install their handlers first.
   const SNAPSHOT_TYPES = new Set([
-    "state", "distribution",
-    "show", "show_warnings", "show_playback",
+    "state", "distribution", "show", "show_warnings", "show_playback",
   ]);
-
+  const STREAM_TYPES = new Set(["osc_in", "osc_out", "sync", "heartbeat",
+    "point_frame", "telemetry", "capture_counters", "clock_summary", "io_samples"]);
   class ReconnectingSocket {
     constructor(path) {
       this.path = path;
       this.handlers = {};
       this.pending = {};
       this.latest = {};
+      this.pendingOrder = [];
+      this.pendingBytes = 0;
+      this.pendingDropped = 0;
+      this.pendingTimer = null;
+      this.capture = {directions: [], uids: [], include: [], exclude: [], classes: [],
+        map: false, clock: false};
+      this.generation = 0;
+      this.requestedCaptures = new Map();
       this.delay = 500;
       this.connect();
     }
     connect() {
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
       this.socket = new WebSocket(`${scheme}//${location.host}${this.path}`);
-      this.socket.onopen = () => { this.delay = 500; this.emit("connection", true); };
-      this.socket.onclose = () => { this.emit("connection", false); setTimeout(() => this.connect(), this.delay); this.delay = Math.min(this.delay * 2, 10000); };
-      this.socket.onmessage = event => { const message = JSON.parse(event.data); this.emit(message.type, message.data); };
+      this.socket.onopen = () => {
+        this.delay = 500;
+        this.opening = true;
+        this.generation += 1;
+        this.emit("connection", true);
+        this.opening = false;
+        this.sendCapture();
+      };
+      this.socket.onclose = () => {
+        this.emit("connection", false);
+        setTimeout(() => this.connect(), this.delay);
+        this.delay = Math.min(this.delay * 2, 10000);
+      };
+      this.socket.onmessage = event => {
+        const message = JSON.parse(event.data);
+        this.emit(message.type, message.data);
+      };
     }
     on(type, callback) {
       (this.handlers[type] ||= []).push(callback);
-      // A snapshot the socket has already seen is current state, not history:
-      // hand the new consumer the same thing an early one holds. Only the
-      // latest is kept, so a handler registered long after connect is brought
-      // up to date rather than replayed a backlog of superseded snapshots.
+      if (type === "point_frame") this.requestCapture({map: true});
+      this.prunePending();
       if (SNAPSHOT_TYPES.has(type)) {
         if (type in this.latest) callback(this.latest[type]);
         return;
@@ -57,21 +55,74 @@
       const pending = this.pending[type];
       if (pending) {
         delete this.pending[type];
+        this.pendingOrder = this.pendingOrder.filter(entry => {
+          if (entry.type !== type) return true;
+          this.pendingBytes -= entry.bytes;
+          return false;
+        });
         pending.forEach(data => callback(data));
       }
     }
     emit(type, data) {
-      // Events queue for a first handler that may not exist yet; snapshots
-      // supersede instead, and are replayed by `on` to every later handler.
+      if (type === "capture_status") {
+        if (!data.error) {
+          this.acceptedCapture = this.requestedCaptures.get(data.generation) || this.acceptedCapture;
+        } else if (data.requested_generation === this.generation && this.acceptedCapture) {
+          this.generation = data.generation;
+          this.capture = this.acceptedCapture;
+        }
+      }
+      if (type === "telemetry") {
+        if (data.generation !== this.generation) return;
+        this.emit("capture_counters", data.status);
+        for (const entry of data.entries) this.emit(entry.type, entry.data);
+        return;
+      }
       if (SNAPSHOT_TYPES.has(type)) {
         this.latest[type] = data;
       } else if (!(this.handlers[type] || []).length) {
+        if (STREAM_TYPES.has(type)) return;
+        this.prunePending();
+        const bytes = new TextEncoder().encode(JSON.stringify(data) || "null").length;
+        if (bytes > 65536) { this.pendingDropped += 1; return; }
         (this.pending[type] ||= []).push(data);
+        this.pendingOrder.push({type, data, bytes, at: Date.now()});
+        this.pendingBytes += bytes;
+        this.prunePending();
         return;
       }
       (this.handlers[type] || []).forEach(callback => callback(data));
     }
-    send(type, data) { if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({type, data})); }
+    prunePending() {
+      while (this.pendingOrder.length && (this.pendingOrder.length > 50
+          || this.pendingBytes > 65536 || this.pendingOrder[0].at <= Date.now() - 5000)) {
+        const entry = this.pendingOrder.shift();
+        this.pendingBytes -= entry.bytes;
+        this.pending[entry.type]?.shift();
+        if (!this.pending[entry.type]?.length) delete this.pending[entry.type];
+        this.pendingDropped += 1;
+      }
+      if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);
+      this.pendingTimer = this.pendingOrder.length
+        ? setTimeout(() => { this.pendingTimer = null; this.prunePending(); },
+          Math.max(1, this.pendingOrder[0].at + 5000 - Date.now())) : null;
+    }
+    requestCapture(changes) {
+      const capture = {...this.capture, ...changes};
+      if (JSON.stringify(capture) === JSON.stringify(this.capture)) return;
+      this.capture = capture;
+      this.generation += 1;
+      if (!this.opening) this.sendCapture();
+    }
+    sendCapture() {
+      if (this.socket.readyState !== WebSocket.OPEN) return;
+      this.requestedCaptures.set(this.generation, this.capture);
+      while (this.requestedCaptures.size > 16) this.requestedCaptures.delete(this.requestedCaptures.keys().next().value);
+      this.send("capture_selection", {...this.capture, generation: this.generation});
+    }
+    send(type, data) {
+      if (this.socket.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({type, data}));
+    }
   }
   window.BopSocket = ReconnectingSocket;
 })();

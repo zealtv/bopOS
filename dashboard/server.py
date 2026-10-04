@@ -32,6 +32,7 @@ import live_params
 import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
+from monitor_transport import MonitorTransport
 from python.paramgen import ParamGrammarError, parse_message
 from python import performance_mode
 
@@ -179,6 +180,8 @@ class Dashboard:
                              self.replay_live_params_for_seat,
                              stream_port=getattr(args, 'stream_port', 5551))
         self.osc.wifi_applied = self.wifi_applied
+        self.monitor_transport = MonitorTransport(self)
+        self.osc.tap = self.monitor_transport.tap
         self.tasks = set()
         self.sim_process = None
         self.supervisor_lock = asyncio.Lock()
@@ -237,6 +240,11 @@ class Dashboard:
 
     async def stop(self):
         try:
+            if getattr(self, 'monitor_transport', None):
+                await self.monitor_transport.close()
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception("Monitor cleanup failed")
+        try:
             await self.stop_supervisor()
         except Exception:
             logging.getLogger("bopos.dashboard").exception(
@@ -261,9 +269,15 @@ class Dashboard:
                 "state cleanup failed during dashboard shutdown")
 
     def queue_broadcast(self, message_type, data=None):
+        if self.monitor_transport.publish(message_type, data):
+            return
+        if not self.clients:
+            return
         asyncio.create_task(self.broadcast(message_type, data))
 
-    async def broadcast(self, message_type, data=None):
+    async def broadcast(self, message_type, data=None, *, priority=False):
+        if not priority and self.monitor_transport.publish(message_type, data):
+            return
         if message_type == "state":
             # A `state` broadcast has no caller-supplied payload and never has:
             # the enriched snapshot is the only thing any client can use, so it
@@ -314,6 +328,8 @@ class Dashboard:
 
     async def websocket(self, ws):
         await ws.accept()
+        socket = ws
+        ws = self.monitor_transport.attach(socket)
         self.clients.add(ws)
         await ws.send_json({"type": "state", "data": await self.public_state()})
         await ws.send_json({"type": "distribution", "data": await self.catalog()})
@@ -328,17 +344,21 @@ class Dashboard:
                 self.osc.request(device_uid, "patches")
         try:
             while True:
-                message = await ws.receive_json()
+                message = await socket.receive_json()
                 await self.handle_ws(message, ws)
         except WebSocketDisconnect:
             pass
         finally:
             self.clients.discard(ws)
             self.wifi_confirmations.pop(ws, None)
+            await ws.dispose()
 
     async def handle_ws(self, message, ws=None, supervisor_locked=False,
                         manifest_locked=False):
         kind, data = message.get("type"), message.get("data", {})
+        if kind == "capture_selection" and ws in self.monitor_transport.clients:
+            ws.replace(data)
+            return
         uid = data.get("uid")
         serialized_mutations = {
             "set_performance", "save_patch_manifest", "create_patch", "new_patch_version",
@@ -603,7 +623,9 @@ class Dashboard:
                 device['io_write'] = dict(name=payload['name'], command=payload['command'],
                                           status='pending', error=None)
                 self.osc.io_write(str(uid), payload)
-            await self.broadcast('device_update', device)
+            # Pending administrative state is an ordered control transition,
+            # rather than a replaceable heartbeat/RSSI projection.
+            await self.broadcast('device_update', device, priority=True)
         elif kind == "set_audio_config":
             audio_uid = str(data.get("uid", ""))
             device = self.state.devices.get(audio_uid)
