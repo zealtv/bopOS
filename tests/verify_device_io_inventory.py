@@ -179,10 +179,13 @@ def main():
                     }""", UID_A)
                     assert stale
                     print('PASS optional absence is neutral; required absence keeps its warning', flush=True)
-                    assert card.locator('input[type="checkbox"]').count() == 0
+                    assert card.locator('[data-io-monitor]').count() == 4
+                    assert card.locator('[data-io-monitor="adc"]').is_enabled()
+                    assert card.locator('[data-io-monitor="tilt"]').is_disabled()
+                    assert card.locator('[data-io-monitor="touch"]').is_disabled()
                     assert card.get_by_text("Re-init", exact=True).count() == 4
                     assert card.locator('[data-io-reinit="adc"]').is_disabled()
-                    assert card.get_by_text("Show in Monitor", exact=True).count() == 0
+                    assert card.get_by_text("Show in Monitor", exact=True).count() == 4
                     print("PASS sorted hex addresses, kernel claim, tentative hints and module states/reason", flush=True)
 
                     page.locator("#performance-toggle").click()

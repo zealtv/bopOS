@@ -1,6 +1,6 @@
 (function () {
   const STORAGE_KEY = "bopos.monitor.v1";
-  const MONITOR_TABS = ["globals", "out", "in", "send", "reports", "system"];
+  const MONITOR_TABS = ["globals", "out", "in", "send", "reports", "system", "modules"];
   const CONSOLE_LIMIT = 500;
   const CONSOLE_VISIBLE = 200;
   const TRANSPORT_ERROR_LIMIT = 50;
@@ -62,13 +62,18 @@
                 aria-controls="monitor-panel-reports">Reports</button>
         <button type="button" role="tab" data-monitor-tab="system"
                 aria-controls="monitor-panel-system">System</button>
+        <button type="button" role="tab" data-monitor-tab="modules"
+                aria-controls="monitor-panel-modules">Modules</button>
       </div>
+      <button type="button" class="monitor-popout" data-monitor-popout>Pop-out</button>
       <button type="button" class="monitor-mute-flag danger" data-monitor-mute-flag
               hidden>MUTED — UNMUTE</button>
       <button type="button" class="monitor-collapse" data-monitor-collapse
               aria-label="Expand Monitor"></button>
     </div>
     <div class="monitor-body">
+      <div id="monitor-panel-modules" class="monitor-panel" role="tabpanel"
+           data-monitor-panel="modules"></div>
       <div id="monitor-panel-globals" class="monitor-panel" role="tabpanel"
            data-monitor-panel="globals"></div>
       ${["out", "in"].map(kind => `
@@ -261,6 +266,9 @@
   let systemConnected = false;
   const transportErrors = [];
   const supervisorErrors = [];
+  const modules = ModulePanels.mount(panels.modules, () => {
+    setActive("modules", {expand: true});
+  }, updateCapture);
 
   function maxHeight() {
     return Math.max(MIN_HEIGHT, Math.floor(window.innerHeight * .55));
@@ -271,6 +279,7 @@
   }
 
   function saveLayout() {
+    if (new URLSearchParams(location.search).has("monitor")) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
     } catch (_error) {}
@@ -291,6 +300,14 @@
 
   function paneForKind(kind) {
     return layout.panes.right.includes(kind) ? "right" : "left";
+  }
+
+  function revealTab(container, button) {
+    if (!button) return;
+    const bounds = container.getBoundingClientRect();
+    const tab = button.getBoundingClientRect();
+    if (tab.right > bounds.right) container.scrollLeft += tab.right - bounds.right;
+    else if (tab.left < bounds.left) container.scrollLeft -= bounds.left - tab.left;
   }
 
   function renderLayout() {
@@ -341,6 +358,7 @@
       for (const action of pane.querySelectorAll("[data-monitor-move]")) {
         action.disabled = !split && action.dataset.monitorMove !== "right";
       }
+      if (!layout.collapsed) revealTab(tabSlot, tabButtons[active]);
     }
     if (layout.collapsed) {
       for (const kind of MONITOR_TABS) {
@@ -349,6 +367,7 @@
         tabButtons[kind].tabIndex = selected ? 0 : -1;
         tabButtons[kind].draggable = false;
       }
+      revealTab(headerTabs, tabButtons[layout.active]);
     }
     updateCapture();
   }
@@ -374,7 +393,8 @@
         "Capture started; hidden or paused traffic was not retained.");
     }
     capturedDirections = directions;
-    ws.requestCapture({...captureFilters, directions, clock: captureVisible("system")});
+    ws.requestCapture({...captureFilters, directions, clock: captureVisible("system"),
+      modules: modules.selection(captureVisible("modules"))});
     if (captureGeneration !== ws.generation) {
       captureGeneration = ws.generation;
       for (const kind of ["out", "in"]) {
@@ -945,6 +965,7 @@
   window.addEventListener("resize", () => applyHeight(layout.height, false));
 
   captureReady = true;
+  window.MonitorDock = {expand: () => setCollapsed(false), collapse: () => setCollapsed(true)};
   applyHeight(layout.height, false);
   setCollapsed(layout.collapsed, false);
   setActive(layout.active, {persist: false});
@@ -987,6 +1008,27 @@
       }
     }
   });
+  const windowParams = new URLSearchParams(location.search);
+  if (["dock", "panel"].includes(windowParams.get("monitor"))) {
+    document.body.classList.add("monitor-window");
+    if (windowParams.get("monitor") === "panel") {
+      document.body.classList.add("monitor-window-panel");
+    }
+    ws.requestCapture({map: false});
+    setCollapsed(false, false);
+    setActive(windowParams.get("monitor") === "panel" ? "modules" : layout.active, {persist: false});
+    let restored = false;
+    ws.on("state", () => {
+      if (restored) return;
+      const choices = windowParams.getAll("module").flatMap(value => {
+        try { const choice = JSON.parse(value); return Array.isArray(choice) && choice.length === 2 ? [choice] : []; }
+        catch (_error) { return []; }
+      });
+      if (choices.some(([uid, name]) => !installation.devices?.[uid]?.report?.io?.modules?.[name])) return;
+      restored = true;
+      for (const [uid, name] of choices) window.ModulesMonitor.toggle(uid, name, true, false);
+    });
+  }
   ws.on("clock_summary", data => {
     for (const [uid, sync] of Object.entries(data.devices || {})) {
       if (installation.devices?.[uid]) installation.devices[uid].sync = sync;

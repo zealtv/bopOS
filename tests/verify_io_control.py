@@ -202,14 +202,8 @@ async def journey(http_port):
         await set_performance(True)
         payload['name'] = 'adc'
         await ws.send(json.dumps({'type': 'io_write', 'data': {'uid': first, 'config': payload}}))
-        event = await until(lambda event: event['type'] == 'report'
-                            and event['data']['uid'] == first
-                            and (event['data'].get('io_write') or {}).get('error') == 'performance')
-        assert event['data']['io_write'] == {'name': 'adc', 'command': 'threshold',
-                                           'error': 'performance', 'status': 'err'}
-        module = event['data']['report']['io']['modules']['adc']
-        assert module['state'] == 'running' and module['error'] is None
-        assert not event['data'].get('io_error')
+        await until(lambda event: event['type'] == 'error'
+                    and event['data']['message'] == 'Performance')
         await ws.send(json.dumps({'type': 'io_scan', 'data': {'uid': first}}))
         await until(lambda event: event['type'] == 'device_update'
                     and event['data']['uid'] == first and event['data'].get('io_scan_pending'))
@@ -218,6 +212,13 @@ async def journey(http_port):
                             and event['data'].get('io_scan_pending') is False)
         assert event['data']['report']['performance'] is True
         assert event['data']['io_scan']['status'] == 'ok'
+        # A refused browser write never reaches the node or replaces its last
+        # successful receipt, and does not turn a healthy module into a fault.
+        assert event['data']['io_write'] == {'name': 'adc', 'command': 'threshold',
+                                           'error': None, 'status': 'ok'}
+        module = event['data']['report']['io']['modules']['adc']
+        assert module['state'] == 'running' and module['error'] is None
+        assert not event['data'].get('io_error')
         await set_performance(False)
         await ws.send(json.dumps({'type': 'io_write', 'data': {'uid': first, 'config': payload}}))
         event = await until(lambda event: event['type'] == 'report'

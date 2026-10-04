@@ -96,7 +96,7 @@ connection's source consumers. Browser snapshot replay remains latest-per-type.
 
 ## Seam for Modules (59/9)
 
-Panels are not implemented here. A future panel component installs its
+The live panel component (`module-panels.js`) installs its
 `io_samples` handler, then replaces `modules` with
 `{"uid":"…","names":["touch","adc"]}` (at most 64 names, each 128 characters).
 Sending `modules:null` releases its visual consumer. Hidden/collapsed panels
@@ -123,3 +123,22 @@ Software checks: `test_monitor_transport.py`, `verify_monitor_transport.py`,
 the fast/browser suites, and the 50/100-node loopback measurement in 71/2.
 Browser CPU/heap over ten minutes and Bob's laptop/tablet/physical Wi-Fi rig
 remain separate verification before making those performance claims.
+
+Device-tab module choices belong to each browser window and reset on reload;
+a pop-out URL restores its explicitly selected panels. The
+Device inventory checkbox reveals Modules and names the source in each panel.
+Panels retain at most 120 values per described input. Every delivered original
+poll is inspected before a single animation-frame paint; suspension, reconnect
+and reported drops break the trace. Numeric text formats floats to at most six
+significant digits with trailing zeros dropped, matching Pd's %g-style display;
+integers and stored sparkline samples retain their original precision. The full
+module OSC address/value list sits alongside the unit-bearing channels.
+Output forms come from driver command/argument descriptions; results remain on
+the existing administrative receipt path. Performance disables the controls and
+the dashboard independently refuses forged `io_write` commands.
+
+Pop-out opens an ordinary same-origin browser window running the same dock and
+panel component. A panel moves its visual interest to that window; a dock pop-out
+collapses its source dock. Closing the new window restores the source view. Each
+window releases its consumer when hidden or disconnected, and the source lease
+still expires independently if a window or the dashboard disappears.
