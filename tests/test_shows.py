@@ -1,4 +1,5 @@
 """A project's several shows: storage, migration, and the menu's show actions."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -184,7 +185,9 @@ class MigrationTests(unittest.TestCase):
                 self.assertFalse((self.project.parent / "shows").exists())
 
 
-class ShowActionTests(unittest.IsolatedAsyncioTestCase):
+class DashboardCase(unittest.IsolatedAsyncioTestCase):
+    """A dashboard on a fresh project whose open show has one step."""
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -201,6 +204,9 @@ class ShowActionTests(unittest.IsolatedAsyncioTestCase):
 
     async def send(self, kind, **data):
         await self.dash.handle_ws({"type": kind, "data": data})
+
+
+class ShowActionTests(DashboardCase):
 
     async def test_open_new_rename_delete_in_every_mode(self):
         dash = self.dash
@@ -276,6 +282,50 @@ class ShowActionTests(unittest.IsolatedAsyncioTestCase):
             dash.ws_error.reset_mock()
             await self.send(kind, **data)
             dash.ws_error.assert_awaited_once()
+
+
+
+class ClearShowTests(DashboardCase):
+    """66/9 Clear Show: one undoable edit on the open show."""
+
+    def test_mutation_empties_items_only(self):
+        show = dict(show_model.empty_show("Main"), items=[STEP, {"kind": "divider", "uid": "0000000b", "alias": None}])
+        cleared, result, error = show_model.clear_items(show)
+        self.assertEqual((cleared, result, error), (show_model.empty_show("Main"), None, None))
+        self.assertEqual(len(show["items"]), 2)
+
+    async def test_clear_saves_broadcasts_and_undoes(self):
+        dash = self.dash
+        await self.send("add_divider")
+        before = copy.deepcopy(dash.show)
+        project = Path(dash.state.path).read_bytes()
+        dash.broadcast.reset_mock()
+        await self.send("clear_show")
+        self.assertEqual(dash.show, show_model.empty_show("Show"))
+        self.assertEqual(json.loads(Path(dash.state.show_path).read_text())["items"], [])
+        self.assertIs(dash.show_engine.show, dash.show)
+        self.assertIn("show", [call.args[0] for call in dash.broadcast.await_args_list])
+        self.assertEqual(Path(dash.state.path).read_bytes(), project)
+        await self.send("undo_show")
+        self.assertEqual(dash.show, before)
+        self.assertEqual(show_model.load_show(dash.state.show_path)[0], before)
+        dash.ws_error.assert_not_awaited()
+
+    async def test_refused_while_playing_or_paused_and_empty_is_a_no_op(self):
+        dash = self.dash
+        saved = Path(dash.state.show_path).read_bytes()
+        for state in ("playing", "paused"):
+            dash.show_engine.playback = {dash.show["items"][0]["uid"]: {"state": state}}
+            dash.ws_error.reset_mock()
+            await self.send("clear_show")
+            dash.ws_error.assert_awaited_once()
+            self.assertEqual(len(dash.show["items"]), 1)
+            self.assertEqual(Path(dash.state.show_path).read_bytes(), saved)
+        dash.show_engine.playback = {}
+        await self.send("clear_show")
+        undo = len(dash.show_undo)
+        await self.send("clear_show")
+        self.assertEqual(len(dash.show_undo), undo)
 
 
 if __name__ == "__main__":

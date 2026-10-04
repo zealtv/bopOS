@@ -112,7 +112,9 @@ The Show tab always edits the open show; it persists across dashboard restarts
 and is shared by every connected client. The project menu's SHOW section
 opens, adds (empty or a copy), renames and deletes shows in every mode, but
 not while a show is playing; undo history belongs to the open show and is
-cleared when another opens. A new project starts with one empty show, `Show`. Two collapsible OSC consoles sit
+cleared when another opens. A new project starts with one empty show, `Show`.
+**Clear Show…** in the Show header empties the open show after a confirm, as
+one undoable edit; it is off while a step plays. Two collapsible OSC consoles sit
 under the table: outgoing (everything the dashboard sends) and incoming
 (everything the LAN surface receives, heartbeats included). Filter with
 space-separated terms that AND together, `*` wildcards, and `!` negation —

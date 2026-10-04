@@ -422,6 +422,11 @@ def add_step(show, after_uid=None):
     return {**show, "items": items}, step, None
 
 
+def clear_items(show):
+    """Empty the show (66/9 Clear Show); its name stays."""
+    return {**show, "items": []}, None, None
+
+
 def add_divider(show, after_uid=None):
     index = _index_after(show["items"], after_uid)
     if index is None:

@@ -431,6 +431,7 @@
         ${iconButton(playAction, escapeHtml(playUid || ""), playGlyph, playLabel, " show-global-transport", !playUid)}
         ${iconButton("step_stop", escapeHtml(activeUid || ""), "stop", activeStep ? `Stop ${stepLabel(activeStep)}` : "Stop active step", " show-global-transport", !activeUid)}
         ${iconButton("step_trigger_next", escapeHtml(activeUid || ""), "next", activeStep ? `Trigger next action for ${stepLabel(activeStep)}` : "Trigger next action", " show-global-transport", !activeUid)}
+        ${allSteps().length ? `<button type="button" class="danger" data-show-clear ${activeUid ? "disabled" : ""}>Clear Show…</button>` : ""}
       </div>
     </div>`;
   }
@@ -1206,6 +1207,15 @@
       inspectorOpen = !inspectorOpen;
       focusInspectorToggle = true;
       render();
+      return;
+    }
+    if (event.target.closest("[data-show-clear]")) {
+      // 66/9: one undoable edit; the server refuses it while a show plays.
+      const count = allSteps().length;
+      if (confirm(`Remove all ${count} ${count === 1 ? "step" : "steps"} from this show? You can undo this.`)) {
+        showError = "";
+        ws.send("clear_show", {});
+      }
       return;
     }
     const action = event.target.closest("[data-show-action]");

@@ -1175,6 +1175,11 @@ class Dashboard:
             await self.broadcast("state")
         elif kind in {"open_show", "create_show", "rename_show", "delete_show"}:
             await self.manage_show(kind, data, ws)
+        elif kind == "clear_show":
+            # Checked inside apply_show_mutation's lock, like the edit itself.
+            await self.apply_show_mutation(ws, lambda show: (
+                (show, None, "Stop the show before clearing it.") if self.show_playing()
+                else show_model.clear_items(show)))
         elif kind == "undo_show":
             await self.undo_show(ws)
         elif kind == "add_step":
