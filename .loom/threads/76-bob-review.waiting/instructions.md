@@ -41,6 +41,12 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     unknown."); System "N / N with 3+ samples". Full list in
     `71-network-traffic/2-monitor-transport.waiting/build-verification.md`.
 
+15. **FYI: Module panels (59/9)**: built, merged and tied. Screenshots:
+    `screenshots/modules-59-9-*.png`. The wording comes from the spec ("Modules",
+    "Show in Monitor", "Pop-out"), plus one hover tip of mine on the panel ✕:
+    "Close panel". Values show at Pd precision (six significant figures).
+    Say if anything reads wrong.
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
@@ -66,6 +72,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    about 2 sync broadcasts/s and no broadcast offsets; routing survives DHCP
    changes and reboots on the installation AP; recorded audio timing is
    unchanged. Details in `71-network-traffic/1-clock-sync-traffic.tied/verification.md`.
+7. **Module panels (59/9)**: on a Pi with a real ADC/OLED, tick Show in
+   Monitor; values track the sensor, OLED text writes land, the pop-out
+   window keeps streaming, and Performance disables the controls. Chromium
+   only so far; Safari/Firefox and touch are untested.
 
 ## Ruled
 
