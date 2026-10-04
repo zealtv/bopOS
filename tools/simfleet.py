@@ -62,6 +62,8 @@ import wifi_config  # noqa: E402
 import osc_contract  # noqa: E402
 import io_protocol  # noqa: E402
 import performance_mode  # noqa: E402
+import io_stream  # noqa: E402
+from pyOSC3 import OSCBundle, OSCMessage
 
 
 def device_log_state(device):
@@ -215,6 +217,11 @@ class Device:
         self.io = io_protocol.empty_io()
         self.io_addresses = []
         self.io_writes = []
+        self.io_stream = io_stream.Lease()
+        self.io_stream_generation = 0
+        self.io_stream_next = 0.0
+        self.io_poll_rate = 10.0
+        self.io_samples = 0
         self.wifi = ({"managed": False} if wired else {
             "managed": True, "country": "GB", "active": "imager-net",
             "networks": [], "unmanaged": ["imager-net"]})
@@ -549,7 +556,55 @@ class SimFleet:
             builder.add_arg(value, arg_type='s')
         self.sock.sendto(builder.build().dgram, (target, self.args.report_port))
 
+    def stream_io(self, device, generation):
+        if (generation != device.io_stream_generation or not device.io_stream.active
+                or device.performance or device.unresponsive
+                or device.state not in ('booting', 'running')):
+            return
+        bundle = OSCBundle()
+        device.io_samples += 1
+        sample = device.io_samples
+        rows = {name: row for name, row in device.io['modules'].items()
+                if row['state'] == 'running'}
+        for name, row in rows.items():
+            kind = row['type']
+            if kind in ('ads1015', 'ads1115'):
+                values = [((sample + index * 5) % 33) / 10.0 for index in range(4)]
+            elif kind == 'lis3dh':
+                values = [float((sample + index * 60) % 180 - 90) for index in range(3)]
+            elif kind == 'mpr121':
+                values = [(sample + index * 50) % 1024 for index in range(12)]
+            elif kind == 'switch':
+                values = [int(sample % 20 < 10), int(sample % 20 == 0), 0]
+            else:  # Output-only drivers emit a bare module message, like the bridge.
+                values = []
+            message = OSCMessage('/' + name)
+            for value in values:
+                message.append(value)
+            bundle.append(message)
+        if rows:
+            packet = io_stream.stream_packet(device.mac, bundle.getBinary())
+            try:
+                self.sock.sendto(packet, (device.io_stream.destination,
+                                         getattr(self.args, 'stream_port', 5551)))
+            except OSError as error:
+                print(f'simfleet: IO stream send failed: {error}', file=sys.stderr)
+        interval = 1.0 / device.io_poll_rate
+        device.io_stream_next = time.monotonic() + interval
+        self.schedule(interval, self.stream_io, device, generation)
+
     def uid_admin(self, device, member, args, source):
+        if member == 'io-stream':
+            result = device.io_stream.request(args, source[0],
+                performance_mode.allows(device.performance, member))
+            self.send_io(device, '/os/io-stream',
+                         ['err' if result['error'] else 'ok', json.dumps(result)], source[0])
+            if result['error'] != 'invalid-arguments':
+                device.io_stream_generation += 1
+                if result['active']:
+                    self.schedule(max(0.0, device.io_stream_next - time.monotonic()),
+                                  self.stream_io, device, device.io_stream_generation)
+            return
         if member != 'io-write' and not performance_mode.allows(device.performance, member):
             if member == "wifi-config":
                 builder = osc_message_builder.OscMessageBuilder(address="/os/wifi-config")
@@ -1099,6 +1154,9 @@ class SimFleet:
                     self.send_report(device, source)
                     continue
                 device.performance = active
+                if active:
+                    device.io_stream.close()
+                    device.io_stream_generation += 1
                 self.send_report(device, source)
             return
         if parts == ["all", "os", "groups"]:
@@ -1394,6 +1452,7 @@ def parse_args():
                         help="simulated duration of one patch/asset fetch")
     parser.add_argument("--target", default="255.255.255.255")
     parser.add_argument("--report-port", type=int, default=5550)
+    parser.add_argument("--stream-port", type=int, default=5551)
     parser.add_argument("--cmd-port", type=int, default=6660)
     parser.add_argument("--protocol", choices=("v1",), default="v1")
     parser.add_argument("--manifest",

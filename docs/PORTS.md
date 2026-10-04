@@ -9,19 +9,19 @@ hand, with the port it goes on), see
 
 ## The eight ports
 
-The ratified map has three LAN ports and five localhost ports. The active
-LAN ports are 5550 and 6660; 5551 is reserved for the development IO stream
-that follows in stitch 59/8. IO control replies on 7771 ship in v1.21.
+The ratified map has three LAN ports and five localhost ports. LAN ports
+5550, 5551 and 6660 are active; 5551 carries only leased development IO
+streams. IO control replies and leased bundle copies on 7771 ship in v1.21.
 
 | port | scope | listener | sender | carries |
 |---:|---|---|---|---|
 | **5550** | LAN | dashboard | `bopos.py` on every node | heartbeats, status, command replies |
-| 5551 | LAN unicast (reserved) | dashboard | `bopos.py` | development IO value streams; implementation pending |
+| **5551** | LAN unicast | dashboard | `bopos.py` | leased development IO value streams to the requesting host |
 | **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, events, point frames |
 | 6661 | localhost | active engine | `bopos.py` | the selector-stripped engine surface |
 | 6662 | localhost | active engine | `python/io/main.py` | bundled peripheral sensor data and IO control replies |
 | 7770 | localhost | `bopos.py` | active engine | engine requests: config, store, load, report, admin (v1.7) |
-| 7771 | localhost | `bopos.py` | `python/io/main.py` | IO control replies; stream value bundles follow in 59/8 |
+| 7771 | localhost | `bopos.py` | `python/io/main.py` | IO control replies and original poll bundles while leased |
 | 8880 | localhost | `python/io/main.py` | active engine, `bopos.py` | peripheral and I/O commands |
 
 ```mermaid
@@ -34,6 +34,7 @@ flowchart LR
     end
     dash -- "6660" --> bopos
     bopos -- "5550" --> dash
+    bopos -- "5551 · leased IO values" --> dash
     bopos -- "6661" --> engine
     engine -- "7770" --> bopos
     io -- "6662" --> engine
@@ -45,14 +46,15 @@ flowchart LR
 ## Rules worth remembering
 
 - **`bopos.py` is each node's only LAN citizen.** Engines and patches never
-  bind 6660 or send on 5550 — engine death therefore never looks like node
+  bind 6660 or send on 5550/5551 — engine death therefore never looks like node
   death.
 - **Broadcast vs unicast:** 6660 traffic is broadcast only for genuinely
   one-to-many, low-rate, idempotent messages (heartbeat requests, events,
   point frames, mute, master). All request/reply traffic returns unicast to
-  the requester on 5550.
+  the requester on 5550. Leased development IO bundles use unicast 5551,
+  independently of control and heartbeat traffic.
 - **Audition instances move the number, not the shape:** a preview engine on
   the laptop is assigned its own port via `BOPOS_ENGINE_PORT` and receives
   exactly the same selector-free surface as a production engine on 6661.
-- **Firewalls:** the dashboard machine must accept UDP 5550 inbound and be
+- **Firewalls:** the dashboard machine must accept UDP 5550 and 5551 inbound and be
   able to broadcast UDP 6660 on the installation network.

@@ -7,7 +7,7 @@ ERRORS = frozenset({'no-bus', 'create-failed', 'invalid-arguments',
                     'unknown-command', 'write-failed'})
 # Administrative refusals are receipts, never peripheral faults.
 WRITE_ERRORS = ERRORS | {'performance'}
-RESERVED_NAMES = frozenset({'create', 'poll', 'report', 'scan', 'bridge'})
+RESERVED_NAMES = frozenset({'create', 'poll', 'report', 'scan', 'stream', 'bridge'})
 
 
 def empty_io(bus=None):

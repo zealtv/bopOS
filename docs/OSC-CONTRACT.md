@@ -317,10 +317,11 @@ keyword is the patch author's foot-gun to avoid.
 
 ## 4. Ports and transport
 
-Eight ports; 5551 and 7771 added in v1.21 (in progress). The three LAN ports
+Eight ports; 5551 and 7771 added in v1.21. The three LAN ports
 are the public contract; the five localhost ports are one device's internal plumbing. As of
 v1.2 **`bopos.py` is the node's only LAN citizen**: it alone binds 6660 and
-sends on 5550. Engines — PD included — live entirely on the localhost ports.
+sends on 5550 and the leased development stream port 5551. Engines — PD
+included — live entirely on the localhost ports.
 (Supersedes v1.1 §4/§4.1, which kept PD's direct 6660 path; that path was
 retained only as a migration safety net and was removed after the relay,
 helper-death, and production-macOS N=1 gates passed, 2026-07-12.)
@@ -328,12 +329,12 @@ helper-death, and production-macOS N=1 gates passed, 2026-07-12.)
 | Port | Listener | Sender | Scope |
 |---|---|---|---|
 | 5550 | dashboard | bopos.py | LAN broadcast, fleet → dash |
-| 5551 | dashboard | bopos.py | LAN unicast: development IO value streams to the dashboard that opened a stream (reserved; stream implementation follows in stitch 59/8) |
+| 5551 | dashboard | bopos.py | LAN unicast: leased development IO value streams to the requesting dashboard (§6) |
 | 6660 | bopos.py (sole binder) | dashboard | LAN broadcast, dash → fleet |
 | 6661 | engine (`[bopos]` in PD, OSCdefs in SC, …) | bopos.py | localhost: the selector-stripped engine surface (§4.2) |
 | 6662 | engine | io/main.py | localhost: peripheral streams and control replies |
 | 7770 | bopos.py | engine | localhost: engine requests only (§4.2) |
-| 7771 | bopos.py | io/main.py | localhost: IO control replies; value bundles while a stream is open (stream implementation follows in stitch 59/8) |
+| 7771 | bopos.py | io/main.py | localhost: IO control replies; copies of original value bundles while a stream is leased |
 | 8880 | io/main.py | engine, bopos.py | localhost: I/O commands |
 
 Production engines listen on 6661; an audition instance is assigned its own
@@ -595,6 +596,9 @@ deferred and unratified.
 /all/os/to <uid> io-scan       → /os/io-scan <uid> <io-json>
 /all/os/to <uid> io-write <json>
     → /os/io-write <uid> <ok|err> <json>
+/all/os/to <uid> io-stream <0|1>
+    → /os/io-stream <uid> <ok|err> <json>       unicast receipt on 5550
+/io/stream <uid:string> <bundle:OSC blob>      leased values, unicast on 5551
 /os/io-error <uid> <name> <reason>  unsolicited, LAN broadcast to 5550
 ```
 
@@ -618,7 +622,7 @@ move to the uniform envelope.
 - Strings come from Python, so no 32-bit float limits apply to `uid`/`version`.
 - `engine-alive` distinguishes "box up, engine crashed" from "box gone" — the two
   mid-show failures an artist must tell apart. **Absence of heartbeat is the
-  alarm**; there is no streamed telemetry.
+  alarm**; leased development IO values use their separate port below.
 - `/os/report` returns the static facts as JSON: hostname, engine, has_i2c,
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
@@ -645,13 +649,15 @@ move to the uniform envelope.
   Operator `io-write` returns `/os/io-write <uid> err` with JSON
   `{"name","command","error":"performance"}`. This is an administrative
   refusal: it never marks a module errored or emits `/os/io-error`.
+  `io-stream` returns `/os/io-stream <uid> err` with
+  `{"active":false,"error":"performance"}`; entering Performance closes
+  an open stream immediately and cancels the dashboard's consumer renewer.
   Read-only `io-scan` remains allowed. Queued writes are refused on entry;
   a write already sent to the bridge keeps its normal terminal receipt.
   Probes are silently unanswered. The dashboard also blocks Monitor sends,
   pushes, Set Live, New Version, manifest saves, and Patch Edit (including
   viewing); entering Performance stops an already-open editor. Development
-  IO writes use the same device-side predicate; streaming handlers will use
-  it when they ship.
+  IO writes and streams use the same device-side predicate.
   Node `/log` entries and both service stdout/stderr sinks use RAM only in
   Performance: tmpfs on Linux, bounded process memory where tmpfs is absent.
   The configured log destination is retained; `log.effective` is `ram` until
@@ -761,8 +767,47 @@ refreshes the report. These deadlines do not change the wire vocabulary.
 Bridge errors also travel as unsolicited `/os/io-error <uid> <name> <reason>`
 on the normal fleet → dashboard path, LAN broadcast to 5550. The dashboard
 stores the IO facts and receipts and broadcasts the observed state to clients.
-Development streaming follows in its own stitch; this control-path increment
-sends no IO values onto the LAN. Performance enforcement is shared with §6.
+IO value streams use the dedicated port below; control replies and heartbeats
+remain on 5550. Performance enforcement is shared with §6.
+
+### Leased development IO streams (v1.21, additive)
+
+`/all/os/to <uid> io-stream <0|1>` opens/renews (`1`) a ten-second lease or
+closes (`0`) it. It accepts exactly one OSC integer `0` or `1`. The unicast
+`/os/io-stream <uid> <ok|err> <json>` receipt on 5550 has exactly
+`{"active":boolean,"error":null|"performance"|"invalid-arguments"}`.
+Successful open/renew returns `ok` with `active:true`; close is idempotent and
+returns `ok` with `active:false`. Both have `error:null`. In Performance both
+valid requests return `err` with `active:false,error:"performance"`.
+Malformed requests return `err` with `error:"invalid-arguments"` and the
+current lease state, without changing it. These administrative refusals never
+mark modules errored or emit `/os/io-error`.
+
+There is one lease per device. The latest successful `1` replaces its sole
+destination with that requester's IP and renews the lease. Development `0`
+closes it regardless of requester. Expiry and entering Performance stop it;
+leaving Performance does not reopen it. While leased, each original bridge
+poll bundle is copied to localhost 7771 and forwarded on UDP 5551 as one
+`/io/stream <uid:string> <bundle:OSC blob>` message (typetags `,sb`). The blob
+is the complete original OSC bundle, preserving module addresses, argument
+types, ordering and bundle boundaries. Rate is at most the bridge's poll rate
+(default 10 Hz). Ordinary engine delivery on 6662 continues throughout.
+
+The dashboard listens on 5551 and exposes server-side
+`subscribe_io(uid, consumer, callback)` / `unsubscribe_io(uid, consumer)`.
+Consumers share one device at a time; a second device is rejected locally
+while the first has consumers. Each callback receives the original bundle
+bytes and a map of module names to value lists. The dashboard renews every
+three seconds while consumed; the last unsubscribe closes it and cancels
+renewal. Performance and dashboard shutdown clear consumers. No stream is
+opened without a consumer. Module panels and editor forwarding are subsequent
+increments; this stream does not reinstate framework meter telemetry.
+
+Local bridge copying is controlled on 8880 by `/io/stream <0|1>` with its own
+ten-second lease. The node renews it with each accepted open/renew and sends
+`0` on close, expiry, shutdown or entry into Performance. The independent
+bridge timeout bounds copying after node failure or a lost close. `stream`
+is reserved as a module name, alongside the existing bridge verbs.
 
 ### Exact-device Wi-Fi configuration (v1.20, additive)
 
@@ -1057,7 +1102,8 @@ Unchanged verbs, sharpened boundary:
 
 **Control reply model (v1.21).** Every bridge reply goes to both engine 6662
 and `bopos.py` localhost 7771; failed delivery to either does not suppress the
-other. Poll value bundles continue to go only to 6662 in this increment.
+other. Poll value bundles always go to 6662 and are copied intact to 7771
+only while the development stream lease is active (§6).
 The legacy `/io/scan <integer-address>…` reply is retained. The added local
 control grammar is:
 
@@ -1202,4 +1248,4 @@ reasoning.
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
-| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions now ship (§8, §11); streaming remains a separate increment. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode` |
+| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport now ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Module panels and editor input remain later increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.stitching/proposal-stream-wire.md`, ratified 2026-10-04 |

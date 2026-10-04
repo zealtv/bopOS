@@ -18,6 +18,7 @@ from sys_wireless import read_wireless
 from sys_i2c import have_bus, usable_bus, scan_inventory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import io_protocol
+import io_stream
 import manifest as patch_manifest
 from io_catalog import PERIPHERAL_TYPES
 from sys_info import (get_hostname, get_ip, get_uptime,
@@ -26,7 +27,7 @@ from sys_info import (get_hostname, get_ip, get_uptime,
 # Settings
 PYTHON_PORT = 8880      # This script listens here for commands from Pure Data
 PD_PORT = 6662          # Pure Data listens here for messages from this script
-CONTROL_PORT = 7771     # bopos.py receives control replies here; no value stream
+CONTROL_PORT = 7771     # bopos.py receives control replies and leased value bundles
 DEFAULT_POLL_RATE = 10  # Hz
 
 # Peripherals are addressed as /io/<name>, the same namespace the management
@@ -61,6 +62,7 @@ class IOManager:
         self.declared = {}
         self.poll_rate = DEFAULT_POLL_RATE
         self.running = True
+        self.stream_lease = io_stream.Lease()
         self.io = io_protocol.empty_io(1 if usable_bus() else None)
         
         # OSC client for sending to PD
@@ -212,6 +214,11 @@ class IOManager:
             self.osc_client.send(bundle)
         except Exception as e:
             print(f"Error sending OSC: {e}")
+        if self.stream_lease.active:
+            try:
+                self.control_client.send(bundle)
+            except Exception as error:
+                print(f"Error sending IO stream: {error}")
     
     def _send(self, address, *values):
         """Every control reply goes to both local consumers, independently."""
@@ -238,7 +245,7 @@ class IOManager:
     def handle_command(self, address, tags, args, source):
         """
         Handle OSC commands from PD. Namespaces:
-          /io/<verb>   - bridge management (create, poll, report, scan)
+          /io/<verb>   - bridge management (create, poll, report, scan, stream)
           /io/<name>   - control the peripheral called <name>; the first
                          value is the command, the rest are its arguments
           /system/*    - device facts (rssi, id, ip, uptime, rev, patch, info)
@@ -263,7 +270,7 @@ class IOManager:
             self._handle_io(parts, args)
 
     def _handle_io(self, parts, args):
-        """Bridge management: /io/create|poll|report|scan."""
+        """Bridge management: /io/create|poll|report|scan|stream."""
         verb = parts[0] if parts else ''
         if len(parts) != 1:
             print(f"Unknown /io verb: {verb} {list(args)}")
@@ -271,8 +278,12 @@ class IOManager:
                         'invalid-arguments')
             return
 
+        # Local copying has a timeout independent of the node's LAN lease.
+        if verb == 'stream':
+            self.stream_lease.request(args, '127.0.0.1')
+
         # /io/create <name> <type> <address>
-        if verb == 'create':
+        elif verb == 'create':
             if len(args) != 3:
                 print(f"Invalid /io/create arguments: {list(args)}")
                 self._error(str(args[0]) if args and io_protocol.valid_name(args[0])
