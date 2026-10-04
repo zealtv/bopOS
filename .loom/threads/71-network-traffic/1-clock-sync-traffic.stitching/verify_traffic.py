@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check retained measurement completeness and independently encoded sizes."""
+import argparse
 import json
 from pathlib import Path
 import sys
@@ -8,6 +9,9 @@ sys.dont_write_bytecode = True
 from measure_traffic import datagram, model, parse_fires, spread_stats, summary
 
 here = Path(__file__).resolve().parent
+parser = argparse.ArgumentParser()
+parser.add_argument('--results-dir', type=Path, default=here)
+here = parser.parse_args().results_dir
 results = json.loads((here / 'traffic-results.json').read_text())
 stamp = '123456789012345'
 uid = '02:53:49:4d:00:01'
@@ -18,6 +22,9 @@ assert len(datagram('/1/sync/offset', ['-40000000'])) == 32
 assert len(datagram('/100/sync/offset', ['-40000000'])) == 36
 assert results['model'] == [model(n) for n in (4, 10, 16, 32, 50, 100)]
 assert results['targeted_model'] == [model(n, .1, True) for n in (4, 10, 16, 32, 50, 100)]
+stage_a = 'stage_a_model' in results
+if stage_a:
+    assert results['stage_a_model'] == [model(n, stage_a=True) for n in (4, 10, 16, 32, 50, 100)]
 assert [r['nodes'] for r in results['measured']] == [4, 16, 32, 50]
 for record in results['measured']:
     n = record['nodes']
@@ -29,7 +36,14 @@ for record in results['measured']:
     assert record['synced_nodes'] == record['absolute_estimate_error_ms']['count'] == n
     assert record['counts']['pong'] == record['counts']['offset'] == n*record['counts']['ping']
     assert record['rtt_ms']['count'] == record['counts']['pong']
-    assert record['routes'] == [['255.255.255.255', 'execution']]
+    if stage_a:
+        assert record['routes'] == [['127.0.0.1', 'physical'], ['255.255.255.255', 'execution']]
+        assert record['broadcast_counts'] == {'ping': record['counts']['ping']}
+        assert record['broadcast_messages_s'] == record['messages_s']['ping']
+        assert record['sync_routes']['ping'][0][0] == '255.255.255.255'
+        assert record['sync_routes']['offset'] == [['127.0.0.1', record['sync_routes']['ping'][0][1], 'physical']]
+    else:
+        assert record['routes'] == [['255.255.255.255', 'execution']]
     for kind, count in record['counts'].items():
         assert record['messages_s'][kind] == count/record['measured_s']
         assert record['osc_bytes_s'][kind] == record['osc_bytes'][kind]/record['measured_s']

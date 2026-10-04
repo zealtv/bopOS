@@ -9,6 +9,7 @@ import argparse
 import asyncio
 from collections import Counter
 import json
+import os
 from pathlib import Path
 import random
 import re
@@ -52,7 +53,7 @@ def datagram(address, args):
     return builder.build().dgram
 
 
-def model(nodes, rate=2.0, targeted=False):
+def model(nodes, rate=2.0, targeted=False, stage_a=False):
     stamp = '123456789012345'
     ping = len(datagram('/sync/ping', [123, stamp]))
     pong = len(datagram('/sync/pong', [123, stamp, '02:53:49:4d:00:01', stamp]))
@@ -63,20 +64,21 @@ def model(nodes, rate=2.0, targeted=False):
     osc_bytes = rate * (ping_total + nodes*pong + offsets)
     return dict(nodes=nodes, rate=rate, messages_s=messages, osc_bytes_s=osc_bytes,
                 ipv4_udp_bytes_s=osc_bytes+28*messages,
-                broadcast_messages_s=0 if targeted else rate*(1+nodes),
-                broadcast_osc_bytes_s=0 if targeted else rate*(ping+offsets),
+                broadcast_messages_s=0 if targeted else rate*(1 if stage_a else 1+nodes),
+                broadcast_osc_bytes_s=0 if targeted else rate*(ping if stage_a else ping+offsets),
                 ping_size=ping, query_size=query, pong_size=pong, offset_sizes=[
                     len(datagram('/%s/sync/offset' % n, ['-40000000'])) for n in (1, 10, 100)])
 
 
-async def run(nodes, warmup, duration):
+async def run(nodes, warmup, duration, output_dir):
     report_port, cmd_port = free_port(), free_port()
     while report_port == cmd_port:
         cmd_port = free_port()
     uids = ['02:53:49:4d:%02x:%02x' % ((i >> 8)&255, i&255) for i in range(1,nodes+1)]
     ids = {uid: i for i, uid in enumerate(uids, 1)}
-    state = SimpleNamespace(data={}, devices={uid: {} for uid in uids},
-                            seat_for_uid=lambda uid: {'id': ids[uid]} if uid in ids else None)
+    seats = {uid: {'id': ids[uid]} for uid in uids}
+    state = SimpleNamespace(data={}, devices={uid: {'ip': '127.0.0.1', 'online': True}
+                            for uid in uids}, seat_for_uid=seats.get)
     bridge = OSCBridge(state, lambda *_: None, report_port, cmd_port, '255.255.255.255')
     counts, sizes = Counter(), Counter()
     rtts, errors = [], []
@@ -85,6 +87,8 @@ async def run(nodes, warmup, duration):
     loop = asyncio.get_running_loop()
     sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     observed_routes = set()
+    sync_routes = {'ping': set(), 'offset': set()}
+    broadcast_counts = Counter()
 
     def send_to(address, args, destination, route):
         nonlocal measured
@@ -94,6 +98,9 @@ async def run(nodes, warmup, duration):
             kind = 'ping' if address == '/sync/ping' else 'offset'
             counts[kind] += 1
             sizes[kind] += len(packet)
+            sync_routes[kind].add((destination[0], destination[1], route))
+            if destination[0] == '255.255.255.255':
+                broadcast_counts[kind] += 1
         if address.endswith('/sync/offset'):
             offsets[address.split('/')[1]] = int(args[0])
         sender.sendto(packet, ('127.0.0.1', cmd_port))
@@ -108,20 +115,21 @@ async def run(nodes, warmup, duration):
                 if measured:
                     counts['pong'] += 1
                     sizes['pong'] += len(packet)
-                bridge.handle_pong(args)
+                bridge.handle_pong(args, source[0])
                 if measured and args[2] in bridge._sync:
                     facts = state.devices[args[2]].get('sync', {})
                     if facts:
                         rtts.append(facts['rtt']/1e6)
     transport, _ = await loop.create_datagram_endpoint(Receiver, local_addr=('127.0.0.1', report_port))
-    log_path = HERE / ('simfleet-%s.log' % nodes)
+    log_path = output_dir / ('simfleet-%s.log' % nodes)
     with log_path.open('w') as log:
         process = subprocess.Popen([sys.executable, str(ROOT/'tools/simfleet.py'),
             '--devices', str(nodes), '--target', '127.0.0.1',
             '--report-port', str(report_port), '--cmd-port', str(cmd_port),
             '--boot-secs', '0', '--hb-interval', '1',
             '--sync-skew-ms', '40', '--sync-jitter-ms', '0'],
-            cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
+            cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+            env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
         random.seed(7100+nodes)
         task = None
         try:
@@ -165,24 +173,33 @@ async def run(nodes, warmup, duration):
                 messages_s={k:v/elapsed for k,v in counts.items()},
                 osc_bytes_s={k:v/elapsed for k,v in sizes.items()},
                 routes=sorted(observed_routes), synced_nodes=len(offsets),
+                sync_routes={kind: sorted(routes) for kind, routes in sync_routes.items()},
+                broadcast_counts=dict(broadcast_counts),
+                broadcast_messages_s=sum(broadcast_counts.values())/elapsed,
                 rtt_ms=summary(rtts), absolute_estimate_error_ms=summary(errors),
                 event_spread_ms=summary([v/1e6 for v in spreads.values()]),
                 complete_events=complete, requested_events=20, raw_log=log_path.name)
 
 
 async def main(args):
+    args.output_dir.mkdir(parents=True, exist_ok=True)
     result = dict(scope='Loopback single-process simfleet; no Wi-Fi/audio claim',
+                  stage='A: unicast offsets; unchanged production cadence/estimator',
                   model=[model(n) for n in (4,10,16,32,50,100)],
+                  stage_a_model=[model(n,stage_a=True) for n in (4,10,16,32,50,100)],
                   targeted_model=[model(n,.1,True) for n in (4,10,16,32,50,100)],
                   measured=[])
     for n in args.nodes:
-        record = await run(n,args.warmup,args.duration)
+        record = await run(n,args.warmup,args.duration,args.output_dir)
         assert record['synced_nodes'] == n, record
         assert record['absolute_estimate_error_ms']['count'] == n, record
         assert record['complete_events'] == record['requested_events'] == 20, record
         assert record['event_spread_ms']['count'] == 20, record
+        assert record['broadcast_counts'].get('offset', 0) == 0, record
+        assert record['sync_routes']['offset'] == [
+            ('127.0.0.1', record['sync_routes']['ping'][0][1], 'physical')], record
         result['measured'].append(record)
-        (HERE/'traffic-results.json').write_text(json.dumps(result,indent=2)+'\n')
+        (args.output_dir/'traffic-results.json').write_text(json.dumps(result,indent=2)+'\n')
         print('measured %s nodes' % n, flush=True)
 
 
@@ -191,6 +208,8 @@ if __name__ == '__main__':
     parser.add_argument('--nodes', type=int, nargs='+', default=[4,16,32,50])
     parser.add_argument('--warmup', type=float, default=10)
     parser.add_argument('--duration', type=float, default=12)
+    parser.add_argument('--output-dir', type=Path, default=HERE/'stage-a',
+                        help='Keep stage-A evidence separate from the original baseline')
     args = parser.parse_args()
     if any(n < 2 for n in args.nodes) or args.warmup <= 0 or args.duration <= 0:
         parser.error('nodes must be >=2; warmup and duration must be positive')

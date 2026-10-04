@@ -1,0 +1,284 @@
+00:08:57 sim1 id=1 sync_skew=-22767147ns
+00:08:57 sim2 id=2 sync_skew=30171349ns
+00:08:57 sim3 id=3 sync_skew=25594266ns
+00:08:57 sim4 id=4 sync_skew=16725793ns
+00:08:57 sim1 id=1 state=booting
+00:08:57 sim2 id=2 state=booting
+00:08:57 sim3 id=3 state=booting
+00:08:57 sim4 id=4 state=booting
+00:08:58 sim1 id=1 state=running
+00:08:58 sim2 id=2 state=running
+00:08:58 sim3 id=3 state=running
+00:08:58 sim4 id=4 state=running
+00:08:59 sim1 id=1 sync offset=-22717251ns
+00:08:59 sim2 id=2 sync offset=30205620ns
+00:08:59 sim3 id=3 sync offset=25616891ns
+00:08:59 sim4 id=4 sync offset=16753147ns
+00:09:00 sim1 id=1 sync offset=-22726834ns
+00:09:00 sim2 id=2 sync offset=30197849ns
+00:09:00 sim3 id=3 sync offset=25614015ns
+00:09:00 sim4 id=4 sync offset=16746470ns
+00:09:00 sim1 id=1 sync offset=-22736918ns
+00:09:00 sim2 id=2 sync offset=30190078ns
+00:09:00 sim3 id=3 sync offset=25611140ns
+00:09:00 sim4 id=4 sync offset=16739793ns
+00:09:01 sim1 id=1 sync offset=-22737418ns
+00:09:01 sim2 id=2 sync offset=30195484ns
+00:09:01 sim3 id=3 sync offset=25611140ns
+00:09:01 sim4 id=4 sync offset=16746470ns
+00:09:01 sim1 id=1 sync offset=-22738001ns
+00:09:01 sim2 id=2 sync offset=30191307ns
+00:09:01 sim3 id=3 sync offset=25610202ns
+00:09:01 sim4 id=4 sync offset=16753147ns
+00:09:02 sim1 id=1 sync offset=-22738585ns
+00:09:02 sim2 id=2 sync offset=30196099ns
+00:09:02 sim3 id=3 sync offset=25611140ns
+00:09:02 sim4 id=4 sync offset=16754345ns
+00:09:02 sim1 id=1 sync offset=-22738001ns
+00:09:02 sim2 id=2 sync offset=30200891ns
+00:09:02 sim3 id=3 sync offset=25613599ns
+00:09:02 sim4 id=4 sync offset=16755543ns
+00:09:03 sim1 id=1 sync offset=-22738585ns
+00:09:03 sim2 id=2 sync offset=30196099ns
+00:09:03 sim3 id=3 sync offset=25611140ns
+00:09:03 sim4 id=4 sync offset=16754345ns
+00:09:03 sim1 id=1 sync offset=-22740929ns
+00:09:03 sim2 id=2 sync offset=30191307ns
+00:09:03 sim3 id=3 sync offset=25613599ns
+00:09:03 sim4 id=4 sync offset=16755543ns
+00:09:04 sim1 id=1 sync offset=-22743273ns
+00:09:04 sim2 id=2 sync offset=30190692ns
+00:09:04 sim3 id=3 sync offset=25611140ns
+00:09:04 sim4 id=4 sync offset=16754345ns
+00:09:04 sim1 id=1 sync offset=-22740929ns
+00:09:04 sim2 id=2 sync offset=30190974ns
+00:09:04 sim3 id=3 sync offset=25610202ns
+00:09:04 sim4 id=4 sync offset=16753147ns
+00:09:05 sim1 id=1 sync offset=-22739481ns
+00:09:05 sim2 id=2 sync offset=30190515ns
+00:09:05 sim3 id=3 sync offset=25611140ns
+00:09:05 sim4 id=4 sync offset=16753147ns
+00:09:05 sim1 id=1 sync offset=-22744272ns
+00:09:05 sim2 id=2 sync offset=30190078ns
+00:09:05 sim3 id=3 sync offset=25610202ns
+00:09:05 sim4 id=4 sync offset=16741751ns
+00:09:06 sim1 id=1 sync offset=-22744272ns
+00:09:06 sim2 id=2 sync offset=30190078ns
+00:09:06 sim3 id=3 sync offset=25610202ns
+00:09:06 sim4 id=4 sync offset=16741751ns
+00:09:06 sim1 id=1 sync offset=-22744272ns
+00:09:06 sim2 id=2 sync offset=30190078ns
+00:09:06 sim3 id=3 sync offset=25610202ns
+00:09:06 sim4 id=4 sync offset=16741751ns
+00:09:07 sim1 id=1 sync offset=-22745470ns
+00:09:07 sim2 id=2 sync offset=30190078ns
+00:09:07 sim3 id=3 sync offset=25608775ns
+00:09:07 sim4 id=4 sync offset=16733876ns
+00:09:07 sim1 id=1 sync offset=-22744813ns
+00:09:07 sim2 id=2 sync offset=30190078ns
+00:09:07 sim3 id=3 sync offset=25608775ns
+00:09:07 sim4 id=4 sync offset=16730761ns
+00:09:08 sim1 id=1 sync offset=-22746668ns
+00:09:08 sim2 id=2 sync offset=30190515ns
+00:09:08 sim3 id=3 sync offset=25608286ns
+00:09:08 sim4 id=4 sync offset=16726782ns
+00:09:08 sim1 id=1 sync offset=-22746668ns
+00:09:08 sim2 id=2 sync offset=30190744ns
+00:09:08 sim3 id=3 sync offset=25608775ns
+00:09:08 sim4 id=4 sync offset=16733876ns
+00:09:09 sim1 id=1 sync offset=-22747855ns
+00:09:09 sim2 id=2 sync offset=30188286ns
+00:09:09 sim3 id=3 sync offset=25600401ns
+00:09:09 sim4 id=4 sync offset=16719689ns
+00:09:09 sim1 id=1 sync offset=-22746668ns
+00:09:09 sim2 id=2 sync offset=30188286ns
+00:09:09 sim3 id=3 sync offset=25594818ns
+00:09:09 sim4 id=4 sync offset=16719689ns
+00:09:10 sim1 id=1 sync offset=-22746668ns
+00:09:10 sim2 id=2 sync offset=30188286ns
+00:09:10 sim3 id=3 sync offset=25597120ns
+00:09:10 sim4 id=4 sync offset=16722459ns
+00:09:10 sim1 id=1 sync offset=-22746668ns
+00:09:10 sim2 id=2 sync offset=30188286ns
+00:09:10 sim3 id=3 sync offset=25597120ns
+00:09:10 sim4 id=4 sync offset=16722459ns
+00:09:11 sim1 id=1 sync offset=-22746668ns
+00:09:11 sim2 id=2 sync offset=30188286ns
+00:09:11 sim3 id=3 sync offset=25598255ns
+00:09:11 sim4 id=4 sync offset=16725230ns
+00:09:11 sim1 id=1 sync offset=-22746668ns
+00:09:11 sim2 id=2 sync offset=30190515ns
+00:09:11 sim3 id=3 sync offset=25597120ns
+00:09:11 sim4 id=4 sync offset=16719594ns
+00:09:12 sim1 id=1 sync offset=-22746668ns
+00:09:12 sim2 id=2 sync offset=30190744ns
+00:09:12 sim3 id=3 sync offset=25598255ns
+00:09:12 sim4 id=4 sync offset=16722021ns
+00:09:13 sim1 id=1 sync offset=-22746668ns
+00:09:13 sim2 id=2 sync offset=30190515ns
+00:09:13 sim3 id=3 sync offset=25597120ns
+00:09:13 sim4 id=4 sync offset=16718813ns
+00:09:13 sim1 id=1 sync offset=-22746668ns
+00:09:13 sim2 id=2 sync offset=30187984ns
+00:09:13 sim3 id=3 sync offset=25594818ns
+00:09:13 sim4 id=4 sync offset=16716386ns
+00:09:14 sim1 id=1 sync offset=-22746928ns
+00:09:14 sim2 id=2 sync offset=30180307ns
+00:09:14 sim3 id=3 sync offset=25594422ns
+00:09:14 sim4 id=4 sync offset=16715480ns
+00:09:14 sim1 id=1 sync offset=-22746928ns
+00:09:14 sim2 id=2 sync offset=30180307ns
+00:09:14 sim3 id=3 sync offset=25596328ns
+00:09:14 sim4 id=4 sync offset=16717146ns
+00:09:14 sim1 id=1 sync offset=-22746928ns
+00:09:14 sim2 id=2 sync offset=30180307ns
+00:09:14 sim3 id=3 sync offset=25592516ns
+00:09:14 sim4 id=4 sync offset=16718813ns
+00:09:15 sim1 id=1 sync offset=-22746928ns
+00:09:15 sim2 id=2 sync offset=30184026ns
+00:09:15 sim3 id=3 sync offset=25594422ns
+00:09:15 sim4 id=4 sync offset=16719084ns
+00:09:15 sim1 id=1 sync offset=-22749043ns
+00:09:15 sim2 id=2 sync offset=30187745ns
+00:09:15 sim3 id=3 sync offset=25596328ns
+00:09:15 sim4 id=4 sync offset=16719355ns
+00:09:16 sim1 id=1 sync offset=-22740106ns
+00:09:16 sim2 id=2 sync offset=30185098ns
+00:09:16 sim3 id=3 sync offset=25596328ns
+00:09:16 sim4 id=4 sync offset=16719355ns
+00:09:16 sim1 id=1 sync offset=-22740106ns
+00:09:16 sim2 id=2 sync offset=30185098ns
+00:09:16 sim3 id=3 sync offset=25596328ns
+00:09:16 sim4 id=4 sync offset=16719355ns
+00:09:17 sim1 id=1 sync offset=-22739522ns
+00:09:17 sim2 id=2 sync offset=30186421ns
+00:09:17 sim3 id=3 sync offset=25596588ns
+00:09:17 sim4 id=4 sync offset=16722292ns
+00:09:17 sim1 id=1 sync offset=-22738939ns
+00:09:17 sim2 id=2 sync offset=30185098ns
+00:09:17 sim3 id=3 sync offset=25596588ns
+00:09:17 sim4 id=4 sync offset=16722292ns
+00:09:18 sim1 id=1 sync offset=-22739053ns
+00:09:18 sim2 id=2 sync offset=30180307ns
+00:09:18 sim3 id=3 sync offset=25593505ns
+00:09:18 sim4 id=4 sync offset=16719355ns
+00:09:18 sim1 id=1 sync offset=-22742147ns
+00:09:18 sim2 id=2 sync offset=30181494ns
+00:09:18 sim3 id=3 sync offset=25587964ns
+00:09:18 sim4 id=4 sync offset=16718813ns
+00:09:19 sim1 id=1 sync offset=-22740106ns
+00:09:19 sim2 id=2 sync offset=30182682ns
+00:09:19 sim3 id=3 sync offset=25590683ns
+00:09:19 sim4 id=4 sync offset=16719084ns
+00:09:19 sim1 id=1 sync offset=-22740106ns
+00:09:19 sim2 id=2 sync offset=30182682ns
+00:09:19 sim3 id=3 sync offset=25590683ns
+00:09:19 sim4 id=4 sync offset=16718813ns
+00:09:20 sim1 id=1 sync offset=-22744188ns
+00:09:20 sim2 id=2 sync offset=30164787ns
+00:09:20 sim3 id=3 sync offset=25580099ns
+00:09:20 sim4 id=4 sync offset=16710564ns
+00:09:20 sim1 id=1 sync offset=-22744188ns
+00:09:20 sim2 id=2 sync offset=30164787ns
+00:09:20 sim3 id=3 sync offset=25580099ns
+00:09:20 sim4 id=4 sync offset=16710564ns
+00:09:21 sim4 id=4 event m0 fired dev_deadline=613134568353689 fire_mono=613134552224791
+00:09:21 sim3 id=3 event m0 fired dev_deadline=613134577223224 fire_mono=613134552306500
+00:09:21 sim2 id=2 event m0 fired dev_deadline=613134581807912 fire_mono=613134552334416
+00:09:21 sim1 id=1 event m0 fired dev_deadline=613134528898937 fire_mono=613134552353333
+00:09:21 sim1 id=1 sync offset=-22744188ns
+00:09:21 sim2 id=2 sync offset=30164787ns
+00:09:21 sim3 id=3 sync offset=25580099ns
+00:09:21 sim4 id=4 sync offset=16710564ns
+00:09:21 sim4 id=4 event m1 fired dev_deadline=613134669150397 fire_mono=613134657146083
+00:09:21 sim3 id=3 event m1 fired dev_deadline=613134678019932 fire_mono=613134657224875
+00:09:21 sim2 id=2 event m1 fired dev_deadline=613134682604620 fire_mono=613134657250666
+00:09:21 sim1 id=1 event m1 fired dev_deadline=613134629695645 fire_mono=613134657266416
+00:09:21 sim4 id=4 event m2 fired dev_deadline=613134770152022 fire_mono=613134753510541
+00:09:21 sim3 id=3 event m2 fired dev_deadline=613134779021557 fire_mono=613134753590000
+00:09:21 sim2 id=2 event m2 fired dev_deadline=613134783606245 fire_mono=613134753613625
+00:09:21 sim1 id=1 event m2 fired dev_deadline=613134730697270 fire_mono=613134753630916
+00:09:21 sim4 id=4 event m3 fired dev_deadline=613134872334272 fire_mono=613134856899041
+00:09:21 sim3 id=3 event m3 fired dev_deadline=613134881203807 fire_mono=613134856977416
+00:09:21 sim2 id=2 event m3 fired dev_deadline=613134885788495 fire_mono=613134857004333
+00:09:21 sim1 id=1 event m3 fired dev_deadline=613134832879520 fire_mono=613134857022958
+00:09:21 sim4 id=4 event m4 fired dev_deadline=613134973760564 fire_mono=613134962225166
+00:09:21 sim3 id=3 event m4 fired dev_deadline=613134982630099 fire_mono=613134962307125
+00:09:21 sim2 id=2 event m4 fired dev_deadline=613134987214787 fire_mono=613134962337625
+00:09:21 sim1 id=1 event m4 fired dev_deadline=613134934305812 fire_mono=613134962356458
+00:09:21 sim4 id=4 event m5 fired dev_deadline=613135074886439 fire_mono=613135063496083
+00:09:21 sim3 id=3 event m5 fired dev_deadline=613135083755974 fire_mono=613135063528916
+00:09:21 sim2 id=2 event m5 fired dev_deadline=613135088340662 fire_mono=613135063537500
+00:09:21 sim1 id=1 event m5 fired dev_deadline=613135035431687 fire_mono=613135063543875
+00:09:21 sim4 id=4 event m6 fired dev_deadline=613135175556272 fire_mono=613135162952083
+00:09:21 sim3 id=3 event m6 fired dev_deadline=613135184425807 fire_mono=613135162993791
+00:09:21 sim2 id=2 event m6 fired dev_deadline=613135189010495 fire_mono=613135163003208
+00:09:21 sim1 id=1 event m6 fired dev_deadline=613135136101520 fire_mono=613135163009333
+00:09:21 sim1 id=1 sync offset=-22744188ns
+00:09:21 sim2 id=2 sync offset=30164787ns
+00:09:21 sim3 id=3 sync offset=25580099ns
+00:09:21 sim4 id=4 sync offset=16710564ns
+00:09:21 sim4 id=4 event m7 fired dev_deadline=613135277131105 fire_mono=613135266160083
+00:09:21 sim3 id=3 event m7 fired dev_deadline=613135286000640 fire_mono=613135266252916
+00:09:21 sim2 id=2 event m7 fired dev_deadline=613135290585328 fire_mono=613135266277625
+00:09:21 sim1 id=1 event m7 fired dev_deadline=613135237676353 fire_mono=613135266296791
+00:09:21 sim4 id=4 event m8 fired dev_deadline=613135378000564 fire_mono=613135368424125
+00:09:21 sim3 id=3 event m8 fired dev_deadline=613135386870099 fire_mono=613135368486625
+00:09:21 sim2 id=2 event m8 fired dev_deadline=613135391454787 fire_mono=613135368509458
+00:09:21 sim1 id=1 event m8 fired dev_deadline=613135338545812 fire_mono=613135368524333
+00:09:22 sim4 id=4 event m9 fired dev_deadline=613135478984605 fire_mono=613135469562041
+00:09:22 sim3 id=3 event m9 fired dev_deadline=613135487854140 fire_mono=613135469624583
+00:09:22 sim2 id=2 event m9 fired dev_deadline=613135492438828 fire_mono=613135469644666
+00:09:22 sim1 id=1 event m9 fired dev_deadline=613135439529853 fire_mono=613135469658666
+00:09:22 sim4 id=4 event m10 fired dev_deadline=613135580055105 fire_mono=613135569132166
+00:09:22 sim3 id=3 event m10 fired dev_deadline=613135588924640 fire_mono=613135569208541
+00:09:22 sim2 id=2 event m10 fired dev_deadline=613135593509328 fire_mono=613135569229708
+00:09:22 sim1 id=1 event m10 fired dev_deadline=613135540600353 fire_mono=613135569286833
+00:09:22 sim4 id=4 event m11 fired dev_deadline=613135682208230 fire_mono=613135670648041
+00:09:22 sim3 id=3 event m11 fired dev_deadline=613135691077765 fire_mono=613135670725208
+00:09:22 sim2 id=2 event m11 fired dev_deadline=613135695662453 fire_mono=613135670749000
+00:09:22 sim1 id=1 event m11 fired dev_deadline=613135642753478 fire_mono=613135670763875
+00:09:22 sim1 id=1 sync offset=-22747157ns
+00:09:22 sim2 id=2 sync offset=30164599ns
+00:09:22 sim3 id=3 sync offset=25580099ns
+00:09:22 sim4 id=4 sync offset=16710564ns
+00:09:22 sim4 id=4 event m12 fired dev_deadline=613135782758105 fire_mono=613135769507416
+00:09:22 sim3 id=3 event m12 fired dev_deadline=613135791627640 fire_mono=613135769533041
+00:09:22 sim2 id=2 event m12 fired dev_deadline=613135796212328 fire_mono=613135769544250
+00:09:22 sim1 id=1 event m12 fired dev_deadline=613135743303353 fire_mono=613135769553875
+00:09:22 sim4 id=4 event m13 fired dev_deadline=613135884935689 fire_mono=613135874340875
+00:09:22 sim3 id=3 event m13 fired dev_deadline=613135893805224 fire_mono=613135874407916
+00:09:22 sim2 id=2 event m13 fired dev_deadline=613135898389912 fire_mono=613135874433291
+00:09:22 sim1 id=1 event m13 fired dev_deadline=613135845480937 fire_mono=613135874450875
+00:09:22 sim4 id=4 event m14 fired dev_deadline=613135986052314 fire_mono=613135976533375
+00:09:22 sim3 id=3 event m14 fired dev_deadline=613135994921849 fire_mono=613135976602750
+00:09:22 sim2 id=2 event m14 fired dev_deadline=613135999506537 fire_mono=613135976626541
+00:09:22 sim1 id=1 event m14 fired dev_deadline=613135946597562 fire_mono=613135976641125
+00:09:22 sim4 id=4 event m15 fired dev_deadline=613136086286439 fire_mono=613136073058416
+00:09:22 sim3 id=3 event m15 fired dev_deadline=613136095155974 fire_mono=613136073114541
+00:09:22 sim2 id=2 event m15 fired dev_deadline=613136099740662 fire_mono=613136073127333
+00:09:22 sim1 id=1 event m15 fired dev_deadline=613136046831687 fire_mono=613136073133750
+00:09:22 sim4 id=4 event m16 fired dev_deadline=613136187374064 fire_mono=613136180692291
+00:09:22 sim3 id=3 event m16 fired dev_deadline=613136196243599 fire_mono=613136180761083
+00:09:22 sim2 id=2 event m16 fired dev_deadline=613136200828287 fire_mono=613136180785708
+00:09:22 sim1 id=1 event m16 fired dev_deadline=613136147919312 fire_mono=613136180802250
+00:09:22 sim4 id=4 event m17 fired dev_deadline=613136289504522 fire_mono=613136272906958
+00:09:22 sim3 id=3 event m17 fired dev_deadline=613136298374057 fire_mono=613136272976750
+00:09:22 sim2 id=2 event m17 fired dev_deadline=613136302958557 fire_mono=613136273002041
+00:09:22 sim1 id=1 event m17 fired dev_deadline=613136250046801 fire_mono=613136273018791
+00:09:22 sim1 id=1 sync offset=-22750127ns
+00:09:22 sim2 id=2 sync offset=30164693ns
+00:09:22 sim3 id=3 sync offset=25579942ns
+00:09:22 sim4 id=4 sync offset=16708605ns
+00:09:22 sim4 id=4 event m18 fired dev_deadline=613136390834605 fire_mono=613136375339250
+00:09:22 sim3 id=3 event m18 fired dev_deadline=613136399704140 fire_mono=613136375408666
+00:09:22 sim2 id=2 event m18 fired dev_deadline=613136404288640 fire_mono=613136375430375
+00:09:22 sim1 id=1 event m18 fired dev_deadline=613136351376884 fire_mono=613136375446250
+00:09:23 sim4 id=4 event m19 fired dev_deadline=613136493031314 fire_mono=613136481402875
+00:09:23 sim3 id=3 event m19 fired dev_deadline=613136501900849 fire_mono=613136481479041
+00:09:23 sim2 id=2 event m19 fired dev_deadline=613136506485349 fire_mono=613136481504291
+00:09:23 sim1 id=1 event m19 fired dev_deadline=613136453573593 fire_mono=613136481521333
+00:09:23 sim1 id=1 sync offset=-22750127ns
+00:09:23 sim2 id=2 sync offset=30164693ns
+00:09:23 sim3 id=3 sync offset=25579942ns
+00:09:23 sim4 id=4 sync offset=16708605ns

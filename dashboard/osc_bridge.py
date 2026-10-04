@@ -136,6 +136,9 @@ class OSCBridge:
         self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
         self._sync_seq = 0
         self._sync_sent = {}   # uid -> last sync ws-broadcast time (throttle)
+        self._sync_routes = {}  # uid -> current endpoint generation and clock observation
+        self._sync_reset_at = {}  # reject echoes sent before a generation change
+        self._sync_generation_at = 0  # execution-mode/relay boundary, even without routes
         self._ping_task = None
         self._points_task = None
         self._points_started = time.monotonic()  # motion clock zero
@@ -269,6 +272,7 @@ class OSCBridge:
         # dashboard is running (contract sec 3.1).
         try:
             while True:
+                self._refresh_sync_routes()
                 self._sync_seq = (self._sync_seq + 1) & 0x7fffffff
                 self.send("/sync/ping", [self._sync_seq, str(time.monotonic_ns())])
                 await asyncio.sleep(SYNC_PING_INTERVAL
@@ -445,6 +449,10 @@ class OSCBridge:
             self.send_physical(address, args)
 
     def set_target(self, host):
+        # Even the same loopback host can now belong to a new audition engine.
+        self._sync_generation_at = time.monotonic_ns()
+        for uid in tuple(self._sync_routes):
+            self._invalidate_sync(uid)
         self.destination = (str(host), self.destination[1])
 
     @staticmethod
@@ -707,6 +715,8 @@ class OSCBridge:
         self.send_physical(f"/{selector}/os/{verb}")
 
     def uid_command(self, uid, verb, args=()):
+        if verb == "unassign":
+            self._invalidate_sync(uid)
         self.send_for_uid(
             uid, "/all/os/to", [str(uid), str(verb), *args])
 
@@ -1062,6 +1072,7 @@ class OSCBridge:
         # and it persists the lot for standalone operation (contract sec 5).
         # Element positions ride along: one x y pair per element, pair order
         # = element index (true N — the fixed pos1/pos2 spelling is retired).
+        self._invalidate_sync(uid)
         args = [str(uid), int(device_id), str(name)]
         for position in elements or ():
             args += [float(position[0]), float(position[1])]
@@ -1372,6 +1383,8 @@ class OSCBridge:
             device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
                           rssi=args[4] if len(args) > 4 else None, ip=ip, online=True,
                           last_seen=time.time())
+            if first_seen or not old["online"] or old["ip"] != ip:
+                self._invalidate_sync(uid)
             if first_seen or not old["online"]:
                 # A reboot invalidates the previous observed mode.
                 if isinstance(device.get("report"), dict):
@@ -1897,7 +1910,7 @@ class OSCBridge:
             self.request_assets(device["uid"])
             return
         if address == "/sync/pong" and len(args) >= 4:
-            self.handle_pong(args)
+            self.handle_pong(args, ip)
             return
         if address in ("/os/pong", "/os/load"):
             log.debug("ignored %s %r", address, args)
@@ -1980,7 +1993,70 @@ class OSCBridge:
         best = [offset for offset, rtt in zip(offsets, rtts) if rtt <= floor]
         return int(statistics.median(best or offsets))
 
-    def handle_pong(self, args):
+    def _invalidate_sync(self, uid):
+        route = self._sync_routes.pop(uid, None)
+        if route is not None:
+            route["device"].pop("sync", None)
+        device = self.state.devices.get(uid)
+        if device is not None:
+            device.pop("sync", None)
+        self._sync.pop(uid, None)
+        self._sync_sent.pop(uid, None)
+        self._sync_reset_at[uid] = time.monotonic_ns()
+
+    def _sync_endpoint(self, uid):
+        device = self.state.devices.get(uid)
+        if not device or not device.get("online") or device.get("revoking_assignment"):
+            return None
+        mode = self.state.data.get("supervisor", {}).get("mode", "off")
+        virtual = bool(device.get("virtual"))
+        if (virtual and mode not in {"simulate", "edit"}) or (not virtual and mode != "off"):
+            return None
+        peer = device.get("ip")
+        try:
+            address = ipaddress.IPv4Address(peer)
+        except (ipaddress.AddressValueError, TypeError):
+            return None
+        if address.is_unspecified or address.is_multicast or str(address) == "255.255.255.255":
+            return None
+        seat = self.state.seat_for_uid(uid)
+        editor = self.state.data.get("editor", {})
+        if seat is None and virtual and mode == "edit" and device.get("editor") \
+                and editor.get("active"):
+            seat, selector = editor, 0
+        elif seat is not None:
+            selector = int(seat["id"])
+        else:
+            return None
+        if virtual:
+            if not address.is_loopback or not self._is_loopback_destination(self.destination):
+                return None
+            destination = self.destination
+        else:
+            destination = (str(address), self.physical_destination[1])
+        return {"device": device, "seat": seat, "id": selector,
+                "ip": str(address), "virtual": virtual, "mode": mode,
+                "generation": editor.get("generation") if virtual and mode == "edit" else None,
+                "destination": destination}
+
+    @staticmethod
+    def _same_sync_endpoint(left, right):
+        return (left["device"] is right["device"] and left["seat"] is right["seat"]
+                and all(left[key] == right[key] for key in
+                        ("id", "ip", "virtual", "mode", "generation", "destination")))
+
+    def _refresh_sync_routes(self):
+        # Bound retained routes to live endpoint generations, including removals
+        # that have no subsequent pong. Runs on the unchanged ~2 Hz ping tick.
+        for uid, route in tuple(self._sync_routes.items()):
+            endpoint = self._sync_endpoint(uid)
+            if endpoint is None or not self._same_sync_endpoint(route, endpoint):
+                self._invalidate_sync(uid)
+        for uid in tuple(self._sync_reset_at):
+            if uid not in self.state.devices:
+                self._sync_reset_at.pop(uid, None)
+
+    def handle_pong(self, args, ip):
         # /sync/pong <seq> <leaderTimeNs> <uid> <deviceTimeNs>: the leader
         # timestamps arrival, recovers its send time from the echoed leaderTime,
         # and estimates offset = (deviceTime + oneWay) - leaderNow.
@@ -1989,13 +2065,33 @@ class OSCBridge:
             send_time, uid, device_time = int(args[1]), str(args[2]), int(args[3])
         except (TypeError, ValueError):
             return
-        device = self.state.devices.get(uid)
-        seat = self.state.seat_for_uid(uid)
-        if device is None or seat is None:
-            return  # only assigned devices are synced and pushed
+        endpoint = self._sync_endpoint(uid)
+        route = self._sync_routes.get(uid)
+        if route is not None and (endpoint is None or not self._same_sync_endpoint(route, endpoint)):
+            self._invalidate_sync(uid)
+            route = None
+        if endpoint is None or str(ip) != endpoint["ip"]:
+            return
         rtt = leader_now - send_time
         if rtt < 0 or rtt > SYNC_RTT_CEILING_NS:
             return  # bogus clock, or a pong too delayed to be usable
+        if route is None:
+            route = dict(endpoint, since=max(self._sync_generation_at,
+                                            self._sync_reset_at.get(uid, 0)),
+                         leader_time=None, device_time=None)
+            self._sync_routes[uid] = route
+        if send_time < route["since"]:
+            return  # pong from before this endpoint generation
+        if route["leader_time"] is not None:
+            if send_time < route["leader_time"]:
+                return  # reordered old reply, not evidence of a reboot
+            if send_time > route["leader_time"] and device_time < route["device_time"]:
+                # A quick same-IP reboot may happen between heartbeats. Only a
+                # newer probe with a backwards node clock starts a generation.
+                self._invalidate_sync(uid)
+                return
+        route.update(leader_time=send_time, device_time=device_time)
+        device = endpoint["device"]
         one_way = rtt // 2
         offset = (device_time + one_way) - leader_now
         window = self._sync.setdefault(uid, {"offsets": deque(maxlen=SYNC_WINDOW),
@@ -2006,7 +2102,11 @@ class OSCBridge:
         device["sync"] = {"offset": estimate, "rtt": rtt, "min_rtt": min(window["rtts"]),
                           "samples": len(window["offsets"]), "at": time.time()}
         if len(window["offsets"]) >= SYNC_MIN_SAMPLES:
-            self.send(f"/{int(seat['id'])}/sync/offset", [str(estimate)])
+            if not endpoint["virtual"]:
+                self.observe_lan_peer(endpoint["ip"])
+            self._send_to(f"/{endpoint['id']}/sync/offset", [str(estimate)],
+                          endpoint["destination"],
+                          "execution" if endpoint["virtual"] else "physical")
         now = time.time()
         if now - self._sync_sent.get(uid, 0) >= 0.2:
             self._sync_sent[uid] = now

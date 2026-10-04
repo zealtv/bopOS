@@ -1,0 +1,626 @@
+{
+  "scope": "Loopback single-process simfleet; no Wi-Fi/audio claim",
+  "stage": "A: unicast offsets; unchanged production cadence/estimator",
+  "model": [
+    {
+      "nodes": 4,
+      "rate": 2.0,
+      "messages_s": 18.0,
+      "osc_bytes_s": 936.0,
+      "ipv4_udp_bytes_s": 1440.0,
+      "broadcast_messages_s": 10.0,
+      "broadcast_osc_bytes_s": 328.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 10,
+      "rate": 2.0,
+      "messages_s": 42.0,
+      "osc_bytes_s": 2232.0,
+      "ipv4_udp_bytes_s": 3408.0,
+      "broadcast_messages_s": 22.0,
+      "broadcast_osc_bytes_s": 712.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 16,
+      "rate": 2.0,
+      "messages_s": 66.0,
+      "osc_bytes_s": 3528.0,
+      "ipv4_udp_bytes_s": 5376.0,
+      "broadcast_messages_s": 34.0,
+      "broadcast_osc_bytes_s": 1096.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 32,
+      "rate": 2.0,
+      "messages_s": 130.0,
+      "osc_bytes_s": 6984.0,
+      "ipv4_udp_bytes_s": 10624.0,
+      "broadcast_messages_s": 66.0,
+      "broadcast_osc_bytes_s": 2120.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 50,
+      "rate": 2.0,
+      "messages_s": 202.0,
+      "osc_bytes_s": 10872.0,
+      "ipv4_udp_bytes_s": 16528.0,
+      "broadcast_messages_s": 102.0,
+      "broadcast_osc_bytes_s": 3272.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 100,
+      "rate": 2.0,
+      "messages_s": 402.0,
+      "osc_bytes_s": 21680.0,
+      "ipv4_udp_bytes_s": 32936.0,
+      "broadcast_messages_s": 202.0,
+      "broadcast_osc_bytes_s": 6480.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    }
+  ],
+  "stage_a_model": [
+    {
+      "nodes": 4,
+      "rate": 2.0,
+      "messages_s": 18.0,
+      "osc_bytes_s": 936.0,
+      "ipv4_udp_bytes_s": 1440.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 10,
+      "rate": 2.0,
+      "messages_s": 42.0,
+      "osc_bytes_s": 2232.0,
+      "ipv4_udp_bytes_s": 3408.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 16,
+      "rate": 2.0,
+      "messages_s": 66.0,
+      "osc_bytes_s": 3528.0,
+      "ipv4_udp_bytes_s": 5376.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 32,
+      "rate": 2.0,
+      "messages_s": 130.0,
+      "osc_bytes_s": 6984.0,
+      "ipv4_udp_bytes_s": 10624.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 50,
+      "rate": 2.0,
+      "messages_s": 202.0,
+      "osc_bytes_s": 10872.0,
+      "ipv4_udp_bytes_s": 16528.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 100,
+      "rate": 2.0,
+      "messages_s": 402.0,
+      "osc_bytes_s": 21680.0,
+      "ipv4_udp_bytes_s": 32936.0,
+      "broadcast_messages_s": 2.0,
+      "broadcast_osc_bytes_s": 72.0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    }
+  ],
+  "targeted_model": [
+    {
+      "nodes": 4,
+      "rate": 0.1,
+      "messages_s": 1.2000000000000002,
+      "osc_bytes_s": 67.2,
+      "ipv4_udp_bytes_s": 100.80000000000001,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 10,
+      "rate": 0.1,
+      "messages_s": 3.0,
+      "osc_bytes_s": 168.0,
+      "ipv4_udp_bytes_s": 252.0,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 16,
+      "rate": 0.1,
+      "messages_s": 4.800000000000001,
+      "osc_bytes_s": 268.8,
+      "ipv4_udp_bytes_s": 403.20000000000005,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 32,
+      "rate": 0.1,
+      "messages_s": 9.600000000000001,
+      "osc_bytes_s": 537.6,
+      "ipv4_udp_bytes_s": 806.4000000000001,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 50,
+      "rate": 0.1,
+      "messages_s": 15.0,
+      "osc_bytes_s": 840.0,
+      "ipv4_udp_bytes_s": 1260.0,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    },
+    {
+      "nodes": 100,
+      "rate": 0.1,
+      "messages_s": 30.0,
+      "osc_bytes_s": 1680.4,
+      "ipv4_udp_bytes_s": 2520.4,
+      "broadcast_messages_s": 0,
+      "broadcast_osc_bytes_s": 0,
+      "ping_size": 36,
+      "query_size": 60,
+      "pong_size": 76,
+      "offset_sizes": [
+        32,
+        32,
+        36
+      ]
+    }
+  ],
+  "measured": [
+    {
+      "nodes": 4,
+      "warmup_s": 10,
+      "measured_s": 12.001108666998334,
+      "counts": {
+        "ping": 24,
+        "pong": 96,
+        "offset": 96
+      },
+      "osc_bytes": {
+        "ping": 864,
+        "pong": 7296,
+        "offset": 3072
+      },
+      "messages_s": {
+        "ping": 1.999815239236791,
+        "pong": 7.999260956947164,
+        "offset": 7.999260956947164
+      },
+      "osc_bytes_s": {
+        "ping": 71.99334861252447,
+        "pong": 607.9438327279845,
+        "offset": 255.97635062230924
+      },
+      "routes": [
+        [
+          "127.0.0.1",
+          "physical"
+        ],
+        [
+          "255.255.255.255",
+          "execution"
+        ]
+      ],
+      "synced_nodes": 4,
+      "sync_routes": {
+        "ping": [
+          [
+            "255.255.255.255",
+            61609,
+            "execution"
+          ]
+        ],
+        "offset": [
+          [
+            "127.0.0.1",
+            61609,
+            "physical"
+          ]
+        ]
+      },
+      "broadcast_counts": {
+        "ping": 24
+      },
+      "broadcast_messages_s": 1.999815239236791,
+      "rtt_ms": {
+        "count": 96,
+        "median": 0.388,
+        "p95": 0.693709,
+        "maximum": 2.22725
+      },
+      "absolute_estimate_error_ms": {
+        "count": 4,
+        "median": 0.015672,
+        "p95": 0.01702,
+        "maximum": 0.017188
+      },
+      "event_spread_ms": {
+        "count": 20,
+        "median": 0.1109165,
+        "p95": 0.136708,
+        "maximum": 0.154667
+      },
+      "complete_events": 20,
+      "requested_events": 20,
+      "raw_log": "simfleet-4.log"
+    },
+    {
+      "nodes": 16,
+      "warmup_s": 10,
+      "measured_s": 12.000303624896333,
+      "counts": {
+        "ping": 25,
+        "pong": 400,
+        "offset": 400
+      },
+      "osc_bytes": {
+        "ping": 900,
+        "pong": 30400,
+        "offset": 12400
+      },
+      "messages_s": {
+        "ping": 2.0832806220114257,
+        "pong": 33.33248995218281,
+        "offset": 33.33248995218281
+      },
+      "osc_bytes_s": {
+        "ping": 74.99810239241133,
+        "pong": 2533.269236365894,
+        "offset": 1033.3071885176673
+      },
+      "routes": [
+        [
+          "127.0.0.1",
+          "physical"
+        ],
+        [
+          "255.255.255.255",
+          "execution"
+        ]
+      ],
+      "synced_nodes": 16,
+      "sync_routes": {
+        "ping": [
+          [
+            "255.255.255.255",
+            54585,
+            "execution"
+          ]
+        ],
+        "offset": [
+          [
+            "127.0.0.1",
+            54585,
+            "physical"
+          ]
+        ]
+      },
+      "broadcast_counts": {
+        "ping": 25
+      },
+      "broadcast_messages_s": 2.0832806220114257,
+      "rtt_ms": {
+        "count": 400,
+        "median": 0.6517915000000001,
+        "p95": 1.144334,
+        "maximum": 1.484458
+      },
+      "absolute_estimate_error_ms": {
+        "count": 16,
+        "median": 0.06400600000000001,
+        "p95": 0.1195,
+        "maximum": 0.123948
+      },
+      "event_spread_ms": {
+        "count": 20,
+        "median": 0.137667,
+        "p95": 0.201417,
+        "maximum": 0.269417
+      },
+      "complete_events": 20,
+      "requested_events": 20,
+      "raw_log": "simfleet-16.log"
+    },
+    {
+      "nodes": 32,
+      "warmup_s": 10,
+      "measured_s": 12.00213637505658,
+      "counts": {
+        "ping": 23,
+        "pong": 736,
+        "offset": 736
+      },
+      "osc_bytes": {
+        "ping": 828,
+        "pong": 55936,
+        "offset": 23080
+      },
+      "messages_s": {
+        "ping": 1.916325500833311,
+        "pong": 61.322416026665955,
+        "offset": 61.322416026665955
+      },
+      "osc_bytes_s": {
+        "ping": 68.9877180299992,
+        "pong": 4660.5036180266125,
+        "offset": 1922.9909808362095
+      },
+      "routes": [
+        [
+          "127.0.0.1",
+          "physical"
+        ],
+        [
+          "255.255.255.255",
+          "execution"
+        ]
+      ],
+      "synced_nodes": 32,
+      "sync_routes": {
+        "ping": [
+          [
+            "255.255.255.255",
+            56861,
+            "execution"
+          ]
+        ],
+        "offset": [
+          [
+            "127.0.0.1",
+            56861,
+            "physical"
+          ]
+        ]
+      },
+      "broadcast_counts": {
+        "ping": 23
+      },
+      "broadcast_messages_s": 1.916325500833311,
+      "rtt_ms": {
+        "count": 736,
+        "median": 1.0274375,
+        "p95": 1.919083,
+        "maximum": 2.339833
+      },
+      "absolute_estimate_error_ms": {
+        "count": 32,
+        "median": 0.08987,
+        "p95": 0.21825,
+        "maximum": 0.225699
+      },
+      "event_spread_ms": {
+        "count": 20,
+        "median": 0.23725000000000002,
+        "p95": 0.414541,
+        "maximum": 0.474542
+      },
+      "complete_events": 20,
+      "requested_events": 20,
+      "raw_log": "simfleet-32.log"
+    },
+    {
+      "nodes": 50,
+      "warmup_s": 10,
+      "measured_s": 12.001651290920563,
+      "counts": {
+        "ping": 24,
+        "pong": 1200,
+        "offset": 1200
+      },
+      "osc_bytes": {
+        "ping": 864,
+        "pong": 91200,
+        "offset": 37920
+      },
+      "messages_s": {
+        "ping": 1.9997248227130524,
+        "pong": 99.98624113565262,
+        "offset": 99.98624113565262
+      },
+      "osc_bytes_s": {
+        "ping": 71.99009361766988,
+        "pong": 7598.954326309599,
+        "offset": 3159.565219886623
+      },
+      "routes": [
+        [
+          "127.0.0.1",
+          "physical"
+        ],
+        [
+          "255.255.255.255",
+          "execution"
+        ]
+      ],
+      "synced_nodes": 50,
+      "sync_routes": {
+        "ping": [
+          [
+            "255.255.255.255",
+            55111,
+            "execution"
+          ]
+        ],
+        "offset": [
+          [
+            "127.0.0.1",
+            55111,
+            "physical"
+          ]
+        ]
+      },
+      "broadcast_counts": {
+        "ping": 24
+      },
+      "broadcast_messages_s": 1.9997248227130524,
+      "rtt_ms": {
+        "count": 1200,
+        "median": 1.415521,
+        "p95": 2.482792,
+        "maximum": 3.036291
+      },
+      "absolute_estimate_error_ms": {
+        "count": 50,
+        "median": 0.1774375,
+        "p95": 0.267167,
+        "maximum": 0.29573
+      },
+      "event_spread_ms": {
+        "count": 20,
+        "median": 0.3708545,
+        "p95": 0.718666,
+        "maximum": 0.778542
+      },
+      "complete_events": 20,
+      "requested_events": 20,
+      "raw_log": "simfleet-50.log"
+    }
+  ]
+}

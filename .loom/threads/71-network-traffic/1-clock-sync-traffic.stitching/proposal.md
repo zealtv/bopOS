@@ -1,5 +1,11 @@
 # Clock sync with less network traffic — proposal for Bob
 
+**Status, 2026-10-05:** Bob approved stage A; its implementation and software
+verification are recorded in `verification.md` (71/1a). Stage B is deferred.
+The design and baseline measurements below are the original proposal record;
+stage A rerun evidence is retained separately in `stage-a/`. §3.1 needed no
+contract change because it already requires unicast offsets.
+
 **Recommendation:** first unicast each offset to its node, keeping today's 2 Hz
 clock estimator. At 50 nodes this removes 100 of the 102 broadcast sync packets
 per second, with no new wire address. Then qualify an optional per-node unicast
