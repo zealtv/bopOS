@@ -87,3 +87,15 @@ paths are the precedent; follow their shape file by file.
   the list, disable *testing*, every device reappears on the hidden show
   network; disable show 1, fallback takes over. Record device and framework
   revision (glean `hardware-claims`).
+
+## Waiting on Bob (parked 2026-10-04, built through commit d6b935f)
+
+Slices 1–6 are built and committed. The helper's network-manager backend reports
+`unavailable` behind a marked seam. Still owed:
+- Approve the passphrase warning wording as it appears in the running app
+  ("⚠ This sends 2 passphrases over the network. Anything on this network right now
+  can read them. Send only on your own network."). Plurals are handled; N counts
+  distinct networks.
+- Slice 0 with a Pi up: choose the network manager and fill in the helper backend.
+- The real-Pi switchover rehearsal (verification gates).
+- The editorial fix to OSC-CONTRACT (the `installation.json` → `project.json` mention, now ~line 859).
