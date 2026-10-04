@@ -9,6 +9,8 @@ import time
 
 
 TICK_NS = 30_000_000
+# A scheduler quantum, not an input/output limit: unfinished work stays queued.
+_WORK_BATCH = 256
 _DURATION = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)(ms|s|m|h)\Z")
 _OPTION = re.compile(r"(c|curve|p|phase):(.*)\Z")
 _SHAPES = {"sine", "tri", "saw", "square", "sh", "drift"}
@@ -68,9 +70,16 @@ def _duration(value, label="duration"):
                    "h": 3600000.0}[match.group(1)]
     else:
         raise ParamGrammarError(f"{label} must be a duration")
+    if not math.isfinite(result):
+        raise ParamGrammarError(f"{label} must be finite")
     if result < 0:
         raise ParamGrammarError(f"{label} must not be negative")
     return result
+
+
+def _duration_ns(milliseconds):
+    numerator, denominator = milliseconds.as_integer_ratio()
+    return numerator * 1_000_000 // denominator
 
 
 def _options(values):
@@ -112,7 +121,7 @@ def _fade(values, loop, curve, param_type):
     if count == 3:
         start = _number(values[0], param_type=param_type)
         segments = [(_number(values[1], param_type=param_type), _duration(values[2]))]
-        return ParamSpec("fade", segments=segments, start=start, curve=curve)
+        return ParamSpec("loop" if loop else "fade", segments=segments, start=start, curve=curve)
     if count >= 4 and count % 2 == 0:
         segments = [(_number(values[index], param_type=param_type), _duration(values[index + 1]))
                     for index in range(0, count, 2)]
@@ -249,43 +258,64 @@ class GeneratorEngine:
         cursor = float(start)
         elapsed = 0
         for target, duration_ms in spec.segments:
-            duration_ns = int(duration_ms * 1e6)
+            duration_ns = _duration_ns(duration_ms)
             segments.append((cursor, float(target), duration_ns, elapsed))
             cursor = float(target)
             elapsed += duration_ns
-        return {"kind": spec.kind, "type": param_type, "segments": segments,
+        slot = {"kind": spec.kind, "type": param_type, "segments": segments,
                 "curve": spec.curve, "start_ns": now, "total_ns": elapsed,
                 "last_int": math.floor(start), "next_due": now,
-                "explicit": spec.start is not None, "emission_index": 0,
-                "events": self._fade_events(segments, spec.curve)}
+                "explicit": spec.start is not None, "pending": None}
+        slot['steps'] = self._fade_steps(slot)
+        return slot
 
-    def _fade_events(self, segments, curve):
-        events = []
-        for start, target, duration, offset in segments:
-            count = max(1, int(math.ceil(duration / TICK_NS)))
-            for index in range(count):
-                frac = (index + 1) / count
-                value = start + (target - start) * _shape(frac, curve)
-                due = offset + int(duration * (index + 1) / count)
-                events.append((due, value))
-        return events
+    def _fade_steps(self, slot):
+        cycle_start = slot['start_ns']
+        while True:
+            for start, target, duration, offset in slot['segments']:
+                count = max(1, (duration + TICK_NS - 1) // TICK_NS)
+                for index in range(1, count + 1):
+                    value = (target if index == count else
+                             start + (target - start) * _shape(index / count, slot['curve']))
+                    due = cycle_start + offset + duration * index // count
+                    yield from self._value_steps(slot, due, value)
+            if slot['kind'] != 'loop' or slot['total_ns'] == 0:
+                return
+            cycle_start += slot['total_ns']
+            start = slot['segments'][0][0]
+            # A loop snaps; it does not traverse the return ramp.
+            if slot['type'] == 'i':
+                snapped = math.floor(start)
+                args = [snapped] if snapped != slot['last_int'] else None
+                slot['last_int'] = snapped
+            else:
+                args = [start]
+            yield cycle_start, args
+
+    def _value_steps(self, slot, due, value):
+        if slot['type'] == 'i':
+            current = math.floor(value)
+            for args in self._crossings(slot['last_int'], current):
+                yield due, args
+            slot['last_int'] = current
+            # Count even stationary boundaries against the work quantum.
+            yield due, None
+        else:
+            yield due, [value]
 
     def _begin_fade(self, slot, now):
         result = []
-        if slot["type"] == "i":
-            if slot["explicit"]:
-                result.append([int(slot["last_int"])])
-            slot["next_due"] = now + TICK_NS
-        else:
-            if slot["explicit"]:
-                result.append([slot["segments"][0][0]])
-            slot["next_due"] = self._next_float_due(slot)
+        if slot['explicit']:
+            result.append([slot['last_int'] if slot['type'] == 'i' else slot['segments'][0][0]])
+        duration = slot['segments'][0][2]
+        count = max(1, (duration + TICK_NS - 1) // TICK_NS)
+        slot['next_due'] = now + duration // count
         return result
 
     def _make_lfo(self, identity, spec, param_type, now):
         return {"kind": "lfo", "type": param_type, "identity": identity,
                 "shape": spec.shape, "minimum": spec.minimum, "maximum": spec.maximum,
-                "period_ns": max(1, int(spec.period * 1e6)), "curve": spec.curve,
+                "period_ns": max(1, _duration_ns(spec.period)), "curve": spec.curve,
                 "phase": random.random() if spec.free else spec.phase,
                 "free": spec.free, "start_ns": now, "next_due": now,
                 "last_int": None}
@@ -294,6 +324,9 @@ class GeneratorEngine:
         if slot["type"] == "i":
             value = math.floor(self._lfo_value(slot, now))
             slot["last_int"] = value
+            slot['last_periods'] = self._lfo_periods(slot, now)
+            slot['steps'] = None
+            slot['pending'] = None
             slot["next_due"] = now + TICK_NS
             return [[int(value)]]
         slot["next_due"] = now + TICK_NS
@@ -312,10 +345,16 @@ class GeneratorEngine:
             slot["period_ns"], cycle)
         return random.Random(seed).uniform(slot["minimum"], slot["maximum"])
 
+    def _lfo_periods(self, slot, now):
+        return self._leader_now(slot, now) / slot['period_ns'] + slot['phase']
+
     def _lfo_value(self, slot, now):
-        periods = self._leader_now(slot, now) / slot["period_ns"] + slot["phase"]
+        periods = self._lfo_periods(slot, now)
         cycle = math.floor(periods)
         phase = periods - cycle
+        return self._lfo_phase_value(slot, cycle, phase)
+
+    def _lfo_phase_value(self, slot, cycle, phase):
         low, high = slot["minimum"], slot["maximum"]
         span = high - low
         shape = slot["shape"]
@@ -357,67 +396,74 @@ class GeneratorEngine:
             return self._fade_value(slot, now)
         return self._lfo_value(slot, now)
 
-    def _next_float_due(self, slot):
-        index = slot["emission_index"]
-        if index < len(slot["events"]):
-            return slot["start_ns"] + slot["events"][index][0]
-        return slot["start_ns"] + slot["total_ns"]
-
     @staticmethod
     def _crossings(last, current):
-        if current > last:
-            return [[value] for value in range(last + 1, current + 1)]
-        if current < last:
-            return [[value] for value in range(last - 1, current - 1, -1)]
-        return []
+        direction = 1 if current > last else -1
+        for value in range(last + direction, current + direction, direction):
+            yield [value]
+
+    def _drain_steps(self, slot, now):
+        result = []
+        for _ in range(_WORK_BATCH):
+            if slot['pending'] is None:
+                try:
+                    slot['pending'] = next(slot['steps'])
+                except StopIteration:
+                    slot['steps'] = None
+                    return result
+            due, args = slot['pending']
+            if due > now:
+                slot['next_due'] = due
+                return result
+            slot['pending'] = None
+            if args is not None:
+                result.append(args)
+        slot['next_due'] = now
+        return result
 
     def _advance_fade(self, slot, now):
-        result = []
-        if (slot["kind"] == "loop" and slot["type"] == "i"
-                and slot["total_ns"] > 0
-                and now >= slot["start_ns"] + slot["total_ns"]):
-            cycles = max(1, (now - slot["start_ns"]) // slot["total_ns"])
-            slot["start_ns"] += cycles * slot["total_ns"]
-            snapped = math.floor(slot["segments"][0][0])
-            result.append([int(snapped)])
-            slot["last_int"] = snapped
-        if slot["type"] == "i":
-            current = math.floor(self._fade_value(slot, now))
-            result.extend(self._crossings(slot["last_int"], current))
-            slot["last_int"] = current
-            slot["next_due"] = now + TICK_NS
-        else:
-            while (slot["emission_index"] < len(slot["events"])
-                   and now >= slot["start_ns"] + slot["events"][slot["emission_index"]][0]):
-                _due, value = slot["events"][slot["emission_index"]]
-                result.append([value])
-                slot["emission_index"] += 1
-            slot["next_due"] = self._next_float_due(slot)
-        if now >= slot["start_ns"] + slot["total_ns"]:
+        result = self._drain_steps(slot, now)
+        if slot['steps'] is None:
             final = slot["segments"][-1][1]
-            if slot["kind"] == "loop" and slot["total_ns"] > 0:
-                cycles = max(1, (now - slot["start_ns"]) // slot["total_ns"])
-                slot["start_ns"] += cycles * slot["total_ns"]
-                slot["emission_index"] = 0
-                start = slot["segments"][0][0]
-                if slot["type"] == "i":
-                    slot["next_due"] = slot["start_ns"] + TICK_NS
-                else:
-                    if not slot["explicit"]:
-                        result.append([start])
-                    result.extend(self._begin_fade(slot, slot["start_ns"]))
-            else:
-                param_type = slot["type"]
-                slot.clear()
-                slot.update({"kind": "constant", "type": param_type,
-                             "value": math.floor(final) if param_type == "i" else final})
+            param_type = slot["type"]
+            slot.clear()
+            slot.update({"kind": "constant", "type": param_type,
+                         "value": math.floor(final) if param_type == "i" else final})
         return result
+
+    def _lfo_steps(self, slot, now):
+        start = slot['last_periods']
+        end = self._lfo_periods(slot, now)
+        direction = 1 if end >= start else -1
+        divisions = 2 if slot['shape'] in ('sine', 'tri', 'square') else 1
+        boundary = (math.floor(start * divisions) + 1 if direction == 1 else
+                    math.floor(start * divisions))
+        while (boundary / divisions <= end if direction == 1 else
+               boundary / divisions >= end):
+            periods = boundary / divisions
+            cycle = math.floor(periods)
+            phase = periods - cycle
+            # Visit both sides of discontinuities, and extrema of smooth shapes.
+            left_cycle, left_phase = (cycle - 1, 1.0) if phase == 0 else (cycle, phase)
+            left = self._lfo_phase_value(slot, left_cycle, left_phase)
+            right = self._lfo_phase_value(slot, cycle, phase)
+            if slot['shape'] == 'square':
+                left = slot['maximum'] if phase == .5 else slot['minimum']
+            values = (left, right) if direction == 1 else (
+                (right,) if periods == end else (right, left))
+            for value in values:
+                yield from self._value_steps(slot, now, value)
+            boundary += direction
+        yield from self._value_steps(slot, now, self._lfo_value(slot, now))
+        slot['last_periods'] = end
 
     def _advance_lfo(self, slot, now):
         if slot["type"] == "i":
-            current = math.floor(self._lfo_value(slot, now))
-            result = self._crossings(slot["last_int"], current)
-            slot["last_int"] = current
+            if slot['steps'] is None:
+                slot['steps'] = self._lfo_steps(slot, now)
+            result = self._drain_steps(slot, now)
+            if slot['steps'] is not None:
+                return result
         else:
             result = [[self._lfo_value(slot, now)]]
         slot["next_due"] = now + TICK_NS
