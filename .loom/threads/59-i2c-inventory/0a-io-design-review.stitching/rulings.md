@@ -71,10 +71,24 @@ through in the session ("artifact not required").
 - **Simulated values reset each session**, not saved (Bob: *"keep it clean -
   it's for development so state not required"*).
 
+## Settled, second round (2026-10-04)
+
+- **Writes: last write wins.** Bob: *"there aren't ever two engines"*, so no
+  per-module writer field is needed. Operator writes from module panels are
+  development-only (locked in Performance mode).
+- **Errors: adopt the wire-proposal vocabulary.** Documented `create-failed`;
+  new `invalid-arguments`, `unknown-command` and `write-failed`; reserved
+  name `bridge` for errors not about a module. Errors travel on the control
+  path to the dashboard (Device tab and module panel) instead of only the log.
+- **Streaming scope: one device at a time, all of its modules** (Bob).
+- **Out of scope:** raw register access (drivers only); buses other than I2C
+  for now; recording and replaying streams; streaming from more than one device
+  at once; cross-device sensor routing (sensor data driving other boxes as part
+  of a piece — a composition feature, not this layer).
+- **Pending Bob:** simulated input injected into ONE targeted real device's
+  engine (not only the editor's audition engine), development-only.
+  Recommended: in scope.
+
 ## Still to decide
 
-- Who writes to a shared module (two instances, or the operator panel while
-  a patch runs).
-- The error vocabulary details, and the name for bridge-wide errors.
-- Out of scope.
 - Revised sequencing for `59/1`–`6`, plus a new stitch for Performance mode.
