@@ -19,3 +19,5 @@ shared Wi-Fi where broadcast traffic is slow and costs everyone airtime.
 
 `69-complexity/2-split-osc-handle` should wait for `1` before restructuring
 the sync code.
+
+**Deferred (Bob, 2026-10-04):** clock-sync stage B (directed `/sync/query` with adaptive polling) from `1-clock-sync-traffic/proposal.md`. Revisit only if a real installation shows sync traffic still matters after stage A. Cheap probe to try in a hardware timing session first: a shared 0.5 Hz ping with unicast offsets.
