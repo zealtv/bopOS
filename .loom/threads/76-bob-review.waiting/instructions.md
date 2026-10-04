@@ -12,10 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-5. **Clearing the project's show**: the proposal says "to start fresh, clear it
-   or make a new project". The Show tab has no clear action yet; steps are
-   removed one at a time. Want a button? If so, what should it say, e.g.
-   "Clear show…" with a confirm? → `66-projects/5-one-show`, possibly `7-project-menu`.
 8. **FYI: my calls on the project menu (66/7)**. Names keep spaces as typed,
    because the folder name is the name ("Kite Choir", as in the mockups):
    letters, digits, spaces, `.` `_` `-`, starting with a letter or digit. New
@@ -47,3 +43,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    session's scratchpad.
 5. "New patch…" on the Patches tab — **keep** (Bob, 2026-10-04) → `66-projects/6-patch-versions`.
 6. Header tidy screenshots — **look fine** (Bob, 2026-10-04) → `66-projects/8-header-tidy` tied.
+7. Clear show — **yes, wording fine** (Bob, 2026-10-04): "Clear Show…", confirm "Remove all N steps from this show? You can undo this." → `66-projects/9-clear-show` (queued).
