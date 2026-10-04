@@ -1,6 +1,7 @@
 # Verification — 3-io-bridge-hardening
 
-2026-10-03. Software half verified; hardware and wire decisions remain pending.
+2026-10-03 initial software evidence. Hardware remains pending; the wire
+decision and implementation were resolved in `59/1` on 2026-10-04 (below).
 
 ## Passed, without browsers or hardware
 
@@ -38,7 +39,13 @@ node revision, installed driver version, actual/incorrect addresses, io.log and
 engine reply. Verify correct-address creation and `/io/scan` still work. This
 check belongs to Bob; the stitch is `.waiting`, not tied.
 
-## Pending — wire ratification
+## Resolved — wire ratification and implementation (2026-10-04)
+
+Bob ratified the error vocabulary and reserved name `bridge` in `59/0a`.
+`59/1` implements the replies, dual local delivery and dashboard error relay.
+Its `verification.md` records current software results. The paragraph below
+describes the pre-ratification state at this stitch's original verification;
+it is superseded for wire behavior, not for the pending Finn Jet checks.
 
 See `wire-proposal.md`. Contract v1.18 explicitly documents `no-bus` only;
 existing `create-failed` is preserved for existing creation failures. No new

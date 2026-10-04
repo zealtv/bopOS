@@ -8,21 +8,27 @@ import time
 import math
 import threading
 import signal
+import json
+import os
+import sys
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
 
 from sys_wireless import read_wireless
-from sys_i2c import have_bus, scan_bus
+from sys_i2c import have_bus, usable_bus, scan_inventory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+import io_protocol
 from sys_info import (get_hostname, get_ip, get_uptime,
                       get_git_rev, get_active_patch)
 
 # Settings
 PYTHON_PORT = 8880      # This script listens here for commands from Pure Data
 PD_PORT = 6662          # Pure Data listens here for messages from this script
+CONTROL_PORT = 7771     # bopos.py receives control replies here; no value stream
 DEFAULT_POLL_RATE = 10  # Hz
 
 # Peripherals are addressed as /io/<name>, the same namespace the management
 # verbs live in, so these names cannot be used for a peripheral.
-RESERVED_NAMES = ('create', 'poll', 'report', 'scan')
+RESERVED_NAMES = io_protocol.RESERVED_NAMES
 
 # Available peripheral types
 PERIPHERAL_TYPES = {
@@ -43,10 +49,13 @@ class IOManager:
         self.peripherals = {}  # name -> peripheral instance
         self.poll_rate = DEFAULT_POLL_RATE
         self.running = True
+        self.io = io_protocol.empty_io(1 if usable_bus() else None)
         
         # OSC client for sending to PD
         self.osc_client = OSCClient()
         self.osc_client.connect(("127.0.0.1", PD_PORT))
+        self.control_client = OSCClient()
+        self.control_client.connect(("127.0.0.1", CONTROL_PORT))
     
     def create_peripheral(self, name, device_type, address):
         with self.io_lock:
@@ -150,11 +159,26 @@ class IOManager:
             print(f"Error sending OSC: {e}")
     
     def _send(self, address, *values):
-        """Send a reply message to PD."""
+        """Every control reply goes to both local consumers, independently."""
         msg = OSCMessage(address)
         for v in values:
             msg.append(v)
-        self.osc_client.send(msg)
+        for client in (self.osc_client, self.control_client):
+            try:
+                client.send(msg)
+            except Exception as error:
+                print(f"Error sending reply {address}: {error}")
+
+    def _registry(self):
+        with self.io_lock:
+            self._send('/io/registry', json.dumps(self.io))
+
+    def _error(self, name, reason):
+        row = self.io['modules'].get(name)
+        if row is not None:
+            row.update(state='errored', error=reason)
+        self._registry()
+        self._send('/io/error', name, reason)
 
     def handle_command(self, address, tags, args, source):
         """
@@ -186,18 +210,27 @@ class IOManager:
     def _handle_io(self, parts, args):
         """Bridge management: /io/create|poll|report|scan."""
         verb = parts[0] if parts else ''
+        if len(parts) != 1:
+            print(f"Unknown /io verb: {verb} {list(args)}")
+            self._error(verb if io_protocol.valid_name(verb) else 'bridge',
+                        'invalid-arguments')
+            return
 
         # /io/create <name> <type> <address>
         if verb == 'create':
-            if len(args) < 3:
+            if len(args) != 3:
                 print(f"Invalid /io/create arguments: {list(args)}")
-                # Missing-name/error-token semantics await wire ratification.
+                self._error(str(args[0]) if args and io_protocol.valid_name(args[0])
+                            else 'bridge', 'invalid-arguments')
                 return
             name = str(args[0])
-            if not have_bus():
-                self._send("/io/error", name, "no-bus")
+            if not io_protocol.valid_name(name):
+                self._error('bridge', 'invalid-arguments')
                 return
             device_type = str(args[1])
+            if not device_type:
+                self._error(name, 'invalid-arguments')
+                return
             try:
                 value = args[2]
                 i2c_addr = int(value, 16) if isinstance(value, str) else int(value)
@@ -206,25 +239,49 @@ class IOManager:
                     raise ValueError("expected a usable 7-bit I2C address")
             except (TypeError, ValueError, OverflowError) as e:
                 print(f"Invalid /io/create address for {name}: {e}")
-                # Extending create-failed to argument errors needs ratification.
+                self._error(name, 'invalid-arguments')
                 return
-            if not self.create_peripheral(name, device_type, i2c_addr):
-                self._send("/io/error", name, "create-failed")
+            self.io['bus'] = 1 if usable_bus() else None
+            previous = self.io['modules'].get(name)
+            candidate = {
+                'type': device_type, 'address': f'0x{i2c_addr:02x}',
+                'state': 'running', 'error': None}
+            if not have_bus() or self.io['bus'] is None:
+                self.io['modules'][name] = candidate
+                self._error(name, 'no-bus')
+                return
+            created = self.create_peripheral(name, device_type, i2c_addr)
+            # Failed type validation leaves the old chip alive. Preserve its
+            # identity rather than describing the rejected replacement as live.
+            self.io['modules'][name] = (previous if not created and previous is not None
+                                        and name in self.peripherals else candidate)
+            if not created:
+                self._error(name, 'create-failed')
+            else:
+                self._registry()
 
         # /io/poll <rate>
         elif verb == 'poll':
             try:
+                if len(args) != 1:
+                    raise ValueError('expected one poll rate')
                 rate = float(args[0])
                 if not math.isfinite(rate):
                     raise ValueError("poll rate must be finite")
             except (IndexError, TypeError, ValueError, OverflowError) as e:
                 print(f"Invalid /io/poll arguments {list(args)}: {e}")
-                return  # Error name/reason await wire ratification.
+                self._error('bridge', 'invalid-arguments')
+                return
             self.poll_rate = max(0.1, rate)
             print(f"Poll rate set to {self.poll_rate} Hz")
 
         # /io/report
         elif verb == 'report':
+            if args:
+                self._error('bridge', 'invalid-arguments')
+                return
+            self.io['bus'] = 1 if usable_bus() else None
+            self._registry()
             print("\nActive peripherals:")
             for name, peripheral in self.peripherals.items():
                 print(f"  {name}: {peripheral.__class__.__name__}")
@@ -233,16 +290,24 @@ class IOManager:
         # Skips probing live peripherals (reports them from the registry).
         elif verb == 'scan':
             try:
+                if len(args) > 1:
+                    raise ValueError('expected at most one bus number')
                 bus = int(args[0]) if args else 1
                 if bus < 0 or (args and not isinstance(args[0], str)
                                and bus != args[0]):
                     raise ValueError("bus must be a nonnegative integer")
             except (TypeError, ValueError, OverflowError) as e:
                 print(f"Invalid /io/scan arguments {list(args)}: {e}")
+                self._error('bridge', 'invalid-arguments')
                 return
             skip = [p.address for p in self.peripherals.values()
                     if getattr(p, 'address', None)]
-            self._send("/io/scan", *scan_bus(bus, skip=skip))
+            usable, addresses = scan_inventory(bus, skip=skip if bus == 1 else ())
+            self._send('/io/scan', *[int(row['address'], 16) for row in addresses])
+            if bus == 1:
+                self.io.update(bus=1 if usable else None, scanned=True,
+                               addresses=addresses)
+            self._send('/io/scanned', json.dumps(self.io))
 
         # /io/<peripheral> <command> [args...] - control a peripheral.
         #
@@ -262,11 +327,20 @@ class IOManager:
             try:
                 self.peripherals[verb].write_data(command=command,
                                                   args=list(args[1:]))
+                row = self.io['modules'].get(verb)
+                if row is not None:
+                    row.update(state='running', error=None)
+                    self._registry()
+                self._send('/io/written', verb, command)
             except Exception as e:
                 print(f"Error writing to {verb}: {e}")
+                self._error(verb, 'write-failed')
 
         else:
             print(f"Unknown /io verb: {verb} {list(args)}")
+            self._error(verb if io_protocol.valid_name(verb) else 'bridge',
+                        'invalid-arguments' if verb in self.peripherals or verb == 'bridge'
+                        else 'unknown-command')
 
     def handle_system(self, query):
         """Device facts: /system/rssi|id|ip|uptime|rev|patch|info.
@@ -307,6 +381,7 @@ class IOManager:
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
+        self._registry()
         
         # Handle SIGTERM to ensure cleanup runs on external termination
         def signal_handler(signum, frame):

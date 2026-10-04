@@ -2,6 +2,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import sys
 import threading
@@ -29,30 +30,33 @@ class BridgeTests(unittest.TestCase):
         with patch.object(bridge, 'OSCClient'):
             self.manager = bridge.IOManager()
         self.manager._send = Mock()
-        self.bus = patch.object(bridge, 'have_bus', return_value=True)
+        self.bus = patch.object(bridge, 'usable_bus', return_value=True)
         self.bus.start()
         self.addCleanup(self.bus.stop)
+        present = patch.object(bridge, 'have_bus', return_value=True)
+        present.start()
+        self.addCleanup(present.stop)
 
     def command(self, parts, args=()):
         with contextlib.redirect_stdout(io.StringIO()) as output:
             self.manager.handle_io(parts, args)
         return output.getvalue()
 
-    def test_invalid_create_arguments_are_contained_without_new_wire_behavior(self):
+    def test_invalid_create_arguments_use_ratified_error(self):
         for address in ('bad', float('nan'), float('inf'), None, 4.5, -1, 128):
             with self.subTest(address=address):
                 self.command(['create'], ['tilt', 'lis3dh', address])
-                self.manager._send.assert_not_called()
+                self.manager._send.assert_called_with('/io/error', 'tilt', 'invalid-arguments')
         with patch.object(bridge, 'have_bus', return_value=False):
             self.command(['create'], ['tilt', 'lis3dh', '0x19'])
         self.manager._send.assert_called_with('/io/error', 'tilt', 'no-bus')
 
-    def test_poll_bad_arguments_preserve_rate_and_log_without_unratified_reply(self):
+    def test_poll_bad_arguments_preserve_rate_and_reply(self):
         for args in ([], ['bad'], [None], [float('inf')], [float('nan')]):
             with self.subTest(args=args):
                 self.assertIn('Invalid /io/poll', self.command(['poll'], args))
                 self.assertEqual(self.manager.poll_rate, bridge.DEFAULT_POLL_RATE)
-        self.manager._send.assert_not_called()
+                self.manager._send.assert_called_with('/io/error', 'bridge', 'invalid-arguments')
         self.command(['poll'], [20])
         self.assertEqual(self.manager.poll_rate, 20)
         self.command(['poll'], [-1])
@@ -62,8 +66,8 @@ class BridgeTests(unittest.TestCase):
         for verb in bridge.RESERVED_NAMES:
             fake = Mock()
             self.manager.peripherals[verb] = fake
-            args = {'create': [], 'poll': [10], 'report': [], 'scan': []}[verb]
-            with patch.object(bridge, 'scan_bus', return_value=[]):
+            args = {'create': [], 'poll': [10], 'report': [], 'scan': []}.get(verb, [])
+            with patch.object(bridge, 'scan_inventory', return_value=(True, [])):
                 self.command([verb], args)
             fake.write_data.assert_not_called()
             with contextlib.redirect_stdout(io.StringIO()):
@@ -79,24 +83,29 @@ class BridgeTests(unittest.TestCase):
                             (['unknown'], []), ([], [])):
             self.assertIn('Unknown /io verb', self.command(parts, args))
         fake.write_data.assert_not_called()
-        self.manager._send.assert_not_called()
+        self.manager._send.assert_called_with('/io/error', 'bridge', 'invalid-arguments')
 
-    def test_other_error_branches_are_diagnostic_without_new_wire_tokens(self):
+    def test_other_error_branches_reply_with_ratified_tokens(self):
         self.assertIn('Invalid /io/create', self.command(['create']))
+        self.manager._send.assert_called_with('/io/error', 'bridge', 'invalid-arguments')
         for value in ('bad', None, float('nan'), -1, 1.5):
             self.assertIn('Invalid /io/scan', self.command(['scan'], [value]))
+            self.manager._send.assert_called_with('/io/error', 'bridge', 'invalid-arguments')
         fake = Mock()
         fake.write_data.side_effect = OSError('chip unavailable')
         self.manager.peripherals['light'] = fake
         self.assertIn('Error writing to light', self.command(['light'], ['clear']))
-        self.manager._send.assert_not_called()
+        self.manager._send.assert_called_with('/io/error', 'light', 'write-failed')
 
     def test_scan_skips_registered_addresses(self):
         self.manager.peripherals['tilt'] = types.SimpleNamespace(address=0x18)
-        with patch.object(bridge, 'scan_bus', return_value=[0x18]) as scan:
+        addresses = [{'address': '0x18', 'claimed': False}]
+        with patch.object(bridge, 'scan_inventory', return_value=(True, addresses)) as scan:
             self.command(['scan'])
         scan.assert_called_once_with(1, skip=[0x18])
-        self.manager._send.assert_called_once_with('/io/scan', 0x18)
+        self.manager._send.assert_any_call('/io/scan', 0x18)
+        self.assertEqual(json.loads(self.manager._send.call_args.args[1]),
+                         dict(bus=1, scanned=True, addresses=addresses, modules={}))
 
     def test_recreate_cleans_old_before_setup_and_failed_candidate(self):
         events = []
@@ -123,9 +132,13 @@ class BridgeTests(unittest.TestCase):
     def test_invalid_type_keeps_existing_instance(self):
         old = Mock()
         self.manager.peripherals['tilt'] = old
+        self.manager.io['modules']['tilt'] = {
+            'type': 'lis3dh', 'address': '0x18', 'state': 'running', 'error': None}
         self.command(['create'], ['tilt', 'missing_type', 0x19])
         old.cleanup.assert_not_called()
         self.assertIs(self.manager.peripherals['tilt'], old)
+        self.assertEqual(self.manager.io['modules']['tilt'], {
+            'type': 'lis3dh', 'address': '0x18', 'state': 'errored', 'error': 'create-failed'})
 
     def test_poll_serializes_write_scan_and_replacement(self):
         for operation in ('write', 'scan', 'replace'):
@@ -151,7 +164,7 @@ class BridgeTests(unittest.TestCase):
                     finished.set()
                 with patch.dict(bridge.PERIPHERAL_TYPES, fake=('io_fake', 'Fake')), \
                         patch.dict(sys.modules, io_fake=module), \
-                        patch.object(bridge, 'scan_bus', return_value=[]) as scan:
+                        patch.object(bridge, 'scan_inventory', return_value=(True, [])) as scan:
                     reader = threading.Thread(target=self.manager.poll_and_send)
                     writer = threading.Thread(target=command)
                     reader.start()
@@ -178,6 +191,32 @@ class BridgeTests(unittest.TestCase):
                     else:
                         fake.cleanup.assert_called_once()
                         candidate.setup.assert_called_once()
+
+    def test_replies_attempt_both_consumers_even_if_engine_is_absent(self):
+        del self.manager._send
+        self.manager.osc_client = Mock()
+        self.manager.control_client = Mock()
+        self.manager.osc_client.send.side_effect = OSError('no engine')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.manager._send('/io/error', 'bridge', 'invalid-arguments')
+        self.manager.control_client.send.assert_called_once()
+
+    def test_values_do_not_go_to_control_consumer(self):
+        self.manager.peripherals['adc'] = Mock(read_data=Mock(return_value=[1, 2]))
+        self.manager.osc_client = Mock()
+        self.manager.control_client = Mock()
+        self.manager.poll_and_send()
+        self.manager.osc_client.send.assert_called_once()
+        self.manager.control_client.send.assert_not_called()
+
+    def test_scan_distinguishes_unavailable_empty_and_not_scanned(self):
+        self.assertFalse(self.manager.io['scanned'])
+        for usable in (False, True):
+            with patch.object(bridge, 'scan_inventory', return_value=(usable, [])):
+                self.command(['scan'])
+            self.assertEqual(self.manager.io['bus'], 1 if usable else None)
+            self.assertTrue(self.manager.io['scanned'])
+            self.assertEqual(self.manager.io['addresses'], [])
 
 
 class LIS3DHTests(unittest.TestCase):

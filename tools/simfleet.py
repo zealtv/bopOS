@@ -10,12 +10,19 @@ hardware:
     python3 tools/simfleet.py --devices 5 --drop 0.05 --jitter-ms 30 --unresponsive 1
     python3 tools/simfleet.py --devices 4 --devices-file bopos.devices --target 127.0.0.1
 
+--io-config <file> loads a ratified IO object as the fake bus/modules on every
+device. With scanned:false, its addresses seed the fake hardware inventory but
+remain absent from reports until io-scan. Default devices have no bus; writes
+are recorded in Device.io_writes, and configured errored modules return their
+reason. No real peripherals or value streaming are involved.
+
 Needs python-osc. docs/OSC-CONTRACT.md defines the ratified wire shapes;
 docs/OSC-REFERENCE.md lists the concrete messages. When a stitch changes an
 OSC message, extending this simulator is part of that stitch's deliverable.
 """
 
 import argparse
+import copy
 import csv
 import datetime
 import hashlib
@@ -53,6 +60,7 @@ import audio_config  # noqa: E402
 import log_config  # noqa: E402
 import wifi_config  # noqa: E402
 import osc_contract  # noqa: E402
+import io_protocol  # noqa: E402
 
 
 def device_log_state(device):
@@ -200,6 +208,9 @@ class Device:
         # the real node -- usb only if chosen *and* the stick is present.
         self.log_destination = "internal"
         self.usb_present = False
+        self.io = io_protocol.empty_io()
+        self.io_addresses = []
+        self.io_writes = []
         self.wifi = ({"managed": False} if wired else {
             "managed": True, "country": "GB", "active": "imager-net",
             "networks": [], "unmanaged": ["imager-net"]})
@@ -483,7 +494,7 @@ class SimFleet:
             "uid": device.mac,
             "hostname": device.hostname,
             "engine": "pd",
-            "has_i2c": False,
+            "has_i2c": device.io['bus'] is not None,
             "has_wifi": not device.wired,
             "audio_channels": 2,
             "screen": False,
@@ -499,14 +510,57 @@ class SimFleet:
             "audio": audio,
             "log": device_log_state(device),
             "wifi": wifi_config.redacted(device.wifi),
+            "io": copy.deepcopy(device.io),
         }
         builder = osc_message_builder.OscMessageBuilder(address="/os/report")
         builder.add_arg(json.dumps(report), arg_type="s")
         self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
 
+    def send_io(self, device, address, values, target):
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        for value in (device.mac, *values):
+            builder.add_arg(value, arg_type='s')
+        self.sock.sendto(builder.build().dgram, (target, self.args.report_port))
+
     def uid_admin(self, device, member, args, source):
         allowed = {"identify", "report", "reboot", "shutdown", "restart-engine",
                    "updatebopos", "unassign"}
+        if member == 'io-scan' and not args:
+            device.io['scanned'] = True
+            device.io['addresses'] = (copy.deepcopy(device.io_addresses)
+                                      if device.io['bus'] is not None else [])
+            self.send_io(device, '/os/io-scan', [json.dumps(device.io)], source[0])
+            return
+        if member == 'io-write' and len(args) == 1:
+            value = None
+            try:
+                value = json.loads(args[0])
+                payload = io_protocol.validate_write(value)
+                row = device.io['modules'].get(payload['name'])
+                reason = ('unknown-command' if row is None else
+                          'no-bus' if device.io['bus'] is None else
+                          row['error'] if row['state'] != 'running' else None)
+                reason = reason or ('write-failed' if row is not None and
+                                    row['state'] != 'running' else None)
+                if reason is None:
+                    device.io_writes.append(payload)
+                result = {key: payload[key] for key in ('name', 'command')}
+            except (ValueError, TypeError):
+                value = value if isinstance(value, dict) else {}
+                result = {key: value.get(key) if isinstance(value.get(key), str)
+                          else ('bridge' if key == 'name' else '')
+                          for key in ('name', 'command')}
+                reason = 'invalid-arguments'
+            result['error'] = reason
+            self.send_io(device, '/os/io-write', ['err' if reason else 'ok',
+                                                json.dumps(result)], source[0])
+            if reason and reason != 'invalid-arguments':
+                row = device.io['modules'].get(result['name'])
+                if row is not None:
+                    row.update(state='errored', error=reason)
+                self.send_io(device, '/os/io-error', [result['name'], reason],
+                             self.args.target)
+            return
         if member == "enabled" and len(args) == 1:
             try:
                 value = int(args[0])
@@ -1241,6 +1295,14 @@ def load_devices(args):
                       version, index >= first_unresponsive, index >= first_wired,
                       index >= first_engine_dead, index >= first_ephemeral)
                for index, (mac, hostname, device_id) in enumerate(identities)]
+    if getattr(args, 'io_config', None):
+        with open(args.io_config) as source:
+            fake_io = io_protocol.validate_io(json.load(source))
+        for device in devices:
+            device.io = copy.deepcopy(fake_io)
+            device.io_addresses = copy.deepcopy(fake_io['addresses'])
+            if not device.io['scanned']:
+                device.io['addresses'] = []
     if args.protocol == "v1" and args.state_dir:
         for device in devices:
             device.load_assignment(args.state_dir)
@@ -1259,6 +1321,7 @@ def parse_args():
     parser.add_argument("--ephemeral", type=int, default=0)
     parser.add_argument("--state-dir")
     parser.add_argument("--devices-file")
+    parser.add_argument('--io-config', help='JSON IO object defining a fake bus/modules for each device')
     parser.add_argument("--hb-interval", type=float, default=10.0)
     parser.add_argument("--boot-secs", type=float, default=15.0)
     parser.add_argument("--fetch-seconds", type=float, default=0.9,

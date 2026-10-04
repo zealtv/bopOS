@@ -23,6 +23,7 @@ if REPO_DIR not in sys.path:
     sys.path.insert(0, REPO_DIR)
 from python import manifest as patch_manifest
 from python import wifi_config
+from python import io_protocol
 from python.paramgen import ParamGrammarError, parse_message
 # Imported after the repo root joins sys.path: live_params reaches into
 # python.paramgen at module scope.
@@ -56,6 +57,9 @@ FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must stil
 # generous without risking misattribution.
 FETCH_STALL_SECONDS = 120
 REQUEST_TIMEOUT_SECONDS = 5.0
+# Longer than the node's 3-second local bridge receipt deadline. This is
+# dashboard-only pending state; it does not add a wire reason or receipt.
+IO_REQUEST_TIMEOUT_SECONDS = 4.0
 UNASSIGN_TIMEOUT_SECONDS = 5.0
 AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
 GROUP_RETRY_SECONDS = (0.5, 1.0, 2.0)
@@ -143,6 +147,7 @@ class OSCBridge:
         self._asset_requeries = {}
         self._audio_apply_timeouts = {}
         self._log_apply_timeouts = {}
+        self._io_timeouts = {}
         self._wifi_apply_timeouts = {}
         self._wifi_secret_sent = {}
         self.wifi_applied = lambda uid, ssids: None
@@ -194,6 +199,9 @@ class OSCBridge:
         for timeout in self._log_apply_timeouts.values():
             timeout.cancel()
         self._log_apply_timeouts.clear()
+        for timeout in self._io_timeouts.values():
+            timeout.cancel()
+        self._io_timeouts.clear()
         for timeout in self._wifi_apply_timeouts.values():
             timeout.cancel()
         self._wifi_apply_timeouts.clear()
@@ -697,6 +705,37 @@ class OSCBridge:
     def set_device_hostname(self, uid, hostname):
         """Send one exact-UID alias-derived hostname target."""
         self.uid_command(uid, "hostname", [str(hostname)])
+
+    def io_scan(self, uid):
+        self._arm_io_timeout(uid, 'scan')
+        self.uid_command(uid, 'io-scan')
+
+    def io_write(self, uid, payload):
+        payload = io_protocol.validate_write(payload)
+        self._arm_io_timeout(uid, 'write')
+        self.uid_command(uid, 'io-write', [json.dumps(payload)])
+
+    def _arm_io_timeout(self, uid, kind):
+        self._clear_io_timeout(uid, kind)
+        self._io_timeouts[(uid, kind)] = asyncio.get_running_loop().call_later(
+            IO_REQUEST_TIMEOUT_SECONDS, self._expire_io, uid, kind)
+
+    def _clear_io_timeout(self, uid, kind):
+        timeout = self._io_timeouts.pop((uid, kind), None)
+        if timeout is not None:
+            timeout.cancel()
+
+    def _expire_io(self, uid, kind):
+        self._clear_io_timeout(uid, kind)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        if kind == 'scan':
+            device['io_scan_pending'] = False
+        device.setdefault('io_' + kind, {}).update(
+            status='err', phase='timeout', at=time.time())
+        self.broadcast('device_update', device)
+        self.request(uid, 'report')
 
     def set_audio_config(self, uid, config):
         """Apply complete audio settings to one exact physical Device."""
@@ -1387,6 +1426,54 @@ class OSCBridge:
                 device["hostname"] = hostname
             self.broadcast("device_update", device)
             return
+        if address in ('/os/io-scan', '/os/io-write', '/os/io-error'):
+            if not args:
+                return
+            device = self.state.devices.get(str(args[0]))
+            if device is None or device.get('virtual'):
+                return
+            if not isinstance(device.get('report'), dict):
+                device['report'] = {}
+            if address == '/os/io-scan' and len(args) == 2:
+                try:
+                    observed = io_protocol.validate_io(json.loads(args[1]))
+                except (ValueError, TypeError):
+                    return
+                device['report']['io'] = observed
+                self._clear_io_timeout(device['uid'], 'scan')
+                device['io_scan_pending'] = False
+                device['io_scan'] = {'status': 'ok', 'at': time.time()}
+            elif address == '/os/io-write' and len(args) == 3:
+                try:
+                    result = json.loads(args[2])
+                except (ValueError, TypeError):
+                    return
+                if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                        or set(result) != {'name', 'command', 'error'}
+                        or not isinstance(result['name'], str)
+                        or not isinstance(result['command'], str)
+                        or (result['error'] is not None and
+                            (not isinstance(result['error'], str)
+                             or result['error'] not in io_protocol.ERRORS))
+                        or (args[1] == 'ok') != (result['error'] is None)):
+                    return
+                device['io_write'] = dict(result, status=args[1])
+                self._clear_io_timeout(device['uid'], 'write')
+                self.request(device['uid'], 'report')
+            elif address == '/os/io-error' and len(args) == 3:
+                name, reason = args[1:]
+                if (not isinstance(name, str) or not isinstance(reason, str)
+                        or reason not in io_protocol.ERRORS):
+                    return
+                device['io_error'] = {'name': name, 'error': reason}
+                row = (device['report'].get('io') or {}).get('modules', {}).get(name)
+                if row is not None:
+                    row.update(state='errored', error=reason)
+                self.request(device['uid'], 'report')
+            else:
+                return
+            self.broadcast('report', device)
+            return
         if address == "/os/audio-config" and len(args) >= 4:
             uid, status, phase = str(args[0]), str(args[1]), str(args[2])
             device = self.state.devices.get(uid)
@@ -1531,6 +1618,13 @@ class OSCBridge:
                 report = json.loads(args[0])
             except (ValueError, TypeError):
                 return
+            if not isinstance(report, dict):
+                return
+            if 'io' in report:
+                try:
+                    report['io'] = io_protocol.validate_io(report['io'])
+                except (ValueError, TypeError):
+                    return
             device = self._device_for_reply("report", ip, report)
             if device:
                 device["report"] = report

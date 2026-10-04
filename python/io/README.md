@@ -92,7 +92,7 @@ are address and how many are values, and splitting a fixed number would only
 be right by coincidence.
 
 Because peripherals share the namespace with the management verbs, the names
-`create`, `poll`, `report` and `scan` are reserved and rejected at creation.
+`create`, `poll`, `report`, `scan` and `bridge` are reserved and rejected at creation.
 
 ### Bridge management (`/io/*`)
 ```
@@ -117,6 +117,17 @@ Because peripherals share the namespace with the management verbs, the names
 ```
 /io/<peripheral> <command> [args...]   Send command to peripheral
 ```
+
+Control replies go to the engine on localhost 6662 and `bopos.py` on
+localhost 7771. Values remain on 6662 only (streaming is a later increment).
+`/io/report` emits `/io/registry <io-json>` as well as logging the registry;
+`/io/scan` retains its integer-address reply and adds `/io/scanned <io-json>`.
+The complete object and the `io-scan`/`io-write` exact-device admin verbs are
+specified in [the OSC contract](../../docs/OSC-CONTRACT.md#11-io-plane-io).
+`/io/written <name> <command>` acknowledges a successful driver write.
+`/io/error <name> <reason>` uses `no-bus`, `create-failed`,
+`invalid-arguments`, `unknown-command`, or `write-failed`; `bridge` names
+errors without a module target. These errors also reach the dashboard on 5550.
 
 From a patch, `[s to-bopos-io]` takes the same thing as a flat message —
 `lights fill 0 255 0` — and `bopos~.pd` turns the first atom into the

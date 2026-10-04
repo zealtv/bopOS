@@ -1,6 +1,6 @@
 # 3-io-bridge-hardening
 
-**Status:** software verified; waiting on Bob’s Finn Jet hardware check and wire ratification · absorbs `feature-backlog/60-io-dispatch-silence`
+**Status:** software verified; waiting on Bob’s Finn Jet hardware check · absorbs `feature-backlog/60-io-dispatch-silence`
 **Goal:** the io bridge never fails silently and never fights itself over a chip.
 
 Not the transport or ownership questions — those are `59/0a`. This is repair
@@ -39,3 +39,7 @@ New error semantics are proposed in `wire-proposal.md`, not implemented.
 The stitch remains open in `.waiting`; no Pd or contract edits.
 
 **2026-10-04:** the wire question is ruled. The IO design (`59-i2c-inventory/0a-io-design-review.tied/proposal.md` §1) adopts option 2 of `wire-proposal.md`, with the reserved name `bridge` (poll/scan errors use `bridge` too). `59/1` builds the replies. This stitch still waits on the Finn Jet hardware check.
+
+`59/1` now implements those OSC error replies and relays them to the dashboard,
+replacing the prior log-only diagnostics. Its verification record covers the
+software checks; this stitch's Finn Jet hardware checks remain pending.

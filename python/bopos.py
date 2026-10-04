@@ -33,6 +33,7 @@ import log_config
 import wifi_config
 import nodelog
 import osc_contract
+import io_control
 
 BOPOS_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
 ASSETS_ROOT = os.path.join(BOPOS_DIR, "assets")
@@ -1294,6 +1295,7 @@ def report_reply(reply_socket, requester, state=None):
         "audio": audio_report(state),
         "log": log_report(state),
         "wifi": wifi_config.helper_status(),
+        "io": node_io(state).snapshot(),
     }
     msg = OSCMessage("/os/report")
     msg.append(json.dumps(report), 's')
@@ -1328,8 +1330,41 @@ UID_ADMIN_VERBS = frozenset({
 })
 
 
+def node_io(state=None):
+    state = state or node_state
+    if not hasattr(state, 'io_control'):
+        def send_bridge(address, values):
+            message = OSCMessage(address)
+            for value in values:
+                message.append(value)
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.sendto(message.getBinary(), ('127.0.0.1', 8880))
+
+        def broadcast_error(name, reason):
+            message = OSCMessage('/os/io-error')
+            for value in (state.uid, name, reason):
+                message.append(value, 's')
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                sock.sendto(message.getBinary(),
+                            (state.config.get('HB_TARGET', '255.255.255.255'), 5550))
+
+        state.io_control = io_control.IOControl(state.uid, send_bridge, broadcast_error)
+    return state.io_control
+
+
+def io_callback(path, tags, args, source):
+    node_io().handle(path, args)
+
+
 def dispatch_uid_admin(member, args, state, reply_socket, requester):
     """Dispatch the exact UID allowlist and its narrow argument verbs."""
+    if member == 'io-scan' and not args:
+        node_io(state).request('scan', None, reply_socket, requester)
+        return True
+    if member == 'io-write' and len(args) == 1:
+        node_io(state).request('write', args[0], reply_socket, requester)
+        return True
     if member == "enabled" and len(args) == 1:
         return set_device_enabled(args[0], reply_socket, requester, state)
     if member == "hostname" and len(args) == 1:
@@ -1999,7 +2034,11 @@ def exit_handler():
     event_scheduler.stop()
     param_generator.close()
     nodelog.close()
+    if hasattr(node_state, 'io_control'):
+        node_state.io_control.close()
     server.close()
+    if io_server is not None:
+        io_server.close()
 
 
 server.addMsgHandler( "/config", config_callback )
@@ -2010,8 +2049,15 @@ server.addMsgHandler( "/log", log_callback )
 server.addMsgHandler( "/admin", admin_callback )
 
 atexit.register(exit_handler)
+io_server = None
 
 if __name__ == "__main__":
+    control = node_io()
+    io_server = OSCServer(('127.0.0.1', 7771))
+    for address in ('/io/scanned', '/io/registry', '/io/error', '/io/written'):
+        io_server.addMsgHandler(address, io_callback)
+    threading.Thread(target=io_server.serve_forever, daemon=True).start()
+    control.refresh()
     server.timeout = 1.0
     event_scheduler.start()
     initialise_asset_cache()

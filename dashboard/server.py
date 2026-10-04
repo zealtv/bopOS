@@ -75,6 +75,7 @@ from state import (FACILITATOR_COMMANDS, InstallationState, observed_active_patc
                    reconcile_patch_switch_success)
 from python import identity
 from python import wifi_config
+from python import io_protocol
 from wifi_secrets import WifiSecrets
 from python import asset_slots
 from python import manifest as patch_manifest
@@ -341,6 +342,7 @@ class Dashboard:
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
             "set_wifi_networks", "send_wifi_networks",
+            "io_scan", "io_write",
             "action", "identify", "set_fleet_patch",
             "retry_fleet_patch",
             "send_distribution", "drop_distribution",
@@ -539,6 +541,25 @@ class Dashboard:
             device["hostname_status"] = "pending"
             self.osc.set_device_hostname(hostname_uid, hostname)
             await self.broadcast("device_update", device)
+        elif kind in ('io_scan', 'io_write'):
+            device = self.state.devices.get(str(uid))
+            if device is None or device.get('virtual') or not device.get('online'):
+                await self.ws_error(ws, 'invalid-arguments')
+                return
+            if kind == 'io_scan':
+                device['io_scan_pending'] = True
+                device['io_scan'] = {'status': 'pending', 'at': time.time()}
+                self.osc.io_scan(str(uid))
+            else:
+                try:
+                    payload = io_protocol.validate_write(data.get('config'))
+                except ValueError:
+                    await self.ws_error(ws, 'invalid-arguments')
+                    return
+                device['io_write'] = dict(name=payload['name'], command=payload['command'],
+                                          status='pending', error=None)
+                self.osc.io_write(str(uid), payload)
+            await self.broadcast('device_update', device)
         elif kind == "set_audio_config":
             audio_uid = str(data.get("uid", ""))
             device = self.state.devices.get(audio_uid)

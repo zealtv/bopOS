@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.20** — base ratified 2026-07-07; latest revision 2026-10-04. The
+**Version 1.21** — in progress; base ratified 2026-07-07; latest revision 2026-10-04. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -317,8 +317,8 @@ keyword is the patch author's foot-gun to avoid.
 
 ## 4. Ports and transport
 
-The six ports stay exactly as deployed. The two LAN ports are the public
-contract; the four localhost ports are one device's internal plumbing. As of
+Eight ports; 5551 and 7771 added in v1.21 (in progress). The three LAN ports
+are the public contract; the five localhost ports are one device's internal plumbing. As of
 v1.2 **`bopos.py` is the node's only LAN citizen**: it alone binds 6660 and
 sends on 5550. Engines — PD included — live entirely on the localhost ports.
 (Supersedes v1.1 §4/§4.1, which kept PD's direct 6660 path; that path was
@@ -328,11 +328,13 @@ helper-death, and production-macOS N=1 gates passed, 2026-07-12.)
 | Port | Listener | Sender | Scope |
 |---|---|---|---|
 | 5550 | dashboard | bopos.py | LAN broadcast, fleet → dash |
+| 5551 | dashboard | bopos.py | LAN unicast: development IO value streams to the dashboard that opened a stream (reserved; stream implementation follows in stitch 59/8) |
 | 6660 | bopos.py (sole binder) | dashboard | LAN broadcast, dash → fleet |
 | 6661 | engine (`[bopos]` in PD, OSCdefs in SC, …) | bopos.py | localhost: the selector-stripped engine surface (§4.2) |
-| 6662 | engine | io/main.py | localhost: peripheral streams |
+| 6662 | engine | io/main.py | localhost: peripheral streams and control replies |
 | 7770 | bopos.py | engine | localhost: engine requests only (§4.2) |
-| 8880 | io/main.py | engine | localhost: I/O commands |
+| 7771 | bopos.py | io/main.py | localhost: IO control replies; value bundles while a stream is open (stream implementation follows in stitch 59/8) |
+| 8880 | io/main.py | engine, bopos.py | localhost: I/O commands |
 
 Production engines listen on 6661; an audition instance is assigned its own
 port via `BOPOS_ENGINE_PORT`, feeding exactly the same selector-free surface —
@@ -589,6 +591,10 @@ deferred and unratified.
     → /os/log-config <uid> <ok|err> <json>
 /all/os/to <uid> wifi-config <json>
     → /os/wifi-config <uid> <ok|err> <phase> <json>
+/all/os/to <uid> io-scan       → /os/io-scan <uid> <io-json>
+/all/os/to <uid> io-write <json>
+    → /os/io-write <uid> <ok|err> <json>
+/os/io-error <uid> <name> <reason>  unsolicited, LAN broadcast to 5550
 ```
 
 For one physical device, including an unassigned node, v1.5 uses
@@ -616,7 +622,7 @@ move to the uniform envelope.
   has_wifi, audio_channels, screen, active patch, uptime, git-rev,
   update_model, contract-version, the sorted `groups` array, persistent
   `device_enabled`, execution `mute_all`, effective `output_enabled`, the
-  `audio`, `log`, and redacted `wifi` objects below. This
+  `audio`, `log`, redacted `wifi`, and `io` (§11) objects below. This
   is the capability story: **pull, not broadcast.** The groups fact is reconciliation
   evidence; `/os/groups` is the immediate write receipt.
 - **The framework output gate is safety-critical.** It is a transport-level
@@ -688,6 +694,33 @@ move to the uniform envelope.
   `usb_present` (media presence) — configured vs effective vs media are all
   visible without SSH. Log *content* is not browsable over OSC in v1; retrieval
   is the USB stick or SSH.
+
+### Exact-device IO control (v1.21, additive; in progress)
+
+These verbs use only the literal `/all/os/to <uid>` envelope, including for
+unassigned devices. `io-scan` takes no arguments, rescans fixed bus 1 in the
+bridge, then returns the complete §11 `io` object unicast to the requester on
+5550. No bus, not scanned, and a scanned empty bus are distinct facts.
+`io-modules` was dropped: scans and `/os/report.io` already carry the registry.
+
+`io-write` takes exactly one JSON object with `name`, `command`, and `args`
+(an array of OSC scalar values). It addresses the existing driver through
+`/io/<name> <command> <args…>` on localhost 8880. The terminal JSON reply has
+exactly `name`, `command`, and `error`; `ok` carries `error: null`, and `err`
+carries a §11 reason. Invalid payloads return `invalid-arguments` without
+touching a driver. The node keeps one outstanding request per kind and queues
+the rest; a successful write is acknowledged only after `/io/written`.
+After 3 seconds without a local receipt (`BRIDGE_REPLY_TIMEOUT_SECONDS`), the
+node drops that request and serves the next without emitting any timeout reply
+or new reason token. The dashboard expires its own pending scan/write after
+4 seconds (`IO_REQUEST_TIMEOUT_SECONDS`), marks `phase:timeout` internally and
+refreshes the report. These deadlines do not change the wire vocabulary.
+
+Bridge errors also travel as unsolicited `/os/io-error <uid> <name> <reason>`
+on the normal fleet → dashboard path, LAN broadcast to 5550. The dashboard
+stores the IO facts and receipts and broadcasts the observed state to clients.
+Development streaming and Performance enforcement follow in their own
+stitches; this control-path increment sends no IO values onto the LAN.
 
 ### Exact-device Wi-Fi configuration (v1.20, additive)
 
@@ -961,6 +994,50 @@ Unchanged verbs, sharpened boundary:
   `/io/create` → `/io/error <name> no-bus`. (`sys_i2c` must degrade the way
   `sys_wireless` already does.)
 
+**Control reply model (v1.21).** Every bridge reply goes to both engine 6662
+and `bopos.py` localhost 7771; failed delivery to either does not suppress the
+other. Poll value bundles continue to go only to 6662 in this increment.
+The legacy `/io/scan <integer-address>…` reply is retained. The added local
+control grammar is:
+
+```
+/io/scanned <io-json>
+/io/registry <json>
+/io/error <name> <reason>
+/io/written <name> <command>
+```
+
+`/io/scanned` carries the complete IO object after scanning. `/io/registry`
+carries that same complete object on `/io/report`, registry changes and module
+status changes. `/io/written` confirms the driver write returned successfully.
+The node holds the latest object for `/os/report.io`. Scanning stays in the
+bridge and skips live peripheral addresses under the shared IO lock.
+
+**IO object**, one shape for `/os/report.io`, `io-scan` replies and dashboard
+state (ratified proposal §8a):
+
+```json
+{"bus":1,"scanned":true,"addresses":[{"address":"0x1a","claimed":true},{"address":"0x48","claimed":false}],"modules":{"adc":{"type":"ads1115","address":"0x48","state":"running","error":null}}}
+```
+
+`bus` is fixed `1`, matching the drivers, or `null` when no usable bus can be
+opened. `scanned` is false until a scan has run. `addresses` is sorted by
+address; addresses are lowercase hex strings, and `claimed` records kernel
+ownership (`UU`). A usable but empty scanned bus has `bus:1`, `scanned:true`
+and `addresses:[]`. Modules map names to `type`, `address`, `state` and `error`.
+State is `running`, `errored`, or `missing` (manifest presence and `missing`
+arrive in stitch 59/3). Error is null or one of the reasons below. Modules are
+still patch-created in this increment; manifest ownership follows in 59/3.
+
+**Errors.** `/io/error <name> <reason>` uses only `no-bus`, `create-failed`,
+`invalid-arguments`, `unknown-command`, and `write-failed`. `bridge` is a
+reserved module name for errors without a module target, including malformed
+poll/scan arguments and unnamed create requests. Named malformed creates use
+the requested name with `invalid-arguments`; import/setup/type failures use
+`create-failed`. Unknown targets use `unknown-command`; missing peripheral
+commands or extra address segments use `invalid-arguments`; raised driver
+writes use `write-failed`. Errors relay to the dashboard through §6.
+
 ## 12. Hard constraints
 
 - **PD OSC floats are 32-bit** (~6–7 significant figures). Any value needing more
@@ -1060,3 +1137,4 @@ reasoning.
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
+| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped in 59/1: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and error vocabulary (§4, §6, §11); `io-modules` dropped (§8a). Streaming, manifest ownership and Performance mode remain separate increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §8, §8a and `rulings.md`; stitch `1-scan-transport` |
