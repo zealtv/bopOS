@@ -343,3 +343,62 @@ class EventPlaneTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LanListenerRobustnessTests(unittest.TestCase):
+    """One malformed datagram must never stop the node hearing the dashboard."""
+
+    def test_sync_ping_with_a_non_integer_sequence_is_ignored(self):
+        sent = []
+        reply = types.SimpleNamespace(sendto=lambda *args: sent.append(args))
+        state = types.SimpleNamespace(id=4, groups=(), uid="02:00:00:00:00:04")
+        bad = pyOSC3.OSCMessage("/sync/ping")
+        bad.append("bad", "s")
+        bad.append("123", "s")
+        self.assertFalse(bopos.handle_lan_datagram(
+            bad.getBinary(), ("192.0.2.1", 4000), reply, state))
+        self.assertEqual(sent, [])
+
+        good = pyOSC3.OSCMessage("/sync/ping")
+        good.append(7, "i")
+        good.append("123", "s")
+        self.assertTrue(bopos.handle_lan_datagram(
+            good.getBinary(), ("192.0.2.1", 4000), reply, state))
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][1], ("192.0.2.1", 5550))
+
+    def test_listener_keeps_running_after_a_handler_error(self):
+        class Stop(BaseException):
+            pass
+
+        datagrams = [b"first", b"second"]
+
+        class FakeSocket:
+            def setsockopt(self, *_args):
+                pass
+
+            def bind(self, *_args):
+                pass
+
+            def close(self):
+                pass
+
+            def recvfrom(self, _size):
+                if datagrams:
+                    return datagrams.pop(0), ("192.0.2.9", 4000)
+                raise Stop()
+
+        handled = []
+
+        def handler(datagram, *_args):
+            handled.append(datagram)
+            if datagram == b"first":
+                raise ValueError("malformed")
+            return True
+
+        with mock.patch.object(bopos.socket, "socket", return_value=FakeSocket()), \
+                mock.patch.object(bopos, "handle_lan_datagram", side_effect=handler), \
+                mock.patch("builtins.print"):
+            with self.assertRaises(Stop):
+                bopos.lan_listener_loop(types.SimpleNamespace(id=4, groups=()))
+        self.assertEqual(handled, [b"first", b"second"])

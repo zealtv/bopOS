@@ -1593,8 +1593,10 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
     if parts == ["sync", "ping"] and len(args) >= 2:
         # pong unicast to the leader, echoing seq+leaderTime; deviceTime is our
         # own monotonic clock -- never wall clock (NTP steps must not glitch events)
+        if not isinstance(args[0], int):
+            return False
         msg = OSCMessage("/sync/pong")
-        msg.append(int(args[0]), 'i')
+        msg.append(args[0], 'i')
         msg.append(str(args[1]), 's')
         msg.append(str(state.uid), 's')
         msg.append(str(monotonic_ns()), 's')
@@ -1762,11 +1764,17 @@ def lan_listener_loop(state=None):
         while True:
             try:
                 datagram, source = sock.recvfrom(65535)
-                handle_lan_datagram(datagram, source, sock, state)
             except OSError as error:
                 print("WARNING: LAN OSC LISTENER FAILED; REBINDING:", error)
                 sock.close()
                 break
+            # One bad datagram from anything on the LAN must never stop the
+            # node hearing the dashboard: log it and keep listening.
+            try:
+                handle_lan_datagram(datagram, source, sock, state)
+            except Exception as error:
+                print(f"WARNING: LAN OSC message from {source[0]} failed:",
+                      f"{type(error).__name__}: {error}")
 
 
 def config_callback(path='', tags='', args='', source=''):
