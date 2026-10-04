@@ -272,6 +272,7 @@ class DeviceEnabledTests(unittest.TestCase):
             "node-a": {
                 "alias": "Finn Jet", "source": "custom", "generator": 2,
                 "device_muted": True,
+                "desired_patch": {"name": "retired", "fingerprint": "a" * 64},
             },
         }
         canonical = {

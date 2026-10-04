@@ -1,23 +1,5 @@
 #!/usr/bin/env python3
-"""Real-dashboard + simfleet verification for device-scoped patch targeting
-(thread 37, bite 2 — 2-device-patch-targeting).
-
-Proves the ratified first bite end to end against the live wire:
-  * the Patches-tab target picker offers the whole fleet or one device, and the
-    Deploy button becomes "Pin to device" for a single target;
-  * pinning one device converges only that device to its pinned patch, on its own
-    generation track, while the rest hold the fleet patch;
-  * the pin is a separate axis from the convergence badge (roster pin marker);
-  * a subsequent whole-fleet deploy leaves the pin intact (the crucial
-    correctness property — a fleet deploy is a bulk-set over the unpinned
-    remainder), converging only the unpinned device;
-  * "follow fleet" clears the pin and re-converges the device to the fleet;
-  * the pin persists across a page reload (durable UID registry).
-
-Homed in tests/ by code surface per the thread-27 durable-tests policy, not a
-tied guard. Non-hardware: simfleet is protocol-reactive and models per-device
-patches, so a singleton-targeted convergence reaches only that device unmodified.
-"""
+"""Real dashboard + simfleet verification of whole-fleet patch deployment."""
 
 import json
 import os
@@ -106,13 +88,12 @@ def write_patch(root, name, payload):
 
 
 def deploy_fleet(page, name):
-    page.select_option("#patch-target", "all")
     page.select_option("#patch-select", name)
     page.click("#patch-switch")
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="bopos-device-patch-") as temp:
+    with tempfile.TemporaryDirectory(prefix="bopos-fleet-patch-") as temp:
         state_path = os.path.join(temp, "installation.json")
         assets = os.path.join(temp, "assets")
         patches = os.path.join(temp, "patches")
@@ -121,7 +102,7 @@ def main():
         write_patch(patches, "demo-pd", b"demo")
         write_patch(patches, "alpha", b"alpha-bytes")
         write_patch(patches, "beta", b"beta-bytes")
-        state = {"schema": 1, "name": "Device patch targeting rig", "seats": {
+        state = {"schema": 1, "name": "Fleet patch deployment rig", "seats": {
             "1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
                   "params": {}, "bound": UID_A},
             "2": {"id": 2, "name": "Ciro", "positions": [[2, 1]],
@@ -181,19 +162,11 @@ def main():
                     "() => [...document.querySelectorAll('#patch-select option')]"
                     ".some(option => option.value === 'beta')")
 
-                # --- one line: patch, target, buttons (09) ---
-                # Bob, 2026-07-30: "it would make a lot more sense for those to
-                # be side by side so that the patch, the target, and the buttons
-                # are all in a single line." They used to stack, at 74px.
-                #
-                # Measured as "the row is no taller than its tallest control",
-                # NOT as "the three share a `top`": the buttons are shorter than
-                # the selects and are centred against them, so equal tops is the
-                # wrong test and would fail on a correct layout.
+                # Patch choice and actions stay aligned in one deploy row.
                 row = page.evaluate("""() => {
                   const box = node => node.getBoundingClientRect();
                   const deploy = document.querySelector('.fleet-patch-deploy');
-                  const parts = ['#patch-select', '#patch-target',
+                  const parts = ['#patch-select',
                                  '.fleet-patch-actions']
                     .map(selector => document.querySelector(selector));
                   if (!deploy || parts.some(part => !part)) return null;
@@ -207,23 +180,8 @@ def main():
                 }""")
                 check("the deploy row is a single line",
                       row and row["height"] <= row["tallest"] + 2, repr(row))
-                check("patch, target and actions share one vertical centre",
+                check("patch and actions share one vertical centre",
                       row and row["centreSpread"] <= 1, repr(row))
-
-                # --- target picker shape ---
-                target_options = page.evaluate(
-                    "() => [...document.querySelectorAll('#patch-target option')]"
-                    ".map(o => o.value)")
-                check("target picker offers whole fleet plus each online device",
-                      target_options[0] == "all"
-                      and UID_A in target_options and UID_B in target_options
-                      and len(target_options) == 3, repr(target_options))
-                page.select_option("#patch-target", UID_B)
-                check("selecting one device relabels Deploy to Pin to device",
-                      "pin to device" in page.locator("#patch-switch").inner_text().lower())
-                page.select_option("#patch-target", "all")
-                check("selecting the whole fleet restores the fleet deploy label",
-                      "fleet patch" in page.locator("#patch-switch").inner_text().lower())
 
                 # --- deploy alpha to the whole fleet: both converge ---
                 deploy_fleet(page, "alpha")
@@ -235,79 +193,15 @@ def main():
                       page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_A) == "current"
                       and page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_B) == "current")
 
-                # --- pin device B to beta: only B converges to beta ---
-                page.select_option("#patch-target", UID_B)
-                page.select_option("#patch-select", "beta")
-                page.click("#patch-switch")
+                # A later deployment must move both devices together too.
+                deploy_fleet(page, "beta")
                 page.wait_for_function(
-                    "uid => installation.devices[uid]?.patch_pinned === true"
-                    " && installation.devices[uid]?.pinned_patch === 'beta'",
-                    arg=UID_B, timeout=15000)
-                page.wait_for_function(
-                    "uid => installation.devices[uid]?.patch_badge === 'current'",
-                    arg=UID_B, timeout=15000)
-                check("pinning one device leaves the other unpinned on the fleet patch",
-                      page.evaluate("uid => !!installation.devices[uid].patch_pinned", arg=UID_A) is False
-                      and page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_A) == "current")
-                check("pinned device reports its pin as a separate axis from the badge",
-                      page.evaluate("uid => installation.devices[uid].pinned_patch", arg=UID_B) == "beta"
-                      and page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_B) == "current")
-                check("fleet-patch summary counts the pin",
-                      "1 pinned" in page.locator("#fleet-patch-summary").inner_text())
-
-                # --- roster pin marker (Devices tab) ---
-                page.click("#tab-button-devices")
-                page.wait_for_selector("#tab-devices:not([hidden])")
-                page.wait_for_function(
-                    "() => document.querySelectorAll('#device-roster .patch-pin').length === 1")
-                check("exactly one roster row shows the pin marker",
-                      page.locator("#device-roster .patch-pin").count() == 1)
-                check("the pin marker names the pinned patch",
-                      "beta" in (page.locator("#device-roster .patch-pin").first
-                                 .get_attribute("title") or ""))
-
-                # --- the crucial property: a whole-fleet deploy leaves the pin intact ---
-                page.click("#tab-button-patches")
-                page.wait_for_selector("#tab-patches:not([hidden]) #fleet-patch-panel")
-                deploy_fleet(page, "demo-pd")
-                page.wait_for_function(
-                    "() => installation.fleet_patch?.name === 'demo-pd'", timeout=15000)
-                page.wait_for_function(
-                    "uid => installation.devices[uid]?.patch_badge === 'current'"
-                    " && installation.devices[uid]?.patch_pinned !== true",
-                    arg=UID_A, timeout=15000)
-                check("a fleet deploy converges only the unpinned device",
-                      page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_A) == "current"
-                      and page.evaluate("uid => !!installation.devices[uid].patch_pinned", arg=UID_A) is False)
-                check("a fleet deploy leaves the pinned device pinned to its own patch",
-                      page.evaluate("uid => !!installation.devices[uid].patch_pinned", arg=UID_B) is True
-                      and page.evaluate("uid => installation.devices[uid].pinned_patch", arg=UID_B) == "beta"
-                      and page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_B) == "current")
-
-                # --- the pin persists across a page reload (durable registry) ---
-                page.reload()
-                page.wait_for_selector("#ws-status.online")
-                page.wait_for_function(
-                    "uid => installation.devices?.[uid]?.patch_pinned === true",
-                    arg=UID_B, timeout=15000)
-                check("the pin survives a page reload (durable UID registry)",
-                      page.evaluate("uid => installation.devices[uid].pinned_patch", arg=UID_B) == "beta")
-
-                # --- follow fleet clears the pin and re-converges to the fleet ---
-                page.click("#tab-button-devices")
-                page.wait_for_selector("#tab-devices:not([hidden])")
-                page.click(f'#device-roster .device-row[data-uid="{UID_B}"]')
-                page.wait_for_selector("#patch-follow-fleet")
-                page.click("#patch-follow-fleet")
-                page.wait_for_function(
-                    "uid => installation.devices[uid]?.patch_pinned !== true",
-                    arg=UID_B, timeout=15000)
-                page.wait_for_function(
-                    "uid => installation.devices[uid]?.patch_badge === 'current'",
-                    arg=UID_B, timeout=15000)
-                check("follow fleet clears the pin and re-converges to the fleet patch",
-                      page.evaluate("uid => !!installation.devices[uid].patch_pinned", arg=UID_B) is False
-                      and page.evaluate("uid => installation.devices[uid].patch_badge", arg=UID_B) == "current")
+                    "() => installation.fleet_patch?.name === 'beta'"
+                    " && document.querySelector('#fleet-patch-summary')?.innerText.includes('2 current')",
+                    timeout=15000)
+                check("a subsequent deployment switches both devices to beta",
+                      page.evaluate("() => Object.values(installation.devices).every("
+                                    "d => d.report?.patch === 'beta' && d.patch_badge === 'current')"))
 
                 check("no page errors during the run", not page_errors, repr(page_errors))
                 browser.close()
@@ -325,7 +219,7 @@ def main():
     if FAILURES:
         print("FAILED:", ", ".join(FAILURES))
         return 1
-    print("Device-scoped patch targeting browser checks passed")
+    print("Whole-fleet patch deployment browser checks passed")
     return 0
 
 

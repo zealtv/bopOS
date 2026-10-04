@@ -191,10 +191,6 @@ class Dashboard:
         self.fleet_operation = None
         self.fleet_retries = {}
         self.fleet_generation = 0
-        # Per-device pin convergence runs on its own generation track (thread
-        # 37) so a device pin and a fleet deploy never cancel each other.
-        self.device_operations = {}
-        self.device_generations = {}
         self.performance_target = args.osc_target
         self.host_version = host_checkout_shorthand()
         self.assets_dir = os.path.realpath(getattr(args, "assets_dir", os.path.join(REPO_DIR, "assets")))
@@ -348,7 +344,6 @@ class Dashboard:
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
             "action", "identify", "set_fleet_patch",
-            "set_device_patch", "clear_device_patch",
             "revert_fleet_patch", "retry_fleet_patch",
             "send_distribution", "drop_distribution",
             "mute_all", "add_seat", "update_seat",
@@ -362,7 +357,7 @@ class Dashboard:
         edit_blocked_mutations = {
             "set_live_param", "set_live_automation",
             "replay_live_params",
-            "set_fleet_patch", "set_device_patch", "clear_device_patch",
+            "set_fleet_patch",
             "revert_fleet_patch",
             "set_room", "set_point", "clear_point",
             "save_venue", "load_venue",
@@ -658,35 +653,6 @@ class Dashboard:
             await self.stage_and_converge(previous["name"], ws)
         elif kind == "retry_fleet_patch":
             await self.retry_fleet_patch(uid, ws)
-        elif kind == "set_device_patch":
-            if data.get("confirmed") is not True:
-                await self.ws_error(ws, "Pinning a patch to a device requires confirmation.")
-                return
-            name = str(data.get("patch", "")).strip()
-            if not uid or not re.fullmatch(r"[\w.-]+", name):
-                return
-            item = await self.catalog_patch(name)
-            if item is None:
-                await self.ws_error(ws, f"Cannot pin patch {name!r}: no valid host patch.")
-                return
-            # Registering the device (idempotent) makes the durable UID entry the
-            # override rides on; virtual/simulated UIDs are refused here.
-            self.state.ensure_device_alias(uid)
-            if not self.state.set_device_patch_override(uid, item["name"], item["fingerprint"]):
-                await self.ws_error(ws, "Could not pin the patch to this device.")
-                return
-            await self.converge_device_patch(uid, item["name"], ws)
-        elif kind == "clear_device_patch":
-            if not uid:
-                return
-            self.state.clear_device_patch_override(uid)
-            # "Follow fleet": actuate the return to the fleet default on the
-            # device's own generation track (a completed fleet op won't do it).
-            fleet_name = (self.state.data.get("fleet_patch") or {}).get("name")
-            if fleet_name:
-                await self.converge_device_patch(uid, fleet_name, ws)
-            else:
-                await self.broadcast("state")
         elif kind == "request_patches":
             if uid in self.state.devices:
                 self.osc.request(uid, "patches")
@@ -1433,12 +1399,7 @@ class Dashboard:
         return self.state.stage_fleet_patch(item["name"], item["fingerprint"])
 
     def live_control_manifest(self, patch_name=None):
-        """Return the validated manifest that owns operator controls.
-
-        Defaults to the staged fleet patch. A device pinned to another patch
-        (thread 37) runs a different parameter schema, so its panel asks
-        for that patch's manifest by name.
-        """
+        """Return the validated manifest for fleet or editor controls."""
         patch_name = patch_name or self.state.data.get("params_patch")
         if not patch_name:
             return None
@@ -1509,12 +1470,9 @@ class Dashboard:
 
 
     def effective_patch_for_seat(self, seat):
-        """Return a seat's device pin, otherwise the staged fleet patch."""
+        """Return the editor patch or the staged fleet patch."""
         if seat.get("editor"):
             return self.state.data["editor"].get("patch")
-        override = self.state.device_patch_for(seat.get("bound"))
-        if override:
-            return override["name"]
         fleet = self.state.data.get("fleet_patch")
         if isinstance(fleet, dict) and isinstance(fleet.get("name"), str):
             return fleet["name"]
@@ -1569,19 +1527,11 @@ class Dashboard:
                      if item["identity"] == identity), None)
 
     def live_scope_patch(self, scope, target_id):
-        """The patch whose parameter schema owns this scope.
-
-        A pinned device can differ from the fleet, and the patch editor always
-        names the patch owned by its audition engine. Everything else returns
-        None and falls back to the staged fleet patch.
-        """
+        """Editor controls use the audition patch; other scopes use the fleet."""
         if scope == "editor":
             patch = self.state.data.get("editor", {}).get("patch")
             return patch if isinstance(patch, str) else None
-        if scope != "device" or not isinstance(target_id, str):
-            return None
-        override = self.state.device_patch_for(target_id)
-        return override["name"] if override else None
+        return None
 
     def live_param_target(self, scope, target_id):
         if scope == "editor":
@@ -1598,8 +1548,7 @@ class Dashboard:
             return ([seat], seat_id) if seat is not None else (None, None)
         if scope == "device":
             # A device-scoped write is a presentation scope over a seat
-            # selector: OSC v1.5 targets content by seat, and pinning already
-            # requires a seat binding, so there is always one to resolve to.
+            # selector: OSC v1.5 targets content by seat.
             device = self.state.devices.get(target_id)
             if device is None or device.get("virtual"):
                 return None, None
@@ -1639,23 +1588,6 @@ class Dashboard:
             desired["fingerprint"] = item["fingerprint"]
         return desired
 
-    async def device_desired_patch(self, device, fleet_desired):
-        """Resolve the patch a device should converge to: its per-device pin if
-        set, else the fleet default (thread 37). The pin's fingerprint is
-        re-resolved from the live host catalog, exactly as live_fleet_patch does
-        for the fleet target, so a host edit never leaves a stale digest on the
-        row badge."""
-        if device.get("virtual"):
-            return fleet_desired
-        override = self.state.device_patch_for(device.get("uid"))
-        if not override:
-            return fleet_desired
-        resolved = dict(override)
-        item = await self.catalog_patch(override["name"])
-        if item is not None:
-            resolved["fingerprint"] = item["fingerprint"]
-        return resolved
-
     async def public_device(self, device, desired=None):
         desired = desired if desired is not None else await self.live_fleet_patch()
         public = dict(device)
@@ -1680,30 +1612,7 @@ class Dashboard:
                 device_enabled=desired_enabled, enabled_observed=observed,
                 output_enabled=device.get("output_enabled"),
                 enabled_status=enabled_status)
-        # A device may be pinned to a patch other than the fleet default. The
-        # convergence badge (current/stale/…) measures against the *effective*
-        # desired target; the pin itself is a separate axis surfaced as
-        # patch_pinned so the roster can mark it without overloading the badge.
-        effective_desired = await self.device_desired_patch(device, desired)
-        override = (None if device.get("virtual")
-                    else self.state.device_patch_for(device.get("uid")))
-        public["patch_badge"] = patch_badge(device, effective_desired)
-        public["patch_pinned"] = override is not None
-        public["pinned_patch"] = override["name"] if override else None
-        # A pinned device runs a patch other than the fleet's, so its live
-        # controls are declared by that patch. This has to live here rather
-        # than in public_state: a device_update broadcast carries one device,
-        # not the whole state, and that is the message the roster acts on.
-        # Only pinned devices carry their own schema; everything else falls
-        # back to the fleet-wide live_controls.
-        if override is not None:
-            public["live_controls"] = {
-                "patch": override["name"],
-                "declarations": self.live_control_declarations(
-                    override["name"]),
-                "events": self.live_event_declarations(override["name"]),
-            }
-        public["desired_patch"] = effective_desired
+        public["patch_badge"] = patch_badge(device, desired)
         return public
 
     async def public_state(self):
@@ -1965,10 +1874,7 @@ class Dashboard:
         if item is None:
             await self.ws_error(ws, f"Cannot set fleet patch {name!r}: no valid host patch.")
             return False
-        # A pinned device (thread 37) holds its own desired patch; a fleet deploy
-        # is a bulk-set over the *unpinned* remainder and must leave pins intact.
-        targets = [uid for uid in self.distribution_targets("all")
-                   if not self.state.device_patch_for(uid)]
+        targets = self.distribution_targets("all")
         base_urls = {}
         if not self.state.data["simulation"].get("active"):
             try:
@@ -2003,42 +1909,17 @@ class Dashboard:
             if not task.done():
                 task.cancel()
         self.fleet_retries.clear()
-        # Attempts belong to the desired patch generation. Clearing their
-        # identity tokens also makes their untracked monitor tasks exit. Pinned
-        # devices (thread 37) run on their own generation track, so a fleet
-        # supersede must not wipe their in-flight attempt state.
-        for uid, device in self.state.devices.items():
-            if not self.state.device_patch_for(uid):
-                device["patch_switch"] = None
+        for device in self.state.devices.values():
+            device["patch_switch"] = None
         return self.fleet_generation
 
-    def _supersede_device_operation(self, uid):
-        """Per-device mirror of supersede_fleet_operation, scoped to one uid:
-        bump only this device's generation, cancel only its in-flight op, clear
-        only its attempt state. Never disturbs the fleet track or other pins."""
-        self.device_generations[uid] = self.device_generations.get(uid, 0) + 1
-        task = self.device_operations.pop(uid, None)
-        if task is not None and not task.done():
-            task.cancel()
-        device = self.state.devices.get(uid)
-        if device is not None:
-            device["patch_switch"] = None
-        return self.device_generations[uid]
-
     async def converge_fleet_patch(self, name, fingerprint, targets, base_urls,
-                                   generation, is_current=None):
-        """Converge bytes first, then switch every ready online target together.
-
-        `is_current` is the liveness token: the loop bails the moment it returns
-        False. It defaults to the fleet generation, so the fleet path is
-        unchanged; a per-device pin (thread 37) passes its own device-generation
-        check so the two operations never cancel each other."""
-        if is_current is None:
-            is_current = lambda: generation == self.fleet_generation
+                                   generation):
+        """Converge bytes, then switch every ready online fleet target."""
         waiting, ready = set(), set()
         slot = "patch:" + name
         for uid in targets:
-            if not is_current():
+            if generation != self.fleet_generation:
                 return
             device = self.state.devices.get(uid)
             if not device or not device.get("online"):
@@ -2063,7 +1944,7 @@ class Dashboard:
                     f"generation is already active for {slot}."})
 
         deadline = time.monotonic() + FETCH_TIMEOUT_SECONDS + 1.0
-        while (waiting and is_current()
+        while (waiting and generation == self.fleet_generation
                and time.monotonic() < deadline):
             for uid in tuple(waiting):
                 device = self.state.devices.get(uid)
@@ -2080,14 +1961,14 @@ class Dashboard:
             if waiting:
                 await asyncio.sleep(0.1)
 
-        if not is_current():
+        if generation != self.fleet_generation:
             return
 
         # One fleet operation, no staged waves: devices that could not prove the
         # desired bytes retain honest missing/stale/unknown badges.
         switched = []
         for uid in ready:
-            if not is_current():
+            if generation != self.fleet_generation:
                 return
             device = self.begin_patch_switch(uid, name)
             if device is not None:
@@ -2100,46 +1981,7 @@ class Dashboard:
             if uid in self.state.devices:
                 await self.broadcast("device_update", self.state.devices[uid])
 
-    async def converge_device_patch(self, uid, name, ws):
-        """Converge one seat-bound device to `name` on its own generation track
-        (thread 37), independent of any fleet operation. The caller persists the
-        override first; this actuates it on the wire. Reuses converge_fleet_patch
-        with a singleton target set and a per-device liveness token."""
-        device = self.state.devices.get(uid)
-        if device is None or device.get("virtual"):
-            return False
-        if uid not in self.distribution_targets(uid):
-            if not self.state.seat_for_uid(uid):
-                await self.ws_error(
-                    ws, "Assign this device to a Seat before pinning a patch; "
-                    "OSC v1.5 cannot uniquely target unbound content operations.")
-            return False
-        item = await self.catalog_patch(name)
-        if item is None:
-            await self.ws_error(ws, f"Cannot pin patch {name!r}: no valid host patch.")
-            return False
-        base_urls = {}
-        if not self.state.data["simulation"].get("active"):
-            try:
-                base_urls = {uid: self.public_url(ws, uid)}
-            except ValueError as error:
-                await self.ws_error(ws, str(error))
-                return False
-        generation = self._supersede_device_operation(uid)
-        await self.broadcast("state")
-        if self.state.data["simulation"].get("active"):
-            return True
-        self.device_operations[uid] = self.spawn(self.converge_fleet_patch(
-            item["name"], item["fingerprint"], [uid], base_urls, generation,
-            is_current=lambda: generation == self.device_generations.get(uid)))
-        return True
-
     async def retry_fleet_patch(self, uid, ws):
-        # A pinned device (thread 37) retries its own pin, not the fleet patch.
-        override = self.state.device_patch_for(uid)
-        if override:
-            await self.converge_device_patch(uid, override["name"], ws)
-            return
         if uid not in self.distribution_targets(uid):
             device = self.state.devices.get(uid)
             if device and not self.state.seat_for_uid(uid):

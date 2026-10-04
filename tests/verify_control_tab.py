@@ -259,11 +259,10 @@ def main():
 
                 # --- the Control tab hosts no patch deployment ---
                 check("the Control tab hosts no patch picker",
-                      page.locator("#tab-control #patch-target").count() == 0
-                      and page.locator("#tab-control #patch-select").count()
+                      page.locator("#tab-control #patch-select").count()
                       == 0)
                 check("the patch picker is still on the Patches tab",
-                      page.locator("#tab-patches #patch-target").count() == 1)
+                      page.locator("#tab-patches #patch-select").count() == 1)
 
                 # --- the picker is the reusable component ---
                 frame = surface(page)

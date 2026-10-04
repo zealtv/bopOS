@@ -12,9 +12,7 @@ Bob's rulings, each one a check:
   * one code path: a device write goes through the shared component and reaches
     only that device.
 
-Plus the thing the placement design left for implementation: a PINNED device
-runs a patch other than the fleet's, so its panel must render that patch's
-promoted params, not the fleet's.
+Device panels follow the shared fleet patch schema after deployment.
 
 Owned by code surface (dashboard.js device detail + server live_* helpers).
 """
@@ -123,9 +121,7 @@ def write_patch(patches, name, params):
                   target)
 
 
-# `alpha` is the fleet patch; `beta` is what one device gets pinned to, and it
-# deliberately promotes a differently-named param so "whose schema is this?" has
-# an unambiguous answer.
+# Successive fleet patches declare different params to expose schema changes.
 ALPHA_PARAMS = [
     {"name": "density", "kind": "float", "min": 0, "max": 1, "default": .2,
      "dashboard": True},
@@ -413,7 +409,7 @@ def main():
                 check("the write lands on that device's seat only",
                       only_one is not None)
 
-                # --- a pinned device renders ITS patch's params ---
+                # --- device controls follow a fleet patch change ---
                 page.click("#tab-button-patches")
                 page.wait_for_selector(
                     "#tab-patches:not([hidden]) #fleet-patch-panel")
@@ -421,19 +417,16 @@ def main():
                     "() => [...document.querySelectorAll"
                     "('#patch-select option')]"
                     ".some(option => option.value === 'beta')")
-                page.select_option("#patch-target", UID_B)
                 page.select_option("#patch-select", "beta")
                 page.click("#patch-switch")
                 page.wait_for_function(
-                    "uid => installation.devices[uid]?.pinned_patch === 'beta'",
-                    arg=UID_B, timeout=20000)
-                page.wait_for_function(
-                    "uid => installation.devices[uid]?.live_controls?.patch"
-                    " === 'beta'", arg=UID_B, timeout=10000)
+                    "() => installation.fleet_patch?.name === 'beta'"
+                    " && installation.live_controls?.patch === 'beta'",
+                    timeout=20000)
 
                 page.click("#tab-button-devices")
                 select_device(page, UID_B)
-                check("a pinned device renders its own patch's params",
+                check("a device renders the fleet patch's params",
                       page.locator(
                           BODY + ' [data-live-param]'
                           '[data-param-path="shimmer"]').count() >= 1
@@ -442,7 +435,7 @@ def main():
                           '[data-param-path="density"]').count() == 0)
                 check("the panel names the patch it is showing",
                       "beta" in page.locator(PANEL).inner_text().lower()
-                      and "pinned" in page.locator(PANEL).inner_text().lower())
+                      and "fleet patch" in page.locator(PANEL).inner_text().lower())
 
                 # --- offline: last values, disabled, never hidden ---
                 stop_process(fleet)
