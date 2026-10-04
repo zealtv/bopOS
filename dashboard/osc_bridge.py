@@ -178,7 +178,7 @@ class OSCBridge:
         self.sender = self._new_sender()
         try:
             self.stream_transport, _ = await loop.create_datagram_endpoint(
-                lambda: self.io_streams, local_addr=('', self.stream_port),
+                lambda: self.io_streams, local_addr=('0.0.0.0', self.stream_port),
                 family=socket.AF_INET)
         except Exception:
             self.close()
