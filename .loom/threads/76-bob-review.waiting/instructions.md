@@ -15,6 +15,11 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 3. **OSC contract editorial**: `docs/OSC-CONTRACT.md` (~line 859) still says
    the facilitator allowlist lives in `installation.json`. Since 66/3 it's
    `project.json`. Change the filename only? → `33b/2` notes.
+4. **Header tidy screenshot**: look at the new header before it's called done
+   (Live rename; mode switch moved beside the project bar as a 30px pill with
+   24px buttons; spacing tidied). Before and after, plus light, 900px and
+   420px: `66-projects/8-header-tidy.waiting/screenshots/`. Code is committed;
+   the stitch is parked until you OK it.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
