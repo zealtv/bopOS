@@ -20,6 +20,17 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
 
+12. **Monitor transport (71/2)**: `71-network-traffic/2-monitor-transport.waiting/proposal.md`.
+    Today every OSC message goes to every browser tab, open or not (~312
+    WS messages/s per tab at 50 simulated nodes). Proposal: per-window
+    subscriptions, server-side filtering, 100 ms batches, bounded per-client
+    queues, plus a fix for unbounded unhandled-event buffering in `ws.js`.
+    Eight visible changes need your ruling (proposal "Every operator-visible
+    change"): high-rate classes hidden by default (with rates); capture only
+    while a pane is visible; Pause stops capture; structured filters; a drop
+    indicator; the map at 10 Hz; a System clock summary; hidden module panels
+    suspended.
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper

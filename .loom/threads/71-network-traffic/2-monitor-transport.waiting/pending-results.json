@@ -1,0 +1,14 @@
+{
+  "scope": "Shipped BopSocket.emit replay; no browser heap-byte/CPU claim",
+  "observations": 12275,
+  "main_unhandled": {
+    "sync": 3453
+  },
+  "remote_unhandled": {
+    "osc_in": 3699,
+    "heartbeat": 246,
+    "osc_out": 4101,
+    "sync": 3453,
+    "point_frame": 578
+  }
+}
