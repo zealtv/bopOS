@@ -157,9 +157,8 @@ def make_fixture(root):
         "name": "Event control panel rig",
         "fleet_patch": {
             "name": "alpha", "fingerprint": "a" * 64,
-            "staged_at": time.time(), "previous": None,
+            "staged_at": time.time(),
         },
-        "params_patch": "alpha",
         "groups": {"7": {"id": 7, "name": "Front"}},
         "seats": {
             "1": seat(1, "Freda", UID_A, [7]),

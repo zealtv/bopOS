@@ -344,7 +344,7 @@ class Dashboard:
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
             "action", "identify", "set_fleet_patch",
-            "revert_fleet_patch", "retry_fleet_patch",
+            "retry_fleet_patch",
             "send_distribution", "drop_distribution",
             "mute_all", "add_seat", "update_seat",
             "reindex_seat", "remove_seat", "bind_seat", "unbind_seat",
@@ -358,7 +358,6 @@ class Dashboard:
             "set_live_param", "set_live_automation",
             "replay_live_params",
             "set_fleet_patch",
-            "revert_fleet_patch",
             "set_room", "set_point", "clear_point",
             "save_venue", "load_venue",
         }
@@ -641,16 +640,6 @@ class Dashboard:
                 await self.ws_error(ws, "Setting the fleet patch requires confirmation.")
                 return
             await self.stage_and_converge(str(data.get("patch", "")).strip(), ws)
-        elif kind == "revert_fleet_patch":
-            if data.get("confirmed") is not True:
-                await self.ws_error(ws, "Reverting the fleet patch requires confirmation.")
-                return
-            current = self.state.data.get("fleet_patch") or {}
-            previous = current.get("previous") or {}
-            if not previous.get("name"):
-                await self.ws_error(ws, "There is no previous fleet patch to revert to.")
-                return
-            await self.stage_and_converge(previous["name"], ws)
         elif kind == "retry_fleet_patch":
             await self.retry_fleet_patch(uid, ws)
         elif kind == "request_patches":
@@ -1400,7 +1389,7 @@ class Dashboard:
 
     def live_control_manifest(self, patch_name=None):
         """Return the validated manifest for fleet or editor controls."""
-        patch_name = patch_name or self.state.data.get("params_patch")
+        patch_name = patch_name or (self.state.data.get("fleet_patch") or {}).get("name")
         if not patch_name:
             return None
         manifest, _error = patch_manifest.load(os.path.join(self.patches_dir, patch_name))
@@ -1476,7 +1465,7 @@ class Dashboard:
         fleet = self.state.data.get("fleet_patch")
         if isinstance(fleet, dict) and isinstance(fleet.get("name"), str):
             return fleet["name"]
-        return self.state.data.get("params_patch")
+        return None
 
 
     def store_stopped_automation(self, seats, declaration, now=None):
@@ -1628,7 +1617,7 @@ class Dashboard:
         declarations = self.live_control_declarations()
         events = self.live_event_declarations()
         public["live_controls"] = {
-            "patch": (self.state.data.get("params_patch")
+            "patch": ((self.state.data.get("fleet_patch") or {}).get("name")
                       if declarations or events else None),
             "declarations": declarations,
             "events": events,
@@ -1994,7 +1983,7 @@ class Dashboard:
             await self.ws_error(ws, "The desired fleet patch is not available on the host.")
             return
         generation = self.fleet_generation
-        # A Set/Revert already owns convergence for the whole fleet. Retrying
+        # A fleet deploy already owns convergence for the whole fleet. Retrying
         # one row must not cancel or duplicate that coordinator.
         if self.fleet_operation is not None and not self.fleet_operation.done():
             return

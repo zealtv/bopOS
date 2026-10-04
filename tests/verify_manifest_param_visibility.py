@@ -115,8 +115,7 @@ def write_fixture(temp):
             "schema": 1, "name": "Manifest visibility rig",
             "facilitator_commands": ["restart-engine"],
             "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                            "staged_at": time.time(), "previous": None},
-            "params_patch": "alpha",
+                            "staged_at": time.time()},
             "seats": {
                 "1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
                       "bound": UID,

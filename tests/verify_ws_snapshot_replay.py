@@ -110,8 +110,8 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Snapshot replay rig",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha", "groups": {},
+                        "staged_at": time.time()},
+        "groups": {},
         "seats": {"1": {"id": 1, "name": "Seat 1", "pos": [1, 1]}},
     }
     state_path = os.path.join(root, "installation.json")

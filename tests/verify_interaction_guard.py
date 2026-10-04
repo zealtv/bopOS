@@ -117,8 +117,8 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Interaction guard rig",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha", "groups": {},
+                        "staged_at": time.time()},
+        "groups": {},
         # A bound Seat lets the generator commit a meaningful live value.
         "seats": {"1": {"id": 1, "name": "Freda", "positions": [[1, 1]],
                         "groups": [], "bound": UID, "patch": "alpha",

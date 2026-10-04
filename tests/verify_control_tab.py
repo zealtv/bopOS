@@ -127,8 +127,7 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Control tab rig",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha",
+                        "staged_at": time.time()},
         # Remote keeps the per-device commands D8 took off Control, so the
         # fixture has to declare some for that half to be testable at all.
         "facilitator_commands": ["restart-engine", "reboot"],

@@ -105,7 +105,7 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Generator drawer", "current_show": "forms",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64},
-        "params_patch": "alpha", "groups": {}, "seats": {},
+        "groups": {}, "seats": {},
         "device_registry": {},
     }
     messages = [

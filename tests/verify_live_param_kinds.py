@@ -169,8 +169,7 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Param kinds verifier",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha",
+                        "staged_at": time.time()},
         "seats": {"1": seat(1, "Freda", uids[0]),
                   "2": seat(2, "Sparks", uids[1])},
     }

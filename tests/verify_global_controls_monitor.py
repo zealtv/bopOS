@@ -108,8 +108,7 @@ def write_fixture(temp):
             "schema": 1, "name": "Global controls rig",
             "master": 1.0, "event_lead_ms": 500, "current_show": "Journey",
             "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                            "staged_at": time.time(), "previous": None},
-            "params_patch": "alpha",
+                            "staged_at": time.time()},
             "seats": {"1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
                             "bound": UID, "params": {"gain": .5}}},
         }, target)

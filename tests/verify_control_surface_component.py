@@ -171,8 +171,7 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Control surface verifier",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha",
+                        "staged_at": time.time()},
         "groups": {"0": {"id": 0, "name": "Front"}},
         "seats": {"1": seat(1, "Freda", UIDS[0]),
                   "2": seat(2, "Sparks", UIDS[1])},

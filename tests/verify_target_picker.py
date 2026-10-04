@@ -391,8 +391,7 @@ def make_fixture(root):
     state = {
         "schema": 1, "name": "Target picker rig",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
-                        "staged_at": time.time(), "previous": None},
-        "params_patch": "alpha",
+                        "staged_at": time.time()},
         "groups": {},
         # Seat 1 is bound and Seat 2 is not, so the roster carries one eligible
         # device and one that is only ineligible because it is unassigned.

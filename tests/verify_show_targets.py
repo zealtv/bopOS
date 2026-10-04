@@ -113,7 +113,6 @@ def make_fixture(root):
         "name": "Portable room",
         "current_show": "opening-set",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64},
-        "params_patch": "alpha",
         "groups": {"7": {"id": 7, "name": "Front"}},
         "next_group_id": 8,
         "seats": {},

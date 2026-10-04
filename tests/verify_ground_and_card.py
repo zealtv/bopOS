@@ -208,7 +208,7 @@ def make_fixture(root):
     base = {"gain": .8, "enable-fx": 1, "steps": 64, "mode": 0,
             "reverb/size": .4}
     state = {
-        "schema": 1, "name": "Ground and card", "params_patch": "alpha",
+        "schema": 1, "name": "Ground and card",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "assets": []},
         "facilitator_commands": ["restart-engine", "reboot"],

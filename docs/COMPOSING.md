@@ -161,8 +161,7 @@ The dashboard converges every online assigned device to your exact bytes —
 transfers are diff-based, resumable, and hash-verified — then restarts
 their engines into the new patch. Row badges show each node's convergence,
 and selecting a row shows its observed inventory with **Retry** /
-**Re-switch** if a node needs another nudge. **Revert** stages the previous
-fleet patch back through the same flow.
+**Re-switch** if a node needs another nudge.
 
 The whole fleet plays one patch; per-device patch mixtures are deliberately
 not a supported mode.
@@ -231,4 +230,3 @@ is excluded from distribution and fingerprints.
 | ship to the fleet | **Patches →** select **→ Deploy as fleet patch** |
 | ship big media | `assets/<slot>/` + **Assets → Send** |
 | fire a synchronized event | manifest `cues` + the Dashboard cue trigger |
-| undo a deploy | **Patches → Revert** |

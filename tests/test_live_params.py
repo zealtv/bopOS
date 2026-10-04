@@ -63,7 +63,6 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
             seat = self.state.seat_for_uid(uid)
             device["id"] = seat["id"]
         self.state.data["fleet_patch"] = {"name": "alpha", "fingerprint": "sha256:x"}
-        self.state.data["params_patch"] = "alpha"
         self.sent = []
         self.broadcasts = []
         self.osc = OSCBridge(self.state, lambda *_args: None, 0, 0, "127.0.0.1")
@@ -160,7 +159,6 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
         failed_state.data["seats"] = self.state.seats
         failed_state.data["devices"] = self.state.devices
         failed_state.data["groups"] = self.state.data["groups"]
-        failed_state.data["params_patch"] = "alpha"
         failed_state.data["fleet_patch"] = self.state.data["fleet_patch"]
         self.state = failed_state
         self.dashboard.state = failed_state

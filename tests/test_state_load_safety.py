@@ -127,6 +127,39 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.assertEqual(state.read_venue("broken"), (None, None))
         self.assertEqual(venue.read_bytes(), original)
 
+    def test_retired_patch_fields_are_stripped_on_load_and_save(self):
+        doc = document()
+        doc["params_patch"] = "obsolete"
+        doc["fleet_patch"] = {"name": "alpha", "fingerprint": "a" * 64,
+                              "staged_at": 1,
+                              "previous": {"name": "obsolete"}}
+        self.path.write_text(json.dumps(doc))
+        state = InstallationState(str(self.path))
+        self.assertNotIn("params_patch", state.public())
+        self.assertNotIn("previous", state.data["fleet_patch"])
+        state.save()
+        saved = json.loads(self.path.read_text())
+        self.assertNotIn("params_patch", saved)
+        self.assertNotIn("previous", saved["fleet_patch"])
+        venue = Path(state.venues_dir()) / "legacy.json"
+        venue.write_text(json.dumps(doc))
+        self.assertTrue(state.load_venue("legacy"))
+        self.assertNotIn("params_patch", state.public())
+        self.assertNotIn("previous", state.data["fleet_patch"])
+
+
+    def test_parameter_reconciliation_uses_the_fleet_patch_name(self):
+        self.path.write_text(json.dumps(document()))
+        state = InstallationState(str(self.path))
+        state.stage_fleet_patch("alpha", "a" * 64)
+        state.reconcile_fleet_params("alpha", ["gain", "new"],
+                                     {"gain": .1, "new": .2})
+        self.assertEqual(state.seats["2"]["params"], {"gain": .4, "new": .2})
+        state.reconcile_fleet_params("beta", ["gain"], {"gain": .1})
+        state.stage_fleet_patch("beta", "b" * 64)
+        self.assertEqual(state.seats["2"]["params"], {"gain": .1})
+        self.assertNotIn("previous", state.data["fleet_patch"])
+
     def test_new_and_valid_installations_still_save_and_reload(self):
         state = InstallationState(str(self.path))
         state.save()

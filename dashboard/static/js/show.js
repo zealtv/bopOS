@@ -194,7 +194,7 @@
 
   function manifestFromStagedPatch() {
     const state = currentInstallation();
-    const patch = state.live_controls?.patch || state.params_patch || state.fleet_patch?.name;
+    const patch = state.live_controls?.patch || state.fleet_patch?.name;
     const catalog = currentDistribution();
     const item = (catalog.patches || []).find(candidate => candidate.name === patch);
     const manifest = item?.manifest && typeof item.manifest === "object" ? item.manifest : null;

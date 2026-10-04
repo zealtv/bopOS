@@ -111,7 +111,6 @@ class InstallationState:
                      "event_lead_ms": 500,
                      "facilitator_commands": [],
                      "fleet_patch": None,
-                     "params_patch": None,
                      "current_show": None,
                      "listener": None,
                      # Runtime-only operator notices. Adoption messages live
@@ -184,10 +183,6 @@ class InstallationState:
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
-                params_patch = loaded.get("params_patch")
-                self.data["params_patch"] = (params_patch.strip()
-                                             if isinstance(params_patch, str)
-                                             and params_patch.strip() else None)
                 self.data["current_show"] = self.clean_current_show(
                     loaded.get("current_show"))
                 if self.data["fleet_patch"]:
@@ -386,7 +381,6 @@ class InstallationState:
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
-                "params_patch": self.data.get("params_patch"),
                 "current_show": self.clean_current_show(self.data.get("current_show")),
                 "listener": dict(self.data["listener"]),
                 "groups": {str(group["id"]): dict(group)
@@ -816,7 +810,7 @@ class InstallationState:
     @staticmethod
     def clean_fleet_patch(value):
         # one fleet-wide desired patch record (fp-0 sec 1): {name, fingerprint,
-        # staged_at, previous}. Anything malformed collapses to None (unset).
+        # staged_at}. Anything malformed collapses to None (unset).
         if not isinstance(value, dict):
             return None
         name = str(value.get("name", "")).strip()
@@ -830,39 +824,26 @@ class InstallationState:
             staged_at = float(value.get("staged_at"))
         except (TypeError, ValueError):
             staged_at = None
-        previous = value.get("previous")
-        if isinstance(previous, dict) and str(previous.get("name", "")).strip():
-            previous = {"name": str(previous["name"]).strip(),
-                        "fingerprint": fingerprint(previous.get("fingerprint"))}
-        else:
-            previous = None
         return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
-                "staged_at": staged_at, "previous": previous}
+                "staged_at": staged_at}
 
     @staticmethod
     def clean_current_show(value):
         # Which show the playback engine has loaded (show-tab design note sec
-        # 2), parallel to fleet_patch/params_patch. The show document itself
+        # 2), parallel to fleet_patch. The show document itself
         # lives in dashboard/shows/<name>.json (show_model.py); this is only
         # the name pointer, and a stale/renamed name is not an error here --
         # show_model.load_show() tolerates a missing file as an empty show.
         return value.strip() if isinstance(value, str) and value.strip() else None
 
     def stage_fleet_patch(self, name, fingerprint):
-        # rotate `previous` only on a name change: re-staging the same patch
-        # (host edit, simulation restart) refreshes fingerprint/staged_at in
-        # place so Revert keeps pointing at the last *different* patch
-        current = self.data.get("fleet_patch")
-        previous = current.get("previous") if current else None
-        if current and current.get("name") != name:
-            previous = {"name": current["name"], "fingerprint": current.get("fingerprint")}
         self.data["fleet_patch"] = {"name": name, "fingerprint": fingerprint,
-                                    "staged_at": time.time(), "previous": previous}
+                                    "staged_at": time.time()}
         # simulation["patch"] is a read-through of the fleet choice (fp-0 sec 1)
         self.data["simulation"]["patch"] = name
         return self.data["fleet_patch"]
 
-    def reset_fleet_params(self, patch_name, defaults):
+    def reset_fleet_params(self, defaults):
         """Replace the one fleet schema on a patch-name transition.
 
         Patch parameters are fleet-scoped authoring state even though their
@@ -877,7 +858,6 @@ class InstallationState:
         for device in self.devices.values():
             if self.seat_for_uid(device["uid"]) is not None:
                 device["params"] = dict(values)
-        self.data["params_patch"] = patch_name
 
     def reconcile_fleet_params(self, patch_name, identities, defaults):
         """Apply a staged same-patch schema revision without identity guesses.
@@ -886,8 +866,8 @@ class InstallationState:
         declared defaults when present, and removed identities are pruned.
         A patch-name transition remains a full reset via reset_fleet_params().
         """
-        if self.data.get("params_patch") != patch_name:
-            self.reset_fleet_params(patch_name, defaults)
+        if (self.data.get("fleet_patch") or {}).get("name") != patch_name:
+            self.reset_fleet_params(defaults)
             return
         active = tuple(identities)
         for seat in self.seats.values():
@@ -1090,7 +1070,7 @@ class InstallationState:
             rebuilt[str(seat["id"])] = seat
         keys = ("name", "room", "master", "event_lead_ms", "facilitator_commands", "groups",
                 "next_group_id",
-                "fleet_patch", "params_patch", "listener", "seats", "simulation")
+                "fleet_patch", "listener", "seats", "simulation")
         previous = {key: copy.deepcopy(self.data.get(key)) for key in keys}
         previous_rebind = copy.deepcopy(self.last_venue_rebind)
         self.data["name"] = name
@@ -1103,10 +1083,6 @@ class InstallationState:
         self.data["facilitator_commands"] = self.clean_facilitator_commands(
             loaded.get("facilitator_commands"))
         self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
-        params_patch = loaded.get("params_patch")
-        self.data["params_patch"] = (params_patch.strip()
-                                     if isinstance(params_patch, str)
-                                     and params_patch.strip() else None)
         if self.data["fleet_patch"]:
             self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
         else:

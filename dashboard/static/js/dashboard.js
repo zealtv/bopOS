@@ -462,8 +462,8 @@ function patchBadge(value) {
 }
 function badgeTone(value) { return value && !["current","unset"].includes(value) ? "patch-exception" : ""; }
 function renderFleetPatch() {
-  const select=$("#patch-select"), set=$("#patch-switch"), revert=$("#fleet-patch-revert");
-  if (!select || !set || !revert) return;
+  const select=$("#patch-select"), set=$("#patch-switch");
+  if (!select || !set) return;
   const patches=(distribution.patches||[]).filter(item=>item.valid);
   const desired=installation.fleet_patch?.name||"";
   if (desired!==renderedFleetDesired) {
@@ -477,13 +477,11 @@ function renderFleetPatch() {
   select.disabled=!patches.length||editing;
   set.disabled=!fleetPatchChoice||editing;
   set.textContent="Deploy as fleet patch";
-  revert.disabled=!installation.fleet_patch?.previous?.name||editing;
   select.onchange=()=>{fleetPatchChoice=select.value;};
   set.onclick=()=>{
     const name=select.value; if(!name) return;
     if(confirm(`Deploy "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});
   };
-  revert.onclick=()=>{const name=installation.fleet_patch?.previous?.name;if(name&&confirm(`Revert the fleet to patch "${name}"? The dashboard will use the same convergence and engine restart flow.`))ws.send("revert_fleet_patch",{confirmed:true});};
   $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
   const assigned=Object.values(installation.seats||{}).map(occupant).filter(Boolean);
   const counts=new Map(); assigned.forEach(device=>counts.set(device.patch_badge||"unknown",(counts.get(device.patch_badge||"unknown")||0)+1));

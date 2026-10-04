@@ -175,8 +175,7 @@ global Fleet patch selector lists valid host catalog patches. **Deploy as
 fleet patch** is one confirmed operation: it converges the selected bytes
 across online assigned devices, then switches their audio engines. Row badges show
 fleet convergence; selecting a row opens its observed inventory, fingerprints,
-fetch phase, manifest and framework revision facts, and Retry or Re-switch remediation. **Revert**
-stages the previous fleet patch through the same flow.
+fetch phase, manifest and framework revision facts, and Retry or Re-switch remediation.
 
 Asset distribution remains device-addressable: select a device, then Send one
 asset folder or Sync all assets. A successful receipt marks that host manifest
@@ -189,9 +188,7 @@ Changing to a different fleet patch also changes the one active parameter
 schema: every seat is reset to that manifest's declared defaults and keys from
 the previous patch are removed. Setting the same patch again (including a stale
 content retry) preserves values for unchanged qualified identities, defaults
-new identities, and prunes removed ones. Revert changes patch names, so it
-restores the previous patch with its manifest defaults rather than retaining a
-hidden per-patch parameter history. Parameter keys are the canonical slash-joined manifest `path + name`;
+new identities, and prunes removed ones. Parameter keys are the canonical slash-joined manifest `path + name`;
 reconnect catch-up sends only identities declared by the active manifest.
 
 In Patch edit, `path` is authored as slash-separated text and saved as a JSON
