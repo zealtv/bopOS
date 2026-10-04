@@ -1,0 +1,2493 @@
+{
+  "census": {
+    "python/bopos.py": {
+      "file_lines": 2215,
+      "report_fields": [
+        "uid",
+        "hostname",
+        "engine",
+        "has_i2c",
+        "has_wifi",
+        "audio_channels",
+        "screen",
+        "patch",
+        "uptime",
+        "git_rev",
+        "update_model",
+        "contract_version",
+        "groups",
+        "device_enabled",
+        "mute_all",
+        "output_enabled",
+        "performance",
+        "audio",
+        "log",
+        "wifi",
+        "io"
+      ],
+      "selected": {
+        "dispatch_admin_verb": {
+          "line": 1396,
+          "lines": 22
+        },
+        "dispatch_uid_admin": {
+          "line": 1478,
+          "lines": 57
+        },
+        "handle_lan_datagram": {
+          "line": 1561,
+          "lines": 181
+        },
+        "installed_assets": {
+          "line": 1114,
+          "lines": 18
+        },
+        "installed_patches": {
+          "line": 1017,
+          "lines": 38
+        },
+        "report_reply": {
+          "line": 1334,
+          "lines": 60
+        },
+        "rev_reply": {
+          "line": 1000,
+          "lines": 15
+        }
+      },
+      "selected_lines": 391,
+      "sha256": "ea6a0f1c04a08cdce15d318b8636b74cf5f4757b8c4d888714594a87b0ec24bc",
+      "shared_imports": [
+        "asset_slots",
+        "audio_config",
+        "groups",
+        "identity",
+        "io_control",
+        "io_stream",
+        "log_config",
+        "manifest",
+        "osc_contract",
+        "paramgen",
+        "performance_mode",
+        "pointfield",
+        "relay",
+        "wifi_config"
+      ],
+      "uid_verbs": [
+        "audio-config",
+        "enabled",
+        "hostname",
+        "identify",
+        "io-reinit",
+        "io-scan",
+        "io-stream",
+        "io-write",
+        "log-config",
+        "reboot",
+        "report",
+        "restart-engine",
+        "shutdown",
+        "unassign",
+        "updatebopos",
+        "wifi-config"
+      ]
+    },
+    "tools/audition.py": {
+      "file_lines": 1000,
+      "report_fields": [
+        "uid",
+        "hostname",
+        "engine",
+        "has_i2c",
+        "io",
+        "has_wifi",
+        "audio_channels",
+        "screen",
+        "patch",
+        "uptime",
+        "git_rev",
+        "update_model",
+        "contract_version",
+        "groups",
+        "device_enabled",
+        "mute_all",
+        "output_enabled",
+        "audio"
+      ],
+      "selected": {
+        "patch_listing": {
+          "line": 218,
+          "lines": 37
+        },
+        "relay": {
+          "line": 716,
+          "lines": 123
+        },
+        "send_report": {
+          "line": 345,
+          "lines": 37
+        },
+        "send_rev": {
+          "line": 383,
+          "lines": 3
+        },
+        "uid_admin": {
+          "line": 387,
+          "lines": 73
+        }
+      },
+      "selected_lines": 273,
+      "sha256": "0c7fbc8276b732b8e2549c8b002025beb9652066e317a6f1ce9a7593f2395bb8",
+      "shared_imports": [
+        "asset_slots",
+        "audio_config",
+        "groups",
+        "identity",
+        "manifest",
+        "osc_contract",
+        "paramgen",
+        "pointfield",
+        "relay",
+        "runcontext"
+      ],
+      "uid_verbs": [
+        "audio-config",
+        "enabled",
+        "hostname",
+        "identify",
+        "reboot",
+        "report",
+        "restart-engine",
+        "shutdown",
+        "unassign",
+        "updatebopos"
+      ]
+    },
+    "tools/simfleet.py": {
+      "file_lines": 1523,
+      "report_fields": [
+        "uid",
+        "hostname",
+        "engine",
+        "has_i2c",
+        "has_wifi",
+        "audio_channels",
+        "screen",
+        "patch",
+        "uptime",
+        "git_rev",
+        "update_model",
+        "contract_version",
+        "groups",
+        "device_enabled",
+        "mute_all",
+        "output_enabled",
+        "performance",
+        "audio",
+        "log",
+        "wifi",
+        "io"
+      ],
+      "selected": {
+        "admin_verb": {
+          "line": 899,
+          "lines": 59
+        },
+        "receive_contract": {
+          "line": 1127,
+          "lines": 239
+        },
+        "send_asset_list": {
+          "line": 507,
+          "lines": 6
+        },
+        "send_patch_list": {
+          "line": 492,
+          "lines": 14
+        },
+        "send_report": {
+          "line": 514,
+          "lines": 38
+        },
+        "send_rev": {
+          "line": 478,
+          "lines": 13
+        },
+        "uid_admin": {
+          "line": 596,
+          "lines": 217
+        }
+      },
+      "selected_lines": 586,
+      "sha256": "62dea0349fde489b45b7ceb59e044c7e06ca4a0b364597bfff8ae23b8326c203",
+      "shared_imports": [
+        "audio_config",
+        "groups",
+        "identity",
+        "io_protocol",
+        "io_stream",
+        "log_config",
+        "manifest",
+        "osc_contract",
+        "paramgen",
+        "performance_mode",
+        "pointfield",
+        "wifi_config"
+      ],
+      "uid_verbs": [
+        "audio-config",
+        "enabled",
+        "hostname",
+        "identify",
+        "io-reinit",
+        "io-scan",
+        "io-stream",
+        "io-write",
+        "log-config",
+        "reboot",
+        "report",
+        "restart-engine",
+        "shutdown",
+        "unassign",
+        "updatebopos",
+        "wifi-config"
+      ]
+    }
+  },
+  "codec_probe": [
+    {
+      "bytes_equal": true,
+      "legacy_tags": ",i",
+      "legacy_value": "2147483647",
+      "modern_value": "2147483647",
+      "tag": "i"
+    },
+    {
+      "bytes_equal": true,
+      "legacy_tags": ",f",
+      "legacy_value": "0.25",
+      "modern_value": "0.25",
+      "tag": "f"
+    },
+    {
+      "bytes_equal": true,
+      "legacy_tags": ",s",
+      "legacy_value": "'1234567890123456789'",
+      "modern_value": "'1234567890123456789'",
+      "tag": "s"
+    },
+    {
+      "bytes_equal": true,
+      "legacy_tags": ",s",
+      "legacy_value": "'caf\u00e9'",
+      "modern_value": "'caf\u00e9'",
+      "tag": "s"
+    },
+    {
+      "bytes_equal": true,
+      "legacy_tags": ",b",
+      "legacy_value": "b'\\x00\\xff\\x01\\x02'",
+      "modern_value": "b'\\x00\\xff\\x01\\x02'",
+      "tag": "b"
+    }
+  ],
+  "libraries": {
+    "pyOSC3": {
+      "requires_python": null,
+      "version": "1.2"
+    },
+    "python-osc": {
+      "requires_python": ">=3.10",
+      "version": "1.10.2"
+    }
+  },
+  "manifest_probe": {
+    "audition_error": "param gain: kind must be one of float/int/toggle/enum/text",
+    "candidate": {
+      "engine": "sc",
+      "entrypoint": "main.scd",
+      "params": [
+        {
+          "kind": "not-a-kind",
+          "name": "gain"
+        }
+      ]
+    },
+    "node_accepted": false,
+    "node_error": "param gain: kind must be one of float/int/toggle/enum/text",
+    "simfleet_accepted": true,
+    "simfleet_declarations": [
+      "gain"
+    ]
+  },
+  "parity": [
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "report",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "report"
+      ],
+      "input_tags": ",ss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [
+          {
+            "address": "/os/report",
+            "params": [
+              {
+                "audio": {
+                  "active": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "cards": [
+                    {
+                      "id": "Simulated",
+                      "index": 0,
+                      "label": "Simulated stereo output",
+                      "mixer_controls": [
+                        "Master"
+                      ]
+                    }
+                  ],
+                  "configured": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "error": null,
+                  "status": "active"
+                },
+                "audio_channels": 2,
+                "contract_version": "1.21",
+                "device_enabled": true,
+                "engine": "pd",
+                "git_rev": "audition-2",
+                "groups": [],
+                "has_i2c": false,
+                "has_wifi": false,
+                "hostname": "probe-node",
+                "io": {
+                  "addresses": [],
+                  "bus": null,
+                  "modules": {},
+                  "scanned": false
+                },
+                "mute_all": false,
+                "output_enabled": true,
+                "patch": "demo-pd",
+                "screen": false,
+                "uid": "probe-node",
+                "update_model": "ephemeral",
+                "uptime": 0
+              }
+            ],
+            "tags": ",s",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "node": [
+          {
+            "address": "/os/report",
+            "params": [
+              {
+                "audio": {
+                  "active": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "cards": [
+                    {
+                      "id": "Simulated",
+                      "index": 0,
+                      "label": "Simulated stereo output",
+                      "mixer_controls": [
+                        "Master"
+                      ]
+                    }
+                  ],
+                  "configured": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "error": null,
+                  "status": "active"
+                },
+                "audio_channels": 2,
+                "contract_version": "1.21",
+                "device_enabled": true,
+                "engine": "pd",
+                "git_rev": "probe",
+                "groups": [],
+                "has_i2c": false,
+                "has_wifi": false,
+                "hostname": "probe-node",
+                "io": {
+                  "addresses": [],
+                  "bus": null,
+                  "modules": {},
+                  "scanned": false
+                },
+                "log": {
+                  "destination": "internal",
+                  "effective": "internal",
+                  "usb_present": false
+                },
+                "mute_all": false,
+                "output_enabled": true,
+                "patch": "none",
+                "performance": false,
+                "screen": false,
+                "uid": "probe-node",
+                "update_model": "ephemeral",
+                "uptime": 0,
+                "wifi": {
+                  "managed": false
+                }
+              }
+            ],
+            "tags": ",s",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/report",
+            "params": [
+              {
+                "audio": {
+                  "active": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "cards": [
+                    {
+                      "id": "Simulated",
+                      "index": 0,
+                      "label": "Simulated stereo output",
+                      "mixer_controls": [
+                        "Master"
+                      ]
+                    }
+                  ],
+                  "configured": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "error": null,
+                  "status": "active"
+                },
+                "audio_channels": 2,
+                "contract_version": "1.21",
+                "device_enabled": true,
+                "engine": "pd",
+                "git_rev": "probe",
+                "groups": [],
+                "has_i2c": false,
+                "has_wifi": false,
+                "hostname": "probe-node",
+                "io": {
+                  "addresses": [],
+                  "bus": null,
+                  "modules": {},
+                  "scanned": false
+                },
+                "log": {
+                  "destination": "internal",
+                  "effective": "internal",
+                  "usb_present": false
+                },
+                "mute_all": false,
+                "output_enabled": true,
+                "patch": "demo-pd",
+                "performance": false,
+                "screen": false,
+                "uid": "probe-node",
+                "update_model": "ephemeral",
+                "uptime": 0,
+                "wifi": {
+                  "managed": false
+                }
+              }
+            ],
+            "tags": ",s",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "wrong-uid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "other",
+        "report"
+      ],
+      "input_tags": ",ss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "unknown-verb",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "future-verb"
+      ],
+      "input_tags": ",ss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "enabled",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "enabled",
+        0
+      ],
+      "input_tags": ",ssi",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "node": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "enabled-fraction",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "enabled",
+        0.5
+      ],
+      "input_tags": ",ssf",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "node": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/enabled",
+            "params": [
+              "probe-node",
+              0,
+              0
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "log-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "log-config",
+        "{}"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/log-config",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "destination": "internal",
+                "effective": "internal",
+                "usb_present": false
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/log-config",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "destination": "internal",
+                "effective": "internal",
+                "usb_present": false
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "wifi-unmanaged",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "wifi-config",
+        "{}"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/wifi-config",
+            "params": [
+              "probe-node",
+              "err",
+              "unavailable",
+              {
+                "managed": false
+              }
+            ],
+            "tags": ",ssss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/wifi-config",
+            "params": [
+              "probe-node",
+              "err",
+              "unavailable",
+              {
+                "managed": false
+              }
+            ],
+            "tags": ",ssss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "wifi-performance",
+      "errors": {},
+      "initial_performance": true,
+      "input": [
+        "probe-node",
+        "wifi-config",
+        "{}"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": true,
+        "simfleet": true
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/wifi-config",
+            "params": [
+              "probe-node",
+              "err",
+              "performance",
+              {
+                "managed": false
+              }
+            ],
+            "tags": ",ssss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/wifi-config",
+            "params": [
+              "probe-node",
+              "err",
+              "performance",
+              {
+                "managed": false
+              }
+            ],
+            "tags": ",ssss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "write-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-write",
+        "{}"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-write",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "command": "",
+                "error": "invalid-arguments",
+                "name": "bridge"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-write",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "command": "",
+                "error": "invalid-arguments",
+                "name": "bridge"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "write-performance",
+      "errors": {},
+      "initial_performance": true,
+      "input": [
+        "probe-node",
+        "io-write",
+        "{\"name\":\"adc\",\"command\":\"clear\",\"args\":[]}"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": true,
+        "simfleet": true
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-write",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "command": "clear",
+                "error": "performance",
+                "name": "adc"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-write",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "command": "clear",
+                "error": "performance",
+                "name": "adc"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "reinit-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-reinit",
+        "a/b"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-reinit",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "error": "invalid-arguments",
+                "name": "a/b"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-reinit",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "error": "invalid-arguments",
+                "name": "a/b"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "stream-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-stream",
+        0.5
+      ],
+      "input_tags": ",ssf",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "active": false,
+                "error": "invalid-arguments"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "active": false,
+                "error": "invalid-arguments"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "stream-performance",
+      "errors": {},
+      "initial_performance": true,
+      "input": [
+        "probe-node",
+        "io-stream",
+        1
+      ],
+      "input_tags": ",ssi",
+      "mode_after": {
+        "audition": null,
+        "node": true,
+        "simfleet": true
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "active": false,
+                "error": "performance"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "active": false,
+                "error": "performance"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "stream-close",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-stream",
+        0
+      ],
+      "input_tags": ",ssi",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "ok",
+              {
+                "active": false,
+                "error": null
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-stream",
+            "params": [
+              "probe-node",
+              "ok",
+              {
+                "active": false,
+                "error": null
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "scan-no-bus",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-scan"
+      ],
+      "input_tags": ",ss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-scan",
+            "params": [
+              "probe-node",
+              {
+                "addresses": [],
+                "bus": null,
+                "modules": {},
+                "scanned": true
+              }
+            ],
+            "tags": ",ss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-scan",
+            "params": [
+              "probe-node",
+              {
+                "addresses": [],
+                "bus": null,
+                "modules": {},
+                "scanned": true
+              }
+            ],
+            "tags": ",ss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "reinit-extra",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-reinit",
+        "adc",
+        "extra"
+      ],
+      "input_tags": ",ssss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/io-reinit",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "error": "invalid-arguments",
+                "name": "bridge"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/io-reinit",
+            "params": [
+              "probe-node",
+              "err",
+              {
+                "error": "invalid-arguments",
+                "name": "adc"
+              }
+            ],
+            "tags": ",sss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/to",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "scan-extra",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "io-scan",
+        "extra"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/performance",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "performance-enter",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        1
+      ],
+      "input_tags": ",i",
+      "mode_after": {
+        "audition": null,
+        "node": true,
+        "simfleet": true
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/report",
+            "params": [
+              {
+                "audio": {
+                  "active": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "cards": [
+                    {
+                      "id": "Simulated",
+                      "index": 0,
+                      "label": "Simulated stereo output",
+                      "mixer_controls": [
+                        "Master"
+                      ]
+                    }
+                  ],
+                  "configured": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "error": null,
+                  "status": "active"
+                },
+                "audio_channels": 2,
+                "contract_version": "1.21",
+                "device_enabled": true,
+                "engine": "pd",
+                "git_rev": "probe",
+                "groups": [],
+                "has_i2c": false,
+                "has_wifi": false,
+                "hostname": "probe-node",
+                "io": {
+                  "addresses": [],
+                  "bus": null,
+                  "modules": {},
+                  "scanned": false
+                },
+                "log": {
+                  "destination": "internal",
+                  "effective": "ram",
+                  "usb_present": false
+                },
+                "mute_all": false,
+                "output_enabled": true,
+                "patch": "none",
+                "performance": true,
+                "screen": false,
+                "uid": "probe-node",
+                "update_model": "ephemeral",
+                "uptime": 0,
+                "wifi": {
+                  "managed": false
+                }
+              }
+            ],
+            "tags": ",s",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/report",
+            "params": [
+              {
+                "audio": {
+                  "active": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "cards": [
+                    {
+                      "id": "Simulated",
+                      "index": 0,
+                      "label": "Simulated stereo output",
+                      "mixer_controls": [
+                        "Master"
+                      ]
+                    }
+                  ],
+                  "configured": {
+                    "card": "Simulated",
+                    "mixer_control": "Master",
+                    "nperiods": 2,
+                    "period_size": 512,
+                    "sample_rate": 44100
+                  },
+                  "error": null,
+                  "status": "active"
+                },
+                "audio_channels": 2,
+                "contract_version": "1.21",
+                "device_enabled": true,
+                "engine": "pd",
+                "git_rev": "probe",
+                "groups": [],
+                "has_i2c": false,
+                "has_wifi": false,
+                "hostname": "probe-node",
+                "io": {
+                  "addresses": [],
+                  "bus": null,
+                  "modules": {},
+                  "scanned": false
+                },
+                "log": {
+                  "destination": "internal",
+                  "effective": "ram",
+                  "usb_present": false
+                },
+                "mute_all": false,
+                "output_enabled": true,
+                "patch": "demo-pd",
+                "performance": true,
+                "screen": false,
+                "uid": "probe-node",
+                "update_model": "ephemeral",
+                "uptime": 0,
+                "wifi": {
+                  "managed": false
+                }
+              }
+            ],
+            "tags": ",s",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/performance",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "performance-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "1"
+      ],
+      "input_tags": ",s",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/groups",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "groups",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        2,
+        0
+      ],
+      "input_tags": ",sii",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [
+          {
+            "address": "/os/groups",
+            "params": [
+              "probe-node",
+              0,
+              2
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "node": [
+          {
+            "address": "/os/groups",
+            "params": [
+              "probe-node",
+              0,
+              2
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/groups",
+            "params": [
+              "probe-node",
+              0,
+              2
+            ],
+            "tags": ",sii",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/groups",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "groups-invalid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        2,
+        2
+      ],
+      "input_tags": ",sii",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/assign",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 3
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "assign-fraction",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        3.5,
+        "probe"
+      ],
+      "input_tags": ",sfs",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/assign",
+      "assignment_after": {
+        "audition": {
+          "elements": [
+            [
+              1.0,
+              2.0
+            ]
+          ],
+          "id": 3
+        },
+        "node": {
+          "elements": [
+            [
+              1.0,
+              2.0
+            ]
+          ],
+          "id": 3
+        },
+        "simfleet": {
+          "elements": [
+            [
+              1.0,
+              2.0
+            ]
+          ],
+          "id": 3
+        }
+      },
+      "case": "assign-valid",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        3,
+        "probe",
+        1.0,
+        2.0
+      ],
+      "input_tags": ",sisff",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/assign",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 3
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "assign-string",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        "3",
+        "probe"
+      ],
+      "input_tags": ",sss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/assign",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 3
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "assign-odd-positions",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "probe-node",
+        3,
+        "probe",
+        1.0
+      ],
+      "input_tags": ",sisf",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/ping",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "ping",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "nonce"
+      ],
+      "input_tags": ",s",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/pong",
+            "params": [
+              "nonce",
+              "probe-node"
+            ],
+            "tags": ",ss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/pong",
+            "params": [
+              "nonce",
+              "probe-node"
+            ],
+            "tags": ",ss",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/ping",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "ping-float",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        0.5
+      ],
+      "input_tags": ",f",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/pong",
+            "params": [
+              0.5,
+              "probe-node"
+            ],
+            "tags": ",fs",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/pong",
+            "params": [
+              0.5,
+              "probe-node"
+            ],
+            "tags": ",fs",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/ping",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "ping-double",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        0.5
+      ],
+      "input_tags": ",d",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/pong",
+            "params": [
+              0.5,
+              "probe-node"
+            ],
+            "tags": ",ds",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/pong",
+            "params": [
+              0.5,
+              "probe-node"
+            ],
+            "tags": ",fs",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/sync/ping",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "sync-invalid-seq",
+      "errors": {
+        "node": "ValueError: invalid literal for int() with base 10: 'bad'"
+      },
+      "initial_performance": false,
+      "input": [
+        "bad",
+        "123"
+      ],
+      "input_tags": ",ss",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/probe",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "probe-id",
+      "errors": {},
+      "initial_performance": false,
+      "input": [
+        "id"
+      ],
+      "input_tags": ",s",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/probe",
+            "params": [
+              0,
+              "id",
+              0
+            ],
+            "tags": ",isi",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/probe",
+            "params": [
+              0,
+              "id",
+              0
+            ],
+            "tags": ",isi",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    },
+    {
+      "address": "/all/os/probe",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "probe-performance",
+      "errors": {},
+      "initial_performance": true,
+      "input": [
+        "id"
+      ],
+      "input_tags": ",s",
+      "mode_after": {
+        "audition": null,
+        "node": true,
+        "simfleet": true
+      },
+      "replies": {
+        "audition": [],
+        "node": [],
+        "simfleet": []
+      },
+      "replies_equal": true
+    },
+    {
+      "address": "/all/os/params",
+      "assignment_after": {
+        "audition": {
+          "elements": [],
+          "id": 0
+        },
+        "node": {
+          "elements": [],
+          "id": 0
+        },
+        "simfleet": {
+          "elements": [],
+          "id": 0
+        }
+      },
+      "case": "params-absent",
+      "errors": {},
+      "initial_performance": false,
+      "input": [],
+      "input_tags": ",",
+      "mode_after": {
+        "audition": null,
+        "node": false,
+        "simfleet": false
+      },
+      "replies": {
+        "audition": [],
+        "node": [
+          {
+            "address": "/os/params",
+            "params": [],
+            "tags": ",",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ],
+        "simfleet": [
+          {
+            "address": "/os/params",
+            "params": [],
+            "tags": ",",
+            "target": [
+              "127.0.0.1",
+              5550
+            ]
+          }
+        ]
+      },
+      "replies_equal": false
+    }
+  ],
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 16.0.0 (clang-1600.0.26.6)]"
+}

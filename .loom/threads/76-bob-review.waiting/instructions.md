@@ -20,6 +20,14 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
 
+13. **Shared node protocol (69/3)**: `69-complexity/3-shared-node-protocol.waiting/proposal.md`.
+    One small shared module for validation, UID verb dispatch and replies,
+    plus parity tests against the contract. Keep both OSC libraries for now;
+    defer the horizon engine redesign. Found drift: audition is missing six
+    verbs; assignment validation differs; enabled 0.5 is accepted as 0. The
+    worst defect, malformed sync killing the node's listener, is already
+    fixed. Approve the narrow extraction?
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
