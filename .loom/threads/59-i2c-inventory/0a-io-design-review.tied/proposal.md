@@ -332,3 +332,7 @@ normal fleet → dashboard path (LAN broadcast to 5550).
 ## 8b. Performance refusal word (ratified 2026-10-04, Bob: "sounds good")
 
 Where Performance mode refuses a request that has a reply, the reason or phase is `performance`: patch switch/removal (`/os/rev` phase), Wi-Fi (`/os/wifi-config` phase) and `io-write` (`/os/io-write <uid> err {"name","command","error":"performance"}`). It is a refusal, not a module fault: it never marks a module errored or raises `/os/io-error`. Requests without a reply are unchanged: probes go unanswered, and patch fetch returns its existing `err`.
+
+## 8c. Stream wire (ratified 2026-10-04, Bob via Tengu: "wire ruling is ok as is")
+
+As proposed by `59/8` (`8-stream-port/proposal-stream-wire.md`): reply `/os/io-stream <uid> {"active": bool, "error": null|"performance"|"invalid-arguments"}`; values on 5551 as `/io/stream <uid:string> <bundle:OSC blob>` (typetags `,sb`, the bridge bundle byte-for-byte); one stream per device, the most recent open/renew owns it, close idempotent; local bridge command `/io/stream <0|1>` on 8880 with its own 10 s timeout, so `stream` is a reserved module name.

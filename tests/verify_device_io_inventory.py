@@ -26,6 +26,9 @@ def main():
             (root / name).mkdir()
         config = root / "io.json"
         manifest = root / "manifest.json"
+        host_patch = root / 'patches' / 'demo-pd'
+        host_patch.mkdir()
+        (host_patch / 'entry.bin').write_bytes(b'fixture')
         manifest.write_text(json.dumps({"name": "IO fixture", "engine": "pd",
                                       "entrypoint": "main.pd", "params": []}))
         http = free_port(socket.SOCK_STREAM)
@@ -49,9 +52,12 @@ def main():
                 server = subprocess.Popen(server_args, cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)
                 wait_http(base, server)
 
-                def start_fleet(bus, addresses=None, modules=None):
+                def start_fleet(bus, addresses=None, modules=None, declarations=None):
                     nonlocal fleet
                     stop(fleet)
+                    manifest.write_text(json.dumps({"name": "IO fixture", "engine": "fixture",
+                        "entrypoint": "entry.bin", "params": [], "io_modules": declarations or []}))
+                    (host_patch / 'bopos.patch.json').write_text(manifest.read_text())
                     config.write_text(json.dumps({"bus": bus, "scanned": False,
                         "addresses": addresses or [], "modules": modules or {}}))
                     fleet = subprocess.Popen(fleet_args, cwd=REPO, stdout=fleet_log, stderr=subprocess.STDOUT)
@@ -130,10 +136,17 @@ def main():
                     modules = {
                         "adc": {"type": "ads1115", "address": "0x48", "state": "running", "error": None},
                         "tilt": {"type": "lis3dh", "address": "0x19", "state": "errored", "error": "create-failed"},
-                        "touch": {"type": "mpr121", "address": "0x5a", "state": "missing", "error": None},
+                        "touch": {"type": "mpr121", "address": "0x5b", "state": "missing", "error": None},
+                        "button": {"type": "switch", "address": "0x42", "state": "missing", "error": None},
                     }
-                    start_fleet(1, addresses, modules)
+                    # Declare only absent modules: boot resolves their presence
+                    # while the existing fake running/error fixtures stay intact.
+                    declarations = [dict(name=name, type=modules[name]['type'],
+                        address=modules[name]['address'], optional=name == 'button')
+                        for name in ('button', 'touch')]
+                    start_fleet(1, addresses, modules, declarations)
                     page.locator("#refresh-report").click()
+                    page.evaluate("() => ws.send('refresh_distribution', {})")
                     page.wait_for_function("uid => !!installation.devices[uid]?.report?.io?.modules?.adc", arg=UID_A)
                     state("not-scanned")
                     scan_bus()
@@ -148,6 +161,24 @@ def main():
                     for name, expected in (("adc", "running"), ("tilt", "errored"), ("touch", "missing")):
                         assert card.locator(f'[data-io-module="{name}"] .device-io-state').get_attribute("data-state") == expected
                     assert card.locator('[data-io-module="tilt"] .device-io-reason').inner_text() == "create-failed"
+                    page.wait_for_function("() => distribution.patches.find(patch => patch.name==='demo-pd')?.manifest?.io_modules?.length === 2")
+                    optional_row = card.locator('[data-io-module="button"]')
+                    required_row = card.locator('[data-io-module="touch"]')
+                    assert optional_row.locator('.device-io-state').inner_text() == 'missing (optional)'
+                    assert optional_row.locator('.device-io-warning').count() == 0
+                    assert required_row.locator('.device-io-warning').count() == 1
+                    colors = page.evaluate("""() => ['button', 'touch'].map(name =>
+                        getComputedStyle(document.querySelector(`[data-io-module="${name}"] .device-io-state`)).color)""")
+                    assert colors[0] != colors[1]
+                    stale = page.evaluate("""uid => {
+                        const d=installation.devices[uid];
+                        const declaration={name:'touch',type:'mpr121',address:'0x5b',optional:true};
+                        const html=DeviceIO.section({...d,io_modules:[declaration],io_modules_patch:'other-patch'});
+                        const root=document.createElement('div'); root.innerHTML=html;
+                        return root.querySelector('[data-io-module="touch"] .device-io-warning') !== null;
+                    }""", UID_A)
+                    assert stale
+                    print('PASS optional absence is neutral; required absence keeps its warning', flush=True)
                     assert card.locator('input[type="checkbox"]').count() == 0
                     assert card.get_by_text("Re-init", exact=True).count() == 0
                     assert card.get_by_text("Show in Monitor", exact=True).count() == 0
@@ -191,7 +222,7 @@ def main():
 
                     page.evaluate("uid => {installation.devices[uid].online=false; renderDeviceDetail();}", UID_A)
                     assert scan.is_disabled()
-                    assert card.locator("[data-io-module]").count() == 3
+                    assert card.locator("[data-io-module]").count() == 4
                     scan.evaluate("button => button.click()")
                     assert page.evaluate("ioMessages.length") == count + 1
                     print("PASS offline inventory stays visible with Scan disabled", flush=True)

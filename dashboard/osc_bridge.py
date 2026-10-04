@@ -1577,6 +1577,7 @@ class OSCBridge:
                 return
             device["active_asset_slots"] = None
             active_asset_slots = None
+            io_modules = []
             if args:
                 try:
                     manifest = json.loads(args[0])
@@ -1589,10 +1590,15 @@ class OSCBridge:
                     active_asset_slots = list(dict.fromkeys(
                         slot for slot in slots if slot))
                 device["undeclared"] = False
+                modules = manifest.get("io_modules", [])
+                if isinstance(modules, list):
+                    io_modules = [row for row in modules if isinstance(row, dict)]
             else:
                 declarations = LEGACY_DECLARATIONS
                 device["undeclared"] = True
             device["declared"] = declarations
+            device["io_modules"] = io_modules
+            device["io_modules_patch"] = (device.get("report") or {}).get("patch")
             seat = self.state.seat_for_uid(device["uid"])
             editor = bool(device.get("editor"))
             if editor:

@@ -16,6 +16,7 @@
 .device-io-state{align-self:start;color:var(--dim);font-size:12px;white-space:nowrap}
 .device-io-state[data-state=running]{color:var(--green)}
 .device-io-state[data-state=errored],.device-io-state[data-state=missing],.device-io-reason,.device-io-error{color:var(--accent-warm)}
+.device-io-state[data-optional-missing=true]{color:var(--dim)}
 .device-io-warning{color:var(--amber)}
 .device-io-reason{grid-column:1/-1;font-size:12px;overflow-wrap:anywhere}
 .device-io-error{margin:12px 0 0;overflow-wrap:anywhere;font-size:13px}

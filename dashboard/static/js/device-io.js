@@ -32,13 +32,23 @@
           : hint ? `<span class="device-io-hint">${hint}</span>` : ""}</li>`;
     }).join("") : "";
     const modules = Object.entries(io?.modules || {}).sort(([left], [right]) => left.localeCompare(right));
+    // Unassigned devices cannot answer selector-addressed /os/params. Use
+    // the fleet-wide host manifest for their reported active patch instead.
+    const hostPatch = typeof distribution === "object"
+      ? distribution.patches?.find(patch => patch.name === device.report?.patch) : null;
+    const observedCurrent = !device.io_modules_patch || device.io_modules_patch === device.report?.patch;
+    const declarations = observedCurrent && Array.isArray(device.io_modules) ? device.io_modules
+      : (hostPatch?.manifest?.io_modules || []);
     const moduleRows = modules.map(([name, row]) => {
       const moduleState = row.state || "unknown";
-      const warning = ["errored", "missing"].includes(moduleState);
+      const optionalMissing = moduleState === "missing" && declarations.some(
+        declaration => declaration.name === name && declaration.type === row.type
+          && String(declaration.address).toLowerCase() === row.address && declaration.optional === true);
+      const warning = moduleState === "errored" || (moduleState === "missing" && !optionalMissing);
       return `<li class="device-io-module" data-io-module="${escape(name)}">
         <div class="device-io-identity"><strong>${escape(name)}</strong>
           <small>${escape(row.type)} · <code>${escape(row.address)}</code></small></div>
-        <span class="device-io-state" data-state="${escape(moduleState)}">${warning ? '<span class="device-io-warning" aria-hidden="true">⚠</span> ' : ""}${escape(moduleState)}</span>
+        <span class="device-io-state" data-state="${escape(moduleState)}" data-optional-missing="${optionalMissing}">${warning ? '<span class="device-io-warning" aria-hidden="true">⚠</span> ' : ""}${optionalMissing ? "missing (optional)" : escape(moduleState)}</span>
         ${row.error ? `<code class="device-io-reason">${escape(row.error)}</code>` : ""}</li>`;
     }).join("");
     const timeout = !pending && device.io_scan?.phase === "timeout";

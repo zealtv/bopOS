@@ -63,3 +63,36 @@ Re-init and optional/required distinctions need the 59/3 mechanism/schema;
 Monitor controls and values remain later panel work. No physical Pi, I2C
 chip, real audio path or iPad was exercised. No push, merge or loom lifecycle
 commands are part of this implementation.
+
+## Follow-up 59/2b — main checkout, 2026-10-04
+
+Optional/required absence is now distinguished using manifest declarations.
+Assigned devices expose `io_modules` received through the existing `/os/params`
+response, associated with the observed active patch. Otherwise the card uses
+the host catalog manifest for the reported active patch (needed for unassigned
+devices, whose selector-addressed `/os/params` cannot be queried). A declaration
+must match module name, type and address before its optional flag applies.
+Optional absence reads `missing (optional)` in neutral text without a warning;
+required or undeclared absence retains the warning. Errored modules retain
+their warning regardless of optionality. A new/legacy manifest clears old flags;
+flags associated with another active patch are not used.
+
+- Fast suite: PASS, 498 tests.
+- Browser suite: PASS, all 31 journeys, including log destination and Performance.
+- Extended Device IO journey: PASS, optional/required styling, unassigned host
+  manifest fallback and rejection of stale patch metadata. Repeated after the
+  final change to capture screenshots.
+- All four refreshed `device-io[-dark]-{1440,420}.png` screenshots were visually
+  inspected. Neutral optional status and amber required/error status remain
+  legible and fit the card in both themes and widths.
+- JavaScript syntax and diff whitespace checks: PASS.
+- New operator string: `missing (optional)`.
+
+Re-init remains unimplemented: the follow-up brief explicitly requires stopping
+before a new admin verb or reply. No existing exact-device command routes a
+per-module create; `io-write` addresses a peripheral and rejects reserved
+management names, is locked in Performance, and cannot mean Re-init. A matching
+declared `/io/create` is intentionally a no-op, so even forwarding that message
+would not reinitialize a running instance. The proposed wire addition is in
+scratchpad `report-59-2b.md`, awaiting ratification. No new wire tokens, no commit,
+and no loom lifecycle commands were added. Physical I2C behavior remains pending.

@@ -109,3 +109,8 @@ Bob ratified `proposal.md`: ports 5551/7771 fine; Performance mode remembered on
 ## Performance refusal word, 2026-10-04
 
 The 77 merge needed a reason for refusing `io-write` in Performance; 77 had already used `performance` as a phase for `/os/rev` and Wi-Fi without a ruling. The lead proposed one word, `performance`, everywhere; Bob: *"sounds good"* (proposal §8b).
+
+## Stream wire and IO wording, 2026-10-04 (via Tengu)
+
+- Stream wire (proposal §8c): ratified as proposed.
+- 59/2 Device-tab and 59/3 manifest-editor strings: "screenshots are fine". Bob asked whether the manifest editor's ✕ was a Monitor toggle; it is Remove; Bob: "the x for remove is fine", so it stays as ✕.

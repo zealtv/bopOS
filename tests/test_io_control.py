@@ -359,6 +359,20 @@ class BusInventoryTests(unittest.TestCase):
 
 
 class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
+    async def test_device_manifest_optional_flags_are_exposed_and_not_stale(self):
+        self.device['params'] = {}
+        self.device['report']['patch'] = 'stage'
+        row = {'name': 'button', 'type': 'switch', 'address': '0x42', 'optional': True}
+        self.dashboard.osc.handle('/os/params', [json.dumps({'params': [], 'io_modules': [row]})], '192.0.2.1')
+        self.assertEqual(self.device['io_modules'], [row])
+        self.assertEqual(self.device['io_modules_patch'], 'stage')
+        self.assertEqual(self.events[-1][1]['io_modules'], [row])
+        self.dashboard.osc.handle('/os/params', [json.dumps({'params': []})], '192.0.2.1')
+        self.assertEqual(self.device['io_modules'], [])
+        self.device['io_modules'] = [row]
+        self.dashboard.osc.handle('/os/params', [], '192.0.2.1')
+        self.assertEqual(self.device['io_modules'], [])
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         args = SimpleNamespace(data_dir=self.temp.name, devices_file=None,
