@@ -33,6 +33,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    marked; a scan doesn't disturb live peripherals; real driver writes and
    errors; the Finn Jet wrong-address LIS3DH case. Details in
    `59-i2c-inventory/1-scan-transport.tied/verification.md`.
+4. **Performance mode (77)**: on a Pi, logging really stops writing to the SD
+   card in Performance (tmpfs); the mode survives a hard power cut; the locks
+   hold on the device; audio carries on uninterrupted when switching. Details
+   in `77-performance-mode.tied/verification.md`.
 
 ## Ruled
 
