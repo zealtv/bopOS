@@ -28,6 +28,19 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     worst defect, malformed sync killing the node's listener, is already
     fixed. Approve the narrow extraction?
 
+14. **Monitor transport labels (71/2)**: built and merged; parked until you OK
+    the new wording. Screenshots: `screenshots/monitor-71-2-*.png`. Labels:
+    "Capture filters", "Address starts with", "Exclude addresses", "Device
+    UIDs", "All devices", "Include raw lines: Sync / Heartbeats / Points";
+    "Sync, heartbeats, points excluded." / "All traffic classes included.";
+    "Rates/s: sync N, heartbeats N, points N. N filtered · N unattributed";
+    "⚠ N matching messages dropped · N previews shortened"; history notes
+    ("Capture started; hidden or paused traffic was not retained.", "Capture
+    paused; no history is collected.", "Capture filters changed; …",
+    "Connection opened; …", "Connection lost; traffic during the gap is
+    unknown."); System "N / N with 3+ samples". Full list in
+    `71-network-traffic/2-monitor-transport.waiting/build-verification.md`.
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
