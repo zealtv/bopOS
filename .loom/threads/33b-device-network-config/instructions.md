@@ -6,7 +6,7 @@ that's been deliberately secured.
 
 **Status:** revived by Bob 2026-10-03 (parked since 2026-07-23). `0` ruled
 2026-10-04 (workshop provisioning + network isolation, `0-lan-trust-review/ruling.md`);
-`1` is a Bob-gated design; `2` builds it.
+`1` ratified 2026-10-04 (`1-network-config-design/decisions.md`); `2` builds it.
 
 ## What Bob wants (2026-10-03)
 

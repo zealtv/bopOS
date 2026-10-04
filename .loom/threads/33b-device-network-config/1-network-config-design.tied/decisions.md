@@ -1,6 +1,6 @@
 # Network config design — proposal for Bob
 
-**Status:** proposal, 2026-10-04 · awaiting ratification
+**Status:** ratified by Bob, 2026-10-04 (see Ruling at the end)
 **Builds on:** `../0-lan-trust-review/ruling.md` (workshop provisioning,
 network isolation, priority + disable, network manager decided in `2`).
 
@@ -147,6 +147,12 @@ administration. It moves into the project surface when `66-projects` lands.
 - Country selector.
 - **Send to all devices** button; per-device chip in the device list: *in sync*,
   *differs*, *needs passphrase*, *no Wi-Fi*, *sending…*, *error*.
+- **Passphrase-on-the-network warning** (Bob, 2026-10-04): whenever a send
+  will carry one or more passphrases, the dashboard says so before sending
+  and asks to confirm — proposed wording: "⚠ This sends N passphrase(s) over
+  the network. Anything on this network right now can read them. Send only
+  on your own network." Sends that carry no passphrase (reorder, enable,
+  disable) go straight through.
 - **Warnings** (⚠, amber), not blocks:
   - disabling or removing a network that devices are on right now — "N
     devices are on *workshop* now; they'll move to the next enabled network
@@ -180,7 +186,8 @@ administration. It moves into the project surface when `66-projects` lands.
 > with `secret: true|false`, `unmanaged` SSIDs) and never a passphrase.
 > **Trust:** the request travels as an installation-LAN broadcast like every
 > exact-device verb, readable by any host on that network; it is intended for
-> provisioning on an operator-controlled network only. Devices in the field
+> provisioning on an operator-controlled network only, and the dashboard
+> warns before any send that carries a passphrase. Devices in the field
 > join only hidden, passphrase-protected networks.
 
 ## Questions for Bob
@@ -193,3 +200,15 @@ administration. It moves into the project surface when `66-projects` lands.
 3. **First-slice scope:** WPA-Personal only (no open networks, no Ethernet or
    static IP) — OK?
 4. Anything in the model or wire above you'd change before it's built?
+
+## Ruling — Bob, 2026-10-04
+
+1. **Host passphrases: yes** — `state/wifi-secrets.json`, 0600.
+2. **Placement: yes** — Wi-Fi networks panel on the Devices tab, moving into
+   the project surface when `66-projects` lands.
+3. **First slice: yes** — WPA-Personal only; no open networks, Ethernet or
+   static IP.
+4. **Addition:** *"perhaps a warning when sending a passphrase over the
+   network noting it will be visibile to anything currently on the network."*
+   Added to §6 and the amendment. The wording above is a proposal; Bob sees
+   it in the running app in `2` before it's final.
