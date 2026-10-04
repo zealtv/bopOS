@@ -21,6 +21,17 @@ is not here — it goes away with `68-remove-git-patch-route`.
 5. `5-browser-tier-red` — five browser journeys have failed since before
    2026-09-03.
 
+Added 2026-10-05 from `lore:2026-10-05-bopos-review-core-libs` (74/1):
+
+12. `12-manifest-boundaries` — CLI quoting (high), malformed values raise,
+    unwireable numbers validate.
+13. `13-generator-correctness` — explicit-start loops, missed int crossings,
+    unbounded fade work (high).
+14. `14-point-boundaries` — malformed point input throws or clears; finished
+    paths never go quiet.
+15. `15-store-temp-files` — one key's write deletes another key (high).
+16. `16-file-fetch-walk` — `file:` fetch follows source symlinks.
+
 ## Constraints
 
 - Each fix lands with a test that fails before it.

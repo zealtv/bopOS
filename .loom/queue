@@ -1,5 +1,6 @@
 76-bob-review
 9-module-panels
+12-manifest-boundaries
 6-live-sensor-in-patch-edit
 2-network-config-implementation
 75-bob-rulings
@@ -8,10 +9,14 @@
 2-device-enabled-honesty
 2-monitor-transport
 3-shared-node-protocol
-1-review-core-libs
 3-review-install-and-services
 2-review-frontend-modules
 4-review-show-model
 2-split-osc-handle
 5-dashboard-js-readability
 1-split-handle-ws
+15-store-temp-files
+13-generator-correctness
+16-file-fetch-walk
+14-point-boundaries
+6-split-manifest-validate

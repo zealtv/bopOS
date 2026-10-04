@@ -1,0 +1,24 @@
+F1 CLI shell evaluation: reproduced
+F2 manifest kind/list: TypeError
+F2 manifest huge integer: OverflowError
+F2 entrypoint NUL: ValueError
+F3 accepted float: OverflowError
+F3 accepted int: error
+F4 explicit-start loop kind: fade
+F5 int fade expected [1,2,1,0], observed: []
+F5 int loop endpoint expected [3,4,0], observed: [[0]]
+F6 accepted infinite duration: OverflowError
+F6 precomputed events even for int / 60s: 2000
+F6 projected events for accepted 1000000h (not allocated): 120000000000
+F7 dashboard falloff list: TypeError
+F7 dashboard path points number: TypeError
+F7 dashboard id infinity: OverflowError
+F7 node id infinity: OverflowError
+F7 node falloff infinity: OverflowError
+F7 accepted unwireable point id: error
+F7 fractional frame count clears all points: ('frame', {})
+F8 assignment.tmp after assignment write: []
+F9 file-fetch vs canonical walk: synced 1 files; source 0 files, destination 1
+F10 completed path still dynamic: True
+positive fetch path guards: 7 rejected paths; destination symlink rejected
+All bounded reproduction assertions passed.
