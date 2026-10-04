@@ -53,6 +53,9 @@
           <small>${escape(row.type)} · <code>${escape(row.address)}</code></small></div>
         <span class="device-io-state" data-state="${escape(moduleState)}" data-optional-missing="${optionalMissing}">${warning ? '<span class="device-io-warning" aria-hidden="true">⚠</span> ' : ""}${optionalMissing ? "missing (optional)" : escape(moduleState)}</span>
         <button type="button" data-io-reinit="${escape(name)}" aria-label="Re-init ${escape(name)}" aria-busy="${repairPending}" ${!device.online || repairPending || !declared ? 'disabled' : ''}>Re-init</button>
+        <label class="device-io-monitor"><input type="checkbox" data-io-monitor="${escape(name)}"
+          ${window.ModulesMonitor?.has(device.uid, name) ? 'checked' : ''}
+          ${!device.online || row.state !== 'running' || installation.performance ? 'disabled' : ''}>Show in Monitor</label>
         ${row.error ? `<code class="device-io-reason">${escape(row.error)}</code>` : ""}
         ${repair?.phase === 'timeout' ? '<output class="device-io-reason" aria-live="polite"><span class="device-io-warning" aria-hidden="true">⚠</span> Re-init timed out. Try again.</output>'
           : repair?.error ? `<output class="device-io-reason" aria-live="polite">Re-init: ${escape(repair.error)}</output>` : ''}</li>`;
@@ -74,6 +77,12 @@
   }
 
   function bind(root, device, send) {
+    root.querySelectorAll('[data-io-monitor]').forEach(input => {
+      input.onchange = () => {
+        window.ModulesMonitor?.toggle(device.uid, input.dataset.ioMonitor, input.checked);
+        input.checked = !!window.ModulesMonitor?.has(device.uid, input.dataset.ioMonitor);
+      };
+    });
     root.querySelectorAll('[data-io-reinit]').forEach(button => {
       button.onclick = () => {
         const name = button.dataset.ioReinit;

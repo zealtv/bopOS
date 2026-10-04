@@ -46,6 +46,7 @@ COMPONENTS = {
     "control-column": [".control-column"],
     "target-card": [".target-card"],
     "device-io": [".device-io"],
+    "module-panels": [".module-panel"],
 }
 
 # A surface legitimately PLACES what it hosts. These properties say where a

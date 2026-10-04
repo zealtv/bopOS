@@ -418,7 +418,7 @@ class Dashboard:
                 return await self.handle_ws(message, ws, supervisor_locked=True,
                                             manifest_locked=manifest_locked)
         locked = kind in {
-            "monitor_probe", "monitor_send", "set_wifi_networks", "send_wifi_networks",
+            "monitor_probe", "monitor_send", "io_write", "set_wifi_networks", "send_wifi_networks",
             "set_fleet_patch", "retry_fleet_patch", "save_patch_manifest",
             "create_patch", "new_patch_version", "relaunch_edit",
         }

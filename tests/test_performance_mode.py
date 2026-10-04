@@ -256,9 +256,11 @@ class HostModeTests(unittest.IsolatedAsyncioTestCase):
         self.dash.state.performance=True
         self.dash.osc.send=mock.Mock(); self.dash.osc.fetch=mock.Mock()
         self.dash.osc.probe=mock.Mock(); self.dash.osc.uid_command=mock.Mock()
+        self.dash.osc.io_write=mock.Mock()
         commands={
             "monitor_probe":{"uid":"node-a","name":"sensor"},
             "monitor_send":{"address":"/all/os/master","args":[.5]},
+            "io_write":{"uid":"node-a","config":{"name":"oled","command":"text","args":["hello"]}},
             "set_wifi_networks":{"config":{}}, "send_wifi_networks":{"confirmed":True},
             "set_fleet_patch":{"patch":"next","confirmed":True},
             "retry_fleet_patch":{"uid":"node-a"}, "save_patch_manifest":{"patch":"next"},
@@ -270,7 +272,7 @@ class HostModeTests(unittest.IsolatedAsyncioTestCase):
         for kind,data in commands.items():
             await self.dash.handle_ws({"type":kind,"data":data},self.ws)
             self.assertEqual(self.ws.send_json.call_args.args[0]["type"],"error",kind)
-        for method in (self.dash.osc.send,self.dash.osc.fetch,self.dash.osc.probe,self.dash.osc.uid_command):
+        for method in (self.dash.osc.send,self.dash.osc.fetch,self.dash.osc.probe,self.dash.osc.uid_command,self.dash.osc.io_write):
             method.assert_not_called()
         self.assertFalse((Path(self.args.patches_dir)/"next").exists())
 
