@@ -150,7 +150,7 @@ editor limit should widen when a device needs more.
 ## Step 5 — put it on the fleet
 
 When real nodes are on the network (see [INSTALL.md](INSTALL.md)) and the
-Execution target is **Live fleet**:
+Execution target is **Live**:
 
 1. Open the **Patches** tab.
 2. Pick your patch in the **Fleet patch** selector. (Just edited files

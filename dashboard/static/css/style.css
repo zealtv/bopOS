@@ -88,31 +88,42 @@ button:focus-visible,summary:focus-visible,input:focus-visible,#spatial .node:fo
 
 
 
-/* Reviewed global-header hierarchy: identity, mode, health, safety, appearance. */
-header{display:grid;grid-template-columns:auto auto minmax(24px,1fr) auto auto;gap:0 12px;height:var(--header-h);padding:0 16px}
-header h1{margin:0}.app-brand{white-space:nowrap}.app-header-spacer{min-width:24px}
-#execution-target.execution-options{min-height:38px;padding:3px;overflow:visible}
-.execution-options button{min-height:30px;padding:6px 11px;white-space:nowrap}
-.app-health{display:flex;align-items:center;gap:14px;color:var(--dim);white-space:nowrap}
+/* Global header (66-projects/8-header-tidy): one statement, then status —
+   brand · Project/Site/Patch · mode switch · · · health · theme. Every control
+   is 30px tall, 5px clear of the 40px bar. Flex in DOM order when wide; narrow
+   widths reorder into a status row over a statement row, the spacer forcing
+   the break. Explicit orders and sizes here outrank the older header rules
+   higher up this file. */
+header{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;height:var(--header-h);padding:0 16px}
+header h1{margin:0;flex:none}.app-brand{white-space:nowrap}
+#project-bar{flex:0 1 auto}
+.app-header-spacer{flex:1 1 12px;min-width:12px}
+#execution-target.execution-options{flex:none;width:auto;height:30px;min-height:0;padding:2px;gap:2px;border-radius:999px;background:var(--control);overflow:visible}
+.execution-options button{height:24px;min-height:24px;padding:0 12px;border-radius:999px;line-height:1;white-space:nowrap}
+.app-health{display:flex;align-items:center;gap:14px;color:var(--dim);font-size:14px;white-space:nowrap}
 #ws-status{display:inline-flex;align-items:center;gap:7px;text-transform:capitalize}
 #ws-status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--offline-mark)}
 #ws-status.online::before{background:var(--green);box-shadow:0 0 6px color-mix(in srgb,var(--green) 55%,transparent)}
 #mute-all{min-height:40px;white-space:nowrap}
-.theme-control{display:flex;align-items:center;gap:7px}.theme-control select{min-height:var(--row-h)}
+.theme-control{display:flex;align-items:center;gap:7px;margin:0}.theme-control select{height:30px;min-height:30px}
 @media(max-width:1049px){
-  header{grid-template-columns:auto minmax(0,1fr) auto;height:auto;min-height:var(--header-h);gap:9px 12px;padding:9px 20px}
-  .app-header-spacer{display:none}
-  .app-health{justify-self:end}
-  #execution-target.execution-options{grid-column:1/-1;grid-row:2;width:100%;order:initial}
-  .execution-options button{flex:1}
+  header{flex-wrap:wrap;height:auto;min-height:var(--header-h);row-gap:6px;padding:5px 16px}
+  header h1{order:0;margin-right:auto}
+  .app-health{order:1}
+  .theme-control{order:2}
+  .app-header-spacer{order:3;flex:0 0 100%;min-width:0;height:0}
+  #project-bar{order:4}
+  #execution-target.execution-options{order:5}
 }
 @media(max-width:700px){
-  header{grid-template-columns:auto minmax(0,1fr) auto;padding-inline:12px}
-  .app-health{justify-self:end}
+  header{padding-inline:12px}
   #online-count{display:none}
-  .theme-control{grid-column:3;grid-row:1;order:initial}
   .theme-control>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-  #execution-target.execution-options{grid-row:2}
+}
+@media(max-width:560px){
+  #project-bar{flex:1 1 100%;max-width:none}
+  #execution-target.execution-options{flex:1 1 100%}
+  .execution-options button{flex:1}
 }
 
 /* Paired operational status surfaces for tags, badges, and notices. */

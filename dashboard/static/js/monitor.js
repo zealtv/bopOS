@@ -129,7 +129,7 @@
           </section>
           <section class="monitor-system-card">
             <h3>Execution</h3>
-            <strong data-monitor-system="execution">Live Fleet</strong>
+            <strong data-monitor-system="execution">Live</strong>
             <small data-monitor-system="mute">output safety unknown</small>
           </section>
           <section class="monitor-system-card">
@@ -698,7 +698,7 @@
     const clocked = online.filter(device => Number(device.sync?.samples) >= 3).length;
     const mode = state?.supervisor?.mode || "off";
     const modeName = mode === "simulate" ? "Simulation"
-      : mode === "edit" ? "Patch Edit" : "Live Fleet";
+      : mode === "edit" ? "Patch Edit" : "Live";
     const patch = state?.fleet_patch || {};
     systemText("connection", systemConnected ? "connected" : "disconnected");
     systemText("execution", modeName);

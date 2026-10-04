@@ -57,7 +57,7 @@ where the audition relay derives and forwards fixed-stereo matrices. This
 private preview state is never broadcast onto the installation LAN and is not
 part of the fleet OSC contract.
 
-The header's **Execution target** toggle (Live fleet / Simulation / Patch
+The header's **Execution target** toggle (Live / Simulation / Patch
 edit) manages this audition rig directly: switching to **Simulation** runs
 one selected patch across the whole simulated fleet, and every valid folder
 under `patches/` is already available. Use the global Fleet patch selector
