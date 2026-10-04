@@ -76,20 +76,30 @@ playback.
   - Wi-Fi changes;
   - patch changes: pushes, Set Live, New Version, manifest saves and
     entering Patch Edit.
-- **Devices enforce it**, and it **fails safe**. A device boots in
-  Performance and stays there until a dashboard tells it otherwise. The
-  dashboard repeats the mode every 10 s; a device that hears nothing for 60 s
-  goes back to Performance. Development therefore needs a dashboard present,
-  and an unattended fleet can't be left streaming or writing logs to SD.
-- The dashboard starts in development, so Performance is chosen deliberately
-  (Bob). On a fleet already in Performance (e.g. the dashboard restarted
-  mid-show), the dashboard shows what the devices report before you change it.
+- **Devices enforce it, and remember it.** Each device saves its mode (one
+  small write, only when it changes) and keeps it across reboots. A box set to
+  Performance stays there through a hard power cut; a bench box stays in
+  development. A newly installed device starts in development. Nothing
+  expires: with no dashboard, a device keeps what it was last told.
+- **The toggle is never locked.** Performance never blocks the way out of
+  Performance, so a Wi-Fi fix mid-show is one switch away. Only a network
+  failure can cut a device off, and the mode never makes that worse.
+- **The dashboard saves its mode** on the host and brings devices into line:
+  one that appears or reports a different mode is sent the fleet's mode, as
+  assignments are re-sent today. A dashboard restart mid-show comes back in
+  Performance and changes nothing.
+- The header shows the fleet's mode, with a warning while devices disagree
+  ("2 devices still in development").
 
 **Rejected.**
 - *Tie restrictions to show playback*: you play shows in rehearsal and want
   debugging then.
 - *Dashboard-only enforcement*: a bug or a stale tab could put sensor traffic
   on a show network.
+- *Fail-safe timeout* (boot in Performance, revert after 60 s without a
+  dashboard): Bob saw lockout risk. A device on the wrong network couldn't be
+  given new Wi-Fi, because Wi-Fi changes are locked. Streams already end on
+  their own lease, so the timeout added risk for little gain.
 - *A fourth execution mode*: Performance is independent of where audio runs.
 
 ## 3. Ownership
@@ -231,10 +241,11 @@ The §4 sentence "the six ports stay exactly as deployed" becomes "eight ports;
 **§6**: new subsections:
 
 ```
-/all/os/performance <0|1>            dash → fleet, repeated every 10 s
-    device boots in Performance (1); with no message for 60 s it returns to 1.
-    In Performance the device refuses: io-stream, io-write, probe, wifi-config,
-    and patch distribution/switch requests; it logs to RAM only.
+/all/os/performance <0|1>            dash → fleet; re-sent to any device
+    whose /os/report `performance` differs. The device persists the value
+    (default 0 on first install) and keeps it across reboots. It is never
+    refused. In Performance the device refuses: io-stream, io-write, probe,
+    wifi-config, and patch distribution/switch requests; it logs to RAM only.
 /all/os/to <uid> io-scan              → /os/io-scan <uid> <json>
 /all/os/to <uid> io-modules           → /os/io-modules <uid> <json>
 /all/os/to <uid> io-write <json>      → /os/io-write <uid> <ok|err> <json>
@@ -265,13 +276,14 @@ optional). Satisfied per device; the device reports presence.
 
 **§15**: a v1.21 row.
 
-## Questions for Bob (for ratification)
+## Bob's answers, 2026-10-04
 
-1. Ports **5551** and **7771**: any clash with your setups, or a preference?
-2. **Fail-safe:** devices boot in Performance and fall back to it after 60 s
-   without a dashboard. OK? It means development needs the dashboard
-   running; a box on the bench with no dashboard behaves like a show box (no
-   SD logging, no streams).
-3. **Patch Edit locked in Performance**: confirmed as you said. Note it also
-   covers opening the editor to *look* at a patch mid-show.
-4. Retiring `4-sensor-test-window` into the panels, OK?
+1. Ports 5551 and 7771: fine.
+2. Fail-safe timeout: too risky (lockout). Replaced by a remembered,
+   never-locked mode (§2). Bob to confirm.
+3. Patch Edit locked in Performance, including looking at a patch: yes.
+4. Retire `4-sensor-test-window` into the panels: yes.
+
+Open: should the dashboard *ask* "Switch to Performance?" when a show starts
+playing in development? (A prompt, not automatic; rehearsals play in
+development.)
