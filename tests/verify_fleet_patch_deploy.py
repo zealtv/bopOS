@@ -89,8 +89,12 @@ def write_patch(root, name, payload):
 
 
 def deploy_fleet(page, name):
-    page.select_option("#patch-select", name)
-    page.click("#patch-switch")
+    """Select one of the project's patches and Set Live it (Patches tab)."""
+    page.click(f'#patch-list [data-patch="{name}"]')
+    page.wait_for_function(
+        "name => document.querySelector('#patch-detail h2')?.textContent.startsWith(name)",
+        arg=name)
+    page.click("#patch-deploy")
 
 
 def main():
@@ -103,7 +107,8 @@ def main():
         write_patch(patches, "demo-pd", b"demo")
         write_patch(patches, "alpha", b"alpha-bytes")
         write_patch(patches, "beta", b"beta-bytes")
-        state = {"schema": 1, "name": "Fleet patch deployment rig", "seats": {
+        state = {"schema": 1, "name": "Fleet patch deployment rig",
+                 "patches": ["alpha", "beta", "demo-pd"], "seats": {
             "1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
                   "params": {}, "bound": UID_A},
             "2": {"id": 2, "name": "Ciro", "positions": [[2, 1]],
@@ -158,31 +163,8 @@ def main():
                     arg=UID_B)
 
                 page.click("#tab-button-patches")
-                page.wait_for_selector("#tab-patches:not([hidden]) #fleet-patch-panel")
-                page.wait_for_function(
-                    "() => [...document.querySelectorAll('#patch-select option')]"
-                    ".some(option => option.value === 'beta')")
-
-                # Patch choice and actions stay aligned in one deploy row.
-                row = page.evaluate("""() => {
-                  const box = node => node.getBoundingClientRect();
-                  const deploy = document.querySelector('.fleet-patch-deploy');
-                  const parts = ['#patch-select',
-                                 '.fleet-patch-actions']
-                    .map(selector => document.querySelector(selector));
-                  if (!deploy || parts.some(part => !part)) return null;
-                  const rect = box(deploy);
-                  const tallest = Math.max(...parts.map(part => box(part).height));
-                  const centres = parts.map(part =>
-                    Math.round(box(part).top + box(part).height / 2));
-                  return {height: Math.round(rect.height),
-                          tallest: Math.round(tallest),
-                          centreSpread: Math.max(...centres) - Math.min(...centres)};
-                }""")
-                check("the deploy row is a single line",
-                      row and row["height"] <= row["tallest"] + 2, repr(row))
-                check("patch and actions share one vertical centre",
-                      row and row["centreSpread"] <= 1, repr(row))
+                page.wait_for_selector(
+                    '#tab-patches:not([hidden]) #patch-list [data-patch="beta"]')
 
                 # --- deploy alpha to the whole fleet: both converge ---
                 deploy_fleet(page, "alpha")

@@ -46,9 +46,11 @@ Two equally good ways:
 cp -r patches/demo-pd patches/my-piece
 ```
 
+then list it in your project with **Add Existing…** on the **Patches** tab.
+
 **Or let the dashboard scaffold it:** open the **Patches** tab and press
-**New patch…**. It creates the folder, writes a valid manifest, and copies
-the Pure Data template stub as your `main.pd`.
+**New patch…**. It creates the folder, writes a valid manifest, copies
+the Pure Data template stub as your `main.pd`, and lists it in the project.
 
 Your folder under `patches/` is yours — the bopOS repository deliberately
 ignores it, so nothing you do there can tangle with the framework.
@@ -75,7 +77,7 @@ when done), or edit the JSON directly:
 }
 ```
 
-![Patches tab: the fleet patch selector above the in-browser manifest editor](images/tab-patches.png)
+![Patches tab: the project's patches beside the selected patch and its manifest editor](images/tab-patches.png)
 
 Line by line:
 
@@ -153,9 +155,9 @@ When real nodes are on the network (see [INSTALL.md](INSTALL.md)) and the
 Execution target is **Live**:
 
 1. Open the **Patches** tab.
-2. Pick your patch in the **Fleet patch** selector. (Just edited files
-   outside the browser? **Refresh catalog** first.)
-3. Press **Deploy as fleet patch** and confirm.
+2. Select your patch in the list. (Not there? **Add Existing…**. Just edited
+   files outside the browser? Refresh the catalog with **↻** first.)
+3. Press **Set Live** — **Push** if it is already the live patch — and confirm.
 
 The dashboard converges every online assigned device to your exact bytes —
 transfers are diff-based, resumable, and hash-verified — then restarts
@@ -227,6 +229,7 @@ is excluded from distribution and fingerprints.
 | start a new patch | **Patches → New patch…**, or copy `patches/demo-pd/` |
 | declare a control | manifest `params` (+ `"dashboard": true` for live use) |
 | hear my patch now | Execution target → **Simulation** |
-| ship to the fleet | **Patches →** select **→ Deploy as fleet patch** |
+| try changes while the fleet plays | **Patches → New Version** |
+| ship to the fleet | **Patches →** select **→ Set Live** |
 | ship big media | `assets/<slot>/` + **Assets → Send** |
 | fire a synchronized event | manifest `cues` + the Dashboard cue trigger |

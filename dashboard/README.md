@@ -60,8 +60,8 @@ part of the fleet OSC contract.
 The header's **Execution target** toggle (Live / Simulation / Patch
 edit) manages this audition rig directly: switching to **Simulation** runs
 one selected patch across the whole simulated fleet, and every valid folder
-under `patches/` is already available. Use the global Fleet patch selector
-to restart the managed engines into another host patch. Send/Sync is
+under `patches/` is already available. **Set Live** on another of the
+project's patches (Patches tab) restarts the managed engines into it. Send/Sync is
 intentionally absent in this mode because there is no remote filesystem to
 converge; live fleet devices are never driven while simulating.
 
@@ -171,9 +171,13 @@ LAN source address from each real device's route. The explicit flag remains
 useful on multi-interface or proxied installations.
 
 The defaults are the repository's `assets/` and `patches/` directories. The
-global Fleet patch selector lists valid host catalog patches. **Deploy as
-fleet patch** is one confirmed operation: it converges the selected bytes
-across online assigned devices, then switches their audio engines. Row badges show
+Patches tab lists the project's patches (`patches` in `project.json`); the one
+the fleet runs is the Patch, tagged **Live**. **Add Existing…** lists another
+valid catalog folder in the project, and **New Version** copies the Patch's
+folder under a new name (the trailing number bumped, else `-v2`) without
+changing what the fleet runs. **Set Live** — **Push** for the live patch after
+editing it in place — is one confirmed operation: it converges the selected
+bytes across online assigned devices, then switches their audio engines. Row badges show
 fleet convergence; selecting a row opens its observed inventory, fingerprints,
 fetch phase, manifest and framework revision facts, and Retry or Re-switch remediation.
 

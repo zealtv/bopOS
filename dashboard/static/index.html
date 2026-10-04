@@ -105,15 +105,14 @@
       <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
     </section>
     <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
-      <section id="fleet-patch-panel">
-        <div class="section-head"><h2>Fleet patch</h2><button id="refresh-distribution" class="icon-button" title="Refresh host patch and asset catalogs" aria-label="Refresh host patch and asset catalogs"><span class="icon-glyph" aria-hidden="true">↻</span></button></div>
-        <div class="fleet-patch-deploy"><select id="patch-select" aria-label="Fleet patch"></select><div class="fleet-patch-actions"><button id="patch-switch">Deploy as fleet patch</button></div></div>
-        <output id="fleet-patch-summary" class="dim" aria-live="polite">No fleet patch set</output>
-      </section>
-      <section id="editor-panel">
-        <div class="section-head"><div><h2>Patches</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
-        <div class="editor-launch"><label>host patch <select id="editor-patch" aria-label="Editor host patch"></select></label><button id="editor-launch">Launch editor</button><button id="editor-new-patch">New patch…</button></div>
-        <p id="editor-engine-note" class="dim" hidden></p>
+      <!-- The project's patches as sidebar + detail, like Devices
+           (66-projects/6-patch-versions, mockups 1-3): the list is the picker,
+           so the separate host-patch and fleet-patch pickers are gone. -->
+      <aside class="patch-sidebar">
+        <div class="section-head"><h2>Patches</h2><span class="patch-sidebar-actions"><button id="refresh-distribution" class="icon-button" title="Refresh host patch and asset catalogs" aria-label="Refresh host patch and asset catalogs"><span class="icon-glyph" aria-hidden="true">↻</span></button><button id="patch-new-version">New Version</button></span></div>
+        <input id="patch-filter" class="patch-filter" type="text" placeholder="Filter patches…" aria-label="Filter patches" autocomplete="off">
+        <div id="patch-list" class="patch-list"></div>
+        <div class="patch-list-actions"><button id="patch-add-existing">Add Existing…</button><button id="editor-new-patch">New patch…</button></div>
         <section id="remote-command-editor" aria-labelledby="remote-command-title">
           <div class="section-head"><div><h3 id="remote-command-title">Remote device commands</h3><p class="dim">Project setting · not saved in the patch and not deployed to devices.</p></div><button id="remote-command-save">Save project setting</button></div>
           <fieldset id="remote-command-options">
@@ -125,6 +124,12 @@
           </fieldset>
           <output id="remote-command-feedback" class="dim" aria-live="polite"></output>
         </section>
+      </aside>
+      <div class="patch-main">
+      <section id="patch-detail" aria-live="polite"></section>
+      <section id="editor-panel">
+        <div class="section-head"><div><h2>Manifest &amp; editor</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
+        <p id="editor-engine-note" class="dim" hidden></p>
         <section id="manifest-editor" aria-labelledby="manifest-editor-title">
           <div class="section-head"><h3 id="manifest-editor-title">Manifest</h3><button id="manifest-save">Save manifest</button></div>
           <div id="manifest-readonly"></div>
@@ -159,6 +164,19 @@
           </div>
         </section>
       </section>
+      </div>
+      <dialog id="patch-version-dialog" aria-labelledby="patch-version-title"><form method="dialog">
+        <h2 id="patch-version-title">New Version</h2>
+        <p class="dim">Copies <b data-patch-version-live></b> into a new patch in this project. The fleet keeps running <span data-patch-version-live></span> until you Set Live the new one.</p>
+        <label>Name <input id="patch-version-name" type="text" autocomplete="off"></label>
+        <output id="patch-version-error" class="patch-dialog-error" aria-live="polite"></output>
+        <div class="patch-dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="patch-version-create" value="create">Create Version</button></div>
+      </form></dialog>
+      <dialog id="patch-add-dialog" aria-labelledby="patch-add-title"><form method="dialog">
+        <h2 id="patch-add-title">Add Existing</h2>
+        <label>Patch <select id="patch-add-select"></select></label>
+        <div class="patch-dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="patch-add-confirm" value="add">Add Existing</button></div>
+      </form></dialog>
     </section>
     <section id="tab-assets" class="tab-panel assets-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden>
       <section id="asset-target-panel" aria-labelledby="asset-target-title">

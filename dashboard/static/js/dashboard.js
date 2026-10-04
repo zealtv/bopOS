@@ -15,8 +15,7 @@ let master = 1.0;
 const heartbeats = new Map();
 const seatBindingDrafts = new Map();
 const logDestinationDrafts = new Map();  // uid -> unsaved log destination choice
-let fleetPatchChoice = null;
-let renderedFleetDesired = null;
+let patchFilter = "";
 let distribution = {assets: [], patches: []};
 let assetFeedback = "";
 let assetFeedbackPending = null;
@@ -155,9 +154,6 @@ ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("r
 ws.on("patches", mergeDevice); ws.on("assets", mergeDevice);
 ws.on("distribution", data => {
   distribution=data||{assets:[],patches:[]};
-  if (pendingCreatedPatch && (distribution.patches||[]).some(item=>item.valid&&item.name===pendingCreatedPatch)) {
-    editorPatchChoice=pendingCreatedPatch; pendingCreatedPatch=null;
-  }
   render();
 });
 ws.on("manifest_saved", data => {
@@ -301,7 +297,7 @@ function render() {
     rebind.textContent=venueRebind ? `Rebound: ${labels(venueRebind.rebound)} · Waiting: ${labels(venueRebind.waiting)}` : '';
   }
   renderEditor();
-  renderFleetPatch();
+  renderPatchesTab();
   renderAssets();
   renderGroups();
   renderGroupMap();
@@ -465,33 +461,124 @@ function patchBadge(value) {
   return `<span class="patch-badge patch-badge-${esc(badge)}" title="Fleet patch: ${esc(label)}">${esc(label)}</span>`;
 }
 function badgeTone(value) { return value && !["current","unset"].includes(value) ? "patch-exception" : ""; }
-function renderFleetPatch() {
-  const select=$("#patch-select"), set=$("#patch-switch");
-  if (!select || !set) return;
-  const patches=(distribution.patches||[]).filter(item=>item.valid);
-  const desired=installation.fleet_patch?.name||"";
-  if (desired!==renderedFleetDesired) {
-    fleetPatchChoice=patches.some(item=>item.name===desired)?desired:(patches[0]?.name||null);
-    renderedFleetDesired=desired;
-  } else if (!patches.some(item=>item.name===fleetPatchChoice)) {
-    fleetPatchChoice=patches.some(item=>item.name===desired)?desired:(patches[0]?.name||null);
-  }
-  select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===fleetPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
-  const editing=installation.supervisor?.mode==="edit";
-  select.disabled=!patches.length||editing;
-  set.disabled=!fleetPatchChoice||editing;
-  set.textContent="Deploy as fleet patch";
-  select.onchange=()=>{fleetPatchChoice=select.value;};
-  set.onclick=()=>{
-    const name=select.value; if(!name) return;
-    if(confirm(`Deploy "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});
-  };
-  $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
+function fleetPatchSummary() {
   const assigned=Object.values(installation.seats||{}).map(occupant).filter(Boolean);
   const counts=new Map(); assigned.forEach(device=>counts.set(device.patch_badge||"unknown",(counts.get(device.patch_badge||"unknown")||0)+1));
   const progress=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
   const targets=`${assigned.length} assigned target${assigned.length===1?'':'s'}`;
-  $("#fleet-patch-summary").textContent=desired?`${targets}${progress?` · ${progress}`:''}`:`No fleet patch set`;
+  return installation.fleet_patch?.name?`${targets}${progress?` · ${progress}`:''}`:`No fleet patch set`;
+}
+function projectPatches() {
+  return Array.isArray(installation.patches)?installation.patches:[];
+}
+function catalogPatch(name) {
+  return (distribution.patches||[]).find(item=>item.name===name)||null;
+}
+function patchEngine(item) {
+  const manifest=item?.manifest&&typeof item.manifest==="object"?item.manifest:{};
+  return [manifest.engine??item?.engine, manifest.entrypoint??item?.entrypoint].filter(Boolean).join(" · ");
+}
+// New Version's suggested name: bump a trailing number (kite-v2 -> kite-v3,
+// keeping zero padding), else append -v2; skip names the catalog already has.
+function nextVersionName(live, taken) {
+  let name=live;
+  do {
+    const match=/^(.*?)(\d+)$/.exec(name);
+    name=match?`${match[1]}${String(Number(match[2])+1).padStart(match[2].length,"0")}`:`${name}-v2`;
+  } while (taken.has(name));
+  return name;
+}
+function focusSelectedPatch() {
+  requestAnimationFrame(()=>($("#patch-list .patch-item.selected")||$("#patch-filter"))?.focus());
+}
+function selectPatch(name) {
+  if (name===editorPatchChoice) return;
+  editorPatchChoice=name; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
+  render();
+}
+function launchEditor(patch) {
+  const editor=installation.editor||{}, mode=installation.supervisor?.mode||"off";
+  if (editor.active&&editor.patch===patch) {
+    if (confirm("Stop Patch edit and return audio control to the Live fleet?")) ws.send("set_edit",{active:false,confirmed:true});
+    return;
+  }
+  if (mode!=="edit") {
+    const question=mode==="simulate"
+      ? `Stop the running Simulation and edit "${patch}"?`
+      : `Open "${patch}" in Patch edit? Live fleet devices will not be driven.`;
+    if (!confirm(question)) return;
+  }
+  ws.send("set_edit",{active:true,patch,confirmed:mode!=="edit"});
+}
+function deployPatch(name) {
+  if(confirm(`Deploy "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});
+}
+function renderPatchesTab() {
+  const list=$("#patch-list"), detail=$("#patch-detail");
+  if (!list || !detail) return;
+  const live=installation.fleet_patch?.name||"";
+  const editor=installation.editor||{}, editing=installation.supervisor?.mode==="edit";
+  const names=projectPatches();
+  const filter=$("#patch-filter");
+  filter.oninput=()=>{patchFilter=filter.value;renderPatchesTab();};
+  const needle=patchFilter.trim().toLowerCase();
+  const shown=names.filter(name=>!needle||name.toLowerCase().includes(needle));
+  list.innerHTML=shown.map(name=>{
+    const item=catalogPatch(name);
+    const note=name===live?fleetPatchSummary():(item?.valid?patchEngine(item).split(" · ")[0]:PATCH_BADGE_LABELS.missing);
+    return `<button type="button" class="patch-item${name===editorPatchChoice?' selected':''}" data-patch="${esc(name)}"><span><strong>${esc(name)}</strong><small>${esc(note||"")}</small></span>${name===live?'<span class="patch-live-tag">Live</span>':''}</button>`;
+  }).join("");
+  list.querySelectorAll("[data-patch]").forEach(button=>{button.onclick=()=>selectPatch(button.dataset.patch);});
+  $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
+  const taken=new Set((distribution.patches||[]).map(item=>item.name));
+  const newVersion=$("#patch-new-version");
+  newVersion.disabled=!live||!catalogPatch(live)?.valid;
+  newVersion.onclick=()=>openVersionDialog(live,taken);
+  const addable=(distribution.patches||[]).filter(item=>item.valid&&!names.includes(item.name)).map(item=>item.name);
+  const addExisting=$("#patch-add-existing");
+  addExisting.disabled=!addable.length;
+  addExisting.onclick=()=>{
+    $("#patch-add-select").innerHTML=addable.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join("");
+    $("#patch-add-dialog").showModal();
+  };
+  $("#patch-add-dialog").onclose=()=>{
+    const dialog=$("#patch-add-dialog"), name=$("#patch-add-select").value;
+    if (dialog.returnValue==="add"&&name) {pendingCreatedPatch=name;ws.send("add_project_patch",{patch:name});}
+  };
+  const patch=editorPatchChoice, item=catalogPatch(patch);
+  if (!patch) { detail.innerHTML=`<p class="dim">${esc(fleetPatchSummary())}</p>`; return; }
+  const isLive=patch===live, editingThis=editor.active&&editor.patch===patch;
+  const lastPushed=isLive&&installation.fleet_patch?.staged_at?new Date(installation.fleet_patch.staged_at*1000).toLocaleString([], {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
+  detail.innerHTML=`<div class="patch-detail-head"><h2>${esc(patch)}${isLive?' <span class="patch-live-tag">Live</span>':''}</h2><div class="patch-detail-actions"><button id="patch-edit">${editingThis?'Stop Editor':'Edit'}</button><button id="patch-deploy">${isLive?'Push':'Set Live'}</button></div></div>
+    <p class="dim">${isLive?'The live fleet runs this patch. Edit and push it in place, or make a New Version.':'Not live. Set Live pushes it to the fleet and switches every device to it.'}</p>
+    <dl><dt>Devices</dt><dd>${isLive?`<output id="fleet-patch-summary">${esc(fleetPatchSummary())}</output>`:(live?`on ${esc(live)} (live)`:esc(fleetPatchSummary()))}</dd>${lastPushed?`<dt>Last pushed</dt><dd>${esc(lastPushed)}</dd>`:''}<dt>Engine</dt><dd>${esc(item?.valid?patchEngine(item):PATCH_BADGE_LABELS.missing)}</dd></dl>`;
+  const edit=$("#patch-edit"), deploy=$("#patch-deploy");
+  edit.disabled=!item?.valid&&!editingThis;
+  edit.onclick=()=>launchEditor(patch);
+  deploy.disabled=!item?.valid||editing;
+  deploy.onclick=()=>deployPatch(patch);
+}
+function openVersionDialog(live,taken) {
+  const dialog=$("#patch-version-dialog"), input=$("#patch-version-name"), error=$("#patch-version-error"), create=$("#patch-version-create");
+  dialog.querySelectorAll("[data-patch-version-live]").forEach(node=>{node.textContent=live;});
+  input.value=nextVersionName(live,taken);
+  const check=()=>{
+    const name=input.value.trim();
+    const exists=taken.has(name);
+    error.textContent=exists?`Patch '${name}' already exists.`:"";
+    create.disabled=!name||exists;
+  };
+  input.oninput=check; check();
+  dialog.onclose=()=>{
+    const name=input.value.trim();
+    if (dialog.returnValue==="create"&&name&&!taken.has(name)) {
+      pendingCreatedPatch=name;
+      ws.send("new_patch_version",{name});
+    }
+  };
+  dialog.returnValue="";
+  dialog.showModal();
+  input.select();
 }
 function contextualExecutionPatch() {
   const editor=installation.editor||{}, sim=installation.simulation||{};
@@ -525,7 +612,7 @@ function setExecutionTarget(target) {
   if (target==="edit") {
     if (mode==="edit") {
       activateTab("patches");
-      requestAnimationFrame(()=>$("#editor-patch")?.focus());
+      focusSelectedPatch();
       return;
     }
     const patch=contextualExecutionPatch();
@@ -540,7 +627,7 @@ function setExecutionTarget(target) {
       }
     }
     activateTab("patches");
-    requestAnimationFrame(()=>$("#editor-patch")?.focus());
+    focusSelectedPatch();
   }
 }
 
@@ -893,23 +980,23 @@ function renderEditorPreview(editor) {
 }
 function renderEditor() {
   renderRemoteCommandEditor();
-  const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}}, mode=installation.supervisor?.mode||"off";
+  const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}};
   const patches=(distribution.patches||[]).filter(item=>item.valid);
-  const select=$("#editor-patch"), launch=$("#editor-launch");
-  if (!select || !launch) return;
-  if (!editorPatchChoice || !patches.some(item=>item.name===editorPatchChoice)) {
-    editorPatchChoice=editor.patch&&patches.some(item=>item.name===editor.patch)
-      ? editor.patch : (installation.fleet_patch?.name&&patches.some(item=>item.name===installation.fleet_patch.name)
-        ? installation.fleet_patch.name : patches[0]?.name);
+  // The Patches list is the picker: keep a chosen patch while it is the
+  // project's (or the one being edited); otherwise the edited one, the Patch,
+  // or the first of the project's patches.
+  const names=projectPatches();
+  const selectable=name=>name&&(names.includes(name)||name===editor.patch);
+  // A patch just created, versioned or added is selected once it is both in
+  // the catalog and the project's.
+  if (pendingCreatedPatch && names.includes(pendingCreatedPatch)
+      && patches.some(item=>item.name===pendingCreatedPatch)) {
+    editorPatchChoice=pendingCreatedPatch; pendingCreatedPatch=null;
+    manifestDraft=null; manifestBaseline=null; manifestDirty=false;
   }
-  if (document.activeElement!==select) {
-    select.innerHTML=patches.map(item=>`<option value="${esc(item.name)}" ${item.name===editorPatchChoice?'selected':''}>${esc(item.name)}</option>`).join("")||'<option value="" disabled>No valid host patches</option>';
+  if (!selectable(editorPatchChoice)) {
+    editorPatchChoice=[editor.active?editor.patch:null,installation.fleet_patch?.name,names[0]].find(selectable)||null;
   }
-  select.disabled=!patches.length;
-  select.onchange=()=>{
-    editorPatchChoice=select.value; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
-    select.blur(); renderEditor();
-  };
   const newPatch=$("#editor-new-patch");
   newPatch.onclick=()=>{
     const name=prompt("New patch name (letters, numbers, . _ or -):","")?.trim();
@@ -917,25 +1004,6 @@ function renderEditor() {
     manifestFeedback=`Creating ${name}…`;
     ws.send("create_patch",{name});
     renderEditor();
-  };
-  launch.disabled=editor.active?false:!patches.length;
-  launch.textContent=editor.active?'Stop Editor':'Launch editor';
-  launch.onclick=()=>{
-    if (editor.active) {
-      if (confirm("Stop Patch edit and return audio control to the Live fleet?")) {
-        ws.send("set_edit",{active:false,confirmed:true});
-      }
-      return;
-    }
-    const patch=select.value;
-    if (!patch) return;
-    if (mode!=="edit") {
-      const question=mode==="simulate"
-        ? `Stop the running Simulation and edit "${patch}"?`
-        : `Open "${patch}" in Patch edit? Live fleet devices will not be driven.`;
-      if (!confirm(question)) return;
-    }
-    ws.send("set_edit",{active:true,patch,confirmed:mode!=="edit"});
   };
   $("#editor-status").textContent=editor.active?`${editor.status||"running"} · ${editor.patch}`:(editor.status||"off");
   const closed=editor.active&&editor.engine_alive!=null&&Number(editor.engine_alive)===0;

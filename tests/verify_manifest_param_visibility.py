@@ -370,7 +370,7 @@ def main():
                 # visible row order can be asserted directly.
                 stop(fleet)
                 fleet = None
-                page.click("#editor-launch")
+                page.click("#patch-edit")
                 page.wait_for_function(
                     "() => installation.supervisor?.mode === 'edit'"
                     " && installation.editor?.patch === 'alpha'")

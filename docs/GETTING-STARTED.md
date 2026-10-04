@@ -78,9 +78,10 @@ the fifth simulated node here — wait in this list until bound to a Seat.
 
 ![Patches tab: fleet patch deployment and the manifest editor](images/tab-patches.png)
 
-**Patches** manages what the fleet plays: pick a patch from the host
-catalog, **Deploy As Fleet Patch** to converge every node to it, and edit
-patch manifests — parameters, cues, capabilities — right in the browser.
+**Patches** manages what the fleet plays: pick one of the project's patches,
+**Set Live** to converge every node to it, make a **New Version** to try
+changes while the fleet keeps playing, and edit patch manifests — parameters,
+cues, capabilities — right in the browser.
 
 **Assets** delivers big media (sample packs, textures) to one device at a
 time and shows exactly what each box has installed. **Show** is the
