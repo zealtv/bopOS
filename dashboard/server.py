@@ -350,6 +350,7 @@ class Dashboard:
             "forget_device", "forget_offline_unbound", "set_room",
             "set_point", "clear_point", "select_site",
             "open_project", "create_project", "rename_project", "create_site",
+            "open_show", "create_show", "rename_show", "delete_show",
             "set_facilitator_commands",
             "monitor_send", "monitor_probe",
         }
@@ -1172,6 +1173,8 @@ class Dashboard:
                 self.sync_seat_groups(seat)
             self.osc.send_audition_listener()
             await self.broadcast("state")
+        elif kind in {"open_show", "create_show", "rename_show", "delete_show"}:
+            await self.manage_show(kind, data, ws)
         elif kind == "undo_show":
             await self.undo_show(ws)
         elif kind == "add_step":
@@ -1226,15 +1229,78 @@ class Dashboard:
             self.osc.request(uid, "report")
 
     def load_project_show(self):
-        """Load the project's show; a damaged file loads read-only.
+        """Load the project's open show; a damaged file loads read-only.
 
         Same rule as project.json: the original is preserved, an invalid-file
-        notice says so, and show writes are blocked for this session.
+        notice says so, and show writes are blocked until another show opens.
+        An unmigrated show.json loads the same way, so it is never orphaned.
         """
+        stale = getattr(self, "show_notice_path", None)
+        if stale:
+            self.state.data["notices"] = [notice for notice in self.state.data["notices"]
+                                          if f'"{stale}"' not in notice]
         self.show, valid = show_model.load_show(self.state.show_path)
-        self.show_load_invalid = not valid
-        if not valid:
-            self.state._invalid_file_notice(self.state.show_path)
+        damaged = self.state.legacy_show_path if self.state.show_unmigrated else (
+            None if valid else self.state.show_path)
+        # The file name is the show's name.
+        self.show["name"] = self.state.data["current_show"]
+        self.show_load_invalid = damaged is not None
+        self.show_notice_path = damaged
+        if damaged:
+            self.state._invalid_file_notice(damaged)
+
+    def show_playing(self):
+        return bool(self.show_engine.playback)
+
+    async def manage_show(self, kind, data, ws):
+        """New, open, rename and delete a project's shows (66/10).
+
+        Allowed in every mode, refused while a show is playing; opening one
+        is the open-project sequence for the show alone.
+        """
+        name, failure = data.get("name"), {
+            "open_show": "That show could not be opened.",
+            "create_show": "The show could not be created.",
+            "rename_show": "The show could not be renamed.",
+            "delete_show": "The show could not be deleted."}[kind]
+        async with self.show_edit_lock:
+            if self.show_playing():
+                await self.ws_error(ws, failure)
+                return
+            try:
+                if kind == "open_show":
+                    if name == self.state.data["current_show"]:
+                        return
+                    self.state.select_show(name)
+                elif kind == "create_show":
+                    source = data.get("source")
+                    if source is not None and source not in self.state.list_shows():
+                        raise ValueError("Show")
+                    self.state.create_show(name, source)
+                elif kind == "rename_show":
+                    if name == self.state.data["current_show"]:
+                        return
+                    self.require_show_writable()
+                    self.state.rename_show(name)
+                    for doc in (self.show, *self.show_undo):
+                        doc["name"] = name
+                    await self.broadcast("show", self.show)
+                    await self.broadcast("state")
+                    return
+                else:
+                    self.state.delete_show(name)
+                    await self.broadcast("state")
+                    return
+            except (OSError, TypeError, ValueError):
+                await self.ws_error(ws, failure)
+                return
+            await self.show_engine.stop_all_steps()
+            self.load_project_show()
+            self.show_engine.show = self.show
+            self.show_undo.clear()
+            await self.broadcast("show", self.show)
+            await self.broadcast("show_warnings", self.show_warnings())
+            await self.broadcast("state")
 
     def project_unassign_set(self, candidate):
         bound = {seat.get("bound") for seat in candidate.seats.values() if seat.get("bound")}

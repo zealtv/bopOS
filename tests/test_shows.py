@@ -1,0 +1,282 @@
+"""A project's several shows: storage, migration, and the menu's show actions."""
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest import mock
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path[:0] = [str(REPO), str(REPO / "dashboard"), str(REPO / "tools")]
+from state import InstallationState
+from server import Dashboard
+from migrate_shows import migrate_shows
+import show_model
+
+
+STEP = {"kind": "step", "uid": "0000000a", "alias": "Opening", "duration_s": 4,
+        "play_count": 1, "then_actions": [], "messages": []}
+
+
+def files(root):
+    return {path: path.read_bytes() for path in Path(root).rglob("*") if path.is_file()}
+
+
+class ShowStorageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.state = InstallationState(self.root)
+        self.state.save()
+        show_model.save_show(self.state.show_path, dict(show_model.empty_show("Show"), items=[STEP]))
+
+    def test_new_shows_are_empty_or_copies_and_become_current(self):
+        self.state.create_show("Second Half", "Show")
+        self.assertEqual(self.state.data["current_show"], "Second Half")
+        self.assertEqual(self.state.show_path, str(self.root / "projects/default/shows/Second Half.json"))
+        source = show_model.load_show(self.state.show_file("Show"))[0]
+        self.assertEqual(json.loads(Path(self.state.show_path).read_text()),
+                         dict(source, name="Second Half"))
+        self.state.create_show("Rehearsal")
+        self.assertEqual(json.loads(Path(self.state.show_path).read_text()),
+                         show_model.empty_show("Rehearsal"))
+        self.assertEqual(self.state.list_shows(), ["Rehearsal", "Second Half", "Show"])
+        reloaded = InstallationState(self.root)
+        self.assertEqual(reloaded.data["current_show"], "Rehearsal")
+        self.assertEqual(json.loads(Path(reloaded.path).read_text())["current_show"], "Rehearsal")
+        self.assertEqual(reloaded.public()["shows"], ["Rehearsal", "Second Half", "Show"])
+        self.assertEqual(reloaded.public()["current_show"], "Rehearsal")
+
+    def test_open_show_before_its_first_edit_copies_empty_and_is_listed(self):
+        self.state.create_show("Fresh")
+        os.remove(self.state.show_path)
+        self.assertIn("Fresh", self.state.list_shows())
+        self.state.create_show("Copy", "Fresh")
+        self.assertEqual(json.loads(Path(self.state.show_path).read_text())["items"], [])
+
+    def test_names_collisions_and_missing_sources_change_nothing(self):
+        self.state.create_show("Other")
+        self.state.select_show("Show")
+        for name in ("", "../bad", "bad/name", "..", " leading", "trailing ", "a\nb", "Other", "Show", None, 3):
+            with self.subTest(name=name):
+                before = files(self.root)
+                with self.assertRaises((ValueError, OSError, TypeError)): self.state.create_show(name)
+                if name != "Show":
+                    with self.assertRaises((ValueError, OSError, TypeError)): self.state.rename_show(name)
+                self.assertEqual(files(self.root), before)
+                self.assertEqual(self.state.data["current_show"], "Show")
+        before = files(self.root)
+        for source in ("Missing", "../default/project"):
+            with self.assertRaises((ValueError, OSError)): self.state.create_show("New", source)
+        with self.assertRaises(OSError): self.state.select_show("Missing")
+        self.assertEqual(files(self.root), before)
+
+    def test_rename_moves_the_file_and_rolls_back_a_failed_pointer_write(self):
+        original = Path(self.state.show_path).read_bytes()
+        self.state.rename_show("Opening Night")
+        self.assertFalse((self.root / "projects/default/shows/Show.json").exists())
+        self.assertEqual(Path(self.state.show_path).read_bytes(), original)
+        self.assertEqual(InstallationState(self.root).data["current_show"], "Opening Night")
+        before = files(self.root)
+        with mock.patch.object(self.state, "save", side_effect=OSError("disk")):
+            with self.assertRaises(OSError): self.state.rename_show("Closing")
+            with self.assertRaises(OSError): self.state.create_show("Closing")
+        self.assertEqual(files(self.root), before)
+        self.assertEqual(self.state.data["current_show"], "Opening Night")
+
+    def test_delete_takes_only_other_shows(self):
+        self.state.create_show("Other")
+        with self.assertRaises(ValueError): self.state.delete_show("Other")
+        self.state.select_show("Show")
+        self.state.delete_show("Other")
+        self.assertEqual(self.state.list_shows(), ["Show"])
+        for name in ("Other", "Show", "../default/project"):
+            with self.assertRaises((ValueError, OSError)): self.state.delete_show(name)
+        self.assertTrue(Path(self.state.show_path).exists())
+
+    def test_invalid_current_show_blocks_the_project(self):
+        doc = json.loads(Path(self.state.path).read_text())
+        Path(self.state.path).write_text(json.dumps(dict(doc, current_show="../x")))
+        self.assertTrue(InstallationState(self.root)._load_invalid)
+
+    def test_project_rename_carries_its_shows(self):
+        self.state.create_show("Other", "Show")
+        self.state.rename_project("Choir")
+        self.assertEqual(self.state.show_path, str(self.root / "projects/Choir/shows/Other.json"))
+        self.assertEqual(self.state.list_shows(), ["Other", "Show"])
+
+
+class MigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        InstallationState(self.root).save()
+        self.project = self.root / "projects/default/project.json"
+        doc = json.loads(self.project.read_text())
+        del doc["current_show"]
+        self.project.write_text(json.dumps(doc))
+        self.legacy = self.project.with_name("show.json")
+
+    def test_unmigrated_show_loads_read_only_and_refuses_show_actions(self):
+        body = json.dumps({"schema": 1, "name": "Kite", "items": [STEP]}).encode()
+        self.legacy.write_bytes(body)
+        state = InstallationState(self.root)
+        self.assertTrue(state.show_unmigrated)
+        self.assertFalse(state._load_invalid)
+        before = files(self.root)
+        for action in (lambda: state.create_show("New"), lambda: state.rename_show("New"),
+                       lambda: state.select_show("Show"), lambda: state.delete_show("Show")):
+            with self.assertRaises(OSError): action()
+        self.assertEqual(files(self.root), before)
+        dash = object.__new__(Dashboard)
+        dash.state = state
+        dash.load_project_show()
+        self.assertTrue(dash.show_load_invalid)
+        self.assertTrue(any(str(self.legacy) in notice for notice in state.data["notices"]))
+        self.assertEqual(self.legacy.read_bytes(), body)
+
+    def test_stale_pointer_from_an_installation_still_counts_as_unmigrated(self):
+        # The live rig's project.json carried the installation's
+        # `current_show` beside its show.json, with no shows/ folder.
+        doc = json.loads(self.project.read_text())
+        self.project.write_text(json.dumps(dict(doc, current_show="test")))
+        self.legacy.write_text(json.dumps({"schema": 1, "name": "test", "items": [STEP]}))
+        self.assertTrue(InstallationState(self.root).show_unmigrated)
+        migrate_shows(self.project)
+        state = InstallationState(self.root)
+        self.assertFalse(state.show_unmigrated)
+        self.assertEqual(show_model.load_show(state.show_path)[0]["items"][0]["alias"], "Opening")
+
+    def test_migration_converts_byte_exact_and_keeps_every_source(self):
+        body = json.dumps({"schema": 1, "name": "Kite Choir", "items": [STEP]}, indent=4).encode()
+        self.legacy.write_bytes(body)
+        original = self.project.read_bytes()
+        created = migrate_shows(self.project)
+        self.assertEqual(created, self.project.parent / "shows/Kite Choir.json")
+        self.assertEqual(created.read_bytes(), body)
+        self.assertEqual(self.legacy.read_bytes(), body)
+        self.assertEqual(self.project.with_name("project.json.pre-shows").read_bytes(), original)
+        state = InstallationState(self.root)
+        self.assertFalse(state.show_unmigrated)
+        self.assertEqual(state.data["current_show"], "Kite Choir")
+        self.assertEqual(state.show_path, str(created))
+        before = files(self.root)
+        with self.assertRaises(FileExistsError): migrate_shows(self.project)
+        self.assertEqual(files(self.root), before)
+
+    def test_unusable_name_becomes_show_and_invalid_show_changes_nothing(self):
+        self.legacy.write_text(json.dumps({"schema": 1, "name": "a/b", "items": []}))
+        self.assertEqual(migrate_shows(self.project).name, "Show.json")
+        self.project.write_bytes(self.project.with_name("project.json.pre-shows").read_bytes())
+        for path in (self.project.with_name("project.json.pre-shows"), self.project.parent / "shows/Show.json"):
+            path.unlink()
+        (self.project.parent / "shows").rmdir()
+        for body in ("broken JSON", '{"schema": 99, "items": []}'):
+            with self.subTest(body=body):
+                self.legacy.write_text(body)
+                before = files(self.root)
+                with self.assertRaises(ValueError): migrate_shows(self.project)
+                self.assertEqual(files(self.root), before)
+                self.assertFalse((self.project.parent / "shows").exists())
+
+
+class ShowActionTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = self.temp.name
+        args = SimpleNamespace(data_dir=root, devices_file=None, listen_port=0, send_port=0,
+            osc_target="127.0.0.1", public_url="http://localhost",
+            patches_dir=root + "/patches", assets_dir=root + "/assets")
+        self.dash = Dashboard(args)
+        self.addCleanup(self.dash.osc.close)
+        self.dash.state.save()
+        self.dash.broadcast = mock.AsyncMock()
+        self.dash.ws_error = mock.AsyncMock()
+        await self.dash.handle_ws({"type": "add_step", "data": {}})
+
+    async def send(self, kind, **data):
+        await self.dash.handle_ws({"type": kind, "data": data})
+
+    async def test_open_new_rename_delete_in_every_mode(self):
+        dash = self.dash
+        for mode in ("off", "simulate", "edit"):
+            with self.subTest(mode=mode):
+                dash.state.data["supervisor"]["mode"] = mode
+                name = f"Copy {mode}"
+                await self.send("create_show", name=name, source="Show")
+                self.assertEqual(dash.state.data["current_show"], name)
+                self.assertEqual(len(dash.show["items"]), 1)
+                self.assertEqual(dash.show["name"], name)
+                self.assertIs(dash.show_engine.show, dash.show)
+                await self.send("open_show", name="Show")
+                self.assertEqual(dash.state.data["current_show"], "Show")
+                await self.send("rename_show", name="Main")
+                self.assertEqual(dash.show["name"], "Main")
+                await self.send("delete_show", name=name)
+                await self.send("rename_show", name="Show")
+                self.assertEqual(dash.state.list_shows(), ["Show"])
+        dash.ws_error.assert_not_awaited()
+        sent = [call.args[0] for call in dash.broadcast.await_args_list]
+        self.assertIn("show", sent)
+        self.assertIn("state", sent)
+
+    async def test_refused_while_a_show_is_playing_or_paused(self):
+        dash = self.dash
+        await self.send("create_show", name="Other")
+        await self.send("open_show", name="Show")
+        before = files(self.temp.name)
+        for state in ("playing", "paused"):
+            dash.show_engine.playback = {"0000000a": {"state": state}}
+            for kind, name in (("open_show", "Other"), ("create_show", "New"),
+                               ("rename_show", "New"), ("delete_show", "Other")):
+                with self.subTest(state=state, kind=kind):
+                    dash.ws_error.reset_mock()
+                    await self.send(kind, name=name)
+                    dash.ws_error.assert_awaited_once()
+        self.assertEqual(dash.state.data["current_show"], "Show")
+        self.assertEqual(files(self.temp.name), before)
+        dash.show_engine.playback = {}
+        await self.send("open_show", name="Other")
+        self.assertEqual(dash.state.data["current_show"], "Other")
+
+    async def test_undo_is_per_show_and_cleared_on_switch(self):
+        dash = self.dash
+        self.assertEqual(len(dash.show_undo), 1)
+        await self.send("rename_show", name="Renamed")
+        self.assertEqual(len(dash.show_undo), 1)
+        await self.send("undo_show")
+        self.assertEqual(dash.show, show_model.empty_show("Renamed"))
+        await self.send("add_step")
+        await self.send("create_show", name="Other")
+        self.assertEqual(dash.show_undo, [])
+        await self.send("undo_show")
+        self.assertEqual(json.loads(Path(dash.state.show_file("Renamed")).read_text())["items"][0]["kind"], "step")
+
+    async def test_failures_report_and_switching_away_clears_a_damaged_show_notice(self):
+        dash = self.dash
+        await self.send("create_show", name="Broken")
+        Path(dash.state.show_path).write_text("broken JSON")
+        await self.send("open_show", name="Show")
+        await self.send("open_show", name="Broken")
+        self.assertTrue(dash.show_load_invalid)
+        self.assertTrue(any("Broken.json" in notice for notice in dash.state.data["notices"]))
+        await self.send("rename_show", name="Fixed")
+        dash.ws_error.assert_awaited_once()
+        await self.send("open_show", name="Show")
+        self.assertFalse(dash.show_load_invalid)
+        self.assertFalse(any("Broken.json" in notice for notice in dash.state.data["notices"]))
+        for kind, data in (("open_show", {"name": "Missing"}), ("create_show", {"name": "Show"}),
+                           ("create_show", {"name": "X", "source": "Missing"}),
+                           ("delete_show", {"name": "Show"})):
+            dash.ws_error.reset_mock()
+            await self.send(kind, **data)
+            dash.ws_error.assert_awaited_once()
+
+
+if __name__ == "__main__":
+    unittest.main()

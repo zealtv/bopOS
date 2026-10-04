@@ -79,8 +79,10 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bopos-transport-monitor-") as temp:
         state_path = str(project_path(temp))
         with open(state_path, "w", encoding="utf-8") as target:
-            json.dump({"schema": 1, "name": "Transport log", "seats": {}}, target)
-        with open(os.path.join(os.path.dirname(state_path), "show.json"), "w",
+            json.dump({"schema": 1, "name": "Transport log", "seats": {},
+                       "current_show": "opening"}, target)
+        os.makedirs(os.path.join(os.path.dirname(state_path), "shows"))
+        with open(os.path.join(os.path.dirname(state_path), "shows", "opening.json"), "w",
                   encoding="utf-8") as target:
             json.dump({"schema": 1, "name": "opening", "items": []}, target)
         assets = os.path.join(temp, "assets")
@@ -158,9 +160,9 @@ def main():
                           and "no usable Pure Data executable" in supervisor_text,
                           supervisor_text)
                     # The System panel must name the project's show
-                    # (08/4/4-current-show-broadcast, then 66-projects/5: one
-                    # show per project, so it reads the show document rather
-                    # than a `current_show` pointer). Behavioural on purpose:
+                    # (08/4/4-current-show-broadcast, then 66-projects/5 and
+                    # 66/10: it reads the open show's document, named after
+                    # its file). Behavioural on purpose:
                     # it asserts what the operator reads, not which message
                     # carried it.
                     show_row = page.locator('[data-monitor-system="show"]')

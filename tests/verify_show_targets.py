@@ -137,7 +137,8 @@ def make_fixture(root):
         }],
     }
     state_path = project_path(root)
-    show_path = state_path.parent / "show.json"
+    show_path = state_path.parent / "shows" / "Show.json"
+    show_path.parent.mkdir()
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
     return state_path, show_path, patches, assets

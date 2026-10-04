@@ -28,12 +28,16 @@ class ProjectStorageMenuTests(unittest.TestCase):
         self.assertEqual(empty.seats, {})
         self.assertEqual(empty.project_patches(), [])
         self.assertIsNone(empty.data["fleet_patch"])
-        self.assertFalse(Path(empty.show_path).exists())
+        # A project always has a current show: a new one has one empty show.
+        self.assertEqual(empty.list_shows(), ["Show"])
+        self.assertEqual(json.loads(Path(empty.show_path).read_text()),
+                         {"schema": 1, "name": "Show", "items": []})
         self.assertEqual(empty.list_sites(), ["default"])
         self.assertEqual(Path(self.state.registry_path).read_bytes(), registry)
         self.assertEqual(Path(self.state.current_path).read_text(), "default\n")
 
     def test_rename_moves_all_project_files_and_updates_only_folder_identity(self):
+        Path(self.state.show_path).parent.mkdir()
         Path(self.state.show_path).write_text('{"schema":1,"items":[]}')
         self.state.create_site("Workshop", "default")
         files = {p.relative_to(Path(self.state.path).parent): p.read_bytes()

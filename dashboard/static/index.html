@@ -5,7 +5,7 @@
 </head>
 <body>
   <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
-  <header><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><button type="button" id="project-bar" aria-label="Project · Site · Patch" aria-haspopup="dialog" aria-expanded="false" popovertarget="project-menu"><span><small>Project</small> <strong id="project-bar-project">—</strong></span><i aria-hidden="true">·</i><span><small>Site</small> <strong id="project-bar-site">—</strong></span><i aria-hidden="true">·</i><span><small>Patch</small> <strong id="project-bar-patch">—</strong></span><span aria-hidden="true">▾</span></button><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"><button data-execution-target="off" aria-pressed="true">Live</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div><span class="app-header-spacer" aria-hidden="true"></span><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div><label class="theme-control"><span>theme</span><select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
+  <header><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><button type="button" id="project-bar" aria-label="Project · Site · Patch · Show" aria-haspopup="dialog" aria-expanded="false" popovertarget="project-menu"><span><small>Project</small> <strong id="project-bar-project">—</strong></span><i aria-hidden="true">·</i><span><small>Site</small> <strong id="project-bar-site">—</strong></span><i aria-hidden="true">·</i><span><small>Patch</small> <strong id="project-bar-patch">—</strong></span><i aria-hidden="true">·</i><span><small>Show</small> <strong id="project-bar-show">—</strong></span><span aria-hidden="true">▾</span></button><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"><button data-execution-target="off" aria-pressed="true">Live</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div><span class="app-header-spacer" aria-hidden="true"></span><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div><label class="theme-control"><span>theme</span><select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
   <!-- Global controls: authored here so their handlers bind at parse time, then
        relocated into the Monitor dock's Globals panel by monitor.js. -->
   <div id="global-controls" class="monitor-globals" hidden>
@@ -202,8 +202,8 @@
   <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/group-slots.js"></script><script src="/js/spatial.js"></script><script src="/js/target-picker.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-column.js"></script><script src="/js/control-cards-model.js"></script><script src="/js/control-host.js"></script><script src="/js/show.js"></script>
   <script src="/js/installation-notice.js"></script>
   <script src="/js/wifi-networks.js"></script>
-  <div id="project-menu" popover aria-label="Project · Site"></div>
-  <dialog id="project-site-dialog" aria-labelledby="project-site-title">
+  <div id="project-menu" popover aria-label="Project · Site · Show"></div>
+  <dialog id="project-site-dialog" class="project-dialog" aria-labelledby="project-site-title">
     <form method="dialog">
       <h2 id="project-site-title">New Site</h2>
       <label>Name <input id="project-site-name" name="name" placeholder="e.g. Town Hall" required></label>
@@ -213,6 +213,17 @@
       </fieldset>
       <p class="dim">Copies its room size, listener and Seat positions.</p>
       <footer><button type="button" id="project-site-cancel">Cancel</button><button type="submit" value="create">Create Site</button></footer>
+    </form>
+  </dialog>
+  <dialog id="project-show-dialog" class="project-dialog" aria-labelledby="project-show-title">
+    <form method="dialog">
+      <h2 id="project-show-title">New Show</h2>
+      <label>Name <input id="project-show-name" name="name" required></label>
+      <fieldset><legend>Start from</legend>
+        <label><input type="radio" name="start" value="empty"> An empty show</label>
+        <label><input type="radio" name="start" value="existing" checked> An existing show <select id="project-show-source" aria-label="An existing show"></select></label>
+      </fieldset>
+      <footer><button type="button" id="project-show-cancel">Cancel</button><button type="submit" value="create">Create Show</button></footer>
     </form>
   </dialog>
   <script src="/js/project-menu.js"></script>

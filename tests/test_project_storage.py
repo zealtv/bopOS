@@ -33,9 +33,9 @@ class ProjectStorageTests(unittest.TestCase):
         state.save()
         doc = json.loads(Path(state.path).read_text())
         self.assertNotIn("device_registry", doc)
-        self.assertNotIn("current_show", doc)
+        self.assertEqual(doc["current_show"], "Show")
         self.assertEqual(state.show_path,
-                         str(self.root / "projects" / "default" / "show.json"))
+                         str(self.root / "projects" / "default" / "shows" / "Show.json"))
         self.assertEqual((self.root / "current-project").read_text(), "default\n")
         reloaded = InstallationState(self.root)
         self.assertEqual(reloaded.durable(), state.durable())
@@ -122,16 +122,17 @@ class ProjectStorageTests(unittest.TestCase):
         self.assertNotIn("desired_patch", state.device_registry["node-a"])
         self.assertNotIn("params_patch", state.durable())
         self.assertNotIn("previous", state.data["fleet_patch"])
-        # `current_show` names no file beside the source: nothing to carry.
-        self.assertNotIn("current_show", state.durable())
-        self.assertFalse(Path(state.show_path).exists())
+        # `current_show` names no file beside the source: nothing to carry,
+        # and the project opens its default empty show.
+        self.assertEqual(state.durable()["current_show"], "Show")
+        self.assertFalse(Path(state.show_path).parent.exists())
         before = [p.read_bytes() for p in paths]
         with self.assertRaises(FileExistsError):
             migrate(source, output)
         self.assertEqual([p.read_bytes() for p in paths], before)
         self.assertEqual(source.read_text(), original)
 
-    def test_migration_carries_the_current_show_into_show_json(self):
+    def test_migration_carries_the_current_show_into_its_shows(self):
         source = self.root / "old" / "installation.json"
         (source.parent / "shows").mkdir(parents=True)
         source.write_text(json.dumps({"schema": 1, "name": "Kite Choir",
@@ -148,7 +149,9 @@ class ProjectStorageTests(unittest.TestCase):
         paths = migrate(source, self.root / "host")
         state = InstallationState(self.root / "host")
         self.assertEqual(str(paths[-1]), state.show_path)
+        self.assertEqual(state.data["current_show"], "test")
         self.assertEqual(Path(state.show_path).read_bytes(), show.read_bytes())
+        self.assertFalse(Path(state.path).with_name("project.json.pre-shows").exists())
         self.assertEqual(state.positions_for(2), [[1, 2]])
         state.select_site("Broadwalk")
         self.assertEqual(state.positions_for(2), [[7, 8]])
@@ -176,10 +179,14 @@ class ProjectStorageTests(unittest.TestCase):
         show.parent.mkdir()
         show.write_text(json.dumps(SHOW, indent=4) + "\n")
         original = show.read_bytes()
+        project = self.root / "projects" / "default" / "project.json"
+        before = project.read_bytes()
         destination = migrate_show(show, self.root)
-        self.assertEqual(destination, self.root / "projects" / "default" / "show.json")
+        self.assertEqual(destination, self.root / "projects" / "default" / "shows" / "test.json")
         self.assertEqual(destination.read_bytes(), original)
         self.assertEqual(show.read_bytes(), original)
+        self.assertEqual(project.with_name("project.json.pre-shows").read_bytes(), before)
+        self.assertEqual(InstallationState(self.root).show_path, str(destination))
         destination.write_text("edited since")
         with self.assertRaises(FileExistsError):
             migrate_show(show, self.root)
@@ -196,7 +203,7 @@ class ProjectStorageTests(unittest.TestCase):
                 show.write_text(body)
                 with self.assertRaises(ValueError):
                     migrate_show(show, self.root)
-                self.assertFalse((self.root / "projects" / "default" / "show.json").exists())
+                self.assertFalse((self.root / "projects" / "default" / "shows").exists())
 
 
     def test_invalid_migration_creates_no_destination(self):
@@ -209,7 +216,8 @@ class ProjectStorageTests(unittest.TestCase):
 
     def test_runtime_paths_are_gitignored(self):
         for path in ("dashboard/projects/demo/project.json",
-                     "dashboard/projects/demo/show.json", "dashboard/devices.json",
+                     "dashboard/projects/demo/show.json",
+                     "dashboard/projects/demo/shows/Opening Night.json", "dashboard/devices.json",
                      "dashboard/current-project"):
             with self.subTest(path=path):
                 self.assertEqual(subprocess.run(

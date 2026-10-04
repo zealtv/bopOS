@@ -2,9 +2,9 @@
 """Convert an installation once into split project and host registry storage.
 
 `--show FILE` also copies a show file (e.g. `dashboard/shows/test.json`) into
-the project's one `show.json`; given alone, it copies it into the existing
-current (or `--project`) project. An installation's `current_show` comes
-along from its `shows/` folder when no `--show` is given.
+the project's `shows/` as its current show; given alone, it copies it into the
+existing current (or `--project`) project. An installation's `current_show`
+comes along from its `shows/` folder when no `--show` is given.
 
 The source is preserved. Existing destination files are never overwritten.
 """
@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "dashboard"))
 from state import InstallationState
 from migrate_sites import split_geometry, venue_sites
-import show_model
+from migrate_shows import install_show
 
 
 def _project_name(value):
@@ -27,32 +27,15 @@ def _project_name(value):
     return value
 
 
-def migrate_show(show_file, data_dir, project=None):
-    """Copy one show file, byte for byte, to the project's `show.json`."""
+def migrate_show(show_file, data_dir, project=None, backup=True):
+    """Copy one show file, byte for byte, into the project's shows as current."""
     show_file, root = Path(show_file), Path(data_dir)
     if project is None:
         project = (root / "current-project").read_text(encoding="utf-8").removesuffix("\n").removesuffix("\r")
     directory = root / "projects" / _project_name(project)
     if not (directory / "project.json").is_file():
         raise FileNotFoundError(f"No project at {directory}")
-    destination = directory / "show.json"
-    if destination.exists() or destination.is_symlink():
-        raise FileExistsError(f"{destination} already exists")
-    body = show_file.read_bytes()
-    # Strict where the dashboard is tolerant: it would load a broken file as
-    # an empty show and the next edit would replace it.
-    if show_model.clean_show(json.loads(body.decode("utf-8"))) is None:
-        raise ValueError(f"{show_file} is not a valid show")
-    created = False
-    try:
-        with destination.open("xb") as target:
-            created = True
-            target.write(body)
-    except Exception:
-        if created:
-            destination.unlink()
-        raise
-    return destination
+    return install_show(directory, show_file.read_bytes(), backup)
 
 
 def migrate(source, data_dir, project=None, show_file=None):
@@ -81,6 +64,9 @@ def migrate(source, data_dir, project=None, show_file=None):
         path = staging / "projects" / project / "project.json"
         path.parent.mkdir(parents=True)
         project_body, default_site = split_geometry(doc)
+        # The installation's show pointer named its shows/ folder; the show
+        # itself comes along below, under its own name.
+        project_body.pop("current_show", None)
         sites, skipped = venue_sites(source.parent / "installations", project_body["seats"])
         sites["default"] = default_site
         (path.parent / "sites").mkdir()
@@ -111,7 +97,7 @@ def migrate(source, data_dir, project=None, show_file=None):
                 created.append(path)
                 target.write(body)
         if show_file is not None:
-            destinations += (migrate_show(show_file, root, project),)
+            destinations += (migrate_show(show_file, root, project, backup=False),)
     except Exception:
         for path in reversed(created):
             path.unlink()
@@ -128,7 +114,7 @@ def main():
     parser.add_argument("source", type=Path, nargs="?",
                         help="Existing installation.json")
     parser.add_argument("--show", type=Path,
-                        help="Show file to copy into the project's show.json")
+                        help="Show file to copy into the project's shows as its current show")
     parser.add_argument("--data-dir", type=Path, default=REPO / "dashboard")
     parser.add_argument("--project", help="Destination project folder name")
     args = parser.parse_args()

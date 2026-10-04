@@ -244,6 +244,7 @@ function render() {
   $("#project-bar-site").textContent=installation.current_site||"—";
   window.ProjectMenu?.render();
   $("#project-bar-patch").textContent=installation.fleet_patch?.name||"—";
+  $("#project-bar-show").textContent=installation.current_show||"—";
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
   const bound = new Set(seats.map(s => s.bound).filter(Boolean));

@@ -103,12 +103,16 @@ keyboard operations on the focused pill or row (paste mints a fresh uid).
 Ctrl/Cmd+Z is a global, server-authoritative undo shared by every connected
 client; redo is deferred.
 
-A project has one show, persisted as JSON in
-`dashboard/projects/<project>/show.json`; the schema and playback semantics
-live in
+A project has one or more shows, each persisted as JSON in
+`dashboard/projects/<project>/shows/<name>.json` (the file name is the show's
+name), and one of them is open: `current_show` in `project.json`. The schema
+and playback semantics live in
 `.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`.
-The Show tab always edits that show; it persists across dashboard restarts
-and is shared by every connected client. Two collapsible OSC consoles sit
+The Show tab always edits the open show; it persists across dashboard restarts
+and is shared by every connected client. The project menu's SHOW section
+opens, adds (empty or a copy), renames and deletes shows in every mode, but
+not while a show is playing; undo history belongs to the open show and is
+cleared when another opens. A new project starts with one empty show, `Show`. Two collapsible OSC consoles sit
 under the table: outgoing (everything the dashboard sends) and incoming
 (everything the LAN surface receives, heartbeats included). Filter with
 space-separated terms that AND together, `*` wildcards, and `!` negation —
@@ -214,11 +218,12 @@ through the same assignment path used by map dragging. The Site menu switches
 geometry and replays assignments and groups to bound devices.
 All runtime data paths are gitignored.
 
-The header shows Project · Site · Patch and opens the project/site menu. Project is the selected
-directory name; Site is the selected site filename without its extension.
+The header shows Project · Site · Patch · Show and opens the project menu. Project is the selected
+directory name; Site and Show are the selected site and show filenames without
+their extension.
 Switching sites preserves project identity, Seats, groups and parameter values.
 New Site starts with an empty room or copies an existing site's room, listener
-and Seat positions. New Project starts with no Seats, show file or patches.
+and Seat positions. New Project starts with no Seats or patches and one empty show.
 Opening a project stops Show playback, loads its site/show/patches, replays its
 assignments and groups, and unassigns online physical devices outside its fleet.
 Patch delivery remains explicit. Project switching is unavailable during
@@ -245,10 +250,15 @@ filenames also keep their names unchanged; invalid names are reported and left.
 An empty data root starts a default
 project. A missing selection opens `default`; an existing unreadable or invalid
 selection blocks saves. Its `current_show` comes along as the project's
-`show.json`. For a project already migrated,
+current show. For a project already migrated,
 `python tools/migrate_project.py --show dashboard/shows/<name>.json` copies
-that show file into the open project's `show.json`, byte for byte, refusing
-an invalid show or an existing `show.json`.
+that show file into the open project's shows as its current show, byte for
+byte, refusing an invalid show or an existing show of that name.
+A project from before multiple shows keeps its one show in `show.json`; the
+dashboard opens it read-only until
+`python tools/migrate_shows.py dashboard/projects/<project>/project.json`
+copies it, byte for byte, to `shows/<its name>.json` as the current show,
+leaving `show.json` in place and keeping `project.json.pre-shows`.
 
 If the dashboard cannot fully load its project, current site or registry files, the Show tab displays
 a notice and saves are blocked for that session. The original file stays in

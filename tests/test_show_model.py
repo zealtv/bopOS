@@ -295,6 +295,7 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
             state = InstallationState(temporary)
             state.save()
             damaged = b'{"schema": 1, "name": "test", "items": [  '
+            Path(state.show_path).parent.mkdir()
             Path(state.show_path).write_bytes(damaged)
             dashboard = object.__new__(Dashboard)
             dashboard.state = state
@@ -305,16 +306,16 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
             dashboard.show_engine = SimpleNamespace(show=dashboard.show)
             dashboard.show_undo = [show_model.empty_show("earlier")]
 
-            self.assertEqual(dashboard.show, show_model.empty_show())
+            self.assertEqual(dashboard.show, show_model.empty_show("Show"))
             self.assertTrue(any(state.show_path in notice and "saving is blocked" in notice
                                 for notice in state.data["notices"]))
             await dashboard.apply_show_mutation(None, show_model.add_step, None)
             await dashboard.undo_show(None)
             self.assertEqual(dashboard.ws_error.await_count, 2)
-            self.assertEqual(dashboard.show, show_model.empty_show())
+            self.assertEqual(dashboard.show, show_model.empty_show("Show"))
             self.assertEqual(Path(state.show_path).read_bytes(), damaged)
 
-            # A missing show.json is simply a new, writable, empty show.
+            # A missing show file is simply a new, writable, empty show.
             os.remove(state.show_path)
             dashboard.load_project_show()
             self.assertFalse(dashboard.show_load_invalid)

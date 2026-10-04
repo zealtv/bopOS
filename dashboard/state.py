@@ -15,12 +15,16 @@ if REPO_DIR not in sys.path:
 from python import wifi_config
 
 try:
-    from . import device_aliases
+    from . import device_aliases, show_model
 except ImportError:
     import device_aliases
+    import show_model
 
 
 SCHEMA = 1
+# A project always has a current show; this one is a new project's, and a
+# project stored before it had several opens it.
+DEFAULT_SHOW = "Show"
 FACILITATOR_COMMANDS = ("restart-engine", "updatebopos", "reboot", "shutdown")
 FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
 # Same grammar as server.NAME_RE: a patch folder name.
@@ -132,7 +136,8 @@ class InstallationState:
         self.path = os.path.join(self.data_dir, "projects",
                                  self.project if not selection_invalid else "default",
                                  "project.json")
-        self.data = {"schema": SCHEMA, "current_site": "default", "positions": {}, "seats": {},
+        self.data = {"schema": SCHEMA, "current_site": "default",
+                     "current_show": DEFAULT_SHOW, "positions": {}, "seats": {},
                      "groups": {}, "next_group_id": 0,
                      "devices": {}, "device_registry": {}, "muted": False,
                      "room": dict(self.DEFAULT_ROOM), "master": 1.0,
@@ -152,6 +157,9 @@ class InstallationState:
         self._registry_migrated = False
         self._group_names_migrated = False
         self._site_remaps = {}
+        # A project from before multiple shows: one show.json, no shows/.
+        # tools/migrate_shows.py converts it; until then the show is read-only.
+        self.show_unmigrated = False
         if selection_invalid:
             self._load_invalid = True
             self._invalid_file_notice(self.current_path)
@@ -190,8 +198,12 @@ class InstallationState:
 
     @property
     def show_path(self):
-        # The project's one show (66-projects proposal sec 2); its document
-        # is show_model's, this is only where it lives.
+        # The project's open show (66-projects/10-multiple-shows); its
+        # document is show_model's, this is only where it lives.
+        return self.show_file(self.data["current_show"])
+
+    @property
+    def legacy_show_path(self):
         return os.path.join(os.path.dirname(self.path), "show.json")
 
     def _load(self):
@@ -219,7 +231,17 @@ class InstallationState:
                     self._load_invalid = True
                     self._invalid_file_notice(self.path)
                     return
+                current_show = loaded.get("current_show", DEFAULT_SHOW)
+                if not self.valid_site_name(current_show):
+                    self._load_invalid = True
+                    self._invalid_file_notice(self.path)
+                    return
+                # Keyed on the folder, not the pointer: projects converted
+                # from an installation can carry its stale `current_show`.
+                self.show_unmigrated = (os.path.lexists(self.legacy_show_path)
+                                        and not os.path.lexists(self.shows_dir()))
                 self.data["current_site"] = current_site
+                self.data["current_show"] = current_show
                 self.data["master"] = self.clean_master(loaded.get("master"))
                 self.data["event_lead_ms"] = self.clean_event_lead_ms(
                     loaded.get("event_lead_ms"))
@@ -429,11 +451,13 @@ class InstallationState:
         return dict(self.data, project=self.project, patches=self.project_patches(),
                     projects=self.project_summaries(), site_rooms=self.site_rooms(),
                     sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
+                    shows=self.list_shows(),
                     seats={key: dict(seat, positions=self.positions_for(seat["id"]))
                            for key, seat in self.seats.items()})
 
     def durable(self):
         return {"schema": SCHEMA, "current_site": self.data["current_site"],
+                "current_show": self.data["current_show"],
                 "master": self.data.get("master", 1.0),
                 "event_lead_ms": self.clean_event_lead_ms(
                     self.data.get("event_lead_ms")),
@@ -1190,6 +1214,8 @@ class InstallationState:
             empty = InstallationState(staging)
             self._write_json(os.path.join(staging, "project.json"), empty.durable())
             self._write_json(os.path.join(staging, "sites", "default.json"), empty.site_document())
+            show_model.save_show(os.path.join(staging, "shows", DEFAULT_SHOW + ".json"),
+                                 show_model.empty_show(DEFAULT_SHOW))
             os.rename(staging, destination)
         return self.prepare_project(name)
 
@@ -1220,6 +1246,7 @@ class InstallationState:
             if key in self.data:
                 candidate.data[key] = self.data[key]
         self.project, self.path, self.data = candidate.project, candidate.path, candidate.data
+        self.show_unmigrated = candidate.show_unmigrated
         self._load_invalid = False
         self._site_remaps = {}
         self._save_task = None
@@ -1318,6 +1345,99 @@ class InstallationState:
             self.data.update(previous)
             raise
         return True
+
+    def shows_dir(self):
+        return os.path.join(os.path.dirname(self.path), "shows")
+
+    def show_file(self, name):
+        if not self.valid_site_name(name):
+            raise ValueError("Show")
+        return os.path.join(self.shows_dir(), name + ".json")
+
+    def list_shows(self):
+        """The project's show names, always including the open one."""
+        try:
+            names = {name[:-5] for name in os.listdir(self.shows_dir())
+                     if name.endswith(".json") and self.valid_site_name(name[:-5])
+                     and os.path.isfile(os.path.join(self.shows_dir(), name))}
+        except OSError:
+            names = set()
+        return sorted(names | {self.data["current_show"]})
+
+    def _require_shows(self):
+        self._require_valid_load()
+        if self.show_unmigrated:
+            # Leaving show.json behind would orphan it; migrate it first.
+            raise OSError(f"Unmigrated show: {self.legacy_show_path}")
+
+    def _set_current_show(self, name):
+        previous = self.data["current_show"]
+        self.data["current_show"] = name
+        try:
+            self.save()
+        except (OSError, ValueError, TypeError):
+            self.data["current_show"] = previous
+            raise
+
+    def select_show(self, name):
+        """Point the project at another of its shows; the caller loads it."""
+        self._require_shows()
+        if name == self.data["current_show"]:
+            return
+        if not os.path.isfile(self.show_file(name)) or os.path.islink(self.show_file(name)):
+            raise FileNotFoundError("Show")
+        self._set_current_show(name)
+
+    def create_show(self, name, source=None):
+        """Write a new show, empty or a copy of `source`, and open it."""
+        self._require_shows()
+        path = self.show_file(name)
+        if os.path.lexists(path):
+            raise FileExistsError("Show")
+        if source is None:
+            doc = show_model.empty_show(name)
+        else:
+            source_path = self.show_file(source)
+            # The open show has no file until its first edit; it copies empty.
+            if source != self.data["current_show"] and not os.path.isfile(source_path):
+                raise FileNotFoundError("Show")
+            doc, valid = show_model.load_show(source_path)
+            if not valid:
+                raise ValueError("Show")
+            doc["name"] = name
+        show_model.save_show(path, doc)
+        try:
+            self._set_current_show(name)
+        except (OSError, ValueError, TypeError):
+            os.unlink(path)
+            raise
+
+    def rename_show(self, name):
+        """Rename the open show; its file name is its name."""
+        self._require_shows()
+        old = self.data["current_show"]
+        if name == old:
+            return
+        source, destination = self.show_file(old), self.show_file(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Show")
+        moved = os.path.isfile(source)
+        if moved:
+            os.rename(source, destination)
+        try:
+            self._set_current_show(name)
+        except (OSError, ValueError, TypeError):
+            if moved:
+                os.rename(destination, source)
+            raise
+
+    def delete_show(self, name):
+        """Delete one of the project's other shows."""
+        self._require_shows()
+        path = self.show_file(name)
+        if name == self.data["current_show"] or os.path.islink(path) or not os.path.isfile(path):
+            raise ValueError("Show")
+        os.unlink(path)
 
     async def close(self):
         if self._save_task and not self._save_task.done():

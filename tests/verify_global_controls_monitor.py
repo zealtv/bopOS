@@ -98,7 +98,8 @@ def write_fixture(temp):
         json.dump({"engine": "test", "entrypoint": "main.bin",
                    "params": PARAMS, "caps": [], "slots": []}, target)
     state_path = str(project_path(temp))
-    with open(os.path.join(os.path.dirname(state_path), "show.json"), "w",
+    os.makedirs(os.path.join(os.path.dirname(state_path), "shows"))
+    with open(os.path.join(os.path.dirname(state_path), "shows", "Show.json"), "w",
               encoding="utf-8") as target:
         json.dump({"name": "Journey", "items": [
             {"kind": "step", "uid": "aaaa1111", "alias": "One",

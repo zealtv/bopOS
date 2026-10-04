@@ -64,7 +64,7 @@ def main():
         plants.data["patches"] = ["beta"]
         plants.data["fleet_patch"] = {"name":"beta","fingerprint":"b"*64}
         plants.save()
-        Path(plants.show_path).write_text(json.dumps({"schema":1,"name":"The Plants","items":[]}))
+        Path(plants.show_path).write_text(json.dumps({"schema":1,"name":"Show","items":[]}))
         patches, assets = root / "patches", root / "assets"
         patches.mkdir(); assets.mkdir()
         write_patch(str(patches), "demo-pd", b"demo")
@@ -116,7 +116,7 @@ def main():
                     assert page.evaluate("installation.seats['1'].positions") == [[1,2]]
                     action(page,"new-site")
                     page.locator("#project-site-name").fill("Empty")
-                    page.locator('[name=start][value=empty]').check()
+                    page.locator('#project-site-dialog [name=start][value=empty]').check()
                     assert page.locator("#project-site-source").is_disabled()
                     page.get_by_role("button",name="Create Site",exact=True).click()
                     page.wait_for_function("installation.current_site === 'Empty'")
@@ -139,14 +139,15 @@ def main():
                     prompts.append("New Leaves")
                     action(page,"rename",'[data-project="The Plants"]')
                     page.wait_for_function("installation.project === 'New Leaves'")
-                    assert (root / "projects/New Leaves/show.json").exists()
+                    assert (root / "projects/New Leaves/shows/Show.json").exists()
                     prompts.append("Empty Project")
                     action(page,"new-project")
                     page.wait_for_function("installation.project === 'Empty Project'")
                     assert page.evaluate("Object.keys(installation.seats).length") == 0
                     assert page.evaluate("installation.patches") == []
                     assert page.evaluate("installation.fleet_patch") is None
-                    assert not (root / "projects/Empty Project/show.json").exists()
+                    assert page.evaluate("installation.shows") == ["Show"]
+                    assert (root / "projects/Empty Project/shows/Show.json").exists()
                     assert (root / "devices.json").read_bytes() == registry
                     assert not errors, errors
                     assert not alerts, alerts
