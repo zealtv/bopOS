@@ -19,6 +19,18 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    opened." / "The project could not be created." / "The project could not be
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
+9. **Multiple shows (66/10), your calls**. Screenshots are in the lead
+   session's scratchpad: `show-menu.png`, `new-show-dialog.png`,
+   `show-bar-*.png`, `long-*.png`.
+   - **Modes:** confirm the reading of ruling 4. Show switching works in Live,
+     Simulation and Patch Edit, and is refused while a step plays *or is paused*.
+   - **Wording added:** "That show could not be opened." / "The show could not
+     be created." / "… renamed." / "… deleted."; the default show name **Show**.
+   - **Show rows have no second line** (projects show Seats·devices, sites the
+     room). Add "N steps"?
+   - **Header squeeze at 1050–1300px:** four long names ellipsize until the
+     header wraps at 1049px. Move the wrap breakpoint to ~1279px (it changes
+     the 66/8 layout you approved)? `long-1280.png` shows it.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
