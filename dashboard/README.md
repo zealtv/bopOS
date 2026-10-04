@@ -210,13 +210,25 @@ keyed by Seat id. Seats have no stored positions.
 The host device registry lives in `dashboard/devices.json`, and
 `dashboard/current-project` names the open project. The Seats and Devices tabs let
 you type each element's x/y relative to that origin; the dashboard converts it
-through the same assignment path used by map dragging. The Site selector on
-Seats switches geometry and replays assignments and groups to bound devices.
+through the same assignment path used by map dragging. The Site menu switches
+geometry and replays assignments and groups to bound devices.
 All runtime data paths are gitignored.
 
-The read-only header shows Project · Site · Patch. Project is the selected
+The header shows Project · Site · Patch and opens the project/site menu. Project is the selected
 directory name; Site is the selected site filename without its extension.
 Switching sites preserves project identity, Seats, groups and parameter values.
+New Site starts with an empty room or copies an existing site's room, listener
+and Seat positions. New Project starts with no Seats, show file or patches.
+Opening a project stops Show playback, loads its site/show/patches, replays its
+assignments and groups, and unassigns online physical devices outside its fleet.
+Patch delivery remains explicit. Project switching is unavailable during
+Simulation and Patch Edit. Rename moves the project folder and updates
+`current-project`; the device registry stays host-global.
+
+Project and site names are preserved as typed, including internal spaces. Names
+start with a letter or digit and contain only letters, digits, spaces, `.`, `_`
+or `-`, with no leading/trailing spaces or `..`. The directory or filename is
+the sole name; there is no separately stored display label.
 
 Before starting an existing installation with this layout, run
 `python tools/migrate_project.py dashboard/installation.json` once. It creates
@@ -227,6 +239,9 @@ the earlier project-storage migration, run
 Both migrations create a default site from the old geometry and convert legacy
 venue snapshots whose Seat ids match. They report unmatched snapshots and
 preserve all sources; the site migration keeps `project.json.pre-sites`.
+The installation's `name` becomes the project directory name unchanged; use
+`--project` to supply a valid name when the legacy name is invalid. Valid venue
+filenames also keep their names unchanged; invalid names are reported and left.
 An empty data root starts a default
 project. A missing selection opens `default`; an existing unreadable or invalid
 selection blocks saves. Its `current_show` comes along as the project's

@@ -6,6 +6,7 @@ import math
 import os
 import re
 import sys
+import tempfile
 import time
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -110,16 +111,19 @@ class InstallationState:
     # the spatial-audio work consumes these coordinates, keep them explicit
     DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m", "origin": [0.0, 0.0]}
 
-    def __init__(self, data_dir, devices_file=None):
+    def __init__(self, data_dir, devices_file=None, *, project=None, read_only=False):
         self.data_dir = os.path.abspath(data_dir)
         self.current_path = os.path.join(self.data_dir, "current-project")
         self.registry_path = os.path.join(self.data_dir, "devices.json")
         self.project = "default"
         selection_invalid = False
         try:
-            with open(self.current_path, encoding="utf-8") as source:
-                self.project = source.read().strip()
-            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", self.project):
+            if project is None:
+                with open(self.current_path, encoding="utf-8") as source:
+                    self.project = source.read().removesuffix("\n").removesuffix("\r")
+            else:
+                self.project = project
+            if not self.valid_site_name(self.project):
                 raise ValueError("Invalid current project")
         except FileNotFoundError:
             selection_invalid = os.path.lexists(self.current_path)
@@ -163,13 +167,13 @@ class InstallationState:
                 and os.path.exists(devices_file)):
             self._import_seed(devices_file)
             changed = True
-        if not self._load_invalid:
+        if not self._load_invalid and not read_only:
             for seat in self.seats.values():
                 uid = seat.get("bound")
                 if uid:
                     _entry, created = self.ensure_device_alias(uid)
                     changed = changed or created
-        if changed and not self._load_invalid:
+        if changed and not self._load_invalid and not read_only:
             self.save()
 
     @property
@@ -423,6 +427,7 @@ class InstallationState:
     def public(self):
         # Geometry is a derived view for map/inspector clients, never Seat storage.
         return dict(self.data, project=self.project, patches=self.project_patches(),
+                    projects=self.project_summaries(), site_rooms=self.site_rooms(),
                     sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
                     seats={key: dict(seat, positions=self.positions_for(seat["id"]))
                            for key, seat in self.seats.items()})
@@ -1099,7 +1104,8 @@ class InstallationState:
 
     @staticmethod
     def valid_site_name(name):
-        return isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name) is not None
+        return (isinstance(name, str) and ".." not in name and not name.endswith(" ")
+                and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]*", name) is not None)
 
     def sites_dir(self):
         return os.path.join(os.path.dirname(self.path), "sites")
@@ -1109,6 +1115,142 @@ class InstallationState:
         if not self.valid_site_name(name):
             raise ValueError("Site")
         return os.path.join(self.sites_dir(), name + ".json")
+
+    def project_directory(self, name):
+        if not self.valid_site_name(name):
+            raise ValueError("Project")
+        directory = os.path.join(self.data_dir, "projects", name)
+        if os.path.islink(directory):
+            raise ValueError("Project")
+        return directory
+
+    def list_projects(self):
+        root = os.path.join(self.data_dir, "projects")
+        try:
+            return sorted(name for name in os.listdir(root)
+                          if self.valid_site_name(name)
+                          and not os.path.islink(os.path.join(root, name))
+                          and os.path.isfile(os.path.join(root, name, "project.json")))
+        except OSError:
+            return []
+
+    def prepare_project(self, name):
+        directory = self.project_directory(name)
+        if not os.path.isfile(os.path.join(directory, "project.json")):
+            raise ValueError("Project")
+        candidate = InstallationState(self.data_dir, project=name, read_only=True)
+        candidate._require_valid_load()
+        return candidate
+
+    def project_summaries(self):
+        summaries = []
+        for name in sorted(set(self.list_projects()) | {self.project}):
+            try:
+                if name == self.project:
+                    seats = self.seats
+                else:
+                    with open(os.path.join(self.project_directory(name), "project.json"), encoding="utf-8") as source:
+                        seats = json.load(source)["seats"]
+                summaries.append({"name": name, "seats": len(seats),
+                    "devices": len({seat.get("bound") for seat in seats.values() if seat.get("bound")})})
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                summaries.append({"name": name, "seats": None, "devices": None})
+        return summaries
+
+    def site_rooms(self):
+        rooms = {self.data["current_site"]: self.data["room"]}
+        for name in self.list_sites():
+            if name != self.data["current_site"]:
+                try:
+                    rooms[name] = self.read_site(name)["room"]
+                except (OSError, ValueError, TypeError):
+                    rooms[name] = None
+        return rooms
+
+    def write_current_project(self, name):
+        if not self.valid_site_name(name) or os.path.islink(self.current_path):
+            raise ValueError("Project")
+        temporary = self.current_path + ".tmp"
+        try:
+            with open(temporary, "w", encoding="utf-8") as target:
+                target.write(name + "\n")
+            os.replace(temporary, self.current_path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def create_project(self, name):
+        self._require_valid_load()
+        destination = self.project_directory(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Project")
+        root = os.path.dirname(destination)
+        os.makedirs(root, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".new-project-", dir=root) as staging:
+            empty = InstallationState(staging)
+            self._write_json(os.path.join(staging, "project.json"), empty.durable())
+            self._write_json(os.path.join(staging, "sites", "default.json"), empty.site_document())
+            os.rename(staging, destination)
+        return self.prepare_project(name)
+
+    def rename_project(self, name):
+        self._require_valid_load()
+        if name == self.project:
+            return
+        destination = self.project_directory(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Project")
+        self.save()
+        source = os.path.dirname(self.path)
+        os.rename(source, destination)
+        try:
+            self.write_current_project(name)
+        except (OSError, ValueError):
+            os.rename(destination, source)
+            raise
+        self.project = name
+        self.path = os.path.join(destination, "project.json")
+
+    def adopt_project(self, candidate):
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+        candidate.data["devices"] = self.devices
+        candidate.data["device_registry"] = self.device_registry
+        for key in ("supervisor", "editor", "muted"):
+            if key in self.data:
+                candidate.data[key] = self.data[key]
+        self.project, self.path, self.data = candidate.project, candidate.path, candidate.data
+        self._load_invalid = False
+        self._site_remaps = {}
+        self._save_task = None
+
+    def select_project(self, candidate):
+        self.save()
+        self.write_current_project(candidate.project)
+        self.adopt_project(candidate)
+
+    def create_site(self, name, source=None):
+        self._require_valid_load()
+        path = self.site_path(name)
+        if os.path.lexists(path):
+            raise FileExistsError("Site")
+        if source is None:
+            room = self.data["room"]
+            try:
+                self.data["room"] = dict(self.DEFAULT_ROOM)
+                site = {"room": dict(self.DEFAULT_ROOM), "listener": self.default_listener(),
+                        "positions": {key: [] for key in self.seats}}
+            finally:
+                self.data["room"] = room
+        else:
+            site = self.site_document() if source == self.data["current_site"] else self.read_site(source)
+        self.save()
+        self._write_json(path, self.clean_site(site))
+        try:
+            self.select_site(name)
+        except (OSError, ValueError, TypeError):
+            os.unlink(path)
+            raise
 
     def list_sites(self):
         try:

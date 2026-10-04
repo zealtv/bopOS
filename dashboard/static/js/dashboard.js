@@ -132,7 +132,17 @@ function mergeDevice(device) {
   render();
 }
 ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => { installation = data; muted = !!data.muted; master = Number(data.master ?? 1); reconcileSelection(); reconcileGroupView(); render(); const loading = $("#initial-loading"); if (loading) loading.hidden = true; });
+ws.on("state", data => {
+  if (installation.project && installation.project !== data.project) {
+    selected=null; selectedSeat=null; selectedGroup=null; focusedGroup=null;
+    visibleGroups=[null,null,null,null]; seatBindingDrafts.clear(); logDestinationDrafts.clear();
+    editorPatchChoice=null; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
+    remoteCommandDraft=null; remoteCommandSaving=false; remoteCommandFeedback=""; pendingCreatedPatch=null;
+  }
+  installation=data; muted=!!data.muted; master=Number(data.master ?? 1);
+  reconcileSelection(); reconcileGroupView(); render();
+  const loading=$("#initial-loading"); if (loading) loading.hidden=true;
+});
 ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
 ws.on("heartbeat", data => {
   if (!data?.uid) return;
@@ -232,9 +242,7 @@ ws.on("seat_reindexed", data => {
 function render() {
   $("#project-bar-project").textContent=installation.project||"—";
   $("#project-bar-site").textContent=installation.current_site||"—";
-  const siteSelect = $("#site-select");
-  siteSelect.innerHTML = (installation.sites || []).map(name => `<option value="${esc(name)}" ${name===installation.current_site?"selected":""}>${esc(name)}</option>`).join("");
-  siteSelect.onchange = () => ws.send("select_site", {name:siteSelect.value});
+  window.ProjectMenu?.render();
   $("#project-bar-patch").textContent=installation.fleet_patch?.name||"—";
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);

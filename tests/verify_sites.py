@@ -13,6 +13,11 @@ from verify_log_destination import (
 from project_fixture import data_root
 
 
+def use_site(page, name):
+    page.click("#project-bar")
+    page.locator(f'#project-menu [data-action="use"][data-site="{name}"]').click()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-sites-") as root:
         patches, assets, project, manifest = write_fixture(root)
@@ -47,11 +52,12 @@ def main():
                 page.goto(url)
                 page.wait_for_function("uid => installation.devices?.[uid]?.online", arg=UID)
                 page.click("#tab-button-seats")
-                assert page.locator("#site-select").input_value() == "default"
+                assert page.locator("#project-bar-site").inner_text() == "default"
+                assert page.locator("#site-select").count() == 0
                 assert page.locator("#venue-bar, #venue-save, #venue-load").count() == 0
                 before = page.evaluate("JSON.stringify(installation.seats['0'])")
                 peer.clear()
-                page.locator("#site-select").select_option("Broadwalk")
+                use_site(page, "Broadwalk")
                 page.wait_for_function("installation.current_site === 'Broadwalk'")
                 assert page.locator("#project-bar-site").inner_text() == "Broadwalk"
                 assert page.evaluate("installation.room.width") == 30
@@ -67,11 +73,11 @@ def main():
                 page.evaluate("ws.send('update_seat', {id:0, positions:[[11,12]]})")
                 page.wait_for_function("installation.seats['0'].positions[0][0] === 11")
                 # Switch immediately: selection must flush the pending edit.
-                page.locator("#site-select").select_option("default")
+                use_site(page, "default")
                 page.wait_for_function("installation.current_site === 'default'")
                 assert page.evaluate("JSON.stringify(installation.seats['0'])") == before
                 assert json.loads((sites / "Broadwalk.json").read_text())["positions"]["0"] == [[11, 12]]
-                page.locator("#site-select").select_option("Broadwalk")
+                use_site(page, "Broadwalk")
                 page.wait_for_function("installation.current_site === 'Broadwalk'")
                 page.reload()
                 page.wait_for_function("installation.current_site === 'Broadwalk'")

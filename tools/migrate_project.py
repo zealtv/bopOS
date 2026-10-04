@@ -11,7 +11,6 @@ The source is preserved. Existing destination files are never overwritten.
 import argparse
 import json
 from pathlib import Path
-import re
 import sys
 import tempfile
 
@@ -23,7 +22,7 @@ import show_model
 
 
 def _project_name(value):
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value or ""):
+    if not InstallationState.valid_site_name(value):
         raise ValueError("Project folder name must start with a letter or digit")
     return value
 
@@ -32,7 +31,7 @@ def migrate_show(show_file, data_dir, project=None):
     """Copy one show file, byte for byte, to the project's `show.json`."""
     show_file, root = Path(show_file), Path(data_dir)
     if project is None:
-        project = (root / "current-project").read_text(encoding="utf-8").strip()
+        project = (root / "current-project").read_text(encoding="utf-8").removesuffix("\n").removesuffix("\r")
     directory = root / "projects" / _project_name(project)
     if not (directory / "project.json").is_file():
         raise FileNotFoundError(f"No project at {directory}")
@@ -61,8 +60,7 @@ def migrate(source, data_dir, project=None, show_file=None):
     doc = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise ValueError("Source must be an installation object")
-    project = project or re.sub(r"[^A-Za-z0-9._-]+", "-",
-                                str(doc.get("name", "default"))).strip("-._") or "default"
+    project = doc.get("name", "default") if project is None else project
     _project_name(project)
     current_show = doc.get("current_show")
     if show_file is None and isinstance(current_show, str) and current_show.strip():

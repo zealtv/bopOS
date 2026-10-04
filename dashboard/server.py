@@ -349,6 +349,7 @@ class Dashboard:
             "create_group", "rename_group", "delete_group", "set_seat_groups",
             "forget_device", "forget_offline_unbound", "set_room",
             "set_point", "clear_point", "select_site",
+            "open_project", "create_project", "rename_project", "create_site",
             "set_facilitator_commands",
             "monitor_send", "monitor_probe",
         }
@@ -357,7 +358,7 @@ class Dashboard:
             "replay_live_params",
             "set_fleet_patch",
             "set_room", "set_point", "clear_point",
-            "select_site",
+            "select_site", "create_site",
         }
         # Editor-scoped writes are not fleet execution controls: they target
         # the audition engine Patch Edit owns. The
@@ -365,6 +366,11 @@ class Dashboard:
         # belong inside edit mode; the same verbs at every other scope remain
         # blocked.
         editor_scoped = data.get("scope") == "editor"
+        if (kind in {"open_project", "create_project", "rename_project"}
+                and self.supervisor_mode != "off"):
+            mode = "Patch Edit" if self.supervisor_mode == "edit" else "Simulation"
+            await self.ws_error(ws, f"That execution control is unavailable during {mode}.")
+            return
         if (self.supervisor_mode == "edit" and kind in edit_blocked_mutations
                 and not (kind in {"set_live_automation"}
                          and editor_scoped)):
@@ -1123,6 +1129,33 @@ class Dashboard:
                 await self.broadcast("listener", listener)
                 self.state.save_debounced()
                 await self.broadcast("room", self.state.data["room"])
+        elif kind in {"open_project", "create_project", "rename_project"}:
+            name = data.get("name")
+            try:
+                if kind == "create_project":
+                    self.state.create_project(name)
+                    await self.open_project(name)
+                elif kind == "rename_project":
+                    self.state.rename_project(name)
+                    await self.broadcast("state")
+                else:
+                    await self.open_project(name)
+            except (OSError, TypeError, ValueError):
+                message = {"open_project": "That project could not be opened.",
+                           "create_project": "The project could not be created.",
+                           "rename_project": "The project could not be renamed."}[kind]
+                await self.ws_error(ws, message)
+        elif kind == "create_site":
+            try:
+                self.state.create_site(data.get("name"), data.get("source"))
+            except (OSError, TypeError, ValueError):
+                await self.ws_error(ws, "The site could not be created.")
+                return
+            for seat in self.state.seats.values():
+                self.assign_seat(seat)
+                self.sync_seat_groups(seat)
+            self.osc.send_audition_listener()
+            await self.broadcast("state")
         elif kind == "select_site":
             name = data.get("name")
             if not self.state.valid_site_name(name):
@@ -1202,6 +1235,40 @@ class Dashboard:
         self.show_load_invalid = not valid
         if not valid:
             self.state._invalid_file_notice(self.state.show_path)
+
+    def project_unassign_set(self, candidate):
+        bound = {seat.get("bound") for seat in candidate.seats.values() if seat.get("bound")}
+        return sorted(uid for uid, device in self.state.devices.items()
+                      if device.get("online") and not device.get("virtual") and uid not in bound)
+
+    async def open_project(self, name):
+        if self.supervisor_mode != "off":
+            raise ValueError("Project")
+        if name == self.state.project:
+            return
+        candidate = self.state.prepare_project(name)
+        outside = self.project_unassign_set(candidate)
+        async with self.show_edit_lock:
+            await self.show_engine.stop_all_steps()
+            self.state.select_project(candidate)
+            self.supersede_fleet_operation()
+            self.osc.automation.clear()
+            self.state.data["automation"] = self.osc.automation
+            self.wifi_confirmations.clear()
+            self.load_project_show()
+            self.show_engine.show = self.show
+            self.show_undo.clear()
+            for uid in outside:
+                self.osc.uid_command(uid, "unassign")
+            for seat in self.state.seats.values():
+                self.assign_seat(seat)
+                self.sync_seat_groups(seat)
+                self.replay_live_params_for_seat(seat)
+            self.osc.send_audition_listener()
+            await self.broadcast("show", self.show)
+            await self.broadcast("show_warnings", self.show_warnings())
+            await self.broadcast("show_playback", self.show_engine.snapshot())
+            await self.broadcast("state")
 
     def require_show_writable(self):
         # The show lives in the project folder: a project that failed to load

@@ -4,7 +4,6 @@ import argparse
 import copy
 import json
 from pathlib import Path
-import re
 import sys
 import tempfile
 
@@ -46,7 +45,9 @@ def venue_sites(directory, seat_ids):
             for key, seat in doc["seats"].items():
                 if not isinstance(seat, dict) or str(seat.get("id")) != key:
                     raise ValueError("Seat ids do not match")
-            name = re.sub(r"[^A-Za-z0-9._-]+", "-", source.stem).strip("-._") or "site"
+            name = source.stem
+            if not InstallationState.valid_site_name(name):
+                raise ValueError("Site")
             if name == "default" or name in sites:
                 raise ValueError("Site name collision")
             _, geometry = split_geometry(doc)
@@ -58,6 +59,8 @@ def venue_sites(directory, seat_ids):
 
 def migrate_sites(project_path, venues=None):
     path = Path(project_path)
+    if not InstallationState.valid_site_name(path.parent.name):
+        raise ValueError("Project")
     original = path.read_bytes()
     doc = json.loads(original)
     sites_dir = path.parent / "sites"

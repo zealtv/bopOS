@@ -157,11 +157,13 @@ class MigrationTests(unittest.TestCase):
             root = Path(temporary); source = root / "installation.json"
             source.write_text(json.dumps({"schema": 1, "name": "A / Choir", "seats": {"0": {"id": 0, "positions": [[3, 4]]}}}))
             (root / "installations").mkdir()
-            (root / "installations/10x8-test.json").write_text(source.read_text())
-            migrate(source, root / "host")
+            (root / "installations/10x8 test.json").write_text(source.read_text())
+            with self.assertRaises(ValueError): migrate(source, root / "host")
+            self.assertFalse((root / "host").exists())
+            migrate(source, root / "host", project="A Choir")
             state = InstallationState(root / "host")
-            self.assertEqual(state.project, "A-Choir")
-            self.assertEqual(state.list_sites(), ["10x8-test", "default"])
+            self.assertEqual(state.project, "A Choir")
+            self.assertEqual(state.list_sites(), ["10x8 test", "default"])
             self.assertEqual(state.positions_for(0), [[3, 4]])
 
 
