@@ -691,17 +691,18 @@ def save_show(path, doc):
 
 
 def load_show(path):
-    """Tolerant load: a missing, empty, or corrupt file yields an empty show."""
+    """(show, valid). A missing file is a valid empty show; an unreadable,
+    empty, corrupt or invalid one yields an empty show and valid=False, so
+    the caller can keep the file and block writes over it."""
     try:
         with open(path, encoding="utf-8") as source:
             text = source.read()
-    except OSError:
-        return empty_show()
-    if not text.strip():
-        return empty_show()
+    except FileNotFoundError:
+        return empty_show(), not os.path.lexists(path)
+    except (OSError, ValueError):
+        return empty_show(), False
     try:
-        loaded = json.loads(text)
+        cleaned = clean_show(json.loads(text), fallback_name="")
     except ValueError:
-        return empty_show()
-    cleaned = clean_show(loaded, fallback_name="")
-    return cleaned if cleaned is not None else empty_show()
+        cleaned = None
+    return (cleaned, True) if cleaned is not None else (empty_show(), False)

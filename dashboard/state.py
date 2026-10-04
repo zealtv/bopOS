@@ -259,7 +259,8 @@ class InstallationState:
 
     def _invalid_file_notice(self, path):
         recovery = ('Repair the file and restart the dashboard before saving.'
-                    if path in (self.path, self.registry_path, self.current_path) else
+                    if path in (self.path, self.registry_path, self.current_path,
+                                self.show_path) else
                     'Repair the file before loading or saving this venue.')
         notice = (f'State file "{path}" could not be fully loaded. '
                   'The original file is preserved and saving is blocked. '

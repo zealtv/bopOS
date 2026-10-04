@@ -195,7 +195,7 @@ class ShowSchemaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = os.path.join(temporary, "show.json")
             show_model.save_show(path, moved)
-            loaded = show_model.load_show(path)
+            loaded, _valid = show_model.load_show(path)
         self.assertEqual(loaded["items"][1]["messages"][0]["args"], args)
 
     def test_unsupported_message_kind_is_rejected(self):
@@ -261,6 +261,7 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
         dashboard.show = original
         dashboard.show_engine = SimpleNamespace(show=original)
         dashboard.broadcast = mock.AsyncMock()
+        dashboard.show_load_invalid = False
 
         with tempfile.TemporaryDirectory() as temporary:
             dashboard.state = SimpleNamespace(
@@ -286,6 +287,37 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(
                 "reference", dashboard.show["items"][0]["messages"][0]
             )
+
+    async def test_damaged_show_loads_read_only_with_the_invalid_file_notice(self):
+        # Same rule as project.json: an empty show stands in, the original
+        # bytes stay, the operator is told, and no edit or undo writes.
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(temporary)
+            state.save()
+            damaged = b'{"schema": 1, "name": "test", "items": [  '
+            Path(state.show_path).write_bytes(damaged)
+            dashboard = object.__new__(Dashboard)
+            dashboard.state = state
+            dashboard.show_edit_lock = asyncio.Lock()
+            dashboard.broadcast = mock.AsyncMock()
+            dashboard.ws_error = mock.AsyncMock()
+            dashboard.load_project_show()
+            dashboard.show_engine = SimpleNamespace(show=dashboard.show)
+            dashboard.show_undo = [show_model.empty_show("earlier")]
+
+            self.assertEqual(dashboard.show, show_model.empty_show())
+            self.assertTrue(any(state.show_path in notice and "saving is blocked" in notice
+                                for notice in state.data["notices"]))
+            await dashboard.apply_show_mutation(None, show_model.add_step, None)
+            await dashboard.undo_show(None)
+            self.assertEqual(dashboard.ws_error.await_count, 2)
+            self.assertEqual(dashboard.show, show_model.empty_show())
+            self.assertEqual(Path(state.show_path).read_bytes(), damaged)
+
+            # A missing show.json is simply a new, writable, empty show.
+            os.remove(state.show_path)
+            dashboard.load_project_show()
+            self.assertFalse(dashboard.show_load_invalid)
 
 
 class GroupNameInvariantTests(unittest.TestCase):
@@ -379,16 +411,16 @@ class ShowPersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = os.path.join(temporary, "show.json")
             show_model.save_show(path, show)
-            self.assertEqual(show_model.load_show(path), show)
+            self.assertEqual(show_model.load_show(path), (show, True))
             self.assertFalse(
                 any(path.suffix == ".tmp" for path in Path(temporary).iterdir())
             )
 
-    def test_missing_empty_corrupt_and_invalid_documents_load_as_empty(self):
+    def test_missing_loads_empty_and_damaged_documents_load_empty_but_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:
             expected = show_model.empty_show()
             path = Path(temporary) / "show.json"
-            self.assertEqual(show_model.load_show(path), expected)
+            self.assertEqual(show_model.load_show(path), (expected, True))
             for content in (
                 "",
                 "{not json",
@@ -400,7 +432,7 @@ class ShowPersistenceTests(unittest.TestCase):
             ):
                 with self.subTest(content=content):
                     path.write_text(content)
-                    self.assertEqual(show_model.load_show(path), expected)
+                    self.assertEqual(show_model.load_show(path), (expected, False))
 
 if __name__ == "__main__":
     unittest.main()

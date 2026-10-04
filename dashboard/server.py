@@ -206,7 +206,7 @@ class Dashboard:
         self._editor_seat = {"id": 0, "automation_key": "editor",
                              "editor": True, "bound": None, "groups": [],
                              "params": {}}
-        self.show = show_model.load_show(self.state.show_path)
+        self.load_project_show()
         self.show_engine = ShowEngine(
             self.osc, self.broadcast,
             event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500),
@@ -1208,6 +1208,26 @@ class Dashboard:
         elif kind == "request_report":
             self.osc.request(uid, "report")
 
+    def load_project_show(self):
+        """Load the project's show; a damaged file loads read-only.
+
+        Same rule as project.json: the original is preserved, an invalid-file
+        notice says so, and show writes are blocked for this session.
+        """
+        self.show, valid = show_model.load_show(self.state.show_path)
+        self.show_load_invalid = not valid
+        if not valid:
+            self.state._invalid_file_notice(self.state.show_path)
+
+    def require_show_writable(self):
+        # The show lives in the project folder: a project that failed to load
+        # blocks its show's writes as it blocks its own, and so does a show
+        # file that failed to load.
+        self.state._require_valid_load()
+        if self.show_load_invalid:
+            raise OSError(
+                f"Refusing to save a show that failed to load: {self.state.show_path}")
+
     def show_warnings(self):
         return show_model.show_target_warnings(
             self.show, self.state.data.get("groups", {}))
@@ -1228,9 +1248,7 @@ class Dashboard:
             if new_show == self.show:
                 return
             try:
-                # The show lives in the project folder: a project that failed
-                # to load blocks its show's writes as it blocks its own.
-                self.state._require_valid_load()
+                self.require_show_writable()
                 show_model.save_show(self.state.show_path, new_show)
             except OSError:
                 await self.ws_error(ws, "The show could not be saved.")
@@ -1249,9 +1267,7 @@ class Dashboard:
                 return
             previous = self.show_undo.pop()
             try:
-                # The show lives in the project folder: a project that failed
-                # to load blocks its show's writes as it blocks its own.
-                self.state._require_valid_load()
+                self.require_show_writable()
                 show_model.save_show(self.state.show_path, previous)
             except OSError:
                 self.show_undo.append(previous)
