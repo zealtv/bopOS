@@ -20,17 +20,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
 
-12. **Monitor transport (71/2)**: `71-network-traffic/2-monitor-transport.waiting/proposal.md`.
-    Today every OSC message goes to every browser tab, open or not (~312
-    WS messages/s per tab at 50 simulated nodes). Proposal: per-window
-    subscriptions, server-side filtering, 100 ms batches, bounded per-client
-    queues, plus a fix for unbounded unhandled-event buffering in `ws.js`.
-    Eight visible changes need your ruling (proposal "Every operator-visible
-    change"): high-rate classes hidden by default (with rates); capture only
-    while a pane is visible; Pause stops capture; structured filters; a drop
-    indicator; the map at 10 Hz; a System clock summary; hidden module panels
-    suspended.
-
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
@@ -75,3 +64,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 9. Clear Show wording — Bob, 2026-10-04: the one-step confirm ("Remove all 1 step…") is fine; **yes** to "Stop the show before clearing it." → `66-projects/9-clear-show`.
 10. Header wraps to two rows at 1440px with the Performance toggle: **keep it** (Bob, 2026-10-04, after seeing the screenshots on Tengu; `screenshots/header-performance-*-1440.png`) → `77-performance-mode`.
 11. Clock-sync traffic (71/1) — Bob, 2026-10-04: **approve stage A** (unicast offsets), **defer stage B** → building A in `71-network-traffic/1-clock-sync-traffic`.
+12. Monitor transport (71/2) — Bob, 2026-10-04 via Tengu: **OK all**; "prefer simple and elegant solutions where possible; better to remove than add" (also in glean `fix-and-simplify-first`). New labels come back with screenshots.

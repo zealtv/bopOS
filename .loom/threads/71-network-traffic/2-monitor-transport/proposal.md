@@ -345,3 +345,11 @@ Hardware module/audio fidelity remains a separate physical check.
 **Decision requested:** approve the visible-default table, or select the
 conservative first delivery preserving raw classes. Proposed internal API
 names, controls and gap text are suggestions, not ratified UI or wire tokens.
+
+## Ruling — Bob, 2026-10-04 (via Tengu)
+
+**"OK all."** All eight operator-visible changes are approved. Bob added: *"Prefer
+simple and elegant solutions where possible; better to remove than add."* Build to
+the smallest version of each, and remove what the new transport makes redundant.
+Exact new labels (filter names, drop indicator, rate summary, System clock line)
+still come back to Bob with screenshots.

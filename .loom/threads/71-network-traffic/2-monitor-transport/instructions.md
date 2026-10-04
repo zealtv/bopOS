@@ -31,3 +31,10 @@ whether or not the Monitor is open. Cost grows with nodes × browsers.
 
 A short proposal (with measured message rates on simfleet at 50 nodes), then
 the build. Any change to what the console shows by default goes to Bob first.
+
+## Build (Bob approved all, 2026-10-04)
+
+Build the proposal as ratified (see its Ruling): subscriptions, server filtering,
+100 ms batches, bounded per-client writers, the `ws.js` unhandled-event fix, and the
+eight visible changes. Simplest version that works; remove what becomes redundant.
+New labels go to Bob with screenshots before tying.
