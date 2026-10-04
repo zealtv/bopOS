@@ -24,6 +24,14 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    or make a new project". The Show tab has no clear action yet; steps are
    removed one at a time. Want a button? If so, what should it say, e.g.
    "Clear show…" with a confirm? → `66-projects/5-one-show`, possibly `7-project-menu`.
+6. **Venue snapshot `10x8-test` not converted**: its Seat ids don't match the
+   project's, so `tools/migrate_sites.py` left it in `dashboard/installations/`
+   (gitignored, untouched). Make it a site by hand, or drop it? Your local
+   project now has the `default` site. Backups: `project.json.pre-sites`
+   beside it.
+7. **"New patch…" kept on the Patches tab** beside Add Existing…. It isn't in
+   the mockups, but without it a project can't create a patch from the
+   template. Keep, move or drop? → `66-projects/6-patch-versions`.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
