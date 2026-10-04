@@ -97,17 +97,16 @@ def write_fixture(temp):
     with open(manifest, "w", encoding="utf-8") as target:
         json.dump({"engine": "test", "entrypoint": "main.bin",
                    "params": PARAMS, "caps": [], "slots": []}, target)
-    shows = os.path.join(temp, "shows")
-    os.makedirs(shows)
-    with open(os.path.join(shows, "Journey.json"), "w", encoding="utf-8") as target:
+    state_path = str(project_path(temp))
+    with open(os.path.join(os.path.dirname(state_path), "show.json"), "w",
+              encoding="utf-8") as target:
         json.dump({"name": "Journey", "items": [
             {"kind": "step", "uid": "aaaa1111", "alias": "One",
              "duration_s": 5, "messages": [], "then_actions": []}]}, target)
-    state_path = str(project_path(temp))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump({
             "schema": 1, "name": "Global controls rig",
-            "master": 1.0, "event_lead_ms": 500, "current_show": "Journey",
+            "master": 1.0, "event_lead_ms": 500,
             "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                             "staged_at": time.time()},
             "seats": {"1": {"id": 1, "name": "Finn", "positions": [[1, 1]],

@@ -206,11 +206,7 @@ class Dashboard:
         self._editor_seat = {"id": 0, "automation_key": "editor",
                              "editor": True, "bound": None, "groups": [],
                              "params": {}}
-        self.shows_dir = os.path.join(self.state.data_dir, "shows")
-        os.makedirs(self.shows_dir, exist_ok=True)
-        current_show = self.state.data.get("current_show")
-        self.show = (show_model.load_show(self.shows_dir, current_show)
-                    if current_show else show_model.empty_show(""))
+        self.show = show_model.load_show(self.state.show_path)
         self.show_engine = ShowEngine(
             self.osc, self.broadcast,
             event_lead_ms=lambda: self.state.data.get("event_lead_ms", 500),
@@ -323,9 +319,6 @@ class Dashboard:
         await ws.send_json({"type": "venues", "data": {
             "venues": self.state.list_venues(),
             "current": self.state.data.get("name")}})
-        await ws.send_json({"type": "shows", "data": {
-            "names": show_model.list_shows(self.shows_dir),
-            "current": self.state.data.get("current_show")}})
         await ws.send_json({"type": "show", "data": self.show})
         await ws.send_json({"type": "show_warnings", "data": self.show_warnings()})
         await ws.send_json({"type": "show_playback", "data": self.show_engine.snapshot()})
@@ -1162,66 +1155,6 @@ class Dashboard:
             else:
                 self.replay_current_assignments()
                 await self.ws_error(ws, "The venue could not be saved as current; no dashboard state changed.")
-        elif kind == "list_shows":
-            await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
-                                           "current": self.state.data.get("current_show")})
-        elif kind == "create_show":
-            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
-            if not name:
-                await self.ws_error(ws, "Show names must be text.")
-                return
-            doc, error = show_model.create_show(self.shows_dir, name)
-            if error:
-                await self.ws_error(ws, error)
-                return
-            await self.set_current_show(name, doc)
-        elif kind == "load_show":
-            name = str(data.get("name", "")).strip()
-            if name not in show_model.list_shows(self.shows_dir):
-                await self.ws_error(ws, "That show could not be loaded.")
-                return
-            await self.show_engine.stop_all_steps()
-            await self.set_current_show(name, show_model.load_show(self.shows_dir, name))
-        elif kind == "rename_show":
-            name = re.sub(r"[^\w-]", "-", str(data.get("name", "")).strip())[:48]
-            if not name:
-                await self.ws_error(ws, "Show names must be text.")
-                return
-            old = self.state.data.get("current_show")
-            if not old:
-                await self.ws_error(ws, "No show is loaded.")
-                return
-            if name in show_model.list_shows(self.shows_dir):
-                await self.ws_error(ws, "A show with that name already exists.")
-                return
-            doc = dict(self.show)
-            doc["name"] = name
-            try:
-                show_model.save_show(self.shows_dir, doc)
-            except OSError:
-                await self.ws_error(ws, "The show could not be saved.")
-                return
-            show_model.delete_show(self.shows_dir, old)
-            await self.set_current_show(name, doc)
-        elif kind == "delete_show":
-            name = str(data.get("name", "")).strip()
-            if not name or not show_model.delete_show(self.shows_dir, name):
-                await self.ws_error(ws, "That show could not be deleted.")
-                return
-            if self.state.data.get("current_show") == name:
-                await self.show_engine.stop_all_steps()
-                self.state.data["current_show"] = None
-                self.show = show_model.empty_show("")
-                self.show_engine.show = self.show
-                self.show_undo.clear()
-                self.state.save_debounced()
-                await self.broadcast("show", self.show)
-                # The one transition that clears `current_show` without going
-                # through `set_current_show`, so it needs the same state
-                # broadcast for the same reason.
-                await self.broadcast("state")
-            await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
-                                           "current": self.state.data.get("current_show")})
         elif kind == "undo_show":
             await self.undo_show(ws)
         elif kind == "add_step":
@@ -1275,27 +1208,6 @@ class Dashboard:
         elif kind == "request_report":
             self.osc.request(uid, "report")
 
-    async def set_current_show(self, name, doc):
-        """Adopt `doc` as the loaded show and broadcast catalog + full-state."""
-        self.show = doc
-        self.show_engine.show = doc
-        self.show_undo.clear()
-        self.state.data["current_show"] = name
-        self.state.save_debounced()
-        await self.broadcast("shows", {"names": show_model.list_shows(self.shows_dir),
-                                       "current": name})
-        await self.broadcast("show", self.show)
-        await self.broadcast("show_warnings", self.show_warnings())
-        # `current_show` lives in `state.data`, and this method broadcast three
-        # planes that are not `state` -- so the fact it had just mutated never
-        # left the server. There is no periodic full-state broadcast anywhere
-        # (heartbeats are `device_update`, the offline sweep sends
-        # `device_offline`), so "late" meant "until some unrelated mutation
-        # happened to fire one", which may be never. The enriched snapshot, not
-        # the bare `state.public()`, because a client replaces `installation`
-        # wholesale on `state` and the bare one carries no `live_controls`.
-        await self.broadcast("state")
-
     def show_warnings(self):
         return show_model.show_target_warnings(
             self.show, self.state.data.get("groups", {}))
@@ -1309,9 +1221,6 @@ class Dashboard:
         3: every mutation persists and re-broadcasts `show` full-state).
         """
         async with self.show_edit_lock:
-            if not self.state.data.get("current_show"):
-                await self.ws_error(ws, "No show is loaded.")
-                return
             new_show, _result, error = mutate(self.show, *args)
             if error:
                 await self.ws_error(ws, error)
@@ -1319,7 +1228,10 @@ class Dashboard:
             if new_show == self.show:
                 return
             try:
-                show_model.save_show(self.shows_dir, new_show)
+                # The show lives in the project folder: a project that failed
+                # to load blocks its show's writes as it blocks its own.
+                self.state._require_valid_load()
+                show_model.save_show(self.state.show_path, new_show)
             except OSError:
                 await self.ws_error(ws, "The show could not be saved.")
                 return
@@ -1333,11 +1245,14 @@ class Dashboard:
     async def undo_show(self, ws):
         """Restore the last persisted Show edit for every connected client."""
         async with self.show_edit_lock:
-            if not self.state.data.get("current_show") or not self.show_undo:
+            if not self.show_undo:
                 return
             previous = self.show_undo.pop()
             try:
-                show_model.save_show(self.shows_dir, previous)
+                # The show lives in the project folder: a project that failed
+                # to load blocks its show's writes as it blocks its own.
+                self.state._require_valid_load()
+                show_model.save_show(self.state.show_path, previous)
             except OSError:
                 self.show_undo.append(previous)
                 await self.ws_error(ws, "The show undo could not be saved.")

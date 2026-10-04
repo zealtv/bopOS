@@ -103,11 +103,11 @@ keyboard operations on the focused pill or row (paste mints a fresh uid).
 Ctrl/Cmd+Z is a global, server-authoritative undo shared by every connected
 client; redo is deferred.
 
-Show documents persist as JSON in host-level `dashboard/shows/`,
-one file per show; the schema and playback semantics live in
-`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`. The transport strip carries the
-show catalog: switch between saved shows (stops playback first), create,
-rename, or delete them; the active show persists across dashboard restarts
+A project has one show, persisted as JSON in
+`dashboard/projects/<project>/show.json`; the schema and playback semantics
+live in
+`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`.
+The Show tab always edits that show; it persists across dashboard restarts
 and is shared by every connected client. Two collapsible OSC consoles sit
 under the table: outgoing (everything the dashboard sends) and incoming
 (everything the LAN surface receives, heartbeats included). Filter with
@@ -217,7 +217,11 @@ Before starting an existing installation with this layout, run
 the first project and host registry, leaves the source untouched, and refuses
 to overwrite existing destination data. An empty data root starts a default
 project. A missing selection opens `default`; an existing unreadable or invalid
-selection blocks saves.
+selection blocks saves. Its `current_show` comes along as the project's
+`show.json`. For a project already migrated,
+`python tools/migrate_project.py --show dashboard/shows/<name>.json` copies
+that show file into the open project's `show.json`, byte for byte, refusing
+an invalid show or an existing `show.json`.
 
 If the dashboard cannot fully load its project or registry files, the Show tab displays
 a notice and saves are blocked for that session. The original file stays in

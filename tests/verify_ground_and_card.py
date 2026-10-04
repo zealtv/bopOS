@@ -267,13 +267,7 @@ def report_header_controls(page, width, theme):
 
 
 def populate_show(page):
-    if page.query_selector("#show-create-form"):
-        page.fill("#show-create-name", "ground")
-        page.click("#show-create-form button[type=submit]")
-        page.wait_for_selector(".show-edit-bar")
-    elif page.query_selector("#show-load-button"):
-        page.click("#show-load-button")
-        page.wait_for_selector(".show-edit-bar")
+    page.wait_for_selector(".show-edit-bar")
     page.click('[data-edit-bar-action="add-step"]')
     time.sleep(.5)
     row = page.query_selector(".show-step-row")

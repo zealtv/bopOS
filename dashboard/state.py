@@ -134,7 +134,6 @@ class InstallationState:
                      "facilitator_commands": [],
                      "fleet_patch": None,
                      "wifi": {"country": "GB", "networks": []},
-                     "current_show": None,
                      "listener": None,
                      # Runtime-only operator notices. Adoption messages live
                      # for this dashboard session and are never persisted.
@@ -180,6 +179,12 @@ class InstallationState:
     def device_registry(self):
         return self.data["device_registry"]
 
+    @property
+    def show_path(self):
+        # The project's one show (66-projects proposal sec 2); its document
+        # is show_model's, this is only where it lives.
+        return os.path.join(os.path.dirname(self.path), "show.json")
+
     def _load(self):
         try:
             with open(self.path, encoding="utf-8") as source:
@@ -210,8 +215,6 @@ class InstallationState:
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
                 self.data["wifi"] = wifi_config.clean_list(loaded.get("wifi"))
-                self.data["current_show"] = self.clean_current_show(
-                    loaded.get("current_show"))
                 if self.data["fleet_patch"]:
                     # simulation["patch"] is a read-through of the fleet choice
                     self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
@@ -424,7 +427,6 @@ class InstallationState:
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
                 "wifi": wifi_config.clean_list(self.data.get("wifi")),
-                "current_show": self.clean_current_show(self.data.get("current_show")),
                 "listener": dict(self.data["listener"]),
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
@@ -867,15 +869,6 @@ class InstallationState:
             staged_at = None
         return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
                 "staged_at": staged_at}
-
-    @staticmethod
-    def clean_current_show(value):
-        # Which show the playback engine has loaded (show-tab design note sec
-        # 2), parallel to fleet_patch. The show document itself
-        # lives in dashboard/shows/<name>.json (show_model.py); this is only
-        # the name pointer, and a stale/renamed name is not an error here --
-        # show_model.load_show() tolerates a missing file as an empty show.
-        return value.strip() if isinstance(value, str) and value.strip() else None
 
     def stage_fleet_patch(self, name, fingerprint):
         self.data["fleet_patch"] = {"name": name, "fingerprint": fingerprint,

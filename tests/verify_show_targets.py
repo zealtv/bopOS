@@ -92,10 +92,8 @@ def make_fixture(root):
     patches = root / "patches"
     assets = root / "assets"
     patch = patches / "alpha"
-    shows = root / "shows"
     patch.mkdir(parents=True)
     assets.mkdir()
-    shows.mkdir()
     (patch / "main.bin").write_bytes(b"show-targets")
     manifest = {
         "engine": "test",
@@ -112,7 +110,6 @@ def make_fixture(root):
     state = {
         "schema": 1,
         "name": "Portable room",
-        "current_show": "opening-set",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64},
         "groups": {"7": {"id": 7, "name": "Front"}},
         "next_group_id": 8,
@@ -140,7 +137,7 @@ def make_fixture(root):
         }],
     }
     state_path = project_path(root)
-    show_path = shows / "opening-set.json"
+    show_path = state_path.parent / "show.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
     return state_path, show_path, patches, assets

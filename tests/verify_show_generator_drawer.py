@@ -91,10 +91,8 @@ def make_fixture(root):
     root = Path(root)
     patch = root / "patches" / "alpha"
     assets = root / "assets"
-    shows = root / "shows"
     patch.mkdir(parents=True)
     assets.mkdir()
-    shows.mkdir()
     (patch / "main.bin").write_bytes(b"show-generator-drawer")
     (patch / "bopos.patch.json").write_text(json.dumps({
         "engine": "test",
@@ -104,7 +102,7 @@ def make_fixture(root):
         "events": [], "caps": [], "slots": [],
     }))
     state = {
-        "schema": 1, "name": "Generator drawer", "current_show": "forms",
+        "schema": 1, "name": "Generator drawer",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64},
         "groups": {}, "seats": {},
         "device_registry": {},
@@ -135,7 +133,7 @@ def make_fixture(root):
                    "then_actions": [{"type": "stop"}]}],
     }
     state_path = project_path(root)
-    show_path = shows / "forms.json"
+    show_path = state_path.parent / "show.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
     return state_path, show_path, root / "patches", assets

@@ -4,6 +4,7 @@ from project_fixture import project_path, data_root
 
 import asyncio
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -192,8 +193,9 @@ class ShowSchemaTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(result["args"], args)
         with tempfile.TemporaryDirectory() as temporary:
-            show_model.save_show(temporary, moved)
-            loaded = show_model.load_show(temporary, moved["name"])
+            path = os.path.join(temporary, "show.json")
+            show_model.save_show(path, moved)
+            loaded = show_model.load_show(path)
         self.assertEqual(loaded["items"][1]["messages"][0]["args"], args)
 
     def test_unsupported_message_kind_is_rejected(self):
@@ -256,16 +258,17 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
         dashboard = object.__new__(Dashboard)
         dashboard.show_edit_lock = asyncio.Lock()
         dashboard.show_undo = []
-        dashboard.state = SimpleNamespace(
-            data={"current_show": original["name"], "groups": {}}
-        )
         dashboard.show = original
         dashboard.show_engine = SimpleNamespace(show=original)
         dashboard.broadcast = mock.AsyncMock()
 
         with tempfile.TemporaryDirectory() as temporary:
-            dashboard.shows_dir = temporary
-            show_model.save_show(temporary, original)
+            dashboard.state = SimpleNamespace(
+                data={"groups": {}},
+                show_path=os.path.join(temporary, "show.json"),
+                _require_valid_load=lambda: None,
+            )
+            show_model.save_show(dashboard.state.show_path, original)
             await dashboard.apply_show_mutation(
                 None, show_model.update_message, "b0000001",
                 {"args": [{"type": "f", "value": 0.75}]},
@@ -374,20 +377,18 @@ class ShowPersistenceTests(unittest.TestCase):
             step("a0000002"),
         ]))
         with tempfile.TemporaryDirectory() as temporary:
-            show_model.save_show(temporary, show)
-            self.assertEqual(show_model.load_show(temporary, show["name"]), show)
+            path = os.path.join(temporary, "show.json")
+            show_model.save_show(path, show)
+            self.assertEqual(show_model.load_show(path), show)
             self.assertFalse(
                 any(path.suffix == ".tmp" for path in Path(temporary).iterdir())
             )
 
     def test_missing_empty_corrupt_and_invalid_documents_load_as_empty(self):
         with tempfile.TemporaryDirectory() as temporary:
-            expected = show_model.empty_show("broken")
-            self.assertEqual(
-                show_model.load_show(temporary, "broken"),
-                expected,
-            )
-            path = Path(temporary) / "broken.json"
+            expected = show_model.empty_show()
+            path = Path(temporary) / "show.json"
+            self.assertEqual(show_model.load_show(path), expected)
             for content in (
                 "",
                 "{not json",
@@ -399,26 +400,7 @@ class ShowPersistenceTests(unittest.TestCase):
             ):
                 with self.subTest(content=content):
                     path.write_text(content)
-                    self.assertEqual(
-                        show_model.load_show(temporary, "broken"),
-                        expected,
-                    )
-
-    def test_create_refuses_to_clobber_and_catalog_is_sorted(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            first, error = show_model.create_show(temporary, "z-show")
-            self.assertIsNone(error)
-            self.assertEqual(first, show_model.empty_show("z-show"))
-            show_model.create_show(temporary, "a-show")
-
-            duplicate, error = show_model.create_show(temporary, "z-show")
-            self.assertIsNone(duplicate)
-            self.assertTrue(error)
-            self.assertEqual(
-                show_model.list_shows(temporary),
-                ["a-show", "z-show"],
-            )
-
+                    self.assertEqual(show_model.load_show(path), expected)
 
 if __name__ == "__main__":
     unittest.main()

@@ -675,26 +675,12 @@ def remove_message(show, uid):
 
 
 # --------------------------------------------------------------------------
-# Persistence -- dashboard/shows/<name>.json, atomic .tmp+os.replace like
-# InstallationState.venues_dir()/save_venue()/read_venue().
+# Persistence -- the project's one show, projects/<project>/show.json
+# (66-projects proposal sec 2), atomic .tmp+os.replace like the project file.
 # --------------------------------------------------------------------------
 
-def shows_dir(state_path):
-    directory = os.path.join(os.path.dirname(os.path.abspath(state_path)), "shows")
-    os.makedirs(directory, exist_ok=True)
-    return directory
-
-
-def list_shows(directory):
-    try:
-        return sorted(name[:-5] for name in os.listdir(directory) if name.endswith(".json"))
-    except OSError:
-        return []
-
-
-def save_show(directory, doc):
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, doc["name"] + ".json")
+def save_show(path, doc):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     temporary = path + ".tmp"
     with open(temporary, "w", encoding="utf-8") as target:
         # sort_keys only orders each object's own keys; `items` stays a JSON
@@ -704,36 +690,18 @@ def save_show(directory, doc):
     os.replace(temporary, path)
 
 
-def load_show(directory, name):
+def load_show(path):
     """Tolerant load: a missing, empty, or corrupt file yields an empty show."""
-    path = os.path.join(directory, name + ".json")
     try:
         with open(path, encoding="utf-8") as source:
             text = source.read()
     except OSError:
-        return empty_show(name)
+        return empty_show()
     if not text.strip():
-        return empty_show(name)
+        return empty_show()
     try:
         loaded = json.loads(text)
     except ValueError:
-        return empty_show(name)
-    cleaned = clean_show(loaded, fallback_name=name)
-    return cleaned if cleaned is not None else empty_show(name)
-
-
-def delete_show(directory, name):
-    try:
-        os.remove(os.path.join(directory, name + ".json"))
-        return True
-    except OSError:
-        return False
-
-
-def create_show(directory, name):
-    """A fresh, empty, saved show. Refuses to clobber an existing file."""
-    if name in list_shows(directory):
-        return None, "A show with that name already exists."
-    doc = empty_show(name)
-    save_show(directory, doc)
-    return doc, None
+        return empty_show()
+    cleaned = clean_show(loaded, fallback_name="")
+    return cleaned if cleaned is not None else empty_show()

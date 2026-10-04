@@ -144,7 +144,7 @@
           </section>
           <section class="monitor-system-card">
             <h3>Show</h3>
-            <strong data-monitor-system="show">none loaded</strong>
+            <strong data-monitor-system="show">—</strong>
             <small>current persisted document</small>
           </section>
           <section class="monitor-system-card">
@@ -706,7 +706,6 @@
     systemText("fleet", `${online.length} / ${devices.length} online`);
     systemText("engines", `${engines} engine${engines === 1 ? "" : "s"} alive`);
     systemText("clock", `${clocked} / ${online.length} settled`);
-    systemText("show", state?.current_show || "none loaded");
     systemText("patch", patch.name || "not set");
     systemText("fingerprint", patch.fingerprint
       ? `fingerprint …${String(patch.fingerprint).slice(-8)}`
@@ -760,6 +759,8 @@
     renderSystem();
   });
   ws.on("state", renderSystem);
+  // The project's one show (66-projects): always present, named by its document.
+  ws.on("show", show => systemText("show", show?.name || "—"));
   ws.on("osc_transport_error", data => {
     transportErrors.push(data || {});
     if (transportErrors.length > TRANSPORT_ERROR_LIMIT) transportErrors.shift();
