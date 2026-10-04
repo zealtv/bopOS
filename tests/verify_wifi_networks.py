@@ -18,7 +18,8 @@ sys.path.insert(0, str(ROOT))
 from python import wifi_config
 
 UIDS = [UID, "02:53:49:4d:00:02"]
-SCRATCH = Path("/private/tmp/claude-502/-Users-bob-repos-bopOS/eb6fbb68-c7f7-4a02-aeed-7744c61ade65/scratchpad")
+# Optional: BOPOS_WIFI_SCREENSHOTS=<dir> saves the panel and warning screenshots.
+SCRATCH = Path(os.environ["BOPOS_WIFI_SCREENSHOTS"]) if os.environ.get("BOPOS_WIFI_SCREENSHOTS") else None
 
 
 class WifiPeers(PhysicalPeer):
@@ -114,12 +115,14 @@ def main():
                     expected = "⚠ This sends 2 passphrases over the network. Anything on this network right now can read them. Send only on your own network."
                     assert page.locator("#wifi-confirm-warning").inner_text() == expected
                     assert not any(isinstance(frame[1], list) for frame in peer.snapshot() if len(frame) == 2 and frame[0] in UIDS)
-                    SCRATCH.mkdir(parents=True, exist_ok=True)
-                    page.screenshot(path=str(SCRATCH / "wifi-warning.png"))
+                    if SCRATCH:
+                        SCRATCH.mkdir(parents=True, exist_ok=True)
+                        page.screenshot(path=str(SCRATCH / "wifi-warning.png"))
                     page.locator('#wifi-confirm button[value="send"]').click()
                     page.wait_for_function("uids => uids.every(uid => installation.devices[uid].wifi_sync === 'in sync')", arg=UIDS)
                     page.wait_for_function("Array.from(document.querySelectorAll('[data-field=psk]')).every(input => input.value === '' && input.placeholder === 'secret set')")
-                    page.screenshot(path=str(SCRATCH / "wifi-panel.png"))
+                    if SCRATCH:
+                        page.screenshot(path=str(SCRATCH / "wifi-panel.png"))
                     assert page.locator('#device-roster [data-wifi-sync]').all_text_contents() == ["in sync", "in sync"]
                     # One changed network across both peers uses the singular.
                     page.locator('.wifi-network [data-field="psk"]').first.fill(secret + "2")
@@ -161,11 +164,12 @@ def main():
                     if file.is_file() and file != secret_file:
                         assert secret.encode() not in file.read_bytes(), str(file)
                 # Search the repository (including ignored runtime files), not just Git.
-                result = subprocess.run(["rg", "--hidden", "--no-ignore", "-l", "-F", "-f", "-", str(ROOT)],
-                                        input=secret + "\n", capture_output=True, text=True)
+                result = subprocess.run(["grep", "-rlF", "--", secret, str(ROOT)],
+                                        capture_output=True, text=True)
                 assert result.returncode == 1, "test passphrase found in repository"
                 print("PASS: edit, reorder, disable warning, passphrase confirmation, send, chips, unmanaged adoption, redaction; no browser errors")
-                print("Screenshots: " + str(SCRATCH / "wifi-panel.png") + ", " + str(SCRATCH / "wifi-warning.png"))
+                if SCRATCH:
+                    print("Screenshots: " + str(SCRATCH / "wifi-panel.png") + ", " + str(SCRATCH / "wifi-warning.png"))
             finally:
                 peer.close(); stop(dashboard)
 
