@@ -3,6 +3,7 @@
 import math
 import random
 import re
+import struct
 import threading
 import time
 
@@ -27,12 +28,29 @@ class ParamSpec:
         return "ParamSpec({!r}, {})".format(self.kind, values)
 
 
-def _number(value, label="value"):
+def wire_number(value, wire_type):
+    """Whether a number fits its emitted OSC scalar (integer output floors)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        scalar = math.floor(value) if wire_type == 'i' else float(value)
+        packed = struct.pack('!' + wire_type, scalar)
+        return math.isfinite(struct.unpack('!' + wire_type, packed)[0])
+    except (OverflowError, ValueError, struct.error):
+        return False
+
+
+def _number(value, label="value", param_type=None):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ParamGrammarError(f"{label} must be numeric")
-    result = float(value)
+    try:
+        result = float(value)
+    except OverflowError:
+        raise ParamGrammarError(f"{label} must be finite")
     if not math.isfinite(result):
         raise ParamGrammarError(f"{label} must be finite")
+    if param_type is not None and not wire_number(result, param_type):
+        raise ParamGrammarError(f"{label} must be numeric")
     return result
 
 
@@ -84,19 +102,19 @@ def _options(values):
     return positional, options, seen
 
 
-def _fade(values, loop, curve):
+def _fade(values, loop, curve, param_type):
     count = len(values)
     if count == 1:
-        return ParamSpec("set", value=_number(values[0]))
+        return ParamSpec("set", value=_number(values[0], param_type=param_type))
     if count == 2:
-        segments = [(_number(values[0]), _duration(values[1]))]
+        segments = [(_number(values[0], param_type=param_type), _duration(values[1]))]
         return ParamSpec("fade", segments=segments, start=None, curve=curve)
     if count == 3:
-        start = _number(values[0])
-        segments = [(_number(values[1]), _duration(values[2]))]
+        start = _number(values[0], param_type=param_type)
+        segments = [(_number(values[1], param_type=param_type), _duration(values[2]))]
         return ParamSpec("fade", segments=segments, start=start, curve=curve)
     if count >= 4 and count % 2 == 0:
-        segments = [(_number(values[index]), _duration(values[index + 1]))
+        segments = [(_number(values[index], param_type=param_type), _duration(values[index + 1]))
                     for index in range(0, count, 2)]
         return ParamSpec("loop" if loop else "fade", segments=segments,
                          start=None, curve=curve)
@@ -128,8 +146,8 @@ def parse_message(args, param_type):
         period = _duration(values[4], "period")
         if period <= 0:
             raise ParamGrammarError("lfo period must be greater than zero")
-        return ParamSpec("lfo", shape=shape, minimum=_number(values[2], "minimum"),
-                         maximum=_number(values[3], "maximum"), period=period,
+        return ParamSpec("lfo", shape=shape, minimum=_number(values[2], "minimum", param_type),
+                         maximum=_number(values[3], "maximum", param_type), period=period,
                          curve=options["curve"], phase=options["phase"],
                          free=options["free"])
     if "phase" in seen or "free" in seen:
@@ -141,7 +159,7 @@ def parse_message(args, param_type):
             raise ParamGrammarError("loop requires a fade form")
     elif isinstance(head, str):
         raise ParamGrammarError(f"unknown keyword or option {head!r}")
-    result = _fade(values, loop and len(values) >= 3, options["curve"])
+    result = _fade(values, loop and len(values) >= 3, options["curve"], param_type)
     if result.kind == "set" and "curve" in seen:
         raise ParamGrammarError("curve option requires a fade, loop, or lfo")
     return result
