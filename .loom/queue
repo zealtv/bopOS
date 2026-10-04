@@ -9,7 +9,6 @@
 2-device-enabled-honesty
 2-monitor-transport
 3-shared-node-protocol
-3-review-install-and-services
 2-review-frontend-modules
 4-review-show-model
 2-split-osc-handle
@@ -20,3 +19,6 @@
 16-file-fetch-walk
 14-point-boundaries
 6-split-manifest-validate
+17-usb-service-hardening
+18-engine-launch-failures
+19-node-process-ownership

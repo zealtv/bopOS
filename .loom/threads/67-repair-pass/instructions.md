@@ -32,6 +32,14 @@ Added 2026-10-05 from `lore:2026-10-05-bopos-review-core-libs` (74/1):
 15. `15-store-temp-files` — one key's write deletes another key (high).
 16. `16-file-fetch-walk` — `file:` fetch follows source symlinks.
 
+Added 2026-10-05 from `lore:2026-10-05-bopos-review-install-services` (74/3):
+
+17. `17-usb-service-hardening` — root USB unit runs a pi-writable script
+    (high); ignored partition's stop unmounts the active stick.
+18. `18-engine-launch-failures` — launcher exits 0 after required steps fail.
+19. `19-node-process-ownership` — daemon/IO crashes unsupervised; stale PIDs
+    kill unrelated processes; dead helper unit and restart wrapper.
+
 ## Constraints
 
 - Each fix lands with a test that fails before it.

@@ -1,0 +1,7 @@
+CONFIRMED engine/engine: launcher exit=0; failed dependency/engine accepted
+CONFIRMED engine/context: launcher exit=0; failed dependency/engine accepted
+CONFIRMED engine/audio: launcher exit=0; failed dependency/engine accepted
+CONFIRMED stale PID: unrelated fixture sleep killed despite engine.name mismatch
+CONFIRMED USB: ignored sdb1 start succeeds; its stop unmounts sda1 fixture
+CONFIRMED boot: both service commands exit 86; start.sh still returns 0
+CONFIRMED source trust chain: USB unit defaults to root and executes pi-owned checkout helper

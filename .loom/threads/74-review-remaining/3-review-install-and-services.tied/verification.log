@@ -1,0 +1,107 @@
+...bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+...
+----------------------------------------------------------------------
+Ran 6 tests in 0.023s
+
+OK
+........
+----------------------------------------------------------------------
+Ran 8 tests in 0.019s
+
+OK
+FF.F
+======================================================================
+FAIL: test_missing_and_malformed_manifests_also_stay_online (test_manifest_boot.ManifestBootTests.test_missing_and_malformed_manifests_also_stay_online) (content=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 77, in assert_services_alive
+    os.kill(pid, 0)
+    ~~~~~~~^^^^^^^^
+ProcessLookupError: [Errno 3] No such process
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 109, in test_missing_and_malformed_manifests_also_stay_online
+    self.assert_services_alive()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 80, in assert_services_alive
+    self.fail(f"{name} process {pid} died: {logs}; boot: {(self.root / 'boot.log').read_text()}")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: bopos process 83722 died: ['2026-10-05T10:32:25.741+11:00 --- logpipe: capping bopos.log at 134217728 bytes ---\n2026-10-05T10:32:25.742+11:00 --- logpipe: input closed ---\n', '2026-10-05T10:32:25.742+11:00 --- logpipe: capping io.log at 134217728 bytes ---\n2026-10-05T10:32:25.744+11:00 --- logpipe: input closed ---\n']; boot: bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+------------------- Starting bopOS...
+SOUNDCARD: DigiAMP
+MAC ADDRESS: unknown
+------------------- Starting bopos.py...
+------------------- Starting io/main.py...
+/tmp/bopos-manifest-boot-z6dkrujh/bash/start.sh: line 71: /dev/fd/63: Operation not permitted
+/tmp/bopos-manifest-boot-z6dkrujh/bash/start.sh: line 77: /dev/fd/63: Operation not permitted
+manifest: no bopos.patch.json in /tmp/bopos-manifest-boot-z6dkrujh/patches/live
+ERROR: PATCH REQUIRES A VALID bopos.patch.json: /tmp/bopos-manifest-boot-z6dkrujh/patches/live
+
+
+======================================================================
+FAIL: test_missing_and_malformed_manifests_also_stay_online (test_manifest_boot.ManifestBootTests.test_missing_and_malformed_manifests_also_stay_online) (content='{broken')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 77, in assert_services_alive
+    os.kill(pid, 0)
+    ~~~~~~~^^^^^^^^
+ProcessLookupError: [Errno 3] No such process
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 109, in test_missing_and_malformed_manifests_also_stay_online
+    self.assert_services_alive()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 80, in assert_services_alive
+    self.fail(f"{name} process {pid} died: {logs}; boot: {(self.root / 'boot.log').read_text()}")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: bopos process 84800 died: ['2026-10-05T10:32:27.085+11:00 --- logpipe: capping bopos.log at 134217728 bytes ---\n2026-10-05T10:32:27.087+11:00 --- logpipe: input closed ---\n', '2026-10-05T10:32:27.086+11:00 --- logpipe: capping io.log at 134217728 bytes ---\n2026-10-05T10:32:27.087+11:00 --- logpipe: input closed ---\n']; boot: bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+------------------- Starting bopOS...
+SOUNDCARD: DigiAMP
+MAC ADDRESS: unknown
+------------------- Starting bopos.py...
+------------------- Starting io/main.py...
+/tmp/bopos-manifest-boot-z6dkrujh/bash/start.sh: line 71: /dev/fd/63: Operation not permitted
+/tmp/bopos-manifest-boot-z6dkrujh/bash/start.sh: line 77: /dev/fd/63: Operation not permitted
+manifest: bopos.patch.json is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+ERROR: PATCH REQUIRES A VALID bopos.patch.json: /tmp/bopos-manifest-boot-z6dkrujh/patches/live
+
+
+======================================================================
+FAIL: test_retired_type_manifest_keeps_both_services_alive (test_manifest_boot.ManifestBootTests.test_retired_type_manifest_keeps_both_services_alive)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 77, in assert_services_alive
+    os.kill(pid, 0)
+    ~~~~~~~^^^^^^^^
+ProcessLookupError: [Errno 3] No such process
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 90, in test_retired_type_manifest_keeps_both_services_alive
+    self.assert_services_alive()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/bob/repos/bopOS/tests/test_manifest_boot.py", line 80, in assert_services_alive
+    self.fail(f"{name} process {pid} died: {logs}; boot: {(self.root / 'boot.log').read_text()}")
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: bopos process 87495 died: ['2026-10-05T10:32:29.869+11:00 --- logpipe: capping bopos.log at 134217728 bytes ---\n2026-10-05T10:32:29.870+11:00 --- logpipe: input closed ---\n', '2026-10-05T10:32:29.869+11:00 --- logpipe: capping io.log at 134217728 bytes ---\n2026-10-05T10:32:29.870+11:00 --- logpipe: input closed ---\n']; boot: bash: warning: setlocale: LC_ALL: cannot change locale (C.UTF-8): No such file or directory
+------------------- Starting bopOS...
+SOUNDCARD: DigiAMP
+MAC ADDRESS: unknown
+------------------- Starting bopos.py...
+/tmp/bopos-manifest-boot-kp0x5e7q/bash/start.sh: line 71: /dev/fd/63: Operation not permitted
+------------------- Starting io/main.py...
+/tmp/bopos-manifest-boot-kp0x5e7q/bash/start.sh: line 77: /dev/fd/63: Operation not permitted
+manifest: param gain: type was removed (2026-07-28); use kind (float/int/toggle/enum/text)
+ERROR: PATCH REQUIRES A VALID bopos.patch.json: /tmp/bopos-manifest-boot-kp0x5e7q/patches/live
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 5.524s
+
+FAILED (failures=3)
