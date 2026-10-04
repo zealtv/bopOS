@@ -45,3 +45,10 @@ registry (aliases, enabled) stays host-global, outside projects.
   padding. → Moved beside the project bar; 30px pill, 5px clear of the header.
 - **New Site** shouldn't say "copy current"; a dialog asking whether to base
   it on an existing site. → New Site dialog with *Start from*.
+
+## 2026-10-04 — mockup review, round 2
+
+Bob: *"mockups look good. project and patch tabs much improved. the radio
+button is better - top bar is still a bit messy but fine for now"*.
+The header tidy (slice 8) stays a later pass; the round-2 layout is good
+enough to build on.
