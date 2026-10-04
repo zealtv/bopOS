@@ -57,3 +57,5 @@ copy of an existing one, like New Site. The bar becomes *Project · Site · Patc
 Unit tests: storage, migration, open/new/rename/delete, and refusing during
 playback. A browser journey for the menu section and dialog, opening a second
 show, and the Show tab following it. Fast and browser suites.
+
+**Bob, 2026-10-04 (after build):** ruling 4 confirmed; error lines and default name "Show" approved; add an "N steps" second line to show rows; move the header wrap breakpoint to ~1279px.
