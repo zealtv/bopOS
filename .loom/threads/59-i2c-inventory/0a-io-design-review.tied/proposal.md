@@ -336,3 +336,14 @@ Where Performance mode refuses a request that has a reply, the reason or phase i
 ## 8c. Stream wire (ratified 2026-10-04, Bob via Tengu: "wire ruling is ok as is")
 
 As proposed by `59/8` (`8-stream-port/proposal-stream-wire.md`): reply `/os/io-stream <uid> {"active": bool, "error": null|"performance"|"invalid-arguments"}`; values on 5551 as `/io/stream <uid:string> <bundle:OSC blob>` (typetags `,sb`, the bridge bundle byte-for-byte); one stream per device, the most recent open/renew owns it, close idempotent; local bridge command `/io/stream <0|1>` on 8880 with its own 10 s timeout, so `stream` is a reserved module name.
+
+## 8d. Per-module Re-init (ratified 2026-10-04, Bob: "ok as is - might be useful")
+
+As proposed by `59/2` (report 59-2b):
+
+```
+/all/os/to <uid> io-reinit <name>  →  /os/io-reinit <uid> <ok|err> {"name": "<name>", "error": null|"<existing IO reason>"}
+local: /io/reinit <name> to 8880; success /io/reinitialized <name> to 7771 and 6662; failure the existing /io/error <name> <reason>
+```
+
+Declared modules only; the device takes type and address from its active manifest, never from the request. The bridge retires and re-runs that one instance under the IO lock (serialised with writes); other modules are untouched. Existing reasons only (`invalid-arguments`, `unknown-command`, `no-bus`, `create-failed`). Same node/dashboard receipt timeouts. **Allowed in Performance** (a repair action, not development traffic). Health updates through the existing registry, `/os/report.io` and `/os/io-error`.

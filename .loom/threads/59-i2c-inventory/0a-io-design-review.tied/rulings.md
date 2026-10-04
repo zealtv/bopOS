@@ -115,3 +115,7 @@ The 77 merge needed a reason for refusing `io-write` in Performance; 77 had alre
 - Stream wire (proposal §8c): ratified as proposed.
 - 59/2 Device-tab and 59/3 manifest-editor strings: "screenshots are fine". Bob asked whether the manifest editor's ✕ was a Monitor toggle; it is Remove; Bob: "the x for remove is fine", so it stays as ✕.
 - Bob: "a hover tip on the x is all that is needed" — added `title="Remove IO module"`.
+
+## Re-init, 2026-10-04 (via chat)
+
+The lead laid out three choices (as is / locked in Performance / drop); Bob: *"ok as is - might be useful"* (proposal §8d).

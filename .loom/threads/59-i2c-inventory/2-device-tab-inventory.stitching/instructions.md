@@ -15,3 +15,7 @@ Spec: `../0a-io-design-review.tied/proposal.md` (ratified 2026-10-04; Bob's word
   until `9` adds the panels; hide it until then if that's cleaner.
 - Use the shipped components (§12). Browser journey covering all three
   scan states and module states via simfleet.
+
+## Remaining: Re-init (ratified 2026-10-04, proposal §8d)
+
+Build `io-reinit` per §8d and a **Re-init** button per module row (enabled in Performance; disabled offline or while pending). Optional/required missing display is already done (a569058).
