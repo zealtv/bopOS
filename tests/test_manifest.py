@@ -2,6 +2,7 @@
 
 import json
 import math
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,9 +14,65 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
 import manifest  # noqa: E402
+from pythonosc.osc_message_builder import OscMessageBuilder
 
 
 class ManifestTests(unittest.TestCase):
+    def test_cli_assignments_preserve_literal_shell_values(self):
+        marker = self.patch / 'injected'
+        for value in ("pd'; touch injected; #",
+                      "space ' quote \" $HOME `false` $(false)\nsecond line"):
+            with self.subTest(value=value):
+                entrypoint = value + '.pd'
+                (self.patch / entrypoint).touch()
+                candidate = self.candidate(engine=value, entrypoint=entrypoint)
+                (self.patch / manifest.MANIFEST_NAME).write_text(json.dumps(candidate))
+                cli = subprocess.run(
+                    [sys.executable, str(ROOT / 'python/manifest.py'), str(self.patch)],
+                    check=True, capture_output=True, text=True, cwd=self.patch)
+                shell = subprocess.run(
+                    ['/bin/bash', '-c', cli.stdout + '\nprintf "%s\\0%s" "$ENGINE" "$ENTRYPOINT"'],
+                    check=True, capture_output=True, text=True, cwd=self.patch)
+                self.assertEqual(shell.stdout, value + '\0' + entrypoint)
+                self.assertFalse(marker.exists())
+
+    def test_malformed_values_reject_without_replacing_manifest(self):
+        destination = self.patch / manifest.MANIFEST_NAME
+        destination.write_text(json.dumps(self.candidate()))
+        before = destination.read_bytes()
+        candidates = [self.candidate(entrypoint='main\0.pd'),
+                      self.candidate(engine='pd\0')]
+        candidates.extend(self.candidate([self.declaration(kind=kind)])
+                          for kind in ([], {}))
+        for kind in ([], {}):
+            self.assertIsNone(manifest.param_wire_type(self.declaration(kind=kind)))
+        candidates.append(self.candidate([self.declaration(default=10 ** 400)]))
+        candidates.append(self.candidate(events=[{'name': 'hit', 'defaults': [10 ** 400]}]))
+        for candidate in candidates:
+            with self.subTest(candidate=candidate):
+                loaded, error = manifest.write_atomic(self.patch, candidate)
+                self.assertIsNone(loaded)
+                self.assertTrue(error)
+                self.assertEqual(destination.read_bytes(), before)
+
+    def test_numeric_declarations_fit_the_osc_scalar(self):
+        for kind, value in (('float', 1e100), ('float', -1e100),
+                            ('int', 2 ** 31), ('int', -(2 ** 31) - .5)):
+            for field in ('min', 'max', 'default'):
+                with self.subTest(kind=kind, value=value, field=field):
+                    self.assert_invalid([self.declaration(kind=kind, **{field: value})])
+        self.assert_invalid(events=[{'name': 'hit', 'defaults': [1e100]}])
+        for kind, value in (('float', 3.4028234663852886e38),
+                            ('float', -3.4028234663852886e38),
+                            ('int', -(2 ** 31)), ('int', 2 ** 31 - 1),
+                            ('int', 1.75), ('float', 1e-45)):
+            loaded, error = self.validate([self.declaration(kind=kind, default=value)])
+            self.assertIsNone(error)
+            message = OscMessageBuilder(address='/p/gain')
+            message.add_arg(math.floor(value) if kind == 'int' else float(value),
+                            manifest.param_wire_type(loaded['params'][0]))
+            self.assertTrue(message.build().dgram)
+
     def test_io_modules_validate_and_round_trip_without_mutating_candidate(self):
         modules = [{'name': 'tilt', 'type': 'lis3dh', 'address': '0x1A', 'optional': True}]
         candidate = self.candidate(io_modules=modules)

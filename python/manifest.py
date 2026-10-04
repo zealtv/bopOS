@@ -12,14 +12,17 @@ import json
 import math
 import os
 import re
+import shlex
 import sys
 import tempfile
 try:
     from . import io_protocol
     from .io_catalog import PERIPHERAL_TYPES
+    from .paramgen import wire_number
 except ImportError:
     import io_protocol
     from io_catalog import PERIPHERAL_TYPES
+    from paramgen import wire_number
 
 MANIFEST_NAME = "bopos.patch.json"
 PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+")
@@ -47,7 +50,8 @@ def param_wire_type(declaration):
     """Return the unchanged OSC scalar tag for a validated control kind."""
     if not isinstance(declaration, dict):
         return None
-    return PARAM_KINDS.get(declaration.get("kind"))
+    kind = declaration.get("kind")
+    return PARAM_KINDS.get(kind) if isinstance(kind, str) else None
 
 
 def qualify_param(declaration):
@@ -106,12 +110,13 @@ def validate(candidate, patch_path, require_entrypoint=True):
         return None, f"{MANIFEST_NAME} must be a JSON object"
 
     engine = manifest.get("engine", "pd")
-    if not isinstance(engine, str) or not engine.strip():
+    if not isinstance(engine, str) or not engine.strip() or '\0' in engine:
         return None, "engine must be a non-empty string"
     manifest["engine"] = engine.strip()
 
     entrypoint = manifest.get("entrypoint")
-    if not isinstance(entrypoint, str) or not entrypoint.strip():
+    if (not isinstance(entrypoint, str) or not entrypoint.strip()
+            or '\0' in entrypoint):
         return None, "entrypoint must be a non-empty string"
     entrypoint = entrypoint.strip()
     normalized_entrypoint = os.path.normpath(entrypoint)
@@ -165,7 +170,7 @@ def validate(candidate, patch_path, require_entrypoint=True):
             return None, (f"param {name}: type was removed (2026-07-28); "
                           f"use kind ({'/'.join(PARAM_KINDS)})")
         kind = param.get("kind")
-        if kind not in PARAM_KINDS:
+        if not isinstance(kind, str) or kind not in PARAM_KINDS:
             return None, f"param {name}: kind must be one of {'/'.join(PARAM_KINDS)}"
         options = param.get("options")
         if kind == "enum":
@@ -208,8 +213,7 @@ def validate(candidate, patch_path, require_entrypoint=True):
                 return None, f"param {name}: text default must be a string"
         else:
             numbers = [v for v in (low, high, default) if v is not None]
-            if any(not isinstance(v, (int, float)) or isinstance(v, bool)
-                   or not math.isfinite(v) for v in numbers):
+            if any(not wire_number(v, PARAM_KINDS[kind]) for v in numbers):
                 return None, f"param {name}: min/max/default must be numbers"
         if kind == "enum" and default is not None and default != int(default):
             return None, f"param {name}: default {default} is not an option index"
@@ -261,9 +265,7 @@ def validate(candidate, patch_path, require_entrypoint=True):
         defaults = event.get("defaults")
         if defaults is not None:
             if (not isinstance(defaults, list) or len(defaults) != arity
-                    or any(not isinstance(value, (int, float))
-                           or isinstance(value, bool) or not math.isfinite(value)
-                           for value in defaults)):
+                    or any(not wire_number(value, 'f') for value in defaults)):
                 return None, f"event {name}: defaults must be {arity} numbers"
         dashboard = event.get("dashboard")
         if dashboard is not None and not isinstance(dashboard, bool):
@@ -373,8 +375,8 @@ def main():
     patch_path = sys.argv[1]
     manifest, error = load(patch_path)
     if manifest is not None:
-        print(f"ENGINE='{manifest['engine']}'")
-        print(f"ENTRYPOINT='{manifest['entrypoint']}'")
+        print(f"ENGINE={shlex.quote(manifest['engine'])}")
+        print(f"ENTRYPOINT={shlex.quote(manifest['entrypoint'])}")
         for note in warnings(manifest):
             print(f"manifest: warning: {note}", file=sys.stderr)
         return 0

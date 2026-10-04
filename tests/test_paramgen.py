@@ -1,6 +1,7 @@
 """Durable parser tests for the numeric parameter automation grammar."""
 
 import sys
+import math
 import unittest
 from pathlib import Path
 
@@ -9,10 +10,48 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python"))
 
-from paramgen import ParamGrammarError, parse_message  # noqa: E402
+from paramgen import GeneratorEngine, ParamGrammarError, parse_message  # noqa: E402
+from pythonosc.osc_message_builder import OscMessageBuilder
 
 
 class ParamGrammarTests(unittest.TestCase):
+    def test_generator_interpolation_stays_serializable_at_scalar_edges(self):
+        engine = GeneratorEngine(lambda *_: None, None, now_ns=lambda: 0)
+        float_max = 3.4028234663852886e38
+        for param_type, low, high in (('f', -float_max, float_max),
+                                      ('i', -(2 ** 31), 2 ** 31 - 1)):
+            fade = engine._make_fade(
+                parse_message([low, high, '60ms'], param_type), param_type, low, 0)
+            for shape in ('sine', 'tri', 'saw', 'square', 'sh', 'drift'):
+                lfo = engine._make_lfo(
+                    'gain', parse_message(['lfo', shape, low, high, '60ms'], param_type),
+                    param_type, 0)
+                for now in (0, 15_000_000, 30_000_000, 45_000_000, 60_000_000):
+                    for value in (engine._fade_value(fade, now), engine._lfo_value(lfo, now)):
+                        self.assertTrue(math.isfinite(value))
+                        message = OscMessageBuilder(address='/p/gain')
+                        message.add_arg(math.floor(value) if param_type == 'i' else value,
+                                        param_type)
+                        self.assertTrue(message.build().dgram)
+
+    def test_generator_values_fit_the_declared_wire_scalar(self):
+        for param_type, value in (('f', 1e100), ('f', -1e100),
+                                  ('f', 10 ** 400), ('i', 2 ** 31),
+                                  ('i', -(2 ** 31) - .5), ('i', 10 ** 400)):
+            for args in ([value], [value, '1ms'], [value, 0, '1ms'],
+                         ['lfo', 'sine', 0, value, '1s']):
+                with self.subTest(param_type=param_type, args=args):
+                    with self.assertRaises(ParamGrammarError):
+                        parse_message(args, param_type)
+        for param_type, value in (('f', 3.4028234663852886e38),
+                                  ('i', -(2 ** 31)), ('i', 2 ** 31 - 1),
+                                  ('i', 1.75), ('i', -.25)):
+            spec = parse_message([value], param_type)
+            message = OscMessageBuilder(address='/p/gain')
+            message.add_arg(math.floor(spec.value) if param_type == 'i' else spec.value,
+                            param_type)
+            self.assertTrue(message.build().dgram)
+
     def test_static_set_and_fade_forms(self):
         static = parse_message([0.25], "f")
         self.assertEqual((static.kind, static.value), ("set", 0.25))
