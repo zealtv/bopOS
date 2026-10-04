@@ -89,10 +89,12 @@ button:focus-visible,summary:focus-visible,input:focus-visible,#spatial .node:fo
 
 
 /* Global header (66-projects/8-header-tidy): one statement, then status —
-   brand · Project/Site/Patch · mode switch · · · health · theme. Every control
-   is 30px tall, 5px clear of the 40px bar. Flex in DOM order when wide; narrow
-   widths reorder into a status row over a statement row, the spacer forcing
-   the break. Explicit orders and sizes here outrank the older header rules
+   brand · Project/Site/Patch/Show · mode switch · · · health · theme. Every
+   control is 30px tall, 5px clear of the 40px bar. Flex in DOM order when
+   wide; narrow widths reorder into a status row over a statement row, the
+   spacer forcing the break. The break sits at 1299px so four long names
+   (66/10b) keep the bar's full width; at 1279 the 1280 row measured 4px
+   short. Explicit orders and sizes here outrank the older header rules
    higher up this file. */
 header{display:flex;flex-wrap:nowrap;align-items:center;gap:12px;height:var(--header-h);padding:0 16px}
 header h1{margin:0;flex:none}.app-brand{white-space:nowrap}
@@ -106,7 +108,7 @@ header h1{margin:0;flex:none}.app-brand{white-space:nowrap}
 #ws-status.online::before{background:var(--green);box-shadow:0 0 6px color-mix(in srgb,var(--green) 55%,transparent)}
 #mute-all{min-height:40px;white-space:nowrap}
 .theme-control{display:flex;align-items:center;gap:7px;margin:0}.theme-control select{height:30px;min-height:30px}
-@media(max-width:1049px){
+@media(max-width:1299px){
   header{flex-wrap:wrap;height:auto;min-height:var(--header-h);row-gap:6px;padding:5px 16px}
   header h1{order:0;margin-right:auto}
   .app-health{order:1}

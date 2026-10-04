@@ -10,6 +10,12 @@
   // Shows open, change and go in every mode, but not while one is playing
   // (66/10 ruling 4); paused steps count, as they still hold the show.
   let playing = false;
+  // The open show's steps come from its live document: show edits don't
+  // re-broadcast `state`, so `show_steps` can lag for that one show.
+  let openShow = null;
+  const stepCount = show => show === installation.current_show && openShow?.name === show
+    ? (openShow.items || []).filter(item => item.kind === 'step').length
+    : installation.show_steps?.[show];
   const count = (n, singular, plural) => `${n ?? '—'} ${n === 1 ? singular : plural}`;
   // Mockup 4: the current row first (highlighted), the rest by name, ignoring case.
   const currentFirst = (rows, current, key) => [...rows].sort((a,b) =>
@@ -32,7 +38,7 @@
       }).join('')}<button data-action="new-site">New Site</button>
       <h3>Show</h3>${currentFirst(installation.shows || [], installation.current_show, show => show).map(show => {
         const current = show === installation.current_show, off = playing ? 'disabled' : '';
-        return `<div class="project-menu-row ${current ? 'current' : ''}"><div><strong>${esc(show)}</strong></div><span class="project-menu-actions">${current
+        return `<div class="project-menu-row ${current ? 'current' : ''}"><div><strong>${esc(show)}</strong><small>${count(stepCount(show), 'step', 'steps')}</small></div><span class="project-menu-actions">${current
           ? `<button data-show="${esc(show)}" data-action="rename-show" ${off}>Rename</button>`
           : `<button data-show="${esc(show)}" data-action="open-show" ${off}>Open</button><button data-show="${esc(show)}" data-action="delete-show" ${off}>Delete</button>`}</span></div>`;
       }).join('')}<button data-action="new-show" ${playing ? 'disabled' : ''}>New Show</button>`;
@@ -101,6 +107,10 @@
       name:showName.value, source:showDialog.querySelector('[name=start]:checked').value === 'empty' ? null : showSource.value,
     });
     bar.focus();
+  });
+  ws.on('show', data => {
+    openShow = data;
+    render();
   });
   ws.on('show_playback', data => {
     playing = Object.keys(data?.steps || {}).some(uid => ['playing', 'paused'].includes(data.steps[uid]?.state));

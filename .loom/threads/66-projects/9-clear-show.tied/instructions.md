@@ -18,3 +18,6 @@ Proposal §3: "to start fresh, clear it or make a new project". Bob, 2026-10-04:
 - Refused while the show is playing, like other show edits.
 - Tests: a unit test for the mutation and undo; a browser check for the
   button, the confirm and undo.
+
+**Bob, 2026-10-04 (after build):** one-step confirm wording fine; refusal "Stop the show before clearing it." approved.
+Bob: "1 steps" would also be acceptable if pluralising ever complicates code; kept the singular since it is one conditional.

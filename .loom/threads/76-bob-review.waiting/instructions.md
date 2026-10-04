@@ -19,11 +19,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    opened." / "The project could not be created." / "The project could not be
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
-10. **Clear Show (66/9) wording**, two small things:
-   - The server refusal "Stop the show before clearing it." is new. It's
-     normally unseen, because the button is disabled during playback.
-   - With one step the confirm reads "Remove all 1 step from this show? You
-     can undo this." Keep it, or use a different singular?
 
 ## Hardware checks (Bob's hands; software halves are done)
 
@@ -53,3 +48,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    (every mode; refused while playing or paused); the new error lines and the
    default name **Show** are fine; **add "N steps"** to show rows; **yes,
    wrap the header earlier** (~1279px) → follow-up on `66-projects/10-multiple-shows`.
+9. Clear Show wording — Bob, 2026-10-04: the one-step confirm ("Remove all 1 step…") is fine; **yes** to "Stop the show before clearing it." → `66-projects/9-clear-show`.

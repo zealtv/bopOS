@@ -2,9 +2,11 @@
 """The project menu's Show section: open, New Show, rename, delete, and refusal
 while a show plays, with the Show tab and the bar following the open show.
 
+The fixture uses mockup-length names (Kite Choir · Northern Broadwalk ·
+kite-v2 · Opening Night) so the bar check covers the header wrap (66/10b).
 Screenshots, when set: BOPOS_SHOW_MENU_SCREENSHOT (the menu),
 BOPOS_NEW_SHOW_SCREENSHOT (the dialog) and BOPOS_SHOW_BAR_SCREENSHOT (the
-header at 1440, 900 and 420px; the width is added to the file name).
+header at each checked width; the width is added to the file name).
 """
 import os
 from pathlib import Path
@@ -14,7 +16,7 @@ import sys
 import tempfile
 
 from playwright.sync_api import sync_playwright
-from verify_fleet_patch_deploy import REPO, free_port, stop, wait_http
+from verify_fleet_patch_deploy import REPO, free_port, stop, wait_http, write_patch
 from verify_project_menu import menu_rows
 
 sys.path.insert(0, str(Path(REPO) / "dashboard"))
@@ -56,11 +58,18 @@ def main():
         root = Path(temporary)
         state = InstallationState(root)
         state.data["current_show"] = "Main"
+        state.data["fleet_patch"] = {"name": "kite-v2", "fingerprint": "a" * 64}
         state.save()
-        show_model.save_show(state.show_file("Main"), dict(show_model.empty_show("Main"), items=[step("0000000a", "Opening")]))
+        state.rename_project("Kite Choir")
+        state.create_site("Northern Broadwalk")
+        # Main: two steps and a divider (dividers aren't counted); Encore: one.
+        show_model.save_show(state.show_file("Main"), dict(show_model.empty_show("Main"), items=[
+            step("0000000a", "Opening"), {"kind": "divider", "uid": "0000000c", "alias": None},
+            step("0000000d", "Second")]))
         show_model.save_show(state.show_file("Encore"), dict(show_model.empty_show("Encore"), items=[step("0000000b", "Bows")]))
         patches, assets = root / "patches", root / "assets"
         patches.mkdir(); assets.mkdir()
+        write_patch(str(patches), "kite-v2", b"kite")
         http_port, report_port, command_port = free_port(socket.SOCK_STREAM), free_port(socket.SOCK_DGRAM), free_port(socket.SOCK_DGRAM)
         url = f"http://127.0.0.1:{http_port}"
         log_path = root / "dashboard.log"
@@ -94,21 +103,32 @@ def main():
                     page.goto(url)
                     page.click("#tab-button-show")
                     wait_show(page, "Main")
-                    assert show_tab(page)["steps"] == ["Opening"]
+                    assert show_tab(page)["steps"] == ["Opening", "Second"]
                     assert page.get_attribute("#project-bar", "aria-label") == "Project · Site · Patch · Show"
 
                     # Mockup 4: SHOW after SITE, the open show first with Rename,
                     # the others with Open and Delete, then New Show.
                     menu(page)
                     assert menu_rows(page, "Show") == {"rows": ["Main", "Encore"], "current": ["Main"]}
+                    counts = page.evaluate("""() => [...document.querySelectorAll('#project-menu .project-menu-row')]
+                      .filter(row => row.querySelector('.project-menu-actions')).map(row => row.querySelector('small')?.textContent)""")
+                    assert counts == ["2 steps", "1 step"], counts
                     labels = page.evaluate("""() => [...document.querySelectorAll('#project-menu .project-menu-actions')]
                       .map(row => [...row.querySelectorAll('button')].map(button => button.textContent))""")
                     assert labels == [["Rename"], ["Open", "Delete"]], labels
                     headings = page.locator("#project-menu h3").all_inner_texts()
                     assert [heading.lower() for heading in headings] == ["project", "site", "show"], headings
-                    shot = os.environ.get("BOPOS_SHOW_MENU_SCREENSHOT")
-                    if shot: page.screenshot(path=shot)
                     page.keyboard.press("Escape")
+
+                    # The open show's count follows its live document, which
+                    # show edits broadcast without a state update.
+                    page.evaluate("ws.send('add_step', {})")
+                    page.wait_for_function("document.querySelectorAll('#show-root .show-step-alias').length === 3")
+                    menu(page)
+                    assert page.locator('#project-menu .project-menu-row.current small').last.inner_text() == "3 steps"
+                    page.keyboard.press("Escape")
+                    page.evaluate("ws.send('undo_show', {})")
+                    page.wait_for_function("document.querySelectorAll('#show-root .show-step-alias').length === 2")
 
                     # Opening another show: the Show tab and the bar follow it.
                     action(page, "open-show", "Encore")
@@ -150,19 +170,19 @@ def main():
                     prompts.append("Blank Slate")
                     action(page, "rename-show", "Blank")
                     wait_show(page, "Blank Slate")
-                    assert (root / "projects/default/shows/Blank Slate.json").exists()
-                    assert not (root / "projects/default/shows/Blank.json").exists()
+                    assert (root / "projects/Kite Choir/shows/Blank Slate.json").exists()
+                    assert not (root / "projects/Kite Choir/shows/Blank.json").exists()
 
                     # Delete another show, after confirming.
                     answers.append(False)
                     action(page, "delete-show", "Encore Copy")
                     page.wait_for_timeout(300)
-                    assert (root / "projects/default/shows/Encore Copy.json").exists()
+                    assert (root / "projects/Kite Choir/shows/Encore Copy.json").exists()
                     answers.append(True)
                     action(page, "delete-show", "Encore Copy")
                     page.wait_for_function("!installation.shows.includes('Encore Copy')")
                     assert confirms == ['Delete show "Encore Copy"? This can\'t be undone.'] * 2, confirms
-                    assert not (root / "projects/default/shows/Encore Copy.json").exists()
+                    assert not (root / "projects/Kite Choir/shows/Encore Copy.json").exists()
                     menu(page)
                     assert menu_rows(page, "Show") == {"rows": ["Blank Slate", "Encore", "Main"], "current": ["Blank Slate"]}
                     page.keyboard.press("Escape")
@@ -192,9 +212,21 @@ def main():
                     page.reload()
                     page.click("#tab-button-show")
                     wait_show(page, "Encore")
+                    prompts.append("Opening Night")
+                    action(page, "rename-show", "Encore")
+                    wait_show(page, "Opening Night")
+                    menu(page)
+                    assert menu_rows(page, "Show") == {"rows": ["Opening Night", "Blank Slate", "Main"], "current": ["Opening Night"]}
+                    counts = page.evaluate("""() => [...document.querySelectorAll('#project-menu .project-menu-row')]
+                      .filter(row => row.querySelector('.project-menu-actions')).map(row => row.querySelector('small')?.textContent)""")
+                    assert counts == ["1 step", "0 steps", "2 steps"], counts
+                    shot = os.environ.get("BOPOS_SHOW_MENU_SCREENSHOT")
+                    if shot: page.screenshot(path=shot)
+                    page.keyboard.press("Escape")
 
-                    # The bar at the 66/8 widths: four parts, nothing spilling.
-                    for width in (1440, 900, 420):
+                    # The bar at the 66/8 widths and across the moved wrap
+                    # (66/10b): four long parts, none clipped, nothing spilling.
+                    for width in (1440, 1300, 1280, 1200, 1050, 900, 420):
                         page.set_viewport_size({"width": width, "height": 900})
                         page.wait_for_timeout(100)
                         fits = page.evaluate("""() => {
@@ -202,10 +234,12 @@ def main():
                           const header = document.querySelector('header');
                           return {right: bar.right, width: innerWidth, scroll: document.documentElement.scrollWidth,
                                   header: header.scrollWidth <= header.clientWidth,
-                                  parts: [...document.querySelectorAll('#project-bar strong')].map(node => node.textContent)}
+                                  parts: [...document.querySelectorAll('#project-bar strong')].map(node => node.textContent),
+                                  clipped: [...document.querySelectorAll('#project-bar strong')].filter(node => node.scrollWidth > node.clientWidth).length}
                         }""")
                         assert fits["right"] <= fits["width"] and fits["scroll"] <= fits["width"] and fits["header"], (width, fits)
-                        assert fits["parts"] == ["default", "default", "—", "Encore"], fits
+                        assert fits["parts"] == ["Kite Choir", "Northern Broadwalk", "kite-v2", "Opening Night"], fits
+                        assert fits["clipped"] == 0, (width, fits)
                         shot = os.environ.get("BOPOS_SHOW_BAR_SCREENSHOT")
                         if shot:
                             path = Path(shot)
@@ -220,7 +254,7 @@ def main():
             finally:
                 stop(server)
     print("PASS: Show menu section, open, New Show copy/empty/cancel, rename, delete with confirm, "
-          "playback refusal, reload, bar at 1440/900/420; no browser errors")
+          "playback refusal, reload, step counts, long-name bar at 1440-420 unclipped; no browser errors")
     return 0
 
 

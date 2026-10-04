@@ -51,6 +51,14 @@ class ShowStorageTests(unittest.TestCase):
         self.assertEqual(reloaded.public()["shows"], ["Rehearsal", "Second Half", "Show"])
         self.assertEqual(reloaded.public()["current_show"], "Rehearsal")
 
+    def test_step_counts_skip_dividers_and_mark_unreadable_shows(self):
+        divider = {"kind": "divider", "uid": "0000000b", "alias": None}
+        show_model.save_show(self.state.show_path, dict(show_model.empty_show("Show"), items=[STEP, divider]))
+        self.state.create_show("Empty")
+        os.remove(self.state.show_path)
+        (Path(self.state.shows_dir()) / "Broken.json").write_text("broken JSON")
+        self.assertEqual(self.state.public()["show_steps"], {"Broken": None, "Empty": 0, "Show": 1})
+
     def test_open_show_before_its_first_edit_copies_empty_and_is_listed(self):
         self.state.create_show("Fresh")
         os.remove(self.state.show_path)

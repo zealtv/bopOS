@@ -451,7 +451,7 @@ class InstallationState:
         return dict(self.data, project=self.project, patches=self.project_patches(),
                     projects=self.project_summaries(), site_rooms=self.site_rooms(),
                     sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
-                    shows=self.list_shows(),
+                    shows=self.list_shows(), show_steps=self.show_step_counts(),
                     seats={key: dict(seat, positions=self.positions_for(seat["id"]))
                            for key, seat in self.seats.items()})
 
@@ -1363,6 +1363,15 @@ class InstallationState:
         except OSError:
             names = set()
         return sorted(names | {self.data["current_show"]})
+
+    def show_step_counts(self):
+        """Steps per show for the project menu (dividers don't count); None
+        for a show that won't load."""
+        counts = {}
+        for name in self.list_shows():
+            doc, valid = show_model.load_show(self.show_file(name))
+            counts[name] = sum(item["kind"] == "step" for item in doc["items"]) if valid else None
+        return counts
 
     def _require_shows(self):
         self._require_valid_load()
