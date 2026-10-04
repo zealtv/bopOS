@@ -45,6 +45,7 @@ COMPONENTS = {
     "target-picker": [".target-picker", ".target-chip"],
     "control-column": [".control-column"],
     "target-card": [".target-card"],
+    "device-io": [".device-io"],
 }
 
 # A surface legitimately PLACES what it hosts. These properties say where a
