@@ -1,9 +1,23 @@
 # 1-network-config-design
 
-**Status:** after `0-lan-trust-review` · design gate
+**Status:** ready (`0` ruled 2026-10-04) · design gate
 **Goal:** a written proposal for dashboard-managed Wi-Fi profiles, for Bob to
 ratify. Read the parent for Bob's 2026-10-03 requirements (dev + hidden
 performance networks, enable/disable).
+
+## Scope from `0`'s ruling (`../0-lan-trust-review/ruling.md`)
+
+Keep it low friction and simple — Bob, 2026-10-04.
+
+- Profiles are provisioned **in the workshop** on a trusted network; plain
+  transport there is fine. No secret encryption, keys or login.
+- **Fleet-wide profile set** first; no per-device exceptions.
+- **Priority** orders networks (e.g. show SSID1 > show fallback SSID2 >
+  testing); **enable/disable** stays, so the easy-passphrase testing network
+  can be switched off before bump-in.
+- **Disable safely** shrinks to a warning when disabling or removing a network
+  a device is on now. No timed rollback; recovery is physical.
+- **Platform is out of this design** — decided in `2` with a device up.
 
 ## Decide
 
@@ -17,14 +31,11 @@ performance networks, enable/disable).
   refuse? timed rollback?).
 - **First-slice scope:** open/hidden networks, Wi-Fi country, security modes,
   Ethernet, static IP, single device vs fleet.
-- **Platform:** which network manager the supported Pi OS images actually use
-  (don't assume `wpa_supplicant` / NetworkManager / `wlan0`).
-- **Secrets:** how a passphrase reaches exactly one device — using `0`'s
-  ruling — storage and permissions, redaction, listing without reading back.
+- **Secrets:** storage and permissions on the device, redaction, listing
+  without reading back. Transport is settled by `0`.
 - **Privilege:** a narrow helper that can't take arbitrary files or commands.
-- **Safe apply:** validation, staging, ack timing, fallback, rediscovery,
-  timeout, rollback or documented local recovery — including removing the
-  network currently in use.
+- **Safe apply:** validation, ack timing, rediscovery, documented local
+  recovery — including the warning for the network currently in use.
 - **Wire:** `/admin` terms, exact-device targeting, idempotency, error phases,
   contract amendment. No passphrases in any broadcast or receipt.
 - **UI:** placement, ordered list, masked input, warnings, active state, no-Wi-Fi

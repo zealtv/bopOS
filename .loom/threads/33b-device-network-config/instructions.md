@@ -4,7 +4,8 @@
 edit, remove, enable and disable SSIDs and passphrases — on a network model
 that's been deliberately secured.
 
-**Status:** revived by Bob 2026-10-03 (parked since 2026-07-23). `0` first;
+**Status:** revived by Bob 2026-10-03 (parked since 2026-07-23). `0` ruled
+2026-10-04 (workshop provisioning + network isolation, `0-lan-trust-review/ruling.md`);
 `1` is a Bob-gated design; `2` builds it.
 
 ## What Bob wants (2026-10-03)
