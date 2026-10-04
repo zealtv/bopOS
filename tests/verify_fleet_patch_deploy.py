@@ -88,9 +88,24 @@ def write_patch(root, name, payload):
                    "caps": [], "slots": []}, target)
 
 
+def add_existing(page, name):
+    """Add Existing: list a catalog folder in the project (66-projects/6)."""
+    page.click("#patch-add-existing")
+    page.wait_for_selector("#patch-add-dialog[open]")
+    page.select_option("#patch-add-select", name)
+    page.click("#patch-add-confirm")
+    page.wait_for_selector(f'#patch-list [data-patch="{name}"]')
+
+
 def deploy_fleet(page, name):
-    page.select_option("#patch-select", name)
-    page.click("#patch-switch")
+    """Add the patch to the project, select it and Set Live it (Patches tab)."""
+    if page.locator(f'#patch-list [data-patch="{name}"]').count() == 0:
+        add_existing(page, name)
+    page.click(f'#patch-list [data-patch="{name}"]')
+    page.wait_for_function(
+        "name => document.querySelector('#patch-detail h2')?.textContent.startsWith(name)",
+        arg=name)
+    page.click("#patch-deploy")
 
 
 def main():
@@ -103,6 +118,7 @@ def main():
         write_patch(patches, "demo-pd", b"demo")
         write_patch(patches, "alpha", b"alpha-bytes")
         write_patch(patches, "beta", b"beta-bytes")
+        # A new project: no Patch and no patches until Add Existing.
         state = {"schema": 1, "name": "Fleet patch deployment rig", "seats": {
             "1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
                   "params": {}, "bound": UID_A},
@@ -158,31 +174,14 @@ def main():
                     arg=UID_B)
 
                 page.click("#tab-button-patches")
-                page.wait_for_selector("#tab-patches:not([hidden]) #fleet-patch-panel")
-                page.wait_for_function(
-                    "() => [...document.querySelectorAll('#patch-select option')]"
-                    ".some(option => option.value === 'beta')")
-
-                # Patch choice and actions stay aligned in one deploy row.
-                row = page.evaluate("""() => {
-                  const box = node => node.getBoundingClientRect();
-                  const deploy = document.querySelector('.fleet-patch-deploy');
-                  const parts = ['#patch-select',
-                                 '.fleet-patch-actions']
-                    .map(selector => document.querySelector(selector));
-                  if (!deploy || parts.some(part => !part)) return null;
-                  const rect = box(deploy);
-                  const tallest = Math.max(...parts.map(part => box(part).height));
-                  const centres = parts.map(part =>
-                    Math.round(box(part).top + box(part).height / 2));
-                  return {height: Math.round(rect.height),
-                          tallest: Math.round(tallest),
-                          centreSpread: Math.max(...centres) - Math.min(...centres)};
-                }""")
-                check("the deploy row is a single line",
-                      row and row["height"] <= row["tallest"] + 2, repr(row))
-                check("patch and actions share one vertical centre",
-                      row and row["centreSpread"] <= 1, repr(row))
+                page.wait_for_selector(
+                    "#tab-patches:not([hidden]) #patch-add-existing:not([disabled])")
+                check("a new project lists no patches",
+                      page.locator("#patch-list .patch-item").count() == 0)
+                page.evaluate("ws.send('set_fleet_patch', {patch: 'alpha', confirmed: true})")
+                time.sleep(.5)
+                check("Set Live refuses a patch outside the project",
+                      page.evaluate("() => installation.fleet_patch") is None)
 
                 # --- deploy alpha to the whole fleet: both converge ---
                 deploy_fleet(page, "alpha")

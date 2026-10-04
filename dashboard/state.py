@@ -22,6 +22,8 @@ except ImportError:
 SCHEMA = 1
 FACILITATOR_COMMANDS = ("restart-engine", "updatebopos", "reboot", "shutdown")
 FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+# Same grammar as server.NAME_RE: a patch folder name.
+PATCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 MAX_GROUP_ID = 0x7fffffff
 
 
@@ -133,6 +135,7 @@ class InstallationState:
                      "event_lead_ms": 500,
                      "facilitator_commands": [],
                      "fleet_patch": None,
+                     "patches": [],
                      "wifi": {"country": "GB", "networks": []},
                      "listener": None,
                      # Runtime-only operator notices. Adoption messages live
@@ -219,6 +222,8 @@ class InstallationState:
                 self.data["facilitator_commands"] = self.clean_facilitator_commands(
                     loaded.get("facilitator_commands"))
                 self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+                self.data["patches"] = self.clean_patches(
+                    loaded.get("patches"), self.data["fleet_patch"])
                 self.data["wifi"] = wifi_config.clean_list(loaded.get("wifi"))
                 if self.data["fleet_patch"]:
                     # simulation["patch"] is a read-through of the fleet choice
@@ -417,7 +422,8 @@ class InstallationState:
 
     def public(self):
         # Geometry is a derived view for map/inspector clients, never Seat storage.
-        return dict(self.data, project=self.project, sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
+        return dict(self.data, project=self.project, patches=self.project_patches(),
+                    sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
                     seats={key: dict(seat, positions=self.positions_for(seat["id"]))
                            for key, seat in self.seats.items()})
 
@@ -429,6 +435,7 @@ class InstallationState:
                 "facilitator_commands": self.clean_facilitator_commands(
                     self.data.get("facilitator_commands")),
                 "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
+                "patches": self.project_patches(),
                 "wifi": wifi_config.clean_list(self.data.get("wifi")),
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
@@ -873,7 +880,29 @@ class InstallationState:
         return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
                 "staged_at": staged_at}
 
+    @staticmethod
+    def clean_patches(value, fleet_patch=None):
+        # The project's patch folders (66-projects proposal sec 1): sorted,
+        # unique folder names, always including the Patch -- which seeds the
+        # list for a project stored before it had one.
+        names = {name for name in (value if isinstance(value, list) else [])
+                 if isinstance(name, str) and PATCH_NAME_RE.fullmatch(name)}
+        if fleet_patch and PATCH_NAME_RE.fullmatch(fleet_patch["name"]):
+            names.add(fleet_patch["name"])
+        return sorted(names)
+
+    def project_patches(self):
+        return self.clean_patches(self.data.get("patches"), self.data.get("fleet_patch"))
+
+    def add_project_patch(self, name):
+        """Add a patch folder to the project; True when the list changed."""
+        before = self.project_patches()
+        self.data["patches"] = self.clean_patches(before + [name], self.data.get("fleet_patch"))
+        return self.data["patches"] != before
+
     def stage_fleet_patch(self, name, fingerprint):
+        # Set Live keeps the outgoing Patch among the project's versions.
+        self.data["patches"] = self.clean_patches(self.project_patches() + [name])
         self.data["fleet_patch"] = {"name": name, "fingerprint": fingerprint,
                                     "staged_at": time.time()}
         # simulation["patch"] is a read-through of the fleet choice (fp-0 sec 1)

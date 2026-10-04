@@ -283,7 +283,8 @@ def main():
                     '[data-remote-command="reboot"]').check()
                 remote_editor.locator(
                     '[data-remote-command="shutdown"]').check()
-                remote_editor.locator("#remote-command-save").click()
+                check("Remote commands save on click, with no Save button",
+                      remote_editor.locator("button").count() == 0)
                 page.wait_for_function(
                     "() => (installation.facilitator_commands||[]).join(',')"
                     " === 'restart-engine,reboot,shutdown'")
@@ -370,7 +371,7 @@ def main():
                 # visible row order can be asserted directly.
                 stop(fleet)
                 fleet = None
-                page.click("#editor-launch")
+                page.click("#patch-edit")
                 page.wait_for_function(
                     "() => installation.supervisor?.mode === 'edit'"
                     " && installation.editor?.patch === 'alpha'")

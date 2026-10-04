@@ -412,13 +412,16 @@ def main():
                 # --- device controls follow a fleet patch change ---
                 page.click("#tab-button-patches")
                 page.wait_for_selector(
-                    "#tab-patches:not([hidden]) #fleet-patch-panel")
+                    "#tab-patches:not([hidden]) #patch-add-existing:not([disabled])")
+                page.click("#patch-add-existing")
+                page.wait_for_selector("#patch-add-dialog[open]")
+                page.select_option("#patch-add-select", "beta")
+                page.click("#patch-add-confirm")
+                page.wait_for_selector('#patch-list [data-patch="beta"]')
+                page.click('#patch-list [data-patch="beta"]')
                 page.wait_for_function(
-                    "() => [...document.querySelectorAll"
-                    "('#patch-select option')]"
-                    ".some(option => option.value === 'beta')")
-                page.select_option("#patch-select", "beta")
-                page.click("#patch-switch")
+                    "() => document.querySelector('#patch-deploy')?.innerText === 'Set Live'")
+                page.click("#patch-deploy")
                 page.wait_for_function(
                     "() => installation.fleet_patch?.name === 'beta'"
                     " && installation.live_controls?.patch === 'beta'",
