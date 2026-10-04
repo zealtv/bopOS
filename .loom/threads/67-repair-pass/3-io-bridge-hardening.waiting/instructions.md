@@ -37,3 +37,5 @@ Software repairs and 10 regression tests are complete; all 356 fast tests pass.
 See `verification.md` for exact claims and the explicitly pending hardware check.
 New error semantics are proposed in `wire-proposal.md`, not implemented.
 The stitch remains open in `.waiting`; no Pd or contract edits.
+
+**2026-10-04:** the wire question is ruled. The IO design (`59-i2c-inventory/0a-io-design-review.tied/proposal.md` §1) adopts option 2 of `wire-proposal.md`, with the reserved name `bridge` (poll/scan errors use `bridge` too). `59/1` builds the replies. This stitch still waits on the Finn Jet hardware check.

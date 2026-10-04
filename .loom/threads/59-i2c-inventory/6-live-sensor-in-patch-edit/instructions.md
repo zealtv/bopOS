@@ -1,27 +1,21 @@
-# 6-live-sensor-in-patch-edit
+# 6-live-sensor-in-patch-edit: editor input
 
-**Status:** waits on `0a-io-design-review`
-**Goal:** in Patch edit, pick a fleet device and its sensor values stream into
-the patch being edited — so Bob patches against a live sensor on a real device.
+**Status:** after `9` · absorbs the dropped `5-simulated-input`
+**Goal:** in Patch Edit, the editor's audition engine takes its IO input from a
+real device's stream or from simulated panels, and can't tell them apart.
 
-Bob, 2026-10-03: *"When I go into patch edit mode, if I've got some devices in
-the fleet, I'd like to be able to pick a device and have its I2C values get
-streamed over to the patch that I'm editing."*
+Spec: `../0a-io-design-review.tied/proposal.md` (ratified 2026-10-04; Bob's words in `rulings.md`). Work in slices that each verify (`tools/run-tests.sh`, browser journeys where UI changes) and commit. Wire changes are ratified as written in proposal §8; write the matching contract text and §15 row as each piece ships.
 
-## Shape (for `0a` to confirm)
-
-- The editor's audition engine already takes peripheral input on 6662 —
-  that's where `tools/iosim.py` sends. A live device stream should arrive the
-  same way, so the patch can't tell live from simulated and needs no changes.
-- The device keeps feeding its own engine as normal.
-- The stream is a development tool: off by default, one device, ends when
-  Patch edit closes or the device is unpicked.
-
-## Done when
-
-- A device picker in Patch edit starts and stops the stream; the UI shows
-  which device is feeding the editor.
-- simfleet can produce a fake stream, so a browser journey covers start, stop
-  and device-offline.
-- Hardware: Bob's ADS1115 on Ciro Toast drives a patch open in Patch edit.
-  Separate claim; don't make it unless it ran.
+- Input source picker in Patch Edit: a device (its stream, `8`) or
+  **simulated**. Values reach the audition engine on its 6662, the door
+  `tools/iosim.py` uses.
+- **Simulated panels** (proposal §5): the same component as `9`, arrows
+  reversed. Inputs are sliders and pads you drive; outputs show what the patch
+  wrote (e.g. an OLED preview).
+  - `iosim`'s fidelity rules: stream continuously at poll rate (or the
+    patch's `[change]` swallows the first press), and a press goes to the
+    opposite rail from that channel's rest (polarity is per channel).
+  - Values reset each session (Bob).
+- The source is always named (*Ciro Toast · live* / *simulated*). The stream
+  ends when Patch Edit closes or the source is unpicked.
+- Out of scope (future): fake input into a real device's engine.

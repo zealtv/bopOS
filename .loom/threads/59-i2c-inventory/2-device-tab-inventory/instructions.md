@@ -1,27 +1,17 @@
 # 2-device-tab-inventory
 
-**Status:** blocked on `1-scan-transport`
-**Goal:** show the connected I2C addresses on the Device tab.
+**Status:** after `1`
+**Goal:** the Device tab is the IO inventory: bus, declared modules, status, errors.
 
-## What it shows
+Spec: `../0a-io-design-review.tied/proposal.md` (ratified 2026-10-04; Bob's words in `rulings.md`). Work in slices that each verify (`tools/run-tests.sh`, browser journeys where UI changes) and commit. Wire changes are ratified as written in proposal §8; write the matching contract text and §15 row as each piece ships.
 
-- **Addresses:** hex, sorted (`0x18  0x48  0x5A`). A known-address hint is OK
-  *as a hint* (`0x5A · MPR121?`), never as identification.
-- **Three distinct states:** no bus (`has_i2c` false), bus but empty, not yet
-  scanned. Blank must never mean "nothing attached".
-- **Kernel-claimed addresses** (`UU`, e.g. the HiFiBerry DAC) will appear.
-  Decide: annotate or just list. Record it.
-- If `1` made the scan on-demand: a trigger + "last scanned", using the report
-  section's existing refresh pattern.
-
-## Where
-
-Beside the report `<dl>` in `dashboard.js` that already shows `has_i2c`. Use the
-shipped component set — no new stylesheet; §12 applies.
-
-## Done when
-
-- Browser journey (extend the nearest Device-tab `tests/verify_*.py`) using `1`'s
-  simfleet address list, covering **all three states**.
-- Real peripheral appearing/disappearing on the rig is a hardware check — say so
-  in `verification.md`, don't claim it.
+- Scan: addresses hex and sorted, hints never claims (`0x48 · ADS1x15?`); three
+  states (no bus / bus but empty / not scanned); kernel-claimed (`UU`, e.g.
+  the DAC) marked. A Scan trigger plus "last scanned".
+- Declared modules for this device (from `3`): running / missing (optional OK,
+  required flagged) / errored with the bridge's reason; **Re-init** per row; a
+  snapshot of current values.
+- **"Show in Monitor"** checkbox per module (proposal §4). It does nothing
+  until `9` adds the panels; hide it until then if that's cleaner.
+- Use the shipped components (§12). Browser journey covering all three
+  scan states and module states via simfleet.

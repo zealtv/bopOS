@@ -1,8 +1,8 @@
 # IO design: proposal for ratification
 
-**Status:** proposed 2026-10-04, from Bob's direction in session (`rulings.md`).
-Nothing here is built, and the contract text in §8 is not written into the
-contract.
+**Status:** **ratified by Bob, 2026-10-04**, in session (`rulings.md`). Nothing
+here is built; the §8 contract text is written into the contract by the
+stitches that ship it.
 
 One design for the I2C/peripheral layer: transport, streaming, ownership,
 workflow, simulation and scope. Plus Performance mode, which the streaming
@@ -284,6 +284,6 @@ optional). Satisfied per device; the device reports presence.
 3. Patch Edit locked in Performance, including looking at a patch: yes.
 4. Retire `4-sensor-test-window` into the panels: yes.
 
-Open: should the dashboard *ask* "Switch to Performance?" when a show starts
-playing in development? (A prompt, not automatic; rehearsals play in
-development.)
+**Ratified, 2026-10-04.** Bob accepted the remembered, never-locked
+Performance mode (answer 2). For forgetting to switch before a show: **no
+prompt, but a prominent toggle** in the header.

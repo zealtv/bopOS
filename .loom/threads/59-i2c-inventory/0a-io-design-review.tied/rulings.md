@@ -97,3 +97,7 @@ through in the session ("artifact not required").
 ## Still to decide
 
 - Revised sequencing for `59/1`–`6`, plus a new stitch for Performance mode.
+
+## Ratified, 2026-10-04
+
+Bob ratified `proposal.md`: ports 5551/7771 fine; Performance mode remembered on each device and never locked (no timeout; Bob saw lockout risk in the fail-safe); Patch Edit locked in Performance including viewing; `4-sensor-test-window` retired into the panels; no "switch to Performance?" prompt, but a **prominent** header toggle.

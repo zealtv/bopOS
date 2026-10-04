@@ -4,8 +4,9 @@
 device's bus, bring a peripheral up and know it worked, watch its values live,
 and patch against a real sensor on a real device while editing.
 
-**Status:** `0` and `7` tied. Everything else waits on
-**`0a-io-design-review`** (ready; ends in a proposal Bob ratifies).
+**Status:** `0`, `7` and `0a` tied. `0a` ratified 2026-10-04: `0a-io-design-review.tied/proposal.md`
+is the design. Order: `1` → `2`, `3` → `77-performance-mode` → `8` → `9` → `6`.
+`4` and `5` were dropped (folded into `9` and `6`).
 
 ## Origin
 

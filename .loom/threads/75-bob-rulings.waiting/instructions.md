@@ -13,8 +13,13 @@ Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-5. **IO error vocabulary** — in the IO design gate
-   (`59-i2c-inventory/0a-io-design-review`, decision 1). No separate ruling.
+
+## Ruled 2026-10-04
+
+5. IO error vocabulary — **adopted** in the ratified IO design
+   (`59-i2c-inventory/0a-io-design-review.tied/proposal.md` §1): `no-bus`,
+   `create-failed`, `invalid-arguments`, `unknown-command`, `write-failed`;
+   reserved name `bridge`; relayed as `/os/io-error`. Built in `59/1`.
 
 ## Ruled 2026-10-03
 
