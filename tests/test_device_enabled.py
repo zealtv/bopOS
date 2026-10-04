@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living tests for positive physical Device enabled state and wire grammar."""
 
 import json
@@ -284,16 +285,16 @@ class DeviceEnabledTests(unittest.TestCase):
         self.assertEqual(device_aliases.clean_registry(legacy), canonical)
 
         with tempfile.TemporaryDirectory() as root:
-            path = os.path.join(root, "installation.json")
+            path = str(project_path(root))
             with open(path, "w", encoding="utf-8") as target:
                 json.dump({
                     "schema": 1, "name": "migration", "seats": {},
                     "device_registry": legacy,
                 }, target)
-            InstallationState(path)
-            with open(path, encoding="utf-8") as source:
+            InstallationState(data_root(path))
+            with open(os.path.join(root, "devices.json"), encoding="utf-8") as source:
                 saved = json.load(source)
-            self.assertEqual(saved["device_registry"], canonical)
+            self.assertEqual(saved, canonical)
 
     def test_node_boot_migrates_and_deletes_legacy_key(self):
         with tempfile.TemporaryDirectory() as root:

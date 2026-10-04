@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard + simfleet verification for precision typed parameter entry
 (40-precision-param-input).
 
@@ -125,7 +126,7 @@ def make_fixture(root):
         "seats": {"1": seat(1, "Freda", uids[0]),
                   "2": seat(2, "Sparks", uids[1])},
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return patches, assets, state_dir, manifest_path, state_path, uids
@@ -137,7 +138,7 @@ def start_dashboard(http_port, listen_port, send_port, state_path, assets,
         sys.executable, os.path.join(REPO, "dashboard", "server.py"),
         "--host", "127.0.0.1", "--port", str(http_port),
         "--listen-port", str(listen_port), "--send-port", str(send_port),
-        "--osc-target", "127.0.0.1", "--state-file", state_path,
+        "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
         "--assets-dir", assets, "--patches-dir", patches,
         "--public-url", base_url,
     ], cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
@@ -171,7 +172,7 @@ def precise_type(page, label_selector, value, commit="Enter"):
 
 def phase_a(temp, uids):
     """Facilitator live surface: wire-precise typed entry."""
-    state_path = os.path.join(temp, "installation.json")
+    state_path = str(project_path(temp))
     assets = os.path.join(temp, "assets")
     patches = os.path.join(temp, "patches")
     state_dir = os.path.join(temp, "sim-state")
@@ -276,7 +277,7 @@ def phase_a(temp, uids):
 
 def phase_b(temp, uids):
     """Patch-editor control panel: best-effort edit-mode precision round-trip."""
-    state_path = os.path.join(temp, "installation.json")
+    state_path = str(project_path(temp))
     assets = os.path.join(temp, "assets")
     patches = os.path.join(temp, "patches")
     state_dir = os.path.join(temp, "sim-state")
@@ -297,7 +298,7 @@ def phase_b(temp, uids):
             sys.executable, os.path.join(REPO, "dashboard", "server.py"),
             "--host", "127.0.0.1", "--port", str(http_port),
             "--listen-port", str(listen_port), "--send-port", str(send_port),
-            "--osc-target", "127.0.0.1", "--state-file", state_path,
+            "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
             "--assets-dir", assets, "--patches-dir", patches,
             "--public-url", base_url,
             "--sim-audio-backend", "none", "--sim-no-engine",

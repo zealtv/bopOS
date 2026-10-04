@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard browser journey: a late consumer still gets the connect burst
 (`51-control-column-first-render-flake`).
 
@@ -114,7 +115,7 @@ def make_fixture(root):
         "groups": {},
         "seats": {"1": {"id": 1, "name": "Seat 1", "pos": [1, 1]}},
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return state_path, patches, assets
@@ -145,7 +146,7 @@ def main():
                 sys.executable, os.path.join(REPO, "dashboard", "server.py"),
                 "--port", str(http_port), "--listen-port", str(listen_port),
                 "--send-port", str(send_port), "--osc-target", "127.0.0.1",
-                "--state-file", state_path, "--patches-dir", patches,
+                "--data-dir", data_root(state_path), "--patches-dir", patches,
                 "--assets-dir", assets,
             ], cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
             base_url = f"http://127.0.0.1:{http_port}"

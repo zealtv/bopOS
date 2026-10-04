@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Design-language §12 (ground and card) as a living invariant.
 
 Bob, 2026-07-30, from a tab-by-tab review of the shipped app: `--bg` is the
@@ -217,7 +218,7 @@ def make_fixture(root):
                   "1": seat(1, "Sparks", UID_B, dict(base, gain=.2))},
         "venue": {"width": 8, "depth": 6, "origin": [0, 0]},
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return state_path
@@ -299,7 +300,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
                 "--send-port", str(send_port), "--osc-target", "127.0.0.1",
-                "--state-file", state_path,
+                "--data-dir", data_root(state_path),
                 "--assets-dir", os.path.join(temp, "assets"),
                 "--patches-dir", os.path.join(temp, "patches"),
                 "--public-url", base_url,
@@ -337,9 +338,23 @@ def main():
                     page = themed_page(browser, 1280, 950, theme)
                     page.goto(base_url)
                     page.wait_for_selector("#ws-status.online")
+                    page.wait_for_function("installation.project === 'default'")
+                    check(f"project bar uses the directory identity -- {theme}",
+                          page.locator("#project-bar-project").inner_text() == "default")
+                    check(f"project bar shows the fleet patch -- {theme}",
+                          page.locator("#project-bar-patch").inner_text() == "alpha")
+                    page.evaluate("ws.send('save_venue', {name:'Broadwalk'})")
+                    page.wait_for_function("venues.venues.includes('Broadwalk')")
+                    page.evaluate("ws.send('load_venue', {name:'Broadwalk'})")
+                    page.wait_for_function("installation.name === 'Broadwalk'")
+                    check(f"venue load changes only Site in the project bar -- {theme}",
+                          page.locator("#project-bar-site").inner_text() == "Broadwalk"
+                          and page.locator("#project-bar-project").inner_text() == "default")
                     for width in (1280, 900, 700):
                         report_header_controls(page, width, theme)
                     page.set_viewport_size({"width": 1280, "height": 950})
+                    if theme == "dark":
+                        page.locator("header").screenshot(path="/tmp/bopos-project-bar.png")
                     for tab in ("control", "show", "seats", "devices",
                                 "patches", "assets"):
                         page.click(f"#tab-button-{tab}")

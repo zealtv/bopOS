@@ -1,3 +1,4 @@
+from project_fixture import project_path, data_root
 """Durable tests for the shared live parameter replay and automation."""
 
 import copy
@@ -40,7 +41,7 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
         self.make_patch("beta", [
             {"name": "gain", "kind": "float", "min": -1, "max": 1},
         ])
-        self.state = InstallationState(str(self.root / "state.json"))
+        self.state = InstallationState(data_root(str(project_path(self.root))))
         self.state.data["seats"] = {
             "1": self.seat(1, "one"),
             "2": self.seat(2, "two"),
@@ -153,7 +154,7 @@ class LiveParameterTests(unittest.IsolatedAsyncioTestCase):
         path = self.root / "broken.json"
         original = b"broken installation JSON"
         path.write_bytes(original)
-        failed_state = InstallationState(str(path))
+        failed_state = InstallationState(data_root(str(path)))
         self.assertTrue(failed_state._load_invalid)
         # Runtime targets may still exist in a failed-load session.
         failed_state.data["seats"] = self.state.seats

@@ -1,3 +1,4 @@
+from project_fixture import project_path, data_root
 """A failed installation/venue load must never destroy its source file."""
 import asyncio
 import ast
@@ -40,13 +41,13 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.path = self.root / "installation.json"
+        self.path = project_path(self.root)
 
     def test_invalid_files_preserved_after_ordinary_and_venue_saves(self):
         for original in invalid_documents():
             with self.subTest(original=original):
                 self.path.write_bytes(original)
-                state = InstallationState(str(self.path))
+                state = InstallationState(data_root(str(self.path)))
                 self.assertTrue(state.public()["notices"])
                 self.assertIn("original file is preserved", state.public()["notices"][0])
                 state.data["master"] = .5
@@ -63,7 +64,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         original = json.dumps(document()).encode()
         self.path.write_bytes(original)
         with mock.patch("builtins.open", side_effect=PermissionError("unreadable")):
-            state = InstallationState(str(self.path))
+            state = InstallationState(data_root(str(self.path)))
         with self.assertRaises(OSError):
             state.save()
         self.assertEqual(self.path.read_bytes(), original)
@@ -71,7 +72,7 @@ class StateLoadSafetyTests(unittest.TestCase):
 
     def test_dangling_symlink_is_not_treated_as_a_new_installation(self):
         self.path.symlink_to("missing-state.json")
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         with self.assertRaises(OSError):
             state.save()
         self.assertTrue(self.path.is_symlink())
@@ -81,7 +82,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.path.write_bytes(b"bad json")
         seed = self.root / "devices.csv"
         seed.write_text("uid,name,id\nnode-a,First,0\n")
-        state = InstallationState(str(self.path), str(seed))
+        state = InstallationState(data_root(str(self.path)), str(seed))
         self.assertEqual(state.seats, {})
         self.assertEqual(self.path.read_bytes(), b"bad json")
 
@@ -90,7 +91,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         doc["seats"]["2"]["groups"] = [0, 9]
         original = json.dumps(doc).encode()
         self.path.write_bytes(original)
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         self.assertTrue(state._load_invalid)
         with self.assertRaises(OSError):
             state.save()
@@ -99,7 +100,7 @@ class StateLoadSafetyTests(unittest.TestCase):
 
     def test_invalid_venue_preserves_current_state_and_cannot_be_overwritten(self):
         self.path.write_text(json.dumps(document()))
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         before = copy.deepcopy(state.durable())
         original = b'{"schema":1,"seats":{"2":{"id":2,"groups":[99]}}}'
         venue = Path(state.venues_dir()) / "broken.json"
@@ -112,7 +113,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.assertEqual(venue.read_bytes(), original)
         self.assertEqual(len(state.public()["notices"]), 1)
         state.save()
-        self.assertEqual(InstallationState(str(self.path)).durable(), before)
+        self.assertEqual(InstallationState(data_root(str(self.path))).durable(), before)
 
     def test_name_adoption_cannot_rewrite_an_otherwise_invalid_file(self):
         doc = document()
@@ -120,7 +121,7 @@ class StateLoadSafetyTests(unittest.TestCase):
         doc["seats"]["2"]["groups"] = [99]
         original = json.dumps(doc).encode()
         self.path.write_bytes(original)
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         self.assertEqual(self.path.read_bytes(), original)
         venue = Path(state.venues_dir()) / "broken.json"
         venue.write_bytes(original)
@@ -134,7 +135,7 @@ class StateLoadSafetyTests(unittest.TestCase):
                               "staged_at": 1,
                               "previous": {"name": "obsolete"}}
         self.path.write_text(json.dumps(doc))
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         self.assertNotIn("params_patch", state.public())
         self.assertNotIn("previous", state.data["fleet_patch"])
         state.save()
@@ -150,7 +151,7 @@ class StateLoadSafetyTests(unittest.TestCase):
 
     def test_parameter_reconciliation_uses_the_fleet_patch_name(self):
         self.path.write_text(json.dumps(document()))
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         state.stage_fleet_patch("alpha", "a" * 64)
         state.reconcile_fleet_params("alpha", ["gain", "new"],
                                      {"gain": .1, "new": .2})
@@ -161,25 +162,25 @@ class StateLoadSafetyTests(unittest.TestCase):
         self.assertNotIn("previous", state.data["fleet_patch"])
 
     def test_new_and_valid_installations_still_save_and_reload(self):
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         state.save()
         self.assertEqual(state.public()["notices"], [])
         self.path.write_text(json.dumps(document()))
-        state = InstallationState(str(self.path))
+        state = InstallationState(data_root(str(self.path)))
         state.data["master"] = .25
         state.save_venue("valid")
         self.assertTrue(state.load_venue("valid"))
-        self.assertEqual(InstallationState(str(self.path)).data["master"], .25)
+        self.assertEqual(InstallationState(data_root(str(self.path))).data["master"], .25)
         self.assertEqual(state.public()["notices"], [])
 
 
 class DebouncedLoadSafetyTests(unittest.IsolatedAsyncioTestCase):
     async def test_debounce_and_shutdown_preserve_invalid_file_without_task_errors(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / "installation.json"
+            path = project_path(temp)
             original = b"broken json"
             path.write_bytes(original)
-            state = InstallationState(str(path))
+            state = InstallationState(data_root(str(path)))
             state.data["master"] = .5
             state.save_debounced()
             await asyncio.sleep(0)

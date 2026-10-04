@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Headless verification of the Monitor System transport-error log."""
 
 import json
@@ -76,7 +77,7 @@ def stop(process):
 
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-transport-monitor-") as temp:
-        state_path = os.path.join(temp, "installation.json")
+        state_path = str(project_path(temp))
         with open(state_path, "w", encoding="utf-8") as target:
             json.dump({"schema": 1, "name": "Transport log", "seats": {}}, target)
         assets = os.path.join(temp, "assets")
@@ -97,7 +98,7 @@ def main():
                     "--listen-port", str(listen_port),
                     "--send-port", str(send_port),
                     "--osc-target", "127.0.0.1",
-                    "--state-file", state_path,
+                    "--data-dir", data_root(state_path),
                     "--assets-dir", assets, "--patches-dir", patches,
                 ], cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)
                 wait_http(base_url, process)

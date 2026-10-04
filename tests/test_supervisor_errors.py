@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living regression for supervisor stderr visibility (thread 61/2).
 
 `launch_supervisor` used to pass `stderr=DEVNULL`, so the traceback naming a
@@ -45,7 +46,7 @@ class SupervisorErrorTests(unittest.IsolatedAsyncioTestCase):
         self.temporary = tempfile.TemporaryDirectory()
         # Ports nothing else in the suite binds; the bridge is never driven.
         self.dashboard = Dashboard(Namespace(
-            state_file=os.path.join(self.temporary.name, "installation.json"),
+            data_dir=self.temporary.name,
             devices_file=os.path.join(self.temporary.name, "devices.json"),
             listen_port=15561, send_port=16671, osc_target="127.0.0.1",
             assets_dir=os.path.join(self.temporary.name, "assets"),

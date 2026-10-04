@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Venue-owned Remote verb promotion stays durable, bounded, and atomic."""
+from project_fixture import project_path, data_root
+"""Project-owned Remote verb promotion stays durable, bounded, and atomic."""
 
 import asyncio
 import json
@@ -21,8 +22,8 @@ from state import InstallationState  # noqa: E402
 class RemoteVerbStateTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="bopos-remote-verbs-")
-        self.path = os.path.join(self.temp.name, "installation.json")
-        self.state = InstallationState(self.path)
+        self.path = str(project_path(self.temp.name))
+        self.state = InstallationState(data_root(self.path))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -63,8 +64,7 @@ class RemoteVerbStateTests(unittest.TestCase):
 class RemoteVerbServerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="bopos-remote-server-")
-        state = InstallationState(
-            os.path.join(self.temp.name, "installation.json"))
+        state = InstallationState(data_root(str(project_path(self.temp.name))))
         state.data["supervisor"] = {"mode": "off"}
         state.data["groups"] = {"0": {"id": 0, "name": "Front"}}
         state.data["seats"] = {

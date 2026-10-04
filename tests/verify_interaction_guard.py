@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard browser journey: generator editing survives heartbeats.
 
 The Control surface rebuilds its card DOM on every heartbeat. The generator
@@ -124,7 +125,7 @@ def make_fixture(root):
                         "groups": [], "bound": UID, "patch": "alpha",
                         "params": {"density": .2}}},
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return state_path, patches, assets
@@ -169,7 +170,7 @@ def main():
                 sys.executable, os.path.join(REPO, "dashboard", "server.py"),
                 "--port", str(http_port), "--listen-port", str(listen_port),
                 "--send-port", str(send_port), "--osc-target", "127.0.0.1",
-                "--state-file", state_path, "--patches-dir", patches,
+                "--data-dir", data_root(state_path), "--patches-dir", patches,
                 "--assets-dir", assets,
             ], cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
             base_url = f"http://127.0.0.1:{http_port}"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living regression for the payload contract of a `state` broadcast.
 
 Thread 50. `Dashboard.broadcast` builds the enriched `public_state()` itself
@@ -45,7 +46,7 @@ class StateBroadcastPayloadTests(unittest.IsolatedAsyncioTestCase):
         # Ports nothing else in the suite binds; the bridge is constructed but
         # never driven here.
         self.dashboard = Dashboard(Namespace(
-            state_file=os.path.join(self.temporary.name, "installation.json"),
+            data_dir=self.temporary.name,
             devices_file=os.path.join(self.temporary.name, "devices.json"),
             listen_port=15557, send_port=16667, osc_target="127.0.0.1",
             assets_dir=os.path.join(self.temporary.name, "assets"),

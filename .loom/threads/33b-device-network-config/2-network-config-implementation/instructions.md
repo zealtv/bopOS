@@ -70,6 +70,9 @@ paths are the precedent; follow their shape file by file.
 
 - Write v1.20 into `docs/OSC-CONTRACT.md` (§6 + §15) from decisions §8, and
   `docs/OSC-REFERENCE.md`. Update the glean `osc-contract` version note.
+- Same edit pass: `docs/OSC-CONTRACT.md` ~line 806 still says the facilitator
+  allowlist lives in `installation.json`; since `66/3` it is `project.json`
+  (editorial, but show Bob with the v1.20 text).
 - `docs/INSTALL.md`: helper install; a short note that Wi-Fi is provisioned in
   the workshop on your own network (trust model from `0`).
 

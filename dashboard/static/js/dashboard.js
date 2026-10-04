@@ -250,6 +250,9 @@ function renderVenues() {
   if (load) load.onclick = () => { const name = $("#venue-select").value; if (name && confirm(`Load venue "${name}"? Replaces the current device map.`)) ws.send("load_venue", {name}); };
 })();
 function render() {
+  $("#project-bar-project").textContent=installation.project||"—";
+  $("#project-bar-site").textContent=installation.name||"—";
+  $("#project-bar-patch").textContent=installation.fleet_patch?.name||"—";
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
   const bound = new Set(seats.map(s => s.bound).filter(Boolean));
@@ -850,7 +853,7 @@ function renderRemoteCommandEditor() {
     remoteCommandSaving=false;
     remoteCommandDirty=false;
     remoteCommandBaseline=[...current];
-    remoteCommandFeedback="Saved venue setting.";
+    remoteCommandFeedback="Saved project setting.";
   }
   document.querySelectorAll("[data-remote-command]").forEach(input=>{
     input.checked=remoteCommandDraft.includes(input.dataset.remoteCommand);
@@ -860,7 +863,7 @@ function renderRemoteCommandEditor() {
         return option?.checked;
       });
       remoteCommandDirty=!sameRemoteCommands(remoteCommandDraft,remoteCommandBaseline);
-      remoteCommandFeedback=remoteCommandDirty?"Unsaved venue setting.":"";
+      remoteCommandFeedback=remoteCommandDirty?"Unsaved project setting.":"";
       renderRemoteCommandEditor();
     };
   });
@@ -868,7 +871,7 @@ function renderRemoteCommandEditor() {
   save.disabled=!remoteCommandDirty || remoteCommandSaving;
   save.onclick=()=>{
     remoteCommandSaving=true;
-    remoteCommandFeedback="Saving venue setting…";
+    remoteCommandFeedback="Saving project setting…";
     ws.send("set_facilitator_commands",{commands:[...remoteCommandDraft]});
     renderRemoteCommandEditor();
   };

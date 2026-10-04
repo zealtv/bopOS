@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real Dashboard browser journey for physical/execution route separation."""
 
 import json
@@ -278,7 +279,7 @@ def write_fixture(root):
     manifest_text = json.dumps(manifest)
     (patch / "bopos.patch.json").write_text(manifest_text, encoding="utf-8")
     (patch / "main.bin").write_bytes(b"mode matrix")
-    state = Path(root, "installation.json")
+    state = project_path(root)
     state.write_text(json.dumps({
         "schema": 1,
         "name": "mode matrix",
@@ -331,7 +332,7 @@ def main():
             "--listen-port", str(report_port),
             "--send-port", str(command_port),
             "--osc-target", physical_target,
-            "--state-file", str(state),
+            "--data-dir", data_root(state),
             "--assets-dir", str(assets),
             "--patches-dir", str(patches),
             "--public-url", base_url,

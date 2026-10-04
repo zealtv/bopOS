@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living regressions for Dashboard OSC routing and shutdown containment."""
 
 import asyncio
@@ -40,8 +41,7 @@ class RecordingSender:
 class OscTransportTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.state = InstallationState(
-            os.path.join(self.temporary.name, "installation.json"))
+        self.state = InstallationState(data_root(str(project_path(self.temporary.name))))
         self.events = []
         self.bridge = OSCBridge(
             self.state,

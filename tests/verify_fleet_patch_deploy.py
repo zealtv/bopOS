@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real dashboard + simfleet verification of whole-fleet patch deployment."""
 
 import json
@@ -94,7 +95,7 @@ def deploy_fleet(page, name):
 
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-fleet-patch-") as temp:
-        state_path = os.path.join(temp, "installation.json")
+        state_path = str(project_path(temp))
         assets = os.path.join(temp, "assets")
         patches = os.path.join(temp, "patches")
         os.makedirs(assets)
@@ -125,7 +126,7 @@ def main():
                 sys.executable, os.path.join(REPO, "dashboard", "server.py"),
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port), "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
                 "--public-url", base_url,
             ], cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)

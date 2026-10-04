@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Verify manifest parameter visibility across bopOS control surfaces.
 
 The desktop Control tab and Device control panel expose the complete manifest.
@@ -109,7 +110,7 @@ def write_fixture(temp):
                    "params": PARAMS, "events": EVENTS,
                    "caps": [], "slots": []},
                   target)
-    state_path = os.path.join(temp, "installation.json")
+    state_path = str(project_path(temp))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump({
             "schema": 1, "name": "Manifest visibility rig",
@@ -190,7 +191,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
                 "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
                 "--public-url", base_url, "--sim-no-engine",
             ], cwd=ROOT, stdout=server_log, stderr=subprocess.STDOUT)
@@ -267,11 +268,11 @@ def main():
                 remote_editor = page.locator("#remote-command-editor")
                 check("Remote command editor is a visible venue sibling",
                       remote_editor.is_visible()
-                      and remote_editor.locator("p", has_text="Venue setting").count() == 1
+                      and remote_editor.locator("p", has_text="Project setting").count() == 1
                       and page.evaluate(
                           "() => !document.querySelector('#remote-command-editor')"
                           ".closest('#manifest-editor')"))
-                check("venue command choices reflect installation state",
+                check("project command choices reflect installation state",
                       remote_editor.locator(
                           '[data-remote-command="restart-engine"]'
                       ).is_checked()
@@ -288,12 +289,12 @@ def main():
                     " === 'restart-engine,reboot,shutdown'")
                 page.wait_for_function(
                     "() => document.querySelector('#remote-command-feedback')"
-                    "?.textContent === 'Saved venue setting.'")
-                check("venue command save does not dirty or rewrite the manifest",
+                    "?.textContent === 'Saved project setting.'")
+                check("project command save does not dirty or rewrite the manifest",
                       page.evaluate("() => manifestDirty === false"))
                 with open(manifest, encoding="utf-8") as source:
                     before_manifest_edit = json.load(source)
-                check("venue command save leaves patch content untouched",
+                check("project command save leaves patch content untouched",
                       before_manifest_edit["params"] == PARAMS
                       and before_manifest_edit["events"] == EVENTS)
                 facilitator.wait_for_function(
@@ -322,7 +323,7 @@ def main():
                 page.reload()
                 page.wait_for_selector("#ws-status.online")
                 page.wait_for_selector("#remote-command-editor")
-                check("venue command choices survive dashboard reload",
+                check("project command choices survive dashboard reload",
                       page.locator(
                           '#remote-command-editor [data-remote-command="shutdown"]'
                       ).is_checked()

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard journey: failed state loads are visible and cannot wipe files."""
 import argparse
 import json
@@ -48,7 +49,7 @@ def check_notice_themes(page, surface, artifact_dir):
 
 
 def run_phase(root, page, invalid_start, artifact_dir=None):
-    state_path = root / "installation.json"
+    state_path = project_path(root)
     venue = root / "installations" / "broken.json"
     original = state_path.read_bytes()
     venue_original = venue.read_bytes()
@@ -61,7 +62,7 @@ def run_phase(root, page, invalid_start, artifact_dir=None):
             "--host", "127.0.0.1", "--port", str(port),
             "--listen-port", str(free_port(socket.SOCK_DGRAM)),
             "--send-port", str(free_port(socket.SOCK_DGRAM)),
-            "--osc-target", "127.0.0.1", "--state-file", str(state_path),
+            "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
             "--assets-dir", str(root / "assets"),
             "--patches-dir", str(root / "patches"),
         ], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
@@ -197,7 +198,7 @@ def main():
             (root / name).mkdir()
         invalid = {"schema": 1, "name": "Room", "seats": {
             "2": {"id": 2, "groups": [99], "positions": [[1, 2]]}}}
-        (root / "installation.json").write_text(json.dumps(invalid))
+        (project_path(root)).write_text(json.dumps(invalid))
         (root / "installations/broken.json").write_text(json.dumps(invalid))
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
@@ -208,7 +209,7 @@ def main():
             run_phase(root, page, invalid_start=True, artifact_dir=args.artifact_dir)
             invalid["seats"]["2"]["groups"] = []
             invalid["device_registry"] = {}
-            (root / "installation.json").write_text(json.dumps(invalid))
+            (project_path(root)).write_text(json.dumps(invalid))
             run_phase(root, page, invalid_start=False)
             assert not errors, errors
             print("[PASS] repairing the file and restarting clears the startup lock and notice")

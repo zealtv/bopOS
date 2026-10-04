@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Focused Show-inspector journey for the shared generator drawer."""
 
 import json
@@ -133,7 +134,7 @@ def make_fixture(root):
                    "messages": messages, "duration_s": 10, "play_count": 1,
                    "then_actions": [{"type": "stop"}]}],
     }
-    state_path = root / "installation.json"
+    state_path = project_path(root)
     show_path = shows / "forms.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
@@ -155,7 +156,7 @@ def main():
                 sys.executable, str(ROOT / "dashboard" / "server.py"),
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port), "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", str(state_path),
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", str(assets), "--patches-dir", str(patches),
                 "--public-url", base_url,
             ], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)

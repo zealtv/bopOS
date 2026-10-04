@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living tests for the v1.14 targetable event plane."""
 
 import asyncio
@@ -326,14 +327,14 @@ class EventPlaneTests(unittest.TestCase):
 
     def test_event_lead_does_not_load_the_retired_key(self):
         with tempfile.TemporaryDirectory(prefix="bopos-event-lead-") as root:
-            path = Path(root) / "installation.json"
+            path = project_path(root)
             path.write_text(json.dumps({
                 "schema": 1,
                 "seats": {},
                 "groups": {},
                 "cue_lead_ms": 0,
             }))
-            state = InstallationState(str(path))
+            state = InstallationState(data_root(str(path)))
 
         self.assertEqual(state.data["event_lead_ms"], 500)
         self.assertEqual(state.durable()["event_lead_ms"], 500)

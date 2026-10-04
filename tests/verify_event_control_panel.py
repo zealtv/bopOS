@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard + simfleet verification for Control-panel events.
 
 The Control tab mounts the column in the dashboard document (the iframe was
@@ -165,7 +166,7 @@ def make_fixture(root):
             "2": seat(2, "Sparks", UID_B, []),
         },
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return state_path
@@ -240,7 +241,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
                 "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
                 "--public-url", base_url,
             ], cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Real-dashboard + simfleet verification for the live-param control kinds
 reaching the wire (43-live-param-checkbox-nosend, kinds per
 01-control-panel/6-non-float-kinds).
@@ -18,7 +19,7 @@ re-pinned here for every kind that binds.
 Under real heartbeat cadence (the re-render race is part of the repro) this
 clicks an All-card live toggle and asserts:
   (a) the numeric value reaches the wire (`p/<name>=<value>` in the fleet log),
-  (b) the seat params persist into installation.json on disk,
+  (b) the seat params persist into project.json on disk,
   (c) the toggle state survives heartbeat re-renders (no revert),
   (d) no server error alert fires,
 and repeats the wire assertion for the slider's change-commit path, the
@@ -118,7 +119,7 @@ def wait_log(path, pattern, timeout=8):
 
 
 def wait_state(path, predicate, timeout=8):
-    """Poll installation.json on disk until predicate(state) is true."""
+    """Poll project.json on disk until predicate(state) is true."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -173,7 +174,7 @@ def make_fixture(root):
         "seats": {"1": seat(1, "Freda", uids[0]),
                   "2": seat(2, "Sparks", uids[1])},
     }
-    state_path = os.path.join(root, "installation.json")
+    state_path = str(project_path(root))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump(state, target)
     return state_path
@@ -200,7 +201,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
                 "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
                 "--public-url", base_url,
             ], cwd=REPO, stdout=server_log, stderr=subprocess.STDOUT)
@@ -245,7 +246,7 @@ def main():
                 check("latching the toggle sends the numeric value to the wire",
                       wait_log(fleet_log_path, r"p/gate=1(\b|\.)"),
                       "fleet log missing p/gate=1")
-                check("the latched value persists into installation.json seats",
+                check("the latched value persists into project.json seats",
                       wait_state(state_path, lambda state: all(
                           seat.get("params", {}).get("gate") == 1
                           for seat in state.get("seats", {}).values())))
@@ -262,7 +263,7 @@ def main():
                 check("unlatching sends 0 to the wire",
                       wait_log(fleet_log_path, r"p/gate=0(\b|\.)"),
                       "fleet log missing p/gate=0")
-                check("the unlatched value persists into installation.json",
+                check("the unlatched value persists into project.json",
                       wait_state(state_path, lambda state: all(
                           seat.get("params", {}).get("gate") == 0
                           for seat in state.get("seats", {}).values())))
@@ -313,7 +314,7 @@ def main():
                 check("choosing an option sends its index to the wire",
                       wait_log(fleet_log_path, r"p/mode=2(\b|\.)"),
                       "fleet log missing p/mode=2")
-                check("the enum index persists into installation.json seats",
+                check("the enum index persists into project.json seats",
                       wait_state(state_path, lambda state: all(
                           seat.get("params", {}).get("mode") == 2
                           for seat in state.get("seats", {}).values())))

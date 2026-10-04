@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Browser journey for portable Show targets and literal message preservation."""
 
 import json
@@ -138,7 +139,7 @@ def make_fixture(root):
             "then_actions": [{"type": "stop"}],
         }],
     }
-    state_path = root / "installation.json"
+    state_path = project_path(root)
     show_path = shows / "opening-set.json"
     state_path.write_text(json.dumps(state))
     show_path.write_text(json.dumps(show))
@@ -161,7 +162,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port), "--send-port", str(send_port),
                 "--osc-target", "127.0.0.1",
-                "--state-file", str(state_path),
+                "--data-dir", data_root(state_path),
                 "--assets-dir", str(assets), "--patches-dir", str(patches),
                 "--public-url", base_url,
             ], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)

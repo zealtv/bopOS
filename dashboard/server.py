@@ -165,7 +165,7 @@ def distribution_catalog(assets_dir, patches_dir):
 class Dashboard:
     def __init__(self, args):
         self.args = args
-        self.state = InstallationState(args.state_file, args.devices_file)
+        self.state = InstallationState(args.data_dir, args.devices_file)
         self.clients = set()
         self.osc = OSCBridge(self.state, self.queue_broadcast, args.listen_port,
                              args.send_port, args.osc_target,
@@ -201,7 +201,8 @@ class Dashboard:
         self._editor_seat = {"id": 0, "automation_key": "editor",
                              "editor": True, "bound": None, "groups": [],
                              "params": {}}
-        self.shows_dir = show_model.shows_dir(self.state.path)
+        self.shows_dir = os.path.join(self.state.data_dir, "shows")
+        os.makedirs(self.shows_dir, exist_ok=True)
         current_show = self.state.data.get("current_show")
         self.show = (show_model.load_show(self.shows_dir, current_show)
                     if current_show else show_model.empty_show(""))
@@ -2454,7 +2455,8 @@ def parse_args():
     parser.add_argument("--listen-port", type=int, default=5550)
     parser.add_argument("--send-port", type=int, default=6660)
     parser.add_argument("--osc-target", default="255.255.255.255")
-    parser.add_argument("--state-file", default=os.path.join(os.path.dirname(__file__), "installation.json"))
+    parser.add_argument("--data-dir", default=os.path.dirname(__file__),
+                        help="Host data root containing projects/, devices.json and current-project")
     parser.add_argument("--devices-file")
     parser.add_argument("--assets-dir", default=os.path.join(REPO_DIR, "assets"))
     parser.add_argument("--patches-dir", default=os.path.join(REPO_DIR, "patches"))

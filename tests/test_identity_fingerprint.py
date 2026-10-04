@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living tests for physical identity and content-fingerprint convergence."""
 
 import json
@@ -356,9 +357,7 @@ class ContentIdentityTests(unittest.TestCase):
     def test_wire_inventory_evolves_additively_and_degrades_unknown_facts(self):
         uid = "physical-1"
         with tempfile.TemporaryDirectory() as temporary:
-            state = InstallationState(
-                str(Path(temporary) / "installation.json")
-            )
+            state = InstallationState(data_root(str(project_path(temporary))))
             state.ensure(uid)["ip"] = "192.0.2.4"
             bridge = osc_bridge.OSCBridge(
                 state, lambda *_args: None, 5550, 6660, "127.0.0.1"

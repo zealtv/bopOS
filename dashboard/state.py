@@ -102,8 +102,24 @@ class InstallationState:
     # the spatial-audio work consumes these coordinates, keep them explicit
     DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m", "origin": [0.0, 0.0]}
 
-    def __init__(self, path, devices_file=None):
-        self.path = path
+    def __init__(self, data_dir, devices_file=None):
+        self.data_dir = os.path.abspath(data_dir)
+        self.current_path = os.path.join(self.data_dir, "current-project")
+        self.registry_path = os.path.join(self.data_dir, "devices.json")
+        self.project = "default"
+        selection_invalid = False
+        try:
+            with open(self.current_path, encoding="utf-8") as source:
+                self.project = source.read().strip()
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", self.project):
+                raise ValueError("Invalid current project")
+        except FileNotFoundError:
+            selection_invalid = os.path.lexists(self.current_path)
+        except (OSError, ValueError):
+            selection_invalid = True
+        self.path = os.path.join(self.data_dir, "projects",
+                                 self.project if not selection_invalid else "default",
+                                 "project.json")
         self.data = {"schema": SCHEMA, "name": "bopOS", "seats": {},
                      "groups": {}, "next_group_id": 0,
                      "devices": {}, "device_registry": {}, "muted": False,
@@ -123,7 +139,12 @@ class InstallationState:
         self._registry_migrated = False
         self._group_names_migrated = False
         self.last_venue_rebind = {"rebound": [], "waiting": []}
-        self._load()
+        if selection_invalid:
+            self._load_invalid = True
+            self._invalid_file_notice(self.current_path)
+        else:
+            self._load_registry()
+            self._load()
         if self.data["listener"] is None:
             self.data["listener"] = self.default_listener()
         changed = self._registry_migrated or self._group_names_migrated
@@ -137,7 +158,7 @@ class InstallationState:
                 if uid:
                     _entry, created = self.ensure_device_alias(uid)
                     changed = changed or created
-        if changed:
+        if changed and not self._load_invalid:
             self.save()
 
     @property
@@ -167,9 +188,7 @@ class InstallationState:
                     loaded.get("next_group_id"), groups,
                     missing="next_group_id" not in loaded)
                 rebuilt = self.clean_seats(loaded["seats"], groups)
-                registry = device_aliases.clean_registry(loaded.get("device_registry"))
-                if (groups is None or next_group_id is None or rebuilt is None
-                        or registry is None):
+                if groups is None or next_group_id is None or rebuilt is None:
                     self._load_invalid = True
                     self._invalid_file_notice(self.path)
                     return
@@ -199,22 +218,37 @@ class InstallationState:
                         self.group_name_adoption_notice(
                             self.data["name"], adoptions))
                 self.data["next_group_id"] = next_group_id
-                self._registry_migrated = loaded.get("device_registry") != registry
-                self.data["device_registry"] = registry
             else:
                 self._load_invalid = True
                 self._invalid_file_notice(self.path)
         except FileNotFoundError:
-            if os.path.lexists(self.path):
+            if os.path.lexists(self.path) or os.path.exists(self.current_path):
                 self._load_invalid = True
                 self._invalid_file_notice(self.path)
         except (OSError, ValueError, TypeError):
             self._load_invalid = True
             self._invalid_file_notice(self.path)
 
+    def _load_registry(self):
+        try:
+            with open(self.registry_path, encoding="utf-8") as source:
+                loaded = json.load(source)
+            registry = device_aliases.clean_registry(loaded)
+            if registry is None:
+                raise ValueError("Invalid device registry")
+            self.data["device_registry"] = registry
+            self._registry_migrated = loaded != registry
+        except FileNotFoundError:
+            if os.path.lexists(self.registry_path):
+                self._load_invalid = True
+                self._invalid_file_notice(self.registry_path)
+        except (OSError, ValueError, TypeError):
+            self._load_invalid = True
+            self._invalid_file_notice(self.registry_path)
+
     def _invalid_file_notice(self, path):
         recovery = ('Repair the file and restart the dashboard before saving.'
-                    if path == self.path else
+                    if path in (self.path, self.registry_path, self.current_path) else
                     'Repair the file before loading or saving this venue.')
         notice = (f'State file "{path}" could not be fully loaded. '
                   'The original file is preserved and saving is blocked. '
@@ -370,7 +404,7 @@ class InstallationState:
         return True
 
     def public(self):
-        return self.data
+        return dict(self.data, project=self.project)
 
     def durable(self):
         return {"schema": SCHEMA, "name": self.data.get("name", "bopOS"),
@@ -386,8 +420,6 @@ class InstallationState:
                 "groups": {str(group["id"]): dict(group)
                            for group in self.data.get("groups", {}).values()},
                 "next_group_id": self.data.get("next_group_id", 0),
-                "device_registry": {uid: dict(entry)
-                                    for uid, entry in self.device_registry.items()},
                 "seats": {str(seat["id"]): self.clean_seat(seat)
                           for seat in self.seats.values()}}
 
@@ -954,13 +986,23 @@ class InstallationState:
 
     def save(self):
         self._require_valid_load()
-        directory = os.path.dirname(os.path.abspath(self.path))
+        self._write_json(self.registry_path, self.device_registry)
+        self._write_json(self.path, self.durable())
+        if not os.path.exists(self.current_path):
+            temporary = self.current_path + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as target:
+                target.write(self.project + "\n")
+            os.replace(temporary, self.current_path)
+
+    @staticmethod
+    def _write_json(path, data):
+        directory = os.path.dirname(os.path.abspath(path))
         os.makedirs(directory, exist_ok=True)
-        temporary = self.path + ".tmp"
+        temporary = path + ".tmp"
         with open(temporary, "w", encoding="utf-8") as target:
-            json.dump(self.durable(), target, indent=2, sort_keys=True)
+            json.dump(data, target, indent=2, sort_keys=True)
             target.write("\n")
-        os.replace(temporary, self.path)
+        os.replace(temporary, path)
 
     def save_debounced(self):
         if self._load_invalid:
@@ -977,7 +1019,7 @@ class InstallationState:
             pass
 
     def venues_dir(self):
-        directory = os.path.join(os.path.dirname(os.path.abspath(self.path)), "installations")
+        directory = os.path.join(self.data_dir, "installations")
         os.makedirs(directory, exist_ok=True)
         return directory
 

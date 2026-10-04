@@ -1,0 +1,9 @@
+#project-bar{display:flex;align-items:center;gap:8px;min-width:0;max-width:520px;height:30px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--control);font-size:12px}
+#project-bar>span{display:flex;align-items:baseline;gap:4px;min-width:0}
+#project-bar small{color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.1em}
+#project-bar strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#project-bar i{color:var(--dim);font-style:normal}
+@media(max-width:900px){#project-bar{gap:5px;padding-inline:8px}#project-bar small{display:none}}
+header:has(#project-bar){grid-template-columns:auto minmax(0,1fr) auto auto auto}
+header:has(#project-bar) .app-header-spacer{display:none}
+@media(max-width:1049px){header:has(#project-bar){grid-template-columns:auto minmax(0,1fr) auto auto}}

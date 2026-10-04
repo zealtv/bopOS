@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Living tests for the Show document model and tolerant persistence."""
 
 import asyncio
@@ -304,16 +305,16 @@ class GroupNameInvariantTests(unittest.TestCase):
             "3": {"id": 3, "name": "Front-2"},
         }
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "installation.json"
+            path = project_path(temporary)
             path.write_text(json.dumps(self.state_document(groups)))
-            state = InstallationState(str(path))
+            state = InstallationState(data_root(str(path)))
             self.assertEqual(
                 [group["name"] for group in state.data["groups"].values()],
                 ["group-0", "Front", "Front-3", "Front-2"],
             )
             self.assertIn("repaired for portable Shows", state.data["notices"][0])
 
-            reloaded = InstallationState(str(path))
+            reloaded = InstallationState(data_root(str(path)))
             self.assertEqual(reloaded.data["notices"], [])
             self.assertEqual(
                 [group["name"] for group in reloaded.data["groups"].values()],
@@ -322,7 +323,7 @@ class GroupNameInvariantTests(unittest.TestCase):
 
     def test_create_and_rename_enforce_non_empty_unique_names(self):
         with tempfile.TemporaryDirectory() as temporary:
-            state = InstallationState(str(Path(temporary) / "installation.json"))
+            state = InstallationState(data_root(str(project_path(temporary))))
             front, error = state.create_group("Front")
             self.assertIsNone(error)
             self.assertIsNone(state.create_group(" ")[0])
@@ -343,7 +344,7 @@ class GroupNameInvariantTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            state = InstallationState(str(root / "installation.json"))
+            state = InstallationState(data_root(str(project_path(root))))
             venues = root / "installations"
             venues.mkdir()
             venue_path = venues / "legacy.json"

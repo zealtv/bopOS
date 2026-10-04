@@ -6,6 +6,9 @@ run/
 /bopos.config
 /state/
 /dashboard/installation.json
+/dashboard/projects/
+/dashboard/devices.json
+/dashboard/current-project
 /dashboard/installations/
 /assets/*
 !/assets/README.md

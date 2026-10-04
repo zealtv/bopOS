@@ -103,8 +103,8 @@ keyboard operations on the focused pill or row (paste mints a fresh uid).
 Ctrl/Cmd+Z is a global, server-authoritative undo shared by every connected
 client; redo is deferred.
 
-Show documents persist as JSON in `shows/` next to the installation state
-file, one file per show; the schema and playback semantics live in
+Show documents persist as JSON in host-level `dashboard/shows/`,
+one file per show; the schema and playback semantics live in
 `.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`. The transport strip carries the
 show catalog: switch between saved shows (stops playback first), create,
 rename, or delete them; the active show persists across dashboard restarts
@@ -160,7 +160,7 @@ Sim spread is a single-machine floor; the honest number is the hardware run.
 
 `--port` HTTP port (8080) · `--listen-port` OSC in (5550) · `--send-port` OSC
 out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
-`--state-file` installation.json path · `--assets-dir` host asset folders served
+`--data-dir` host root containing projects, device registry and current-project · `--assets-dir` host asset folders served
 at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
 `--public-url` URL nodes should fetch from. Nodes are told to fetch patches and
 assets from **whichever address you opened the dashboard at**, so open its LAN
@@ -199,14 +199,27 @@ remove-plus-add identity changes. Old presentation-only `group` fields are
 ignored when loaded and stripped on the next save; the editor no longer shows
 them.
 
-State lives in `dashboard/installation.json` (devices, positions, room,
-visual coordinate origin, listener, master). The Seats and Devices tabs let
+Project state lives in `dashboard/projects/<project>/project.json` (Seats,
+groups, fleet patch, positions, room, listener, master and Remote commands).
+The host device registry lives in `dashboard/devices.json`, and
+`dashboard/current-project` names the open project. The Seats and Devices tabs let
 you type each element's x/y relative to that origin; the dashboard converts it
 through the same assignment path used by map dragging. Named snapshots live in
 `dashboard/installations/<venue>.json`
-via the Venue save/load buttons. Both are gitignored.
+via the Venue save/load buttons. All runtime data paths are gitignored.
 
-If the dashboard cannot fully load its installation file, the Show tab displays
+The read-only header shows Project · Site · Patch. Project is the selected
+directory name; Site is the current room/venue label. Loading a venue changes
+Site without changing the selected project.
+
+Before starting an existing installation with this layout, run
+`python tools/migrate_project.py dashboard/installation.json` once. It creates
+the first project and host registry, leaves the source untouched, and refuses
+to overwrite existing destination data. An empty data root starts a default
+project. A missing selection opens `default`; an existing unreadable or invalid
+selection blocks saves.
+
+If the dashboard cannot fully load its project or registry files, the Show tab displays
 a notice and saves are blocked for that session. The original file stays in
 place, including malformed JSON or dangling group references; repair the file
 named in the notice and restart the dashboard. Invalid venue snapshots are
@@ -217,8 +230,8 @@ The desktop Control tab and Device control panel show every parameter declared
 by the active patch. The standalone facilitator/iPad view is curated:
 parameters appear there only when their manifest declaration has
 `"dashboard": true`. Framework commands default to none; use the Patches
-tab's **Remote device commands** venue-setting card to opt in supported
-commands. The card writes the installation state, whose durable form is:
+tab's **Remote device commands** project-setting card to opt in supported
+commands. The card writes the project state, whose durable form is:
 
 ```json
 {"facilitator_commands": ["restart-engine"]}
@@ -227,4 +240,4 @@ commands. The card writes the installation state, whose durable form is:
 Command controls are confirmation-gated, and destructive commands require a
 hold. Each enabled command appears on every Remote target card and uses that
 card's selector: All, one group, or one Seat. The allowlist belongs to the
-installation, never the patch manifest.
+project, never the patch manifest.

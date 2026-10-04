@@ -176,7 +176,8 @@ engine receives at launch. Composers meet this flow in
 Nodes persist their assignment, group membership, and patch-requested state
 through a framework store, so a fleet configured over the network runs
 standalone after the router is switched off. The dashboard separately keeps
-its own installation state (`dashboard/installation.json`) and named venue
+its project state (`dashboard/projects/<project>/project.json`), host device
+registry (`dashboard/devices.json`), current selection (`dashboard/current-project`) and named venue
 snapshots, so re-rigging in a new room is load-and-adjust, not re-author.
 
 ## Safety

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Verify the global controls live in the Monitor dock.
 
 Master fader, event lead time, and MUTE ALL share one Globals panel in the
@@ -102,7 +103,7 @@ def write_fixture(temp):
         json.dump({"name": "Journey", "items": [
             {"kind": "step", "uid": "aaaa1111", "alias": "One",
              "duration_s": 5, "messages": [], "then_actions": []}]}, target)
-    state_path = os.path.join(temp, "installation.json")
+    state_path = str(project_path(temp))
     with open(state_path, "w", encoding="utf-8") as target:
         json.dump({
             "schema": 1, "name": "Global controls rig",
@@ -139,7 +140,7 @@ def main():
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
                 "--send-port", str(send_port),
-                "--osc-target", "127.0.0.1", "--state-file", state_path,
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
                 "--public-url", base_url,
             ], cwd=ROOT, stdout=server_log, stderr=subprocess.STDOUT)

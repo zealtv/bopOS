@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from project_fixture import project_path, data_root
 """Unknown legacy fields do not enter current installation or venue state."""
 
 import json
@@ -43,10 +44,10 @@ def legacy_document():
 class VenueUnknownFieldRetirementTests(unittest.TestCase):
     def test_legacy_installation_loads_and_drops_obsolete_field_on_save(self):
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "installation.json"
+            path = project_path(temporary)
             path.write_text(json.dumps(legacy_document()), encoding="utf-8")
 
-            state = InstallationState(str(path))
+            state = InstallationState(data_root(str(path)))
 
             self.assertNotIn("obsolete_field", state.public())
             self.assertNotIn("obsolete_field", state.durable())
@@ -56,9 +57,9 @@ class VenueUnknownFieldRetirementTests(unittest.TestCase):
 
     def test_seat_reindex_and_delete_ignore_retired_unknown_field_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "installation.json"
+            path = project_path(temporary)
             path.write_text(json.dumps(legacy_document()), encoding="utf-8")
-            state = InstallationState(str(path))
+            state = InstallationState(data_root(str(path)))
 
             seat, error = state.reindex_seat(2, 5)
             self.assertIsNone(error)
@@ -69,7 +70,7 @@ class VenueUnknownFieldRetirementTests(unittest.TestCase):
     def test_legacy_venue_snapshot_loads_without_propagating_obsolete_field(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            state = InstallationState(str(root / "installation.json"))
+            state = InstallationState(data_root(str(project_path(root))))
             venues = root / "installations"
             venues.mkdir()
             venue_path = venues / "legacy.json"
