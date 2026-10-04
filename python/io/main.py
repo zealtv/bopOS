@@ -75,13 +75,16 @@ class IOManager:
         with self.io_lock:
             return self._create_peripheral(name, device_type, address)
 
-    def _load_declarations(self):
+    def _read_declarations(self):
         # Both processes share this file. Ownership needs no extra OSC token:
         # an engine-start create and a patch loadbang create have the same grammar.
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         patch_path = os.path.join(root, 'patches', get_active_patch())
         manifest, _error = patch_manifest.load(patch_path)
-        declared = {row['name']: row for row in (manifest or {}).get('io_modules', [])}
+        return {row['name']: row for row in (manifest or {}).get('io_modules', [])}
+
+    def _load_declarations(self):
+        declared = self._read_declarations()
         for name, old in self.declared.items():
             new = declared.get(name)
             if new is None or (old['type'], old['address']) != (new['type'], new['address']):
@@ -106,6 +109,45 @@ class IOManager:
             self.io['modules'].setdefault(name, dict(
                 type=row['type'], address=row['address'], state='missing', error=None))
         return declared
+
+    def _reinit(self, args):
+        name = args[0] if args and isinstance(args[0], str) else 'bridge'
+        if len(args) != 1 or not io_protocol.valid_name(name):
+            self._send('/io/error', name, 'invalid-arguments')
+            return
+        declaration = self._read_declarations().get(name)
+        if declaration is None:
+            self._send('/io/error', name, 'unknown-command')
+            return
+        candidate = dict(type=declaration['type'], address=declaration['address'],
+                         state='missing', error=None)
+        self.io['modules'][name] = candidate
+        self.declared[name] = declaration
+        old = self.peripherals.pop(name, None)
+        try:
+            if old is not None:
+                old.cleanup()
+        except Exception as error:
+            print(f'Error retiring {name}: {error}')
+            self._error(name, 'create-failed')
+            return
+        self.io['bus'] = 1 if usable_bus() else None
+        if not have_bus() or self.io['bus'] is None:
+            self._registry()
+            self._send('/io/error', name, 'no-bus')
+            return
+        usable, addresses = scan_inventory(1, skip=[
+            p.address for p in self.peripherals.values() if getattr(p, 'address', None)])
+        if not usable or candidate['address'] not in {row['address'] for row in addresses}:
+            self._registry()
+            self._send('/io/error', name, 'create-failed' if usable else 'no-bus')
+            return
+        if not self._create_peripheral(name, candidate['type'], int(candidate['address'], 16)):
+            self._error(name, 'create-failed')
+            return
+        candidate['state'] = 'running'
+        self._registry()
+        self._send('/io/reinitialized', name)
 
     def _create_peripheral(self, name, device_type, address):
         """
@@ -245,7 +287,7 @@ class IOManager:
     def handle_command(self, address, tags, args, source):
         """
         Handle OSC commands from PD. Namespaces:
-          /io/<verb>   - bridge management (create, poll, report, scan, stream)
+          /io/<verb>   - bridge management (create, reinit, poll, report, scan, stream)
           /io/<name>   - control the peripheral called <name>; the first
                          value is the command, the rest are its arguments
           /system/*    - device facts (rssi, id, ip, uptime, rev, patch, info)
@@ -270,7 +312,7 @@ class IOManager:
             self._handle_io(parts, args)
 
     def _handle_io(self, parts, args):
-        """Bridge management: /io/create|poll|report|scan|stream."""
+        """Bridge management: /io/create|reinit|poll|report|scan|stream."""
         verb = parts[0] if parts else ''
         if len(parts) != 1:
             print(f"Unknown /io verb: {verb} {list(args)}")
@@ -281,6 +323,8 @@ class IOManager:
         # Local copying has a timeout independent of the node's LAN lease.
         if verb == 'stream':
             self.stream_lease.request(args, '127.0.0.1')
+        elif verb == 'reinit':
+            self._reinit(args)
 
         # /io/create <name> <type> <address>
         elif verb == 'create':

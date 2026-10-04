@@ -116,6 +116,20 @@ def local_journey():
                 send('/io/create', ['bad', 'wrong-type', '0x48'], ('127.0.0.1', command_port))
                 assert decodeOSC(lan.recvfrom(65535)[0])[2:] == ['local-node', 'bad', 'create-failed']
             print('PASS: wrong type/address create failures reach unsolicited LAN error replies; declared live chip stays healthy')
+            def recreate(name, kind, address):
+                manager.peripherals[name] = SimpleNamespace(address=address, cleanup=lambda: None,
+                    read_data=lambda: [1.0], write_data=lambda **kwargs: writes.append(kwargs))
+                return True
+            manager.peripherals['adc'].cleanup = lambda: None
+            with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [declaration]}, None)), \
+                    patch.object(manager, '_create_peripheral', side_effect=recreate):
+                control.write_allowed = lambda: False
+                control.request('reinit', 'adc', reply, '127.0.0.1')
+                receipt = decodeOSC(lan.recvfrom(65535)[0])
+                assert receipt[:4] == ['/os/io-reinit', ',sss', 'local-node', 'ok'], receipt
+                assert json.loads(receipt[4]) == {'name': 'adc', 'error': None}
+                assert control.snapshot()['modules']['adc']['state'] == 'running'
+            print('PASS: real node/bridge Re-init receipt and registry refresh while Performance forbids writes (chip setup faked)')
         finally:
             control.close()
             node_server.close()

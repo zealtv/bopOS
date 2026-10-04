@@ -40,6 +40,9 @@
     const declarations = observedCurrent && Array.isArray(device.io_modules) ? device.io_modules
       : (hostPatch?.manifest?.io_modules || []);
     const moduleRows = modules.map(([name, row]) => {
+      const declared = declarations.some(declaration => declaration.name === name);
+      const repair = device.io_reinit?.[name];
+      const repairPending = repair?.status === 'pending';
       const moduleState = row.state || "unknown";
       const optionalMissing = moduleState === "missing" && declarations.some(
         declaration => declaration.name === name && declaration.type === row.type
@@ -49,7 +52,10 @@
         <div class="device-io-identity"><strong>${escape(name)}</strong>
           <small>${escape(row.type)} · <code>${escape(row.address)}</code></small></div>
         <span class="device-io-state" data-state="${escape(moduleState)}" data-optional-missing="${optionalMissing}">${warning ? '<span class="device-io-warning" aria-hidden="true">⚠</span> ' : ""}${optionalMissing ? "missing (optional)" : escape(moduleState)}</span>
-        ${row.error ? `<code class="device-io-reason">${escape(row.error)}</code>` : ""}</li>`;
+        <button type="button" data-io-reinit="${escape(name)}" aria-label="Re-init ${escape(name)}" aria-busy="${repairPending}" ${!device.online || repairPending || !declared ? 'disabled' : ''}>Re-init</button>
+        ${row.error ? `<code class="device-io-reason">${escape(row.error)}</code>` : ""}
+        ${repair?.phase === 'timeout' ? '<output class="device-io-reason" aria-live="polite"><span class="device-io-warning" aria-hidden="true">⚠</span> Re-init timed out. Try again.</output>'
+          : repair?.error ? `<output class="device-io-reason" aria-live="polite">Re-init: ${escape(repair.error)}</output>` : ''}</li>`;
     }).join("");
     const timeout = !pending && device.io_scan?.phase === "timeout";
     return `<section id="device-io" class="device-io" aria-labelledby="device-io-title" data-io-state="${state}">
@@ -68,6 +74,15 @@
   }
 
   function bind(root, device, send) {
+    root.querySelectorAll('[data-io-reinit]').forEach(button => {
+      button.onclick = () => {
+        const name = button.dataset.ioReinit;
+        if (button.disabled || !device.online || device.io_reinit?.[name]?.status === 'pending') return;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        send('io_reinit', {uid: device.uid, name});
+      };
+    });
     const button = root.querySelector("[data-io-scan]");
     if (!button) return;
     button.onclick = () => {

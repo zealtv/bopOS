@@ -346,7 +346,7 @@ class Dashboard:
             "replay_live_params", "set_device_enabled",
             "set_device_hostname", "set_audio_config", "set_log_config",
             "set_wifi_networks", "send_wifi_networks",
-            "io_scan", "io_write",
+            "io_scan", "io_write", "io_reinit",
             "action", "identify", "set_fleet_patch",
             "retry_fleet_patch",
             "send_distribution", "drop_distribution",
@@ -576,7 +576,7 @@ class Dashboard:
             device["hostname_status"] = "pending"
             self.osc.set_device_hostname(hostname_uid, hostname)
             await self.broadcast("device_update", device)
-        elif kind in ('io_scan', 'io_write'):
+        elif kind in ('io_scan', 'io_write', 'io_reinit'):
             device = self.state.devices.get(str(uid))
             if device is None or device.get('virtual') or not device.get('online'):
                 await self.ws_error(ws, 'invalid-arguments')
@@ -585,6 +585,15 @@ class Dashboard:
                 device['io_scan_pending'] = True
                 device['io_scan'] = {'status': 'pending', 'at': time.time()}
                 self.osc.io_scan(str(uid))
+            elif kind == 'io_reinit':
+                name = data.get('name')
+                if not io_protocol.valid_name(name):
+                    await self.ws_error(ws, 'invalid-arguments')
+                    return
+                if device.get('io_reinit', {}).get(name, {}).get('status') == 'pending':
+                    return
+                device.setdefault('io_reinit', {})[name] = dict(status='pending', error=None)
+                self.osc.io_reinit(str(uid), name)
             else:
                 try:
                     payload = io_protocol.validate_write(data.get('config'))
