@@ -8,7 +8,8 @@ Version and Remote commands ruled 2026-10-04).
 
 **Names:** **Project · Site · Patch.** *Patch* is the patch folder the fleet
 runs now (today's fleet patch). The project's other patch folders are its
-*versions*.
+*versions*. On the Patches tab the running one is tagged **Live** and the
+action that makes a version the running one is **Set Live**.
 
 The test for every answer: does it make the surface and the code simpler?
 
@@ -63,7 +64,7 @@ site.** Everything else on a Seat stays.
 |---|---|---|
 | **Per-device patch pins** ("Pin to device", "Follow fleet patch", 📌) | every box in the fleet runs the Patch | `set_device_patch` / `clear_device_patch`, `device_operations`, `device_generations`, `converge_device_patch` (`server.py`); `desired_patch` in the registry (`state.py`, `device_aliases.py`); `patch_pinned`; per-device manifest lookup in `live_control_manifest`; pin UI in `dashboard.js`; `tests/test_device_patch_override.py`, `verify_device_patch_targeting.py`, the pin part of `verify_set_patch_handoff.py` |
 | **Switching to any patch in the catalog** | choose among the project's versions; add a folder to the project first | the free patch picker on the Patches tab |
-| **`fleet_patch.previous` + Revert** | make the earlier version the Patch | `revert_fleet_patch`, `previous` bookkeeping |
+| **`fleet_patch.previous` + Revert** | Set Live on the earlier version | `revert_fleet_patch`, `previous` bookkeeping |
 | **`params_patch`** (separate schema pointer) | controls follow the Patch | `params_patch` field and its fallbacks |
 | **Venue snapshots** (`installations/`, Save as… / Load) | sites: pick the current site; add one by copying the current site | `save_venue` / `load_venue` / `read_venue`, venue bar |
 | **Show list** (create / load / rename / delete shows, `current_show`) | the project has one show; to start fresh, clear it or make a new project | the show picker and its five actions |
@@ -99,9 +100,17 @@ here prevents it, it's just not a feature.
   **Project · Site · Patch** on every tab, e.g.
   *Kite Choir · Northern Broadwalk · kite-v2*. Clicking it opens a small menu:
   open project, new project, rename; change site, new site (copies the
-  current one); and the project's **Remote device commands** (moved from the
-  Patches tab, where today they're labelled a venue setting).
-  Mockups 1–2.
+  current one). Mockups 0 and 4.
+- **New Site** opens a dialog: a name, and *Start from* an empty room or an
+  existing site (copies its room size, listener and Seat positions).
+  Mockup 5.
+- **Mode switch** in the header: *Live Fleet* is renamed **Live** (Live ·
+  Simulation · Patch Edit). It moves from beside the bopOS name to sit right
+  after the project bar, so the header reads as one statement — *this project,
+  at this site, running this Patch, driven live / simulated / in patch edit*.
+  Today it's 38px tall in a 40px header, 1px from each edge, with 30px buttons
+  next to a 25px theme picker. It becomes a 30px pill matching the project bar,
+  5px clear of the header edges, with 24px buttons. Mockup 0.
 - **Opening a project** re-sends assignments and groups to its fleet,
   **unassigns online boxes not bound in it** (they go quiet, `id -1`), and
   shows the usual patch badges if the boxes aren't on the Patch — pushing
@@ -112,13 +121,18 @@ here prevents it, it's just not a feature.
   - **Devices** — device admin, the Wi-Fi panel (33b); pin controls go.
   - **Seats** — Seats, groups, bindings; the room view edits the current
     site's room and positions; the venue bar goes (mockup 4).
-  - **Patches** — the project's versions: list, the **Patch** marked, *make
-    it the Patch*, Patch edit on any version. **New Version** copies the Patch
-    into a new folder under a suggested name — the trailing number bumped
-    (`kite-v2` → `kite-v3`), or `-v2` appended (`kite` → `kite-v2`) — which
-    you can change before confirming. Editing and pushing the current Patch
-    in place without a new version stays, as today. Folders outside the
-    project are a secondary "add existing" list. Mockups 1 and 3.
+  - **Patches** — sidebar + detail, like Devices, so a long list stays
+    manageable. The sidebar lists the project's patches (filter box, **Live**
+    tag on the running one), with **New Version** and **Add Existing…**, and
+    below them the project's **Remote device commands** (moved out of the
+    per-patch editor, labelled a project setting). The detail shows the
+    selected patch: status, *Edit* and *Push* for the live one, *Edit* and
+    **Set Live** for others, and its manifest and editor underneath — the
+    separate "host patch" picker goes, since the list is the picker. **New
+    Version** copies the live patch under a suggested name — the trailing
+    number bumped (`kite-v2` → `kite-v3`), or `-v2` appended — which you can
+    change. Editing and pushing the live patch in place without a new version
+    stays, as today. Mockups 1–3.
   - **Assets** — unchanged.
 
 ## 6. Migration
@@ -145,11 +159,18 @@ compatibility layer:
    Includes the global project bar (read-only).
 4. **Sites** — positions out of Seats; site select/new replaces the venue bar.
 5. **One show** — show moves into the project; show picker goes.
-6. **Versions** — project patch list, Patch marker, New Version, add
-   existing; Patches tab scoped.
-7. **Open / new / rename projects** — the project menu.
+6. **Versions** — Patches tab as sidebar + detail, Live tag, Set Live, New
+   Version, Add Existing, Remote device commands moved into the sidebar.
+7. **Open / new / rename projects** — the project menu, New Site dialog.
+8. **Header** — Live rename and mode switch placement/sizing (can land any
+   time; independent of projects).
 
-## Open questions
+## Mockups (`mockups/`, round 2)
 
-None outstanding from the text review. Mockups next: the project bar and the
-Patches tab, generated from the running app.
+0. Header — project bar + mode switch.
+1. Patches tab, live patch selected.
+2. Patches tab, another version selected (Set Live).
+3. New Version dialog.
+4. Project menu.
+5. New Site dialog.
+6. Seats tab without the venue bar.

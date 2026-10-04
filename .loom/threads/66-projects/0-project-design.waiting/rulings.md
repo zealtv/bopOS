@@ -31,3 +31,17 @@ registry (aliases, enabled) stays host-global, outside projects.
   suggests a folder name. Bob: *"We should still be able to edit and update
   the current patch with out a version bump."*
 - **Mockups:** yes, from the running app, after the text review.
+
+## 2026-10-04 — mockup review, round 1
+
+- **Patches tab: a dropdown or sidebar list** — "we could end up with a lot of
+  patches". → Sidebar + detail, like Devices.
+- **"Make It The Patch" is clunky** — Bob suggested "Set Live" or "Set
+  Active". → **Set Live**, with a **Live** tag on the running patch; it pairs
+  with the Live mode.
+- **Remote device commands on the Patches page**, not in the project bar menu.
+  → Patches tab sidebar, as a project setting.
+- **"Live Fleet" → "Live"**, and reconsider the mode switch's position and
+  padding. → Moved beside the project bar; 30px pill, 5px clear of the header.
+- **New Site** shouldn't say "copy current"; a dialog asking whether to base
+  it on an existing site. → New Site dialog with *Start from*.
