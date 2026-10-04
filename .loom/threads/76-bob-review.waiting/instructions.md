@@ -20,6 +20,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    24px buttons; spacing tidied). Before and after, plus light, 900px and
    420px: `66-projects/8-header-tidy.waiting/screenshots/`. Code is committed;
    the stitch is parked until you OK it.
+5. **Clearing the project's show**: the proposal says "to start fresh, clear it
+   or make a new project". The Show tab has no clear action yet; steps are
+   removed one at a time. Want a button? If so, what should it say, e.g.
+   "Clear show…" with a confirm? → `66-projects/5-one-show`, possibly `7-project-menu`.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
