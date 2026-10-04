@@ -158,7 +158,7 @@ def main():
         write_patch(patches, "alpha", ALPHA_PARAMS)
         write_patch(patches, "beta", BETA_PARAMS)
         state = {
-            "schema": 1, "name": "Device control rig", "patches": ["alpha", "beta"],
+            "schema": 1, "name": "Device control rig",
             "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                             "staged_at": time.time()},
             "seats": {
@@ -412,7 +412,12 @@ def main():
                 # --- device controls follow a fleet patch change ---
                 page.click("#tab-button-patches")
                 page.wait_for_selector(
-                    '#tab-patches:not([hidden]) #patch-list [data-patch="beta"]')
+                    "#tab-patches:not([hidden]) #patch-add-existing:not([disabled])")
+                page.click("#patch-add-existing")
+                page.wait_for_selector("#patch-add-dialog[open]")
+                page.select_option("#patch-add-select", "beta")
+                page.click("#patch-add-confirm")
+                page.wait_for_selector('#patch-list [data-patch="beta"]')
                 page.click('#patch-list [data-patch="beta"]')
                 page.wait_for_function(
                     "() => document.querySelector('#patch-deploy')?.innerText === 'Set Live'")

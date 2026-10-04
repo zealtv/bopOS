@@ -28,8 +28,6 @@ let manifestFeedback = "";
 let manifestDrag = null;
 const REMOTE_COMMANDS = ["restart-engine", "updatebopos", "reboot", "shutdown"];
 let remoteCommandDraft = null;
-let remoteCommandBaseline = null;
-let remoteCommandDirty = false;
 let remoteCommandSaving = false;
 let remoteCommandFeedback = "";
 let pendingCreatedPatch = null;
@@ -930,19 +928,16 @@ function canonicalRemoteCommands(value) {
 function sameRemoteCommands(left,right) {
   return JSON.stringify(left)===JSON.stringify(right);
 }
+// Remote device commands save on click (mockup 1): each change sends the
+// whole selection; the checkboxes follow the project state again once it
+// reflects the last selection sent.
 function renderRemoteCommandEditor() {
   const current=canonicalRemoteCommands(installation.facilitator_commands);
-  if (remoteCommandDraft===null
-      || (!remoteCommandDirty && !sameRemoteCommands(current,remoteCommandBaseline))) {
-    remoteCommandDraft=[...current];
-    remoteCommandBaseline=[...current];
-  }
   if (remoteCommandSaving && sameRemoteCommands(current,remoteCommandDraft)) {
     remoteCommandSaving=false;
-    remoteCommandDirty=false;
-    remoteCommandBaseline=[...current];
     remoteCommandFeedback="Saved project setting.";
   }
+  if (!remoteCommandSaving) remoteCommandDraft=[...current];
   document.querySelectorAll("[data-remote-command]").forEach(input=>{
     input.checked=remoteCommandDraft.includes(input.dataset.remoteCommand);
     input.onchange=()=>{
@@ -950,19 +945,12 @@ function renderRemoteCommandEditor() {
         const option=document.querySelector(`[data-remote-command="${command}"]`);
         return option?.checked;
       });
-      remoteCommandDirty=!sameRemoteCommands(remoteCommandDraft,remoteCommandBaseline);
-      remoteCommandFeedback=remoteCommandDirty?"Unsaved project setting.":"";
+      remoteCommandSaving=true;
+      remoteCommandFeedback="Saving project setting…";
+      ws.send("set_facilitator_commands",{commands:[...remoteCommandDraft]});
       renderRemoteCommandEditor();
     };
   });
-  const save=$("#remote-command-save");
-  save.disabled=!remoteCommandDirty || remoteCommandSaving;
-  save.onclick=()=>{
-    remoteCommandSaving=true;
-    remoteCommandFeedback="Saving project setting…";
-    ws.send("set_facilitator_commands",{commands:[...remoteCommandDraft]});
-    renderRemoteCommandEditor();
-  };
   $("#remote-command-feedback").textContent=remoteCommandFeedback;
 }
 

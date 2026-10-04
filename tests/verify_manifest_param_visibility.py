@@ -283,7 +283,8 @@ def main():
                     '[data-remote-command="reboot"]').check()
                 remote_editor.locator(
                     '[data-remote-command="shutdown"]').check()
-                remote_editor.locator("#remote-command-save").click()
+                check("Remote commands save on click, with no Save button",
+                      remote_editor.locator("button").count() == 0)
                 page.wait_for_function(
                     "() => (installation.facilitator_commands||[]).join(',')"
                     " === 'restart-engine,reboot,shutdown'")

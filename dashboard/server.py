@@ -663,7 +663,13 @@ class Dashboard:
             if data.get("confirmed") is not True:
                 await self.ws_error(ws, "Setting the fleet patch requires confirmation.")
                 return
-            await self.stage_and_converge(str(data.get("patch", "")).strip(), ws)
+            name = str(data.get("patch", "")).strip()
+            # The fleet runs one of the project's patches (66-projects
+            # proposal sec 3): add a folder to the project first.
+            if name not in self.state.project_patches():
+                await self.ws_error(ws, f"Cannot set fleet patch {name!r}: add it to the project first.")
+                return
+            await self.stage_and_converge(name, ws)
         elif kind == "retry_fleet_patch":
             await self.retry_fleet_patch(uid, ws)
         elif kind == "request_patches":

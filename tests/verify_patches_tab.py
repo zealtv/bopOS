@@ -247,6 +247,13 @@ def main():
                 if shot:
                     page.screenshot(path=shot)
 
+                # --- Set Live outside the project is refused (proposal sec 3) ---
+                page.evaluate("ws.send('set_fleet_patch', {patch: 'kite-sketch', confirmed: true})")
+                time.sleep(.5)
+                check("Set Live refuses a patch outside the project",
+                      page.evaluate("() => installation.fleet_patch?.name") == "kite-v3"
+                      and "kite-sketch" not in page.evaluate("() => installation.patches"))
+
                 # --- Add Existing: a catalog folder joins the project ---
                 page.click("#patch-add-existing")
                 page.wait_for_selector("#patch-add-dialog[open]")
