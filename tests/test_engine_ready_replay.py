@@ -85,6 +85,10 @@ class EngineReadyReplayTests(unittest.TestCase):
     def setUp(self):
         self.client = ControllableClient()
         bopos.client = self.client
+        self.io = mock.Mock()
+        io_patch = mock.patch.object(bopos, 'node_io', return_value=self.io)
+        io_patch.start()
+        self.addCleanup(io_patch.stop)
         # Isolate the replay store between tests.
         with bopos.param_replay_lock:
             bopos.latest_static_params.clear()
@@ -151,6 +155,24 @@ class EngineReadyReplayTests(unittest.TestCase):
         self.assertIs(bopos.deliver_engine_context(state), True)
         self.assertIn("/id", self.client.sent)
         self.assertIn("/groups", self.client.sent)
+
+    def test_ready_and_config_create_manifest_modules_with_existing_grammar(self):
+        rows = [{'name': 'tilt', 'type': 'lis3dh', 'address': '0x19'}]
+        state = types.SimpleNamespace(id=7, groups=())
+        with mock.patch.object(bopos, 'active_patch_path', return_value='/fixture'), \
+                mock.patch.object(bopos.manifest, 'load', return_value=({'io_modules': rows}, None)), \
+                mock.patch.object(bopos, 'node_state', state):
+            self.assertTrue(bopos.deliver_engine_context(state))
+            bopos.config_callback()
+        self.assertEqual(self.io.send_bridge.call_args_list, [
+            mock.call('/io/create', ['tilt', 'lis3dh', '0x19'])] * 2)
+        self.assertEqual(self.io.refresh.call_count, 2)
+
+    def test_bridge_send_failure_retries_readiness_and_does_not_kill_config(self):
+        self.io.refresh.side_effect = OSError('bridge unavailable')
+        state = types.SimpleNamespace(id=7, groups=())
+        self.assertFalse(bopos.deliver_engine_context(state))
+        bopos.config_callback()
 
     def test_deliver_engine_context_reports_failure_when_port_refuses(self):
         # engine_alive() can lead PD binding its port; the redelivery must not

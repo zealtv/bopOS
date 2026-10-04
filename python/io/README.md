@@ -11,6 +11,27 @@ Simple Python bridge for interfacing I2C sensors with Pure Data via OSC.
 - Peripherals can be created dynamically via OSC
 
 
+### Declare peripherals in the patch manifest
+
+Add `io_modules` to `bopos.patch.json`:
+
+```json
+{"io_modules":[{"name":"tilt","type":"lis3dh","address":"0x19","optional":true}]}
+```
+
+bopos.py sends creates when the engine becomes ready. The bridge owns each
+declared name and reports running, missing or errored per device. Optional
+absence is normal. Matching patch loadbang creates are successful no-ops;
+conflicting creates return create-failed and preserve the live chip. Changed
+or removed declarations clean up their old instances at reconciliation.
+Undeclared names retain the legacy dynamic behavior below.
+
+Each supported driver contains a literal `DESCRIPTION` with ordered input
+channels, units and ranges, and output commands/arguments. `io_catalog.py`
+reads these on the dashboard host without importing chip dependencies.
+Input units match the values delivered to the patch: ADC volts, LIS3DH tilt
+degrees, MPR121 filtered counts and switch flags. Outputs are last write wins.
+
 ### From Pure Data, create peripherals dynamically
 
 Message boxes into `[s to-bopos-io]`:

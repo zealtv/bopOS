@@ -1491,9 +1491,8 @@ class OSCBridge:
                         or reason not in io_protocol.ERRORS):
                     return
                 device['io_error'] = {'name': name, 'error': reason}
-                row = (device['report'].get('io') or {}).get('modules', {}).get(name)
-                if row is not None:
-                    row.update(state='errored', error=reason)
+                # Health comes from the full registry/report, not the rejected
+                # request: a conflicting create can leave a live module healthy.
                 self.request(device['uid'], 'report')
             else:
                 return

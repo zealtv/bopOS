@@ -349,6 +349,10 @@ class AuditionRig:
             "hostname": node.name or node.uid,
             "engine": loaded["engine"],
             "has_i2c": False,
+            "io": dict(bus=None, scanned=False, addresses=[], modules={
+                row['name']: dict(type=row['type'], address=row['address'],
+                                  state='missing', error=None)
+                for row in loaded.get('io_modules', [])}),
             "has_wifi": False,
             "audio_channels": 2,
             "screen": "screen" in loaded.get("caps", []),

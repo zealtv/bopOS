@@ -59,3 +59,17 @@ class IO_ADS1115:
     def cleanup(self):
         """Cleanup on shutdown."""
         pass
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+        {"channel":"A0","unit":"V","range":[0,3.3]},
+        {"channel":"A1","unit":"V","range":[0,3.3]},
+        {"channel":"A2","unit":"V","range":[0,3.3]},
+        {"channel":"A3","unit":"V","range":[0,3.3]},
+    ],
+    "outputs": [
+
+    ],
+}

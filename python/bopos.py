@@ -143,6 +143,25 @@ def active_patch_path():
         return None
 
 
+def create_manifest_modules(state=None):
+    """Use the existing create grammar when an engine becomes ready.
+
+    The bridge reads the same active manifest to enforce ownership, making a
+    duplicate patch loadbang or heartbeat readiness retry a successful no-op.
+    """
+    patch_path = active_patch_path()
+    declarations, _error = manifest.load(patch_path) if patch_path else (None, None)
+    try:
+        control = node_io(state)
+        for row in (declarations or {}).get('io_modules', []):
+            control.send_bridge('/io/create', [row['name'], row['type'], row['address']])
+        control.refresh()
+        return True
+    except OSError as error:
+        print('WARNING: manifest IO setup could not reach the bridge:', error)
+        return False
+
+
 def discover_primary_mac():
     interfaces = []
     try:
@@ -809,6 +828,8 @@ def deliver_engine_context(state=None):
     # actually binds its OSC port -- so this first send may still be refused.
     # Report that so heartbeat_loop retries rather than dropping the redelivery.
     if not send_to_engine(msg):
+        return False
+    if not create_manifest_modules(state):
         return False
     send_groups_to_engine(state)
     with param_replay_lock:
@@ -1722,6 +1743,7 @@ def config_callback(path='', tags='', args='', source=''):
     msg = OSCMessage("/id")
     msg.append(node_state.id, 'i')
     send_to_engine(msg)
+    create_manifest_modules(node_state)
 
 
 FRAMEWORK_COMMAND_TIMEOUTS = {

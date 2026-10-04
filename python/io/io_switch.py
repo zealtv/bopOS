@@ -56,3 +56,17 @@ class IO_Switch:
                 self.sw.led = False
             except Exception:
                 pass
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+        {"channel":"is_pressed","unit":"boolean","range":[0,1]},
+        {"channel":"was_pressed","unit":"boolean","range":[0,1]},
+        {"channel":"was_double_pressed","unit":"boolean","range":[0,1]},
+    ],
+    "outputs": [
+        {"command":"led","args":["enabled (0 or 1)"]},
+        {"command":"double_ms","args":["interval (ms)"]},
+    ],
+}

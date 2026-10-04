@@ -383,6 +383,18 @@ def main():
                     "'#manifest-params [data-manifest-drag=\"params\"]'"
                     ").disabled")
 
+                check("host driver catalog is available without hardware imports",
+                      page.evaluate("() => Object.keys(installation.io_types||{}).length") == 7)
+                page.click('#manifest-add-io')
+                module_row = page.locator('#manifest-io .manifest-io').first
+                module_row.locator('[data-io-field="name"]').fill('tilt')
+                module_row.locator('[data-io-field="type"]').select_option('lis3dh')
+                module_row.locator('[data-io-field="address"]').fill('0x1A')
+                module_row.locator('[data-io-field="optional"]').check()
+                page.locator('#manifest-editor').screenshot(path=os.path.join(
+                    ROOT, '.loom', 'threads', '59-i2c-inventory',
+                    '3-peripheral-lifecycle.stitching', 'manifest-io.png'))
+
                 param_rows = page.locator("#manifest-params .manifest-param")
                 drag_before(
                     page,
@@ -441,6 +453,28 @@ def main():
                       and [item["name"] for item in saved["events"]]
                       == ["release", "strike"],
                       f"feedback={feedback!r} manifest={saved!r}")
+                check("IO module name, type, normalized address and optional flag save atomically",
+                      saved.get('io_modules') == [{'name': 'tilt', 'type': 'lis3dh',
+                                                   'address': '0x1a', 'optional': True}])
+                page.reload()
+                page.wait_for_selector('#manifest-io .manifest-io')
+                module_row = page.locator('#manifest-io .manifest-io').first
+                check("IO declarations survive reload",
+                      module_row.locator('[data-io-field="name"]').input_value() == 'tilt'
+                      and module_row.locator('[data-io-field="optional"]').is_checked())
+                module_row.locator('[data-io-field="address"]').fill('0x78')
+                page.click('#manifest-save')
+                page.wait_for_function("() => document.querySelector('#manifest-feedback').textContent.includes('Not saved:')")
+                with open(manifest, encoding='utf-8') as source:
+                    check("invalid IO edits leave the previous manifest intact",
+                          json.load(source)['io_modules'] == saved['io_modules'])
+                page.reload()
+                page.wait_for_selector('#manifest-io .manifest-io')
+                page.locator('[data-remove-io]').click()
+                page.click('#manifest-save')
+                page.wait_for_function("() => !manifestDirty")
+                with open(manifest, encoding='utf-8') as source:
+                    check("IO declaration removal persists", json.load(source)['io_modules'] == [])
 
                 page.click("#tab-button-control")
                 frame.locator(

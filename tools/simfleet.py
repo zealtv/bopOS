@@ -432,7 +432,25 @@ class SimFleet:
 
     def promote_running(self, device):
         if device.state == "booting":
+            self.create_manifest_modules(device)
             self.set_state(device, "running")
+
+    def create_manifest_modules(self, device):
+        """Model per-device declaration presence using the fake bus inventory."""
+        patch_dir = os.path.join(getattr(self.args, 'patches_dir', PATCHES_DIR), device.active_patch)
+        manifest, _error = patch_manifest.load(patch_dir)
+        if manifest is None:
+            manifest = json.loads(getattr(self, 'manifest_text', '{}'))
+        rows = manifest.get('io_modules', [])
+        previous = getattr(device, 'declared_io_names', set())
+        for name in previous:
+            device.io['modules'].pop(name, None)
+        device.declared_io_names = {row['name'] for row in rows}
+        present = {row['address'] for row in device.io_addresses}
+        for row in rows:
+            state = 'running' if device.io['bus'] == 1 and row['address'] in present else 'missing'
+            device.io['modules'][row['name']] = dict(
+                type=row['type'], address=row['address'], state=state, error=None)
 
     def bump(self, device):
         device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
@@ -557,6 +575,7 @@ class SimFleet:
                 reason = ('performance' if not performance_mode.allows(
                               device.performance, member) else
                           'unknown-command' if row is None else
+                          'unknown-command' if row['state'] == 'missing' else
                           'no-bus' if device.io['bus'] is None else
                           row['error'] if row['state'] != 'running' else None)
                 reason = reason or ('write-failed' if row is not None and
@@ -575,7 +594,7 @@ class SimFleet:
                                                 json.dumps(result)], source[0])
             if reason and reason not in ('invalid-arguments', 'performance'):
                 row = device.io['modules'].get(result['name'])
-                if row is not None:
+                if row is not None and row['state'] != 'missing':
                     row.update(state='errored', error=reason)
                 self.send_io(device, '/os/io-error', [result['name'], reason],
                              self.args.target)
@@ -788,11 +807,13 @@ class SimFleet:
             self.fetch_pending.setdefault(device.mac, []).append(key)
 
     def finish_patch_switch(self, device, source):
+        self.create_manifest_modules(device)
         device.capture_engine_context()
         device.engine_restart_until = 0.0
         self.send_rev(device, source, "ok", "switched")
 
     def finish_engine_restart(self, device):
+        self.create_manifest_modules(device)
         device.capture_engine_context()
         device.engine_restart_until = 0.0
 

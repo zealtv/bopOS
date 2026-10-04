@@ -16,6 +16,24 @@ import manifest  # noqa: E402
 
 
 class ManifestTests(unittest.TestCase):
+    def test_io_modules_validate_and_round_trip_without_mutating_candidate(self):
+        modules = [{'name': 'tilt', 'type': 'lis3dh', 'address': '0x1A', 'optional': True}]
+        candidate = self.candidate(io_modules=modules)
+        saved, error = manifest.write_atomic(self.patch, candidate)
+        self.assertIsNone(error)
+        self.assertEqual(saved['io_modules'][0]['address'], '0x1a')
+        self.assertEqual(manifest.load(self.patch)[0]['io_modules'], saved['io_modules'])
+        self.assertEqual(modules[0]['address'], '0x1A')
+
+    def test_invalid_io_modules_rejected(self):
+        row = {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19'}
+        for value in ({}, [None], [dict(row, name='scan')], [dict(row, name='bad/name')],
+                      [dict(row, type='wrong')], [dict(row, type=[])],
+                      [dict(row, type={})], [dict(row, address='0x78')],
+                      [dict(row, address=25)], [dict(row, optional=1)], [row, row]):
+            with self.subTest(value=value):
+                self.assert_invalid(io_modules=value)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="bopos-manifest-")
         self.patch = Path(self.temp.name)

@@ -14,6 +14,12 @@ import os
 import re
 import sys
 import tempfile
+try:
+    from . import io_protocol
+    from .io_catalog import PERIPHERAL_TYPES
+except ImportError:
+    import io_protocol
+    from io_catalog import PERIPHERAL_TYPES
 
 MANIFEST_NAME = "bopos.patch.json"
 PARAM_NAME = re.compile(r"[A-Za-z0-9_-]+")
@@ -265,6 +271,33 @@ def validate(candidate, patch_path, require_entrypoint=True):
         normalized_events.append(event)
     if normalized_events or "events" in manifest:
         manifest["events"] = normalized_events
+
+    modules = manifest.get("io_modules", [])
+    if not isinstance(modules, list):
+        return None, "io_modules must be a list"
+    normalized_modules, module_names = [], set()
+    for original in modules:
+        if not isinstance(original, dict):
+            return None, "IO module must be an object"
+        name = original.get("name")
+        if not io_protocol.valid_name(name):
+            return None, f"IO module {name!r}: invalid or reserved name"
+        if name in module_names:
+            return None, f"duplicate IO module name {name!r}"
+        module_names.add(name)
+        if (not isinstance(original.get("type"), str)
+                or original["type"] not in PERIPHERAL_TYPES):
+            return None, f"IO module {name!r}: unknown type"
+        address = original.get("address")
+        if (not isinstance(address, str)
+                or re.fullmatch(r"0x[0-9a-fA-F]{2}", address) is None
+                or not 0x03 <= int(address, 16) <= 0x77):
+            return None, f"IO module {name!r}: address must be 0x03–0x77"
+        if "optional" in original and not isinstance(original["optional"], bool):
+            return None, f"IO module {name!r}: optional must be true or false"
+        normalized_modules.append(dict(original, address=address.lower()))
+    if modules or "io_modules" in manifest:
+        manifest["io_modules"] = normalized_modules
 
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])

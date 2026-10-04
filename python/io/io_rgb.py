@@ -97,3 +97,20 @@ class IO_RGB:
                 self.leds.clear()
             except Exception:
                 pass
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+
+    ],
+    "outputs": [
+        {"command":"pixel","args":["pixel (0–2)","red (0–255)","green (0–255)","blue (0–255)"]},
+        {"command":"fill","args":["red (0–255)","green (0–255)","blue (0–255)"]},
+        {"command":"all","args":["three RGB triples (0–255)"]},
+        {"command":"hsv","args":["pixel (-1 for all, or 0–2)","hue (0–1)","saturation (0–1, optional)","value (0–1, optional)"]},
+        {"command":"clear","args":[]},
+        {"command":"bright","args":["brightness (0–255)"]},
+        {"command":"power","args":["enabled (0 or 1)"]},
+    ],
+}

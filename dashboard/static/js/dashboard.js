@@ -169,13 +169,14 @@ ws.on("manifest_saved", data => {
   const patch=data?.patch||editorPatchChoice;
   const declarations=data?.declarations||data?.params||[];
   if (patch && patch===editorPatchChoice) {
-    manifestDraft={patch,params:structuredClone(declarations),events:structuredClone(data.events||[])};
+    manifestDraft={patch,params:structuredClone(declarations),events:structuredClone(data.events||[]),io_modules:structuredClone(data.io_modules||[])};
     manifestBaseline=structuredClone(manifestDraft);
     manifestDirty=false;
   }
   if (installation.editor && installation.editor.patch===patch) {
     installation.editor.declarations=structuredClone(declarations);
     installation.editor.events=structuredClone(data.events||[]);
+    installation.editor.io_modules=structuredClone(data.io_modules||[]);
   }
   const warnings=(data?.warnings||[data?.pd_receive_warning]).filter(Boolean);
   manifestFeedback=warnings.length?`Saved with warning: ${warnings.join(" ")}`:"Manifest saved. Live controls refreshed; the engine was not restarted.";
@@ -635,12 +636,13 @@ function manifestSource(editor, patches, patch) {
     slots:current.slots??embedded.slots??item.slots??[],
     params:Array.isArray(params)?params:[],
     events:Array.isArray(events)?events:[],
+    io_modules:current.io_modules||embedded.io_modules||[],
     available:Array.isArray(params)||Array.isArray(events)||Boolean(current.engine||embedded.engine||item.engine),
     editable:Boolean(!performanceActive()&&editor.active&&editor.patch===patch),
   };
 }
 function resetManifestDraft(patch, source) {
-  manifestDraft={patch,params:structuredClone(source.params),events:structuredClone(source.events)};
+  manifestDraft={patch,params:structuredClone(source.params),events:structuredClone(source.events),io_modules:structuredClone(source.io_modules)};
   manifestBaseline=structuredClone(manifestDraft);
   manifestDirty=false;
 }
@@ -730,6 +732,18 @@ function eventManifestRow(declaration, index) {
   </div>`;
 }
 function bindManifestEditor(source) {
+  document.querySelectorAll('.manifest-io').forEach(row=>{
+    const index=Number(row.dataset.ioIndex);
+    row.querySelectorAll('[data-io-field]').forEach(input=>{
+      input.oninput=input.onchange=()=>{
+        manifestDraft.io_modules[index][input.dataset.ioField]=input.type==='checkbox'?input.checked:input.value;
+        manifestDirty=true;
+      };
+    });
+    row.querySelector('[data-remove-io]').onclick=()=>{
+      manifestDraft.io_modules.splice(index,1); manifestDirty=true; renderManifestEditor(source);
+    };
+  });
   document.querySelectorAll(".manifest-param").forEach(row=>{
     const index=Number(row.dataset.paramIndex);
     row.querySelectorAll("[data-manifest-field]").forEach(input=>{
@@ -885,12 +899,23 @@ function renderManifestEditor(source) {
   const patch=editorPatchChoice;
   panel.hidden=!patch;
   if (!patch) return;
-  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,events:source.events})!==JSON.stringify({params:manifestDraft.params,events:manifestDraft.events}))) {
+  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,events:source.events,io_modules:source.io_modules})!==JSON.stringify({params:manifestDraft.params,events:manifestDraft.events,io_modules:manifestDraft.io_modules}))) {
     resetManifestDraft(patch,source);
   }
   $("#manifest-readonly").innerHTML=`<dl><dt>Engine</dt><dd>${esc(manifestValue(source.engine))}</dd><dt>Entrypoint</dt><dd>${esc(manifestValue(source.entrypoint))}</dd><dt>Capabilities</dt><dd>${esc(manifestValue(source.caps))}</dd><dt>Asset slots</dt><dd>${esc(manifestValue(source.slots))}</dd></dl>`;
   $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
   $("#manifest-events").innerHTML=manifestDraft.events.map(eventManifestRow).join("")||'<p class="dim">No events declared.</p>';
+  $('#manifest-io').innerHTML=manifestDraft.io_modules.map((module,index)=>`
+    <div class="manifest-row manifest-io" data-io-index="${index}">
+      <label>Name<input data-io-field="name" value="${esc(module.name)}"></label>
+      <label>Type<select data-io-field="type">${Object.keys(installation.io_types||{}).map(type=>`<option ${module.type===type?'selected':''}>${esc(type)}</option>`).join('')}</select></label>
+      <label>Address<input data-io-field="address" value="${esc(module.address)}" placeholder="0x48"></label>
+      <label class="manifest-check"><input data-io-field="optional" type="checkbox" ${module.optional?'checked':''}>Optional</label>
+      <button data-remove-io="${index}" aria-label="Remove IO module">✕</button>
+    </div>`).join('')||'<p class="dim">No IO modules declared.</p>';
+  const addIO=$('#manifest-add-io');
+  addIO.disabled=!source.editable;
+  addIO.onclick=()=>{manifestDraft.io_modules.push({name:'',type:'ads1115',address:'0x48',optional:false});manifestDirty=true;renderManifestEditor(source);};
   $("#manifest-feedback").textContent=manifestFeedback||(source.editable
     ? "Path/name changes create a new OSC identity; engine routes never change automatically."
     : "Launch this patch in edit mode to change its manifest.");
@@ -906,12 +931,12 @@ function renderManifestEditor(source) {
     const changed=before.filter(identity=>identity&&!after.includes(identity));
     if (changed.length && !confirm(`Save parameter move/rename/removal (${changed.map(item=>`/p/${item}`).join(", ")})? Engine routes do not follow manifest changes.`)) return;
     manifestFeedback="Saving manifest…";
-    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),events:manifestEventsForSave(manifestDraft.events)});
+    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),events:manifestEventsForSave(manifestDraft.events),io_modules:structuredClone(manifestDraft.io_modules)});
     save.blur();
     $("#manifest-feedback").textContent=manifestFeedback;
   };
   bindManifestEditor(source);
-  if (!source.editable) document.querySelectorAll("#manifest-params input, #manifest-params select, #manifest-params button, #manifest-events input, #manifest-events button").forEach(control=>{control.disabled=true;});
+  if (!source.editable) panel.querySelectorAll('input,select,textarea,button').forEach(control=>{control.disabled=true;});
 }
 
 function canonicalRemoteCommands(value) {

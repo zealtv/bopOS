@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.request
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 ROOT = next(parent for parent in Path(__file__).resolve().parents
@@ -104,6 +105,17 @@ def local_journey():
                 engine_messages.append(decodeOSC(engine.recvfrom(65535)[0])[0])
             assert not control.pending['scan'] and not control.pending['write']
             print('PASS: real localhost bridge/node OSC, FIFO scans/writes, dual replies and unsolicited error relay (chip access faked)')
+            declaration = {'name': 'adc', 'type': 'ads1115', 'address': '0x48'}
+            with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [declaration]}, None)):
+                for kind, address in [('wrong-type', '0x48'), ('ads1115', '0x49')]:
+                    send('/io/create', ['adc', kind, address], ('127.0.0.1', command_port))
+                    error = decodeOSC(lan.recvfrom(65535)[0])
+                    assert error == ['/os/io-error', ',sss', 'local-node', 'adc', 'create-failed'], error
+                assert control.snapshot()['modules']['adc'] == {
+                    'type': 'ads1115', 'address': '0x48', 'state': 'running', 'error': None}
+                send('/io/create', ['bad', 'wrong-type', '0x48'], ('127.0.0.1', command_port))
+                assert decodeOSC(lan.recvfrom(65535)[0])[2:] == ['local-node', 'bad', 'create-failed']
+            print('PASS: wrong type/address create failures reach unsolicited LAN error replies; declared live chip stays healthy')
         finally:
             control.close()
             node_server.close()

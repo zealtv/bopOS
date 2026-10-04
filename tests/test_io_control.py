@@ -284,13 +284,24 @@ class NodeControlTests(unittest.TestCase):
                 self.send.assert_called_once_with('/io/adc', ['threshold', 1, 2])
                 self.assertEqual(json.loads(self.reply.calls[-1][1][2])['error'], 'performance')
 
-    def test_error_updates_cache_and_broadcast_failure_does_not_block_receipt(self):
+    def test_registry_updates_health_and_broadcast_failure_does_not_block_receipt(self):
         self.control.handle('/io/registry', [json.dumps(facts())])
         self.control.request('write', json.dumps(write()), self.reply, '192.0.2.1')
         self.errors.side_effect = OSError('unavailable route')
+        observed = facts()
+        observed['modules']['adc'].update(state='errored', error='write-failed')
+        self.control.handle('/io/registry', [json.dumps(observed)])
         self.control.handle('/io/error', ['adc', 'write-failed'])
         self.assertEqual(self.control.snapshot()['modules']['adc']['state'], 'errored')
         self.assertEqual(self.reply.calls[0][1][1], 'err')
+
+    def test_rejected_create_keeps_authoritative_running_or_missing_state(self):
+        for state in ('running', 'missing'):
+            observed = facts()
+            observed['modules']['adc'].update(state=state, error=None)
+            self.control.handle('/io/registry', [json.dumps(observed)])
+            self.control.handle('/io/error', ['adc', 'create-failed'])
+            self.assertEqual(self.control.snapshot(), observed)
 
     def test_exact_uid_dispatch_and_report_use_same_io_object(self):
         import test_log_config as fixture
@@ -386,7 +397,8 @@ class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(('node-a', 'write'), dash.osc._io_timeouts)
         self.assertEqual(self.device['io_write']['status'], 'ok')
         dash.osc.handle('/os/io-error', ['node-a', 'adc', 'write-failed'], '192.0.2.1')
-        self.assertEqual(self.device['report']['io']['modules']['adc']['error'], 'write-failed')
+        self.assertEqual(self.device['io_error']['error'], 'write-failed')
+        self.assertIsNone(self.device['report']['io']['modules']['adc']['error'])
         self.assertEqual(self.events[-1][0], 'report')
 
     async def test_missing_receipts_expire_dashboard_pending_state_without_wire_tokens(self):
@@ -455,6 +467,22 @@ class DashboardIOTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SimFleetIOTests(unittest.TestCase):
+    def test_manifest_presence_is_per_device_and_changes_retire_old_declarations(self):
+        row = {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19', 'optional': True}
+        fleet = simfleet.SimFleet.__new__(simfleet.SimFleet)
+        fleet.args = SimpleNamespace(patches_dir='/fixture')
+        first, second = [simfleet.Device(uid, uid, -1, 'abc1234') for uid in ('one', 'two')]
+        first.io['bus'] = second.io['bus'] = 1
+        first.io_addresses = [{'address': '0x19', 'claimed': False}]
+        with patch.object(simfleet.patch_manifest, 'load', return_value=({'io_modules': [row]}, None)):
+            fleet.create_manifest_modules(first)
+            fleet.create_manifest_modules(second)
+        self.assertEqual(first.io['modules']['tilt']['state'], 'running')
+        self.assertEqual(second.io['modules']['tilt']['state'], 'missing')
+        with patch.object(simfleet.patch_manifest, 'load', return_value=({'io_modules': []}, None)):
+            fleet.create_manifest_modules(first)
+        self.assertNotIn('tilt', first.io['modules'])
+
     def test_performance_refuses_without_fault_and_keeps_scan_and_exit_working(self):
         device = simfleet.Device('node-a', 'sim1', -1, 'abc1234')
         device.io = facts()

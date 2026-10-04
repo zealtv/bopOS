@@ -142,3 +142,30 @@ class IO_MPR121:
     def cleanup(self):
         """Cleanup on shutdown."""
         pass
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+        {"channel":"0","unit":"filtered count","range":[0,1023]},
+        {"channel":"1","unit":"filtered count","range":[0,1023]},
+        {"channel":"2","unit":"filtered count","range":[0,1023]},
+        {"channel":"3","unit":"filtered count","range":[0,1023]},
+        {"channel":"4","unit":"filtered count","range":[0,1023]},
+        {"channel":"5","unit":"filtered count","range":[0,1023]},
+        {"channel":"6","unit":"filtered count","range":[0,1023]},
+        {"channel":"7","unit":"filtered count","range":[0,1023]},
+        {"channel":"8","unit":"filtered count","range":[0,1023]},
+        {"channel":"9","unit":"filtered count","range":[0,1023]},
+        {"channel":"10","unit":"filtered count","range":[0,1023]},
+        {"channel":"11","unit":"filtered count","range":[0,1023]},
+    ],
+    "outputs": [
+        {"command":"threshold","args":["touch threshold","release threshold"]},
+        {"command":"cdc","args":["electrode (0–11)","value (0–255)"]},
+        {"command":"cdt","args":["electrode (0–11)","value (0–255)"]},
+        {"command":"ffi","args":["electrode (0–11)","value (0–255)"]},
+        {"command":"sfi","args":["electrode (0–11)","value (0–255)"]},
+        {"command":"esi","args":["value (0–255)"]},
+    ],
+}

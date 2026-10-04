@@ -77,6 +77,7 @@ from state import (FACILITATOR_COMMANDS, InstallationState, observed_active_patc
 from python import identity
 from python import wifi_config
 from python import io_protocol
+from python import io_catalog
 from wifi_secrets import WifiSecrets
 from python import asset_slots
 from python import manifest as patch_manifest
@@ -1830,6 +1831,7 @@ class Dashboard:
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
         public["performance"] = self.state.performance
+        public["io_types"] = io_catalog.descriptions()
         public["wifi_secret_ssids"] = sorted(self.wifi_secrets.values)
         public["wifi_countries"] = sorted(wifi_config.COUNTRIES)
         # The durable record captures the identity staged by the operator, but
@@ -1986,6 +1988,7 @@ class Dashboard:
         candidate = dict(current)
         candidate["params"] = params
         candidate["events"] = events
+        candidate["io_modules"] = data.get("io_modules", current.get("io_modules", []))
         saved, error = await asyncio.to_thread(
             patch_manifest.write_atomic, patch_path, candidate)
         if saved is None:
@@ -2013,6 +2016,7 @@ class Dashboard:
         declarations = list(saved.get("params", ()))
         editor["declarations"] = declarations
         editor["events"] = list(saved.get("events", ()))
+        editor["io_modules"] = list(saved.get("io_modules", ()))
         editor["params"] = {
             patch_manifest.qualify_param(declaration): previous_values.get(
                 patch_manifest.qualify_param(declaration), declaration.get("default", ""))
@@ -2022,6 +2026,7 @@ class Dashboard:
             "patch": name,
             "params": declarations,
             "events": editor["events"],
+            "io_modules": editor["io_modules"],
             "removed_params": removed,
             "added_params": added,
             "rename_candidates": rename_candidates,
@@ -2637,6 +2642,7 @@ class Dashboard:
                               for item in declarations},
                       declarations=declarations,
                       events=list(manifest.get("events", ())),
+                      io_modules=list(manifest.get("io_modules", ())),
                       points={},
                       point_element=0,
                       engine=manifest.get("engine"))

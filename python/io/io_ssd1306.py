@@ -74,3 +74,18 @@ class IO_SSD1306:
             self.display.fill(0)
             self.display.show()
             self.display.poweroff()
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+
+    ],
+    "outputs": [
+        {"command":"clear","args":[]},
+        {"command":"text","args":["text atoms"]},
+        {"command":"line","args":["row (0–5)","text atoms"]},
+        {"command":"invert","args":["enabled (0 or 1)"]},
+        {"command":"contrast","args":["value (0–255)"]},
+    ],
+}

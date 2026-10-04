@@ -31,3 +31,5 @@ starts, but a prominent toggle**.
   from proposal §8, plus §15.
 - Tests: persistence across restart, convergence, each lock refused on the
   device and disabled in the UI, the toggle never refused, RAM-only logging.
+
+**Bob, 2026-10-04 (after merge):** the two-row header at 1440px with the Performance toggle is fine; keep it.

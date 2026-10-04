@@ -21,7 +21,8 @@ class ManifestBootTests(unittest.TestCase):
         for directory in ('bash', 'python/io', 'patches/live', 'bin', 'run'):
             (self.root / directory).mkdir(parents=True)
         for relative in ('bash/start.sh', 'bash/start-engine.sh',
-                         'python/manifest.py', 'python/logpipe.py',
+                         'python/manifest.py', 'python/io_protocol.py',
+                         'python/io_catalog.py', 'python/logpipe.py',
                          'python/performance_mode.py'):
             shutil.copy2(REPO / relative, self.root / relative)
         # Both long-lived service slots remain actual OS processes, but perform

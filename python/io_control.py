@@ -155,9 +155,9 @@ class IOControl:
                 if (not isinstance(name, str) or not isinstance(reason, str)
                         or reason not in io_protocol.ERRORS):
                     return
-                row = self.io['modules'].get(name)
-                if row is not None:
-                    row.update(state='errored', error=reason)
+                # Registry replies are authoritative for module health. A
+                # rejected conflicting create is not a fault in the live chip,
+                # and a required missing declaration must remain missing.
                 try:
                     self.broadcast_error(name, reason)
                 except OSError as failure:

@@ -958,6 +958,17 @@ A patch ships **`bopos.patch.json`** in its patch root:
   (§3.2), always forward-synchronized unless the installation-wide
   `event_lead_ms` is `0`. A zero-element event is a momentary named fire.
 
+**`io_modules` (optional; v1.21):** a top-level list of declarations, for example
+`[{"name":"adc","type":"ads1115","address":"0x48"},
+{"name":"tilt","type":"lis3dh","address":"0x19","optional":true}]`.
+Names are unique, nonempty single OSC segments and cannot be bridge verbs
+(`create`, `poll`, `report`, `scan`, `bridge`). Types name a supported host
+driver. Addresses are hex strings in `0x03`–`0x77`, normalized to lowercase.
+`optional` is a boolean, default false. The manifest is fleet-wide; presence
+is resolved separately on each device. The Patches manifest editor authors
+these declarations. Driver descriptions live beside the driver code and the
+dashboard reads its host copy without importing hardware libraries.
+
 ### 8.1 Retired host-side facility
 
 Retired 2026-10-03 (v1.18). The former host-side saved-parameter facility is
@@ -1025,6 +1036,14 @@ Unchanged verbs, sharpened boundary:
   or not at all; that is the entire justification.
 - **Engine owns its native media IO** — audio, MIDI, HID, display. If engine-side
   input must reach the fleet or dashboard, it surfaces as `/p/*`.
+- **Manifest owns declared modules** (v1.21). At engine readiness, `bopos.py`
+  sends the existing `/io/create <name> <type> <address>` for each declaration.
+  The bridge reads the same active manifest: a matching create of an already
+  running declaration succeeds as a no-op; a conflicting type/address returns
+  `create-failed` without replacing the live chip. Legacy dynamic creates still
+  work for undeclared names. Changed or removed declarations retire their old
+  instances when the active manifest is reconciled. Writes remain last write
+  wins under the shared bridge lock.
 - **Inspection is demand-driven** (v1.2; supersedes the 2026-07-08
   `role: "meter"` republish model, which was deleted with the meter plane): a
   patch retains values it wants inspectable via engine-side `/report <name>
@@ -1067,9 +1086,13 @@ opened. `scanned` is false until a scan has run. `addresses` is sorted by
 address; addresses are lowercase hex strings, and `claimed` records kernel
 ownership (`UU`). A usable but empty scanned bus has `bus:1`, `scanned:true`
 and `addresses:[]`. Modules map names to `type`, `address`, `state` and `error`.
-State is `running`, `errored`, or `missing` (manifest presence and `missing`
-arrive in stitch 59/3). Error is null or one of the reasons below. Modules are
-still patch-created in this increment; manifest ownership follows in 59/3.
+State is `running`, `errored`, or `missing`. An absent declared address or
+unusable bus is `missing`; a present chip whose setup fails is `errored`.
+Optional absence is normal; required absence also emits `create-failed`
+(or `no-bus`). Error is null or one of the reasons below. Read failures mark
+the module errored with null error and one log line naming the module/address;
+a successful subsequent read restores running. Registry/report health is
+authoritative: rejected requests do not themselves replace module health.
 
 **Errors.** `/io/error <name> <reason>` uses only `no-bus`, `create-failed`,
 `invalid-arguments`, `unknown-command`, and `write-failed`. `bridge` is a
@@ -1179,4 +1202,4 @@ reasoning.
 | 1.18 | 2026-10-03 | Retire the host-side preset facility (§8.1): storage APIs, capture/recall UI and Show PRE references are removed. Remove §9’s special distribution, fingerprint, prune and HTTP exclusion for `presets/`; obsolete local files and test PRE cues are deleted without a compatibility layer. Installation and venue unknown fields are ignored; unsupported message kinds remain invalid. No wire grammar or engine behavior is added. | Thread `65-remove-presets`, `2-remove-presets` verification |
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
-| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Streaming and manifest ownership remain separate increments. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `77-performance-mode` |
+| 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions now ship (§8, §11); streaming remains a separate increment. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode` |

@@ -58,3 +58,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    default name **Show** are fine; **add "N steps"** to show rows; **yes,
    wrap the header earlier** (~1279px) → follow-up on `66-projects/10-multiple-shows`.
 9. Clear Show wording — Bob, 2026-10-04: the one-step confirm ("Remove all 1 step…") is fine; **yes** to "Stop the show before clearing it." → `66-projects/9-clear-show`.
+10. Header wraps to two rows at 1440px with the Performance toggle: **keep it** (Bob, 2026-10-04, after seeing the screenshots on Tengu; `screenshots/header-performance-*-1440.png`) → `77-performance-mode`.

@@ -11,12 +11,15 @@ import signal
 import json
 import os
 import sys
+import contextlib
 from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
 
 from sys_wireless import read_wireless
 from sys_i2c import have_bus, usable_bus, scan_inventory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import io_protocol
+import manifest as patch_manifest
+from io_catalog import PERIPHERAL_TYPES
 from sys_info import (get_hostname, get_ip, get_uptime,
                       get_git_rev, get_active_patch)
 
@@ -30,16 +33,24 @@ DEFAULT_POLL_RATE = 10  # Hz
 # verbs live in, so these names cannot be used for a peripheral.
 RESERVED_NAMES = io_protocol.RESERVED_NAMES
 
-# Available peripheral types
-PERIPHERAL_TYPES = {
-    'ads1015': ('io_ads1015', 'IO_ADS1015'), # 4 channel 12-bit ADC
-    'ads1115': ('io_ads1115', 'IO_ADS1115'), # 4 channel 16-bit ADC
-    'lis3dh': ('io_lis3dh', 'IO_LIS3DH'), # 3-axis accelerometer
-    'mpr121': ('io_mpr121', 'IO_MPR121'), # 12-channel capacitive touch sensor
-    'rgb': ('io_rgb', 'IO_RGB'), # PiicoDev 3x RGB LED module
-    'ssd1306': ('io_ssd1306', 'IO_SSD1306'), # 128x64 OLED display
-    'switch': ('io_switch', 'IO_Switch'), # PiicoDev momentary button
-}
+
+class _ReadOutput:
+    """Silence vendor read diagnostics without swallowing other threads' logs."""
+    def __init__(self, stream):
+        self.stream = stream
+        self.reader = threading.get_ident()
+
+    def write(self, value):
+        if threading.get_ident() == self.reader:
+            return len(value)
+        return self.stream.write(value)
+
+    def flush(self):
+        self.stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
 
 class IOManager:
     def __init__(self):
@@ -47,6 +58,7 @@ class IOManager:
         # scan/setup/cleanup and aliases that happen to share an address.
         self.io_lock = threading.RLock()
         self.peripherals = {}  # name -> peripheral instance
+        self.declared = {}
         self.poll_rate = DEFAULT_POLL_RATE
         self.running = True
         self.io = io_protocol.empty_io(1 if usable_bus() else None)
@@ -60,6 +72,38 @@ class IOManager:
     def create_peripheral(self, name, device_type, address):
         with self.io_lock:
             return self._create_peripheral(name, device_type, address)
+
+    def _load_declarations(self):
+        # Both processes share this file. Ownership needs no extra OSC token:
+        # an engine-start create and a patch loadbang create have the same grammar.
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+        patch_path = os.path.join(root, 'patches', get_active_patch())
+        manifest, _error = patch_manifest.load(patch_path)
+        declared = {row['name']: row for row in (manifest or {}).get('io_modules', [])}
+        for name, old in self.declared.items():
+            new = declared.get(name)
+            if new is None or (old['type'], old['address']) != (new['type'], new['address']):
+                peripheral = self.peripherals.pop(name, None)
+                if peripheral is not None:
+                    try:
+                        peripheral.cleanup()
+                    except Exception as error:
+                        print(f"Error cleaning {name}: {error}")
+                self.io['modules'].pop(name, None)
+        self.declared = declared
+        for name, row in declared.items():
+            current = self.io['modules'].get(name)
+            if name in self.peripherals and (current is None or
+                    (current['type'], current['address']) != (row['type'], row['address'])):
+                # The new manifest takes ownership of a formerly dynamic name.
+                try:
+                    self.peripherals.pop(name).cleanup()
+                except Exception as error:
+                    print(f"Error cleaning {name}: {error}")
+                self.io['modules'].pop(name, None)
+            self.io['modules'].setdefault(name, dict(
+                type=row['type'], address=row['address'], state='missing', error=None))
+        return declared
 
     def _create_peripheral(self, name, device_type, address):
         """
@@ -131,26 +175,37 @@ class IOManager:
         # Read data from each peripheral
         for name, peripheral in list(self.peripherals.items()):
             try:
-                data = peripheral.read_data()
+                # PiicoDev prints a diagnostic then can return NaN or raise a
+                # secondary conversion error. Capture that diagnostic so every
+                # driver has one failure line and no invalid value reaches Pd.
+                with contextlib.redirect_stdout(_ReadOutput(sys.stdout)):
+                    data = peripheral.read_data()
+                values = (list(data.values()) if isinstance(data, dict)
+                          else list(data) if isinstance(data, (list, tuple)) else [data])
+                if any(value is None or (isinstance(value, (int, float))
+                       and not math.isfinite(value)) for value in values):
+                    raise OSError('invalid sensor data')
+                row = self.io['modules'].get(name)
+                if row is not None and row['state'] == 'errored' and row['error'] is None:
+                    row['state'] = 'running'
+                    self._registry()
                 
                 # Add message to bundle
                 msg = OSCMessage(f"/{name}")
                 
-                # Handle different return types
-                if isinstance(data, dict):
-                    # Send dict values in order
-                    for value in data.values():
-                        msg.append(value)
-                elif isinstance(data, (list, tuple)):
-                    for value in data:
-                        msg.append(value)
-                else:
-                    msg.append(data)
+                for value in values:
+                    msg.append(value)
                 
                 bundle.append(msg)
                 
-            except Exception as e:
-                print(f"Error reading {name}: {e}")
+            except Exception:
+                address = getattr(peripheral, 'address', None)
+                location = f'0x{address:02x}' if isinstance(address, int) else 'unknown'
+                print(f"Error reading {name} at {location}: the bus didn't answer")
+                row = self.io['modules'].get(name)
+                if row is not None and row['state'] != 'errored':
+                    row.update(state='errored', error=None)
+                    self._registry()
         
         # Send bundle to PD
         try:
@@ -242,14 +297,39 @@ class IOManager:
                 self._error(name, 'invalid-arguments')
                 return
             self.io['bus'] = 1 if usable_bus() else None
+            declaration = self._load_declarations().get(name)
+            if declaration is not None:
+                if (device_type, f'0x{i2c_addr:02x}') != (declaration['type'], declaration['address']):
+                    self._registry()
+                    self._send('/io/error', name, 'create-failed')
+                    return
+                if name in self.peripherals:
+                    self._registry()
+                    return
             previous = self.io['modules'].get(name)
             candidate = {
                 'type': device_type, 'address': f'0x{i2c_addr:02x}',
                 'state': 'running', 'error': None}
             if not have_bus() or self.io['bus'] is None:
                 self.io['modules'][name] = candidate
-                self._error(name, 'no-bus')
+                if declaration is not None:
+                    candidate.update(state='missing', error=None)
+                    self._registry()
+                    if not declaration.get('optional', False):
+                        self._send('/io/error', name, 'no-bus')
+                else:
+                    self._error(name, 'no-bus')
                 return
+            if declaration is not None:
+                usable, addresses = scan_inventory(1, skip=[
+                    p.address for p in self.peripherals.values() if getattr(p, 'address', None)])
+                if not usable or candidate['address'] not in {row['address'] for row in addresses}:
+                    candidate.update(state='missing', error=None)
+                    self.io['modules'][name] = candidate
+                    self._registry()
+                    if not declaration.get('optional', False):
+                        self._send('/io/error', name, 'create-failed' if usable else 'no-bus')
+                    return
             created = self.create_peripheral(name, device_type, i2c_addr)
             # Failed type validation leaves the old chip alive. Preserve its
             # identity rather than describing the rejected replacement as live.
@@ -281,6 +361,7 @@ class IOManager:
                 self._error('bridge', 'invalid-arguments')
                 return
             self.io['bus'] = 1 if usable_bus() else None
+            self._load_declarations()
             self._registry()
             print("\nActive peripherals:")
             for name, peripheral in self.peripherals.items():

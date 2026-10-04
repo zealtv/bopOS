@@ -26,6 +26,102 @@ with patch.object(sys, 'path', [str(IO_DIR), *sys.path]):
 
 
 class BridgeTests(unittest.TestCase):
+    def test_declared_create_is_idempotent_and_conflict_preserves_live_chip(self):
+        declaration = {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19'}
+        peripheral = Mock(address=0x19)
+        with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [declaration]}, None)), \
+                patch.object(bridge, 'scan_inventory', return_value=(True, [{'address': '0x19', 'claimed': False}])), \
+                patch.object(self.manager, 'create_peripheral', side_effect=lambda *args: self.manager.peripherals.update(tilt=peripheral) or True) as create:
+            self.command(['create'], ['tilt', 'lis3dh', '0x19'])
+            self.command(['create'], ['tilt', 'lis3dh', 25])
+            self.assertEqual(create.call_count, 1)
+            for kind, address in [('wrong', '0x19'), ('lis3dh', '0x18')]:
+                self.command(['create'], ['tilt', kind, address])
+                self.manager._send.assert_called_with('/io/error', 'tilt', 'create-failed')
+                self.assertIs(self.manager.peripherals['tilt'], peripheral)
+                self.assertEqual(self.manager.io['modules']['tilt']['state'], 'running')
+            peripheral.cleanup.assert_not_called()
+
+    def test_missing_optional_and_required_modules_and_present_setup_failure(self):
+        for optional in (True, False):
+            declaration = {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19', 'optional': optional}
+            for usable in (True, False):
+                with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [declaration]}, None)), \
+                        patch.object(bridge, 'scan_inventory', return_value=(usable, [])):
+                    self.manager._send.reset_mock()
+                    self.command(['create'], ['tilt', 'lis3dh', '0x19'])
+                self.assertEqual(self.manager.io['modules']['tilt']['state'], 'missing')
+                errors = [call for call in self.manager._send.call_args_list if call.args[0] == '/io/error']
+                self.assertEqual(len(errors), 0 if optional else 1)
+        with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [declaration]}, None)), \
+                patch.object(bridge, 'scan_inventory', return_value=(True, [{'address': '0x19', 'claimed': False}])), \
+                patch.object(self.manager, 'create_peripheral', return_value=False):
+            self.command(['create'], ['tilt', 'lis3dh', '0x19'])
+        self.assertEqual(self.manager.io['modules']['tilt']['state'], 'errored')
+        self.manager._send.assert_called_with('/io/error', 'tilt', 'create-failed')
+
+    def test_patch_change_retires_declared_modules(self):
+        self.manager.declared = {'tilt': {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19'}}
+        peripheral = Mock(address=0x19)
+        self.manager.peripherals['tilt'] = peripheral
+        with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': []}, None)):
+            self.command(['report'])
+        peripheral.cleanup.assert_called_once()
+        self.assertNotIn('tilt', self.manager.peripherals)
+        self.assertNotIn('tilt', self.manager.io['modules'])
+
+    def test_manifest_ownership_replaces_conflicting_legacy_instance(self):
+        peripheral = Mock(address=0x18)
+        self.manager.peripherals['tilt'] = peripheral
+        self.manager.io['modules']['tilt'] = dict(type='lis3dh', address='0x18', state='running', error=None)
+        row = {'name': 'tilt', 'type': 'lis3dh', 'address': '0x19', 'optional': True}
+        with patch.object(bridge.patch_manifest, 'load', return_value=({'io_modules': [row]}, None)), \
+                patch.object(bridge, 'scan_inventory', return_value=(True, [])):
+            self.command(['create'], ['tilt', 'lis3dh', '0x19'])
+        peripheral.cleanup.assert_called_once()
+        self.assertEqual(self.manager.io['modules']['tilt']['address'], '0x19')
+        self.assertEqual(self.manager.io['modules']['tilt']['state'], 'missing')
+
+    def test_vendor_read_diagnostics_do_not_swallow_other_threads_logs(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            with contextlib.redirect_stdout(bridge._ReadOutput(sys.stdout)):
+                print('vendor diagnostic')
+                thread = threading.Thread(target=lambda: print('other thread'))
+                thread.start()
+                thread.join(timeout=2)
+        self.assertEqual(output.getvalue(), 'other thread\n')
+
+    def test_read_failures_have_one_line_no_invalid_values_and_recover(self):
+        def failed_read():
+            print('Error reading from LIS3DH at address 0x19')
+            raise TypeError("a bytes-like object is required, not 'float'")
+        peripheral = Mock(address=0x19)
+        peripheral.read_data.side_effect = failed_read
+        self.manager.peripherals['tilt'] = peripheral
+        self.manager.io['modules']['tilt'] = dict(type='lis3dh', address='0x19', state='running', error=None)
+        for failure in (failed_read, lambda: [float('nan')], lambda: [None]):
+            peripheral.read_data.side_effect = failure
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.manager.poll_and_send()
+            self.assertEqual(output.getvalue(), "Error reading tilt at 0x19: the bus didn't answer\n")
+            self.assertEqual(self.manager.io['modules']['tilt']['state'], 'errored')
+        peripheral.read_data.side_effect = lambda: [1, 2, 3]
+        self.manager.poll_and_send()
+        self.assertEqual(self.manager.io['modules']['tilt']['state'], 'running')
+
+    def test_driver_descriptions_do_not_import_hardware_and_cover_all_types(self):
+        from io_catalog import descriptions, PERIPHERAL_TYPES
+        with patch('builtins.__import__', side_effect=AssertionError('hardware import')):
+            # Clear the cache so this exercises parsing, not a cached result.
+            descriptions.cache_clear()
+            catalog = descriptions()
+        self.assertEqual(set(catalog), set(PERIPHERAL_TYPES))
+        self.assertEqual(catalog['lis3dh']['inputs'][0]['unit'], 'degrees')
+        self.assertEqual(len(catalog['ads1115']['inputs']), 4)
+        self.assertEqual([row['command'] for row in catalog['rgb']['outputs']],
+                         ['pixel', 'fill', 'all', 'hsv', 'clear', 'bright', 'power'])
+
     def setUp(self):
         with patch.object(bridge, 'OSCClient'):
             self.manager = bridge.IOManager()

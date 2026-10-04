@@ -8,7 +8,7 @@ default address: 0x19
 from PiicoDev_LIS3DH import PiicoDev_LIS3DH
 
 class IO_LIS3DH:
-    """LIS3DH accelerometer - outputs x, y, z acceleration in g-forces."""
+    """LIS3DH accelerometer - outputs x, y, z tilt angles in degrees."""
     
     def __init__(self, bus=None, address=None):
         self.address = 0x19 if address is None else address
@@ -39,3 +39,16 @@ class IO_LIS3DH:
     def cleanup(self):
         """Cleanup on shutdown."""
         pass
+
+
+# Literal metadata is read by the host without importing this driver.
+DESCRIPTION = {
+    "inputs": [
+        {"channel":"x","unit":"degrees","range":[-180,180]},
+        {"channel":"y","unit":"degrees","range":[-180,180]},
+        {"channel":"z","unit":"degrees","range":[-180,180]},
+    ],
+    "outputs": [
+
+    ],
+}
