@@ -7,7 +7,7 @@ Spec: `../0a-io-design-review.tied/proposal.md` (ratified 2026-10-04; Bob's word
 
 - Bridge replies go to 6662 (unchanged) **and** to `bopos.py` on new localhost
   **7771** (proposal §1). `bopos.py` sends commands to the bridge on 8880.
-- Admin verbs `io-scan`, `io-modules`, `io-write` (§8); unsolicited
+- Admin verbs `io-scan`, `io-write` (§8, payloads §8a; `io-modules` dropped); unsolicited
   `/os/io-error <uid> <name> <reason>`.
 - Error vocabulary: `no-bus`, `create-failed`, `invalid-arguments`,
   `unknown-command`, `write-failed`; reserved name `bridge`. This replaces the

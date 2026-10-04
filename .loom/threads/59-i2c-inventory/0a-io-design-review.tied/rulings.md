@@ -101,3 +101,7 @@ through in the session ("artifact not required").
 ## Ratified, 2026-10-04
 
 Bob ratified `proposal.md`: ports 5551/7771 fine; Performance mode remembered on each device and never locked (no timeout; Bob saw lockout risk in the fail-safe); Patch Edit locked in Performance including viewing; `4-sensor-test-window` retired into the panels; no "switch to Performance?" prompt, but a **prominent** header toggle.
+
+## Payload schemas, 2026-10-04
+
+`59/1` found §8 gave verbs but no JSON. The lead proposed schemas (proposal §8a), dropping `io-modules`; Bob: *"simple is good"*, ratified as written.

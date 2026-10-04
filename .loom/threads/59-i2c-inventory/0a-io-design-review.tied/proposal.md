@@ -247,7 +247,7 @@ The §4 sentence "the six ports stay exactly as deployed" becomes "eight ports;
     refused. In Performance the device refuses: io-stream, io-write, probe,
     wifi-config, and patch distribution/switch requests; it logs to RAM only.
 /all/os/to <uid> io-scan              → /os/io-scan <uid> <json>
-/all/os/to <uid> io-modules           → /os/io-modules <uid> <json>
+(io-modules dropped in §8a)
 /all/os/to <uid> io-write <json>      → /os/io-write <uid> <ok|err> <json>
 /all/os/to <uid> io-stream <0|1>      → /os/io-stream <uid> <ok|err> <json>
     1 opens or renews a 10 s lease; values flow to the requester on 5551 as
@@ -287,3 +287,44 @@ optional). Satisfied per device; the device reports presence.
 **Ratified, 2026-10-04.** Bob accepted the remembered, never-locked
 Performance mode (answer 2). For forgetting to switch before a show: **no
 prompt, but a prominent toggle** in the header.
+
+## 8a. IO payload schemas (ratified 2026-10-04, Bob: "simple is good")
+
+Raised by `59/1` before implementation: §8 named the verbs but not the JSON.
+
+**The `io` object**, one shape everywhere (`/os/report.io`, `io-scan` replies,
+dashboard state):
+
+```json
+{"bus": 1,
+ "scanned": true,
+ "addresses": [{"address": "0x48", "claimed": false},
+               {"address": "0x1a", "claimed": true}],
+ "modules": {"adc": {"type": "ads1115", "address": "0x48",
+                     "state": "running", "error": null}}}
+```
+
+- `bus`: `1` (fixed, matching the drivers) or `null` = no usable bus.
+- `scanned`: false until a scan has run. So no bus (`bus: null`), not
+  scanned (`scanned: false`) and an empty bus (`scanned: true`, no
+  addresses) are distinct.
+- `claimed`: kernel-owned (`UU`, e.g. the DAC). Addresses are lowercase hex
+  strings.
+- Module `state`: `running` | `errored` | `missing` (`missing` arrives with
+  manifest modules, `59/3`). `error` is null or a ratified reason.
+
+**Admin verbs** (dashboard → device):
+- `/all/os/to <uid> io-scan` → `/os/io-scan <uid> <io-json>` (rescan, then the
+  whole object).
+- `/all/os/to <uid> io-write {"name","command","args":[…]}` →
+  `/os/io-write <uid> <ok|err> {"name","command","error"}`.
+- **`io-modules` is dropped** (simplification). `/os/report.io` and
+  `io-scan` already carry the whole object.
+
+**Local, bridge → `bopos.py` on 7771:** `/io/scanned <io-json>`,
+`/io/registry <json>`, `/io/error <name> <reason>`, and the new
+`/io/written <name> <command>` (the bridge had no write-success reply).
+`bopos.py` handles one outstanding request per kind and queues the rest.
+
+**Unsolicited errors:** `/os/io-error <uid> <name> <reason>` goes on the
+normal fleet → dashboard path (LAN broadcast to 5550).
