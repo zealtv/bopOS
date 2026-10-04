@@ -5,7 +5,6 @@
 3-io-bridge-hardening
 4-invalid-manifest-lockout
 2-device-enabled-honesty
-1-clock-sync-traffic
 2-monitor-transport
 3-shared-node-protocol
 1-review-core-libs

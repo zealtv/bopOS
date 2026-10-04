@@ -41,6 +41,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    open, the lease really stopping on expiry and on entering Performance, and
    the engine and audio unaffected. Details in
    `59-i2c-inventory/8-stream-port.tied/verification.md`.
+6. **Clock-sync stage A (71/1)**: on the real fleet, a packet capture shows
+   about 2 sync broadcasts/s and no broadcast offsets; routing survives DHCP
+   changes and reboots on the installation AP; recorded audio timing is
+   unchanged. Details in `71-network-traffic/1-clock-sync-traffic.tied/verification.md`.
 
 ## Ruled
 
