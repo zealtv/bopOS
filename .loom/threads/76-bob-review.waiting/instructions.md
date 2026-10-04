@@ -20,6 +20,13 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    renamed." / "The site could not be created." Switching project is refused
    outside Live. Say if any of these should change.
 
+11. **Clock-sync traffic design (71/1)**: `71-network-traffic/1-clock-sync-traffic.waiting/proposal.md`.
+    Step 1 (no wire change; aligns the code with contract §3.1): unicast each
+    offset instead of broadcasting it, so at 50 nodes broadcast sync drops from
+    102 to 2 packets/s. Step 2 (wire ruling plus real-fleet evidence): adaptive
+    per-node unicast probes, about 15 packets/s instead of 202 for a stable 50-node
+    fleet. Ratify step 1 to build now, and say whether to pursue step 2?
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
