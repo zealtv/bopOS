@@ -1,6 +1,6 @@
 # 10-multiple-shows
 
-**Status:** ready · Bob asked for it 2026-10-04 · operator wording below needs his OK
+**Status:** ready · Bob asked for it and ruled the questions, 2026-10-04
 **Goal:** a project holds several shows and one is open; pick, add and rename
 them from the project menu in the top bar.
 
@@ -17,7 +17,7 @@ bar - i think i'd like to implement this."*
   name is the name).
 - `state.show_path` follows `current_show`. Opening a show reuses the
   open-project sequence: stop playback, load, clear undo, broadcast. It's
-  refused while the show is playing.
+  refused while a show is playing. Allowed in every mode (see ruling 4).
 - Server actions for new, open and rename show (delete per Q3). The removed
   show-catalog actions in git history (before `8694b8f`) are a reference.
 - Migration: an existing `show.json` becomes `shows/<its name or "Show">.json`
@@ -28,22 +28,29 @@ bar - i think i'd like to implement this."*
 ## Menu (mockup 4 pattern)
 
 A **SHOW** section after SITE, mirroring it: the current show first and
-highlighted, others with **Open**, **Rename** on the current one, and **New
+highlighted, others with **Open** and **Delete**, **Rename** on the current one, and **New
 Show**, which opens a dialog with a name and *Start from* an empty show or a
-copy of an existing one, like New Site. The bar stays *Project · Site · Patch*;
-the open show's name is the Show tab heading.
+copy of an existing one, like New Site. The bar becomes *Project · Site · Patch · Show*
+(ruling 2).
 
-## Questions for Bob (answer before building)
+## Rulings — Bob, 2026-10-04
 
-1. Section and button wording: **SHOW** · Open · Rename · **New Show** (dialog:
-   Name, *Start from* "An empty show" / "An existing show", Cancel / **Create
-   Show**). OK?
-2. Leave the bar as *Project · Site · Patch*, or add the show (*… · Show*)?
-3. Delete a show from the menu? Recommended: yes, for non-current shows only,
-   with a confirm. Wording, e.g. "Delete" with "Delete show "X"? This can't be
-   undone."
-4. Can shows be opened in Simulation or Patch Edit? Recommended: Live only, the
-   same as switching project.
+1. **Wording: yes.** SHOW · Open · Rename · **New Show**; dialog Name, *Start from*
+   "An empty show" / "An existing show", Cancel / **Create Show**.
+2. **Bar: add the show.** *Project · Site · Patch · Show*. Keep the 66/8 pill
+   tidy at narrow widths: check 900px and 420px like 8-header-tidy did.
+3. **Delete: yes**, non-current shows only, confirm: `Delete show "X"? This
+   can't be undone.`
+4. **Modes:** Bob asked why not in Simulation; reasoned through and recorded.
+   Switching *project* is Live-only because Simulation and Patch Edit run
+   engines built from the project's Seats, site and patch. A *show* is only a
+   running order (steps sending to groups by name). It changes none of those,
+   and show edits are already allowed in every mode. Simulation is the
+   rehearsal mode where comparing running orders matters most. **So: opening
+   a show is allowed in Live, Simulation and Patch Edit, and refused only
+   while a show is playing.** The same goes for new, rename and delete. Undo
+   history is per show and cleared on switch. (Bob to confirm this reading;
+   build to it.)
 
 ## Verify
 
