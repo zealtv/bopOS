@@ -1,10 +1,14 @@
-"""Show document model, persistence, and edit operations (show-tab stitch 2).
+"""Show document model, persistence, and edit operations.
 
-Schema, storage location, uid scheme, and validation rules are fixed by
-`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md` sec 2; this module implements exactly
-that. A show document is one JSON-shaped dict:
+The item schema, uid scheme, and playback rules follow
+`.lore/items/2026-09-25-design-references-2026-07/content/show-tab-design-2026-07-18.md`
+sec 2 and its amendments. Project storage supports several named shows.
+A persisted show document is one JSON-shaped dict:
 
-    {"schema": 1, "name": "opening-set", "items": [...]}
+    {"schema": 1, "items": [...]}
+
+Each project stores shows in `shows/<name>.json`; the file name is the name.
+In-memory documents carry `name` for the dashboard, but it is not persisted.
 
 `items` is a flat, order-significant array mixing `"step"` and `"divider"`
 entries (single-column-agnostic on purpose -- see the design note). Section
@@ -12,8 +16,8 @@ derivation (maximal runs of steps split on dividers) is a pure function over
 that array, independent of persistence.
 
 This module is deliberately separable: it never imports `server` or
-`osc_bridge`, so it can be unit-tested headless and reused by the future
-playback engine (stitch 3) without pulling in the WS/OSC surface.
+`osc_bridge`, so it can be unit-tested headless and used by the playback
+engine without pulling in the WS/OSC surface.
 """
 
 import copy
@@ -122,7 +126,14 @@ def clean_duration(value):
     return value if math.isfinite(value) and value >= 0 else None
 
 
-def clean_message(value):
+def _reject(errors, message):
+    if errors is not None:
+        errors.append(message)
+    return None
+
+
+def clean_message(value, *, _errors=None):
+    """Clean a message; optionally collect the first edit error."""
     if not isinstance(value, dict):
         return None
     uid = clean_uid(value.get("uid"))
@@ -130,22 +141,22 @@ def clean_message(value):
         return None
     alias = value.get("alias")
     if alias is not None and not isinstance(alias, str):
-        return None
+        return _reject(_errors, "alias must be text or null.")
     address = clean_address(value.get("address"))
     if address is None:
-        return None
+        return _reject(_errors, "address must be a non-empty OSC address.")
     raw_args = value.get("args", [])
     if not isinstance(raw_args, list):
-        return None
+        return _reject(_errors, "args must be a list.")
     args = []
     for raw_arg in raw_args:
         arg = clean_arg(raw_arg)
         if arg is None:
-            return None
+            return _reject(_errors, "invalid arg.")
         args.append(arg)
     target = clean_target(value.get("target"))
     if target is None:
-        return None
+        return _reject(_errors, "invalid target.")
     kind = value.get("kind", "osc")
     if kind not in MESSAGE_KINDS:
         return None
@@ -245,7 +256,8 @@ def clean_then_action(value):
     return {"type": value["type"]}
 
 
-def clean_step(value):
+def clean_step(value, *, _errors=None):
+    """Clean a step; optionally collect the first edit error."""
     if not isinstance(value, dict) or value.get("kind") != "step":
         return None
     uid = clean_uid(value.get("uid"))
@@ -253,7 +265,7 @@ def clean_step(value):
         return None
     alias = value.get("alias")
     if alias is not None and not isinstance(alias, str):
-        return None
+        return _reject(_errors, "alias must be text or null.")
     raw_messages = value.get("messages", [])
     if not isinstance(raw_messages, list):
         return None
@@ -265,26 +277,25 @@ def clean_step(value):
         messages.append(message)
     duration_s = clean_duration(value.get("duration_s"))
     if duration_s is None:
-        return None
+        return _reject(_errors, "duration_s must be a number >= 0.")
     play_count = value.get("play_count")
     if play_count is not None and (isinstance(play_count, bool)
                                    or not isinstance(play_count, int) or play_count < 1):
-        return None
-    # Guard (design note sec 4): duration_s == 0 is only valid with a finite
-    # play_count -- an infinite loop needs positive duration or it busy-loops.
-    if duration_s == 0 and play_count is None:
-        return None
+        return _reject(_errors, "play_count must be a positive integer or null.")
     raw_then = value.get("then_actions", [])
     if not isinstance(raw_then, list):
-        return None
+        return _reject(_errors, "then_actions must be a list.")
     then_actions = []
     for raw_action in raw_then:
         action = clean_then_action(raw_action)
         if action is None:
-            return None
+            return _reject(_errors, "invalid then_action.")
         then_actions.append(action)
     if not then_actions:
         then_actions = [{"type": "stop"}]
+    # An infinite loop needs positive duration or it busy-loops.
+    if duration_s == 0 and play_count is None:
+        return _reject(_errors, "duration_s == 0 requires a finite play_count.")
     return {"kind": "step", "uid": uid, "alias": alias, "messages": messages,
             "duration_s": duration_s, "play_count": play_count,
             "then_actions": then_actions}
@@ -471,36 +482,12 @@ def update_step(show, uid, patch):
                   if item["uid"] == uid and item["kind"] == "step"), None)
     if index is None:
         return show, None, "Step not found."
-    candidate = dict(items[index])
-    if "alias" in patch:
-        alias = patch["alias"]
-        if alias is not None and not isinstance(alias, str):
-            return show, None, "alias must be text or null."
-        candidate["alias"] = alias
-    if "duration_s" in patch:
-        duration_s = clean_duration(patch["duration_s"])
-        if duration_s is None:
-            return show, None, "duration_s must be a number >= 0."
-        candidate["duration_s"] = duration_s
-    if "play_count" in patch:
-        play_count = patch["play_count"]
-        if play_count is not None and (isinstance(play_count, bool)
-                                       or not isinstance(play_count, int) or play_count < 1):
-            return show, None, "play_count must be a positive integer or null."
-        candidate["play_count"] = play_count
-    if "then_actions" in patch:
-        raw_then = patch["then_actions"]
-        if not isinstance(raw_then, list):
-            return show, None, "then_actions must be a list."
-        then_actions = []
-        for raw_action in raw_then:
-            action = clean_then_action(raw_action)
-            if action is None:
-                return show, None, "invalid then_action."
-            then_actions.append(action)
-        candidate["then_actions"] = then_actions or [{"type": "stop"}]
-    if candidate["duration_s"] == 0 and candidate["play_count"] is None:
-        return show, None, "duration_s == 0 requires a finite play_count."
+    candidate = {**items[index], **{key: patch[key] for key in
+                 ("alias", "duration_s", "play_count", "then_actions") if key in patch}}
+    errors = []
+    candidate = clean_step(candidate, _errors=errors)
+    if candidate is None:
+        return show, None, errors[0]
     items[index] = candidate
     return {**show, "items": items}, candidate, None
 
@@ -550,9 +537,7 @@ def remove_item(show, uid):
     if position is None:
         return show, None, "Item not found."
     removed = items.pop(position)
-    # TODO(stitch 3): if `removed` is a step currently playing/paused, the
-    # playback engine must stop it before this mutation lands (design note
-    # sec 3, remove_item row) -- there is no playback state to stop yet.
+    # The dashboard reconciles playback after successfully saving the edit.
     return {**show, "items": items}, removed, None
 
 
@@ -618,39 +603,13 @@ def update_message(show, uid, patch):
     if step_index is None:
         return show, None, "Message not found."
     items = list(show["items"])
-    candidate = dict(items[step_index]["messages"][message_index])
-    if "alias" in patch:
-        alias = patch["alias"]
-        if alias is not None and not isinstance(alias, str):
-            return show, None, "alias must be text or null."
-        candidate["alias"] = alias
-    if "address" in patch:
-        address = clean_address(patch["address"])
-        if address is None:
-            return show, None, "address must be a non-empty OSC address."
-        candidate["address"] = address
-    if "args" in patch:
-        raw_args = patch["args"]
-        if not isinstance(raw_args, list):
-            return show, None, "args must be a list."
-        args = []
-        for raw_arg in raw_args:
-            arg = clean_arg(raw_arg)
-            if arg is None:
-                return show, None, "invalid arg."
-            args.append(arg)
-        candidate["args"] = args
-    if "target" in patch:
-        target = clean_target(patch.get("target"))
-        if target is None:
-            return show, None, "invalid target."
-        candidate["target"] = target
-    if "kind" in patch:
-        candidate["kind"] = patch["kind"]
-    cleaned = clean_message(candidate)
-    if cleaned is None:
-        return show, None, "invalid message."
-    candidate = cleaned
+    candidate = {**items[step_index]["messages"][message_index],
+                 **{key: patch[key] for key in
+                    ("alias", "address", "args", "target", "kind") if key in patch}}
+    errors = []
+    candidate = clean_message(candidate, _errors=errors)
+    if candidate is None:
+        return show, None, errors[0] if errors else "invalid message."
     step = dict(items[step_index])
     messages = list(step["messages"])
     messages[message_index] = candidate
@@ -700,8 +659,8 @@ def remove_message(show, uid):
 
 
 # --------------------------------------------------------------------------
-# Persistence -- the project's one show, projects/<project>/show.json
-# (66-projects proposal sec 2), atomic .tmp+os.replace like the project file.
+# Persistence -- projects/<project>/shows/<name>.json,
+# atomic .tmp+os.replace like the project file.
 # --------------------------------------------------------------------------
 
 def save_show(path, doc):
@@ -710,7 +669,8 @@ def save_show(path, doc):
     with open(temporary, "w", encoding="utf-8") as target:
         # sort_keys only orders each object's own keys; `items` stays a JSON
         # array and is never reordered (design note sec 2).
-        json.dump(doc, target, indent=2, sort_keys=True)
+        json.dump({key: value for key, value in doc.items() if key != "name"},
+                  target, indent=2, sort_keys=True)
         target.write("\n")
     os.replace(temporary, path)
 

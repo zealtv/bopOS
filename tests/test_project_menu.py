@@ -31,7 +31,7 @@ class ProjectStorageMenuTests(unittest.TestCase):
         # A project always has a current show: a new one has one empty show.
         self.assertEqual(empty.list_shows(), ["Show"])
         self.assertEqual(json.loads(Path(empty.show_path).read_text()),
-                         {"schema": 1, "name": "Show", "items": []})
+                         {"schema": 1, "items": []})
         self.assertEqual(empty.list_sites(), ["default"])
         self.assertEqual(Path(self.state.registry_path).read_bytes(), registry)
         self.assertEqual(Path(self.state.current_path).read_text(), "default\n")

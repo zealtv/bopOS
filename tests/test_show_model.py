@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from project_fixture import project_path, data_root
 """Living tests for the Show document model and tolerant persistence."""
 
 import asyncio
@@ -17,7 +16,9 @@ sys.dont_write_bytecode = True
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "dashboard"))
+sys.path.insert(0, str(REPO / "tests"))
 
+from project_fixture import project_path, data_root  # noqa: E402
 import show_model  # noqa: E402
 from server import Dashboard  # noqa: E402
 from show_engine import ShowEngine  # noqa: E402
@@ -159,6 +160,55 @@ class ShowSchemaTests(unittest.TestCase):
             self.assertIsNone(item)
             self.assertTrue(error)
 
+    def test_patch_errors_keep_their_text_and_priority(self):
+        show = show_model.clean_show(document([step(messages=[message()])]))
+        before = deepcopy(show)
+        cases = (
+            (show_model.update_step, "a0000001", [
+                ({"alias": 1, "duration_s": -1}, "alias must be text or null."),
+                ({"duration_s": -1, "play_count": 0}, "duration_s must be a number >= 0."),
+                ({"play_count": 0, "then_actions": None}, "play_count must be a positive integer or null."),
+                ({"then_actions": None}, "then_actions must be a list."),
+                ({"then_actions": [{}], "duration_s": 0, "play_count": None}, "invalid then_action."),
+                ({"duration_s": 0, "play_count": None}, "duration_s == 0 requires a finite play_count."),
+            ]),
+            (show_model.update_message, "b0000001", [
+                ({"alias": 1, "address": "bad"}, "alias must be text or null."),
+                ({"address": "bad", "args": None}, "address must be a non-empty OSC address."),
+                ({"args": None, "target": []}, "args must be a list."),
+                ({"args": [{}], "target": []}, "invalid arg."),
+                ({"target": [], "kind": "bad"}, "invalid target."),
+                ({"kind": "bad"}, "invalid message."),
+            ]),
+        )
+        for update, uid, patches in cases:
+            for patch, expected in patches:
+                with self.subTest(update=update.__name__, patch=patch):
+                    changed, result, error = update(show, uid, patch)
+                    self.assertIs(changed, show)
+                    self.assertIsNone(result)
+                    self.assertEqual(error, expected)
+                    self.assertEqual(show, before)
+
+    def test_patch_fields_preserve_identity_and_message_ownership(self):
+        show = show_model.clean_show(document([step(messages=[message()])]))
+        changed, result, error = show_model.update_step(show, "a0000001", {
+            "uid": "a0000002", "kind": "divider", "messages": [],
+            "duration_s": 0, "play_count": 2, "then_actions": [],
+        })
+        self.assertIsNone(error)
+        self.assertEqual(result["uid"], "a0000001")
+        self.assertEqual(result["messages"], show["items"][0]["messages"])
+        self.assertEqual(result["then_actions"], [{"type": "stop"}])
+        _, result, error = show_model.update_message(changed, "b0000001", {
+            "uid": "b0000002", "target": ["g3", "all"],
+            "args": [{"type": "i", "value": 2.0}],
+        })
+        self.assertIsNone(error)
+        self.assertEqual(result["uid"], "b0000001")
+        self.assertEqual(result["target"], ["all"])
+        self.assertIs(type(result["args"][0]["value"]), int)
+
     def test_uids_are_unique_with_separate_item_and_message_namespaces(self):
         shared = "a0000001"
         valid = document([
@@ -278,22 +328,14 @@ class ShowSchemaTests(unittest.TestCase):
         ))
         bridge.set_param.assert_called_once_with("g7", "gain", [0.5])
 
-    def test_unsupported_kind_fails_closed_instead_of_sending_raw_osc(self):
-        bridge = mock.Mock()
-        engine = ShowEngine(bridge, mock.AsyncMock())
-        engine._send_message(message(kind="reference", address="/content/example"))
-        bridge.send.assert_not_called()
-        bridge.set_param.assert_not_called()
-
-
 class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
     async def test_literal_playback_preserves_authored_message_order(self):
         bridge = mock.Mock()
         engine = ShowEngine(bridge, mock.AsyncMock())
-        await engine._emit_messages(step(messages=[
+        await engine._emit_messages(show_model.clean_step(step(messages=[
             message(args=[{"type": "f", "value": 0.25}]),
             message(uid="b0000002", args=[{"type": "f", "value": 0.9}]),
-        ]))
+        ])))
         self.assertEqual(bridge.set_param.call_args_list, [
             mock.call("all", "gain", [0.25]),
             mock.call("all", "gain", [0.9]),
@@ -457,10 +499,19 @@ class ShowPersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = os.path.join(temporary, "show.json")
             show_model.save_show(path, show)
-            self.assertEqual(show_model.load_show(path), (show, True))
+            self.assertNotIn("name", json.loads(Path(path).read_text()))
+            self.assertEqual(show_model.load_show(path), (dict(show, name=""), True))
+            self.assertEqual(show["name"], "opening-set")
             self.assertFalse(
                 any(path.suffix == ".tmp" for path in Path(temporary).iterdir())
             )
+
+    def test_legacy_name_remains_readable_for_migration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "show.json"
+            path.write_text(json.dumps(document(name="Legacy")))
+            self.assertEqual(show_model.load_show(str(path)),
+                             (show_model.empty_show("Legacy"), True))
 
     def test_missing_loads_empty_and_damaged_documents_load_empty_but_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:

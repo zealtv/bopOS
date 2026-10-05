@@ -41,10 +41,10 @@ class ShowStorageTests(unittest.TestCase):
         self.assertEqual(self.state.show_path, str(self.root / "projects/default/shows/Second Half.json"))
         source = show_model.load_show(self.state.show_file("Show"))[0]
         self.assertEqual(json.loads(Path(self.state.show_path).read_text()),
-                         dict(source, name="Second Half"))
+                         {"schema": source["schema"], "items": source["items"]})
         self.state.create_show("Rehearsal")
         self.assertEqual(json.loads(Path(self.state.show_path).read_text()),
-                         show_model.empty_show("Rehearsal"))
+                         {"schema": 1, "items": []})
         self.assertEqual(self.state.list_shows(), ["Rehearsal", "Second Half", "Show"])
         reloaded = InstallationState(self.root)
         self.assertEqual(reloaded.data["current_show"], "Rehearsal")
@@ -381,7 +381,7 @@ class ClearShowTests(DashboardCase):
         self.assertEqual(Path(dash.state.path).read_bytes(), project)
         await self.send("undo_show")
         self.assertEqual(dash.show, before)
-        self.assertEqual(show_model.load_show(dash.state.show_path)[0], before)
+        self.assertEqual(show_model.load_show(dash.state.show_path)[0], dict(before, name=""))
         dash.ws_error.assert_not_awaited()
 
     async def test_refused_while_playing_or_paused_and_empty_is_a_no_op(self):
