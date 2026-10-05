@@ -66,6 +66,30 @@
 
     const openCommandTargets = new Set();
     const openOverflows = new Set();
+    let pendingHold = null;
+    // A heartbeat render during a hold waits for the hold to end, so the
+    // held button is never replaced under the operator's finger.
+    let renderAfterHold = false;
+
+    function cancelHold() {
+      if (!pendingHold) return;
+      clearTimeout(pendingHold.timer);
+      pendingHold.button.classList.remove("holding");
+      pendingHold = null;
+      document.removeEventListener("pointerup", cancelHold, true);
+      document.removeEventListener("pointercancel", cancelHold, true);
+      document.removeEventListener("visibilitychange", cancelHiddenHold);
+      window.removeEventListener("blur", cancelHold);
+      if (renderAfterHold) {
+        renderAfterHold = false;
+        renderCards();
+      }
+    }
+
+    function cancelHiddenHold() {
+      if (document.hidden) cancelHold();
+    }
+
     const state = () => getState?.() || {devices: {}, seats: {}, groups: {}};
 
     function seats() {
@@ -360,6 +384,10 @@
 
     function renderCards() {
       if (isInteracting?.()) return;
+      if (pendingHold) {
+        renderAfterHold = true;
+        return;
+      }
       const schema = liveSchema();
       const declarations = schema?.declarations || [];
       const allSeats = seats();
@@ -462,23 +490,22 @@
         };
         return;
       }
-      let timer = null;
-      const cancel = () => {
-        clearTimeout(timer);
-        timer = null;
-        button.classList.remove("holding");
-      };
-      button.onpointerdown = () => {
+      button.onpointerdown = event => {
+        if (event.button !== 0) return;
+        cancelHold();
         button.classList.add("holding");
-        timer = setTimeout(() => {
-          timer = null;
-          button.classList.remove("holding");
+        pendingHold = {button, timer: setTimeout(() => {
           sendCommand?.(payload);
-        }, 1200);
+          cancelHold();
+        }, 1200)};
+        document.addEventListener("pointerup", cancelHold, true);
+        document.addEventListener("pointercancel", cancelHold, true);
+        document.addEventListener("visibilitychange", cancelHiddenHold);
+        window.addEventListener("blur", cancelHold);
       };
-      button.onpointerup = cancel;
-      button.onpointercancel = cancel;
-      button.onpointerleave = cancel;
+      button.onpointerup = cancelHold;
+      button.onpointercancel = cancelHold;
+      button.onpointerleave = cancelHold;
     }
 
     function render() {
@@ -511,7 +538,11 @@
         pickerHost?.querySelector("summary")?.focus();
       },
       setSole: () => {},
-      destroy: () => host.remove(),
+      destroy: () => {
+        renderAfterHold = false;
+        cancelHold();
+        host.remove();
+      },
       element: host,
     };
   }
