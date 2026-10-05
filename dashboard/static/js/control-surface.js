@@ -53,6 +53,9 @@
     // they live here and not in the DOM.
     const openDrawers = new Set();
     const drafts = new Map();
+    // A drawer is bound once. Its listeners are delegated, so a kind switch or
+    // a segment edit that rewrites part of it needs no rebinding.
+    const boundDrawers = new WeakSet();
     let fadeAnimationFrame = null;
     let lastReducedFadeUpdate = 0;
     let boundRoot = document;
@@ -762,6 +765,8 @@
       });
 
       root.querySelectorAll("[data-gen-drawer]").forEach(drawer => {
+        if (boundDrawers.has(drawer)) return;
+        boundDrawers.add(drawer);
         const key = drawer.dataset.genDrawer;
         const identity = drawer.dataset.paramPath;
         const scope = drawer.dataset.liveScope;
@@ -822,83 +827,84 @@
           const readout = wrap.querySelector("[data-mini-readout]");
           if (readout) readout.textContent = Number(input.value).toFixed(2);
         };
-        drawer.querySelectorAll(".live-gen-mini-input").forEach(input => {
-          input.addEventListener("input", () => syncMini(input));
+        drawer.addEventListener("input", event => {
+          if (event.target.matches(".live-gen-mini-input")) syncMini(event.target);
+          if (event.target.matches("input, select")) refresh();
         });
 
-        // Curve only bends tri, saw and drift; on the other shapes the option
-        // reaches the node and does nothing. Changing shape therefore takes
-        // the control away and zeroes it, so a stale bend cannot ride out on
-        // the next Apply.
-        const shape = drawer.querySelector('[data-param-lfo="shape"]');
-        const curveSlot = drawer.querySelector(".live-gen-curve-slot");
-        if (shape && curveSlot) shape.addEventListener("change", () => {
-          const bends = (curveSlot.dataset.curveShapes || "").split(" ")
-            .includes(shape.value);
-          curveSlot.hidden = !bends;
-          if (bends) return;
-          const input = curveSlot.querySelector(".live-gen-mini-input");
-          if (input) { input.value = "0"; syncMini(input); }
+        drawer.addEventListener("change", event => {
+          const field = event.target;
+          // Curve only bends tri, saw and drift; on the other shapes the option
+          // reaches the node and does nothing. Changing shape therefore takes
+          // the control away and zeroes it, so a stale bend cannot ride out on
+          // the next Apply.
+          const curveSlot = drawer.querySelector(".live-gen-curve-slot");
+          if (field.matches('[data-param-lfo="shape"]') && curveSlot) {
+            const bends = (curveSlot.dataset.curveShapes || "").split(" ")
+              .includes(field.value);
+            curveSlot.hidden = !bends;
+            const input = curveSlot.querySelector(".live-gen-mini-input");
+            if (!bends && input) { input.value = "0"; syncMini(input); }
+          }
+          // The fade's `from` box is inert until its latching box says there is
+          // a start value to state (Bob, 2026-07-27).
+          const from = drawer.querySelector("[data-param-from]");
+          if (field.matches("[data-param-from-enabled]") && from) {
+            from.disabled = !field.checked;
+            if (field.checked && !from.value) from.value = declaration.default ?? declaration.min ?? 0;
+            if (field.checked) from.focus();
+          }
+          if (field.matches("input, select")) refresh();
         });
 
-        // The fade's `from` box is inert until its latching box says there is
-        // a start value to state (Bob, 2026-07-27).
-        const fromEnabled = drawer.querySelector("[data-param-from-enabled]");
-        if (fromEnabled) fromEnabled.addEventListener("change", () => {
-          const field = drawer.querySelector("[data-param-from]");
-          if (!field) return;
-          field.disabled = !fromEnabled.checked;
-          if (fromEnabled.checked && !field.value) field.value = declaration.default ?? declaration.min ?? 0;
-          if (fromEnabled.checked) field.focus();
-        });
+        // Remove is offered while more than one segment is left, recomputed
+        // from the rows actually present after every structural edit.
+        const segmentRows = () => drawer.querySelectorAll("[data-param-segment]");
+        const gateRemoval = () => {
+          const rows = segmentRows();
+          rows.forEach(row => {
+            const remove = row.querySelector("[data-remove-param-segment]");
+            if (remove) remove.disabled = rows.length <= 1;
+          });
+        };
 
-        drawer.querySelectorAll("[data-gen-kind-tab]").forEach(tab => {
-          tab.onclick = () => {
-            const kind = tab.dataset.genKindTab;
-            if (kind === currentKind()) return;
-            // Switching kind starts that kind's own defaults rather than trying
-            // to reinterpret the previous kind's fields.
-            drawer.dataset.genKind = kind;
-            drafts.delete(key);
-            for (const other of drawer.querySelectorAll("[data-gen-kind-tab]")) {
-              other.setAttribute("aria-pressed", String(other === tab));
-            }
-            const blank = window.ParamGenerator.blank(declaration, kind);
-            // The commit pair lives inside the body, so a kind switch has to
-            // carry it across rather than let the re-render drop it.
-            const actions = drawer.querySelector(".live-param-gen-actions")?.outerHTML || "";
-            drawer.querySelector(".live-param-gen-fields").innerHTML =
-              window.ParamGenerator.panelFields(declaration, blank, null, actions);
-            bindGenerators(drawer.parentElement || root);
-            refresh();
-          };
-        });
+        const switchKind = tab => {
+          const kind = tab.dataset.genKindTab;
+          if (kind === currentKind()) return;
+          // Switching kind starts that kind's own defaults rather than trying
+          // to reinterpret the previous kind's fields.
+          drawer.dataset.genKind = kind;
+          drafts.delete(key);
+          for (const other of drawer.querySelectorAll("[data-gen-kind-tab]")) {
+            other.setAttribute("aria-pressed", String(other === tab));
+          }
+          const blank = window.ParamGenerator.blank(declaration, kind);
+          // The commit pair lives inside the body, so a kind switch has to
+          // carry it across rather than let the re-render drop it.
+          const actions = drawer.querySelector(".live-param-gen-actions")?.outerHTML || "";
+          drawer.querySelector(".live-param-gen-fields").innerHTML =
+            window.ParamGenerator.panelFields(declaration, blank, null, actions);
+          refresh();
+        };
 
-        drawer.querySelectorAll("input, select").forEach(field => {
-          field.oninput = refresh;
-          field.onchange = refresh;
-        });
-
-        const addSegment = drawer.querySelector("[data-add-param-segment]");
-        if (addSegment) addSegment.onclick = () => {
+        const addSegment = () => {
           const list = drawer.querySelector("[data-param-segments]");
-          const count = list.querySelectorAll("[data-param-segment]").length;
+          const count = segmentRows().length;
           list.insertAdjacentHTML("beforeend", window.ParamGenerator.panelSegmentRow(
             {value: declaration.max ?? 1, duration: {ms: 1000, amount: "1", unit: "s"}},
             count, declaration, count + 1));
-          bindGenerators(drawer.parentElement || root);
+          gateRemoval();
           refresh();
         };
-        drawer.querySelectorAll("[data-remove-param-segment]").forEach(button => {
-          button.onclick = () => {
-            button.closest("[data-param-segment]")?.remove();
-            bindGenerators(drawer.parentElement || root);
-            refresh();
-          };
-        });
 
-        const apply = drawer.querySelector("[data-gen-apply]");
-        if (apply) apply.onclick = () => {
+        const removeSegment = button => {
+          if (segmentRows().length <= 1) return;
+          button.closest("[data-param-segment]")?.remove();
+          gateRemoval();
+          refresh();
+        };
+
+        const apply = () => {
           const args = refresh();
           if (!args) {
             if (error) error.value = "Those generator fields are incomplete.";
@@ -907,14 +913,23 @@
           if (error) error.value = "";
           context.sendAutomation?.({scope, id, name: identity, args});
         };
-        const stop = drawer.querySelector("[data-gen-stop]");
-        if (stop) stop.onclick = () => {
+        const stop = () => {
           if (error) error.value = "";
           context.sendAutomation?.({
             scope, id, name: identity,
             args: [window.OscMessage.typedArg("s", "stop")],
           });
         };
+
+        drawer.addEventListener("click", event => {
+          const target = event.target.closest("button");
+          if (!target || !drawer.contains(target)) return;
+          if (target.matches("[data-gen-kind-tab]")) switchKind(target);
+          else if (target.matches("[data-add-param-segment]")) addSegment();
+          else if (target.matches("[data-remove-param-segment]")) removeSegment(target);
+          else if (target.matches("[data-gen-apply]")) apply();
+          else if (target.matches("[data-gen-stop]")) stop();
+        });
       });
     }
 

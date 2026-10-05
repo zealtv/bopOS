@@ -9,13 +9,15 @@ mixture of all of them using that consistent target UI device", and separately
 seat picker are two different things." Both rulings are checks below: one
 disclosure/chip/summary chrome, two rosters and two wire vocabularies.
 
-Two passes:
+Three passes:
 
   (a) the component in isolation, on a fixture page — the selection algebra, the
       chip states, per-host persistence, the shared focus seat, and the
       re-render survival that a heartbeat-driven host depends on;
   (b) the DEVICE domain against the real dashboard, on the Assets tab, which had
-      no living journey at all before this file.
+      no living journey at all before this file;
+  (c) cleanup: a picker leaves no window listener behind once its host is gone,
+      including a removed Control card's (67-repair-pass/23).
 
 Seat-domain integration is covered where it already lives: verify_control_tab.py
 (the Control surface) and verify_show_targets.py (the Show
@@ -363,6 +365,83 @@ def component_pass(browser):
 
 
 # ---------------------------------------------------------------------------
+# (c) cleanup: window listeners return to baseline
+# ---------------------------------------------------------------------------
+
+CLEANUP_SETUP = """() => {
+  window.storageListeners = new Set();
+  const add = window.addEventListener.bind(window);
+  const remove = window.removeEventListener.bind(window);
+  window.addEventListener = (type, listener, ...rest) => {
+    if (type === "storage") storageListeners.add(listener);
+    return add(type, listener, ...rest);
+  };
+  window.removeEventListener = (type, listener, ...rest) => {
+    if (type === "storage") storageListeners.delete(listener);
+    return remove(type, listener, ...rest);
+  };
+  window.installation = {devices: {}, groups: {},
+    seats: {0: {id: 0, name: "Seat 0", params: {}}}};
+  window.GroupSlots = {palette: []};
+}"""
+
+
+def cleanup_pass(browser):
+    page = browser.new_page()
+    page.set_default_timeout(3000)
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.route("https://picker-cleanup.test/**", lambda route: route.fulfill(
+        status=200, content_type="text/html", body="<div id=\"root\"></div>"))
+    page.goto("https://picker-cleanup.test/")
+    page.evaluate(CLEANUP_SETUP)
+    for script in ("target-picker.js", "osc-message.js", "paramspec.js",
+                   "param-generator.js", "control-surface.js",
+                   "control-column.js"):
+        page.add_script_tag(path=os.path.join(STATIC, "js", script))
+
+    counts = page.evaluate("""() => {
+      const spec = () => ({sections: []});
+      const churn = followFocusSeat => {
+        for (let n = 0; n < 20; n++) {
+          const host = document.createElement("div");
+          document.body.append(host);
+          TargetPicker.create({host, spec, followFocusSeat}).destroy?.();
+          host.remove();
+        }
+        return storageListeners.size;
+      };
+      const following = TargetPicker.create({
+        host: document.querySelector("#root"), spec, followFocusSeat: true});
+      const live = storageListeners.size;
+      following.destroy?.();
+      return {still: churn(false), following: live,
+              released: storageListeners.size, churned: churn(true)};
+    }""")
+    check("a picker that does not follow the focus seat never listens for it",
+          counts["still"] == 0, repr(counts))
+    check("a following picker listens, and destroy releases it",
+          counts["following"] == 1 and counts["released"] == 0
+          and counts["churned"] == 0, repr(counts))
+
+    remaining = page.evaluate("""() => {
+      for (let n = 0; n < 20; n++) {
+        const host = document.createElement("section");
+        document.body.append(host);
+        ControlColumn.create({
+          host, getState: () => installation, isInteracting: () => false,
+          initialTarget: ["0"],
+        }).destroy();
+      }
+      return storageListeners.size;
+    }""")
+    check("removed Control cards leave no window storage listener behind",
+          remaining == 0, repr(remaining))
+    check("cleanup fixture emitted no page errors", not errors, repr(errors))
+    page.close()
+
+
+# ---------------------------------------------------------------------------
 # (b) the device domain on the real Assets tab
 # ---------------------------------------------------------------------------
 
@@ -485,6 +564,7 @@ def main():
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(headless=True)
                 component_pass(browser)
+                cleanup_pass(browser)
                 assets_pass(browser, base_url)
                 browser.close()
         finally:

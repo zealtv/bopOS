@@ -21,7 +21,9 @@ different send". These checks pin that seam:
   (e) the ratified row grammar and mixed/takeover presentation;
   (f) hierarchy accordions and the persistence of a collapsed branch across a
       heartbeat re-render and a reload;
-  (g) the shared row remains atomic below the facilitator's 620px breakpoint.
+  (g) the shared row remains atomic below the facilitator's 620px breakpoint;
+  (h) a generator drawer is bound once, however its rows are edited, and its
+      Remove gates follow the rows actually present (67-repair-pass/23).
 
 Owned by code surface (dashboard/static/js/control-surface.js), not by a
 stitch -- per the thread-27 durable-tests policy.
@@ -545,6 +547,111 @@ selector => {
 """
 
 
+# (h) on a fixture page: the drawer alone, its listener registrations counted.
+DRAWER_SETUP = """() => {
+  window.listenerCounts = {};
+  const add = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, listener, ...rest) {
+    const drawer = this.dataset?.genDrawer;
+    if (drawer) {
+      listenerCounts[drawer] ||= {};
+      listenerCounts[drawer][type] = (listenerCounts[drawer][type] || 0) + 1;
+    }
+    return add.call(this, type, listener, ...rest);
+  };
+  window.root = document.querySelector("#root");
+  window.sent = [];
+  window.installation = {live_controls: {declarations: [{
+    identity: "gain", name: "gain", kind: "float", min: 0, max: 1, default: 0}]}};
+  window.surface = ControlSurface.create({
+    getState: () => installation, send: () => {}, setInteracting: () => {},
+    sendAutomation: payload => sent.push(payload),
+  });
+  window.drawerMarkup = (seat, kind) => ParamGenerator.drawer(
+    installation.live_controls.declarations[0],
+    ParamGenerator.blank(installation.live_controls.declarations[0], kind),
+    {attributes: `data-gen-drawer="seat:${seat}:gain" data-param-path="gain"`
+      + ` data-live-scope="seat" data-live-id="${seat}"`,
+     actions: '<span class="live-param-gen-actions"><button type="button"'
+      + ' data-gen-stop>Stop</button><button type="button"'
+      + ' data-gen-apply>Apply</button></span>'});
+  window.drawerState = seat => {
+    const drawer = document.querySelector(`[data-gen-drawer="seat:${seat}:gain"]`);
+    const removes = [...drawer.querySelectorAll("[data-remove-param-segment]")];
+    return {rows: removes.length, disabled: removes.map(button => button.disabled),
+            listeners: listenerCounts[`seat:${seat}:gain`] || {}};
+  };
+}"""
+
+
+def drawer_pass(browser):
+    page = browser.new_page()
+    page.set_default_timeout(3000)
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.route("https://drawer.test/**", lambda route: route.fulfill(
+        status=200, content_type="text/html", body='<div id="root"></div>'))
+    page.goto("https://drawer.test/")
+    for script in ("osc-message.js", "paramspec.js", "param-generator.js",
+                   "control-surface.js"):
+        page.add_script_tag(path=os.path.join(
+            REPO, "dashboard", "static", "js", script))
+    page.evaluate(DRAWER_SETUP)
+    root = "#root"
+    page.evaluate("""() => {
+      root.innerHTML = drawerMarkup(0, "fade") + drawerMarkup(1, "fade");
+      surface.bind(root);
+    }""")
+    bound = page.evaluate("() => drawerState(1).listeners")
+    drawer0 = f'{root} [data-gen-drawer="seat:0:gain"]'
+    for _ in range(5):
+        page.locator(f"{drawer0} [data-add-param-segment]").click()
+    page.evaluate("() => surface.bind(root)")
+    state = page.evaluate("() => drawerState(0)")
+    check("a drawer's listeners are registered once, however many rows are "
+          "added or binds repeat",
+          state["listeners"] == bound and bound.get("focusin") == 1,
+          repr((state["listeners"], bound)))
+    check("editing one drawer leaves its sibling's listeners alone",
+          page.evaluate("() => drawerState(1).listeners") == bound,
+          repr(page.evaluate("() => drawerState(1).listeners")))
+    check("adding rows to a one-segment fade enables every Remove",
+          state["rows"] == 6 and not any(state["disabled"]), repr(state))
+
+    page.evaluate("""() => {
+      root.innerHTML = drawerMarkup(0, "loop");
+      surface.bind(root);
+    }""")
+    page.locator(f"{drawer0} [data-remove-param-segment]").first.click()
+    state = page.evaluate("() => drawerState(0)")
+    check("removing down to one segment disables the last Remove",
+          state["rows"] == 1 and state["disabled"] == [True], repr(state))
+    page.evaluate("""() => {
+      const last = root.querySelector("[data-remove-param-segment]");
+      last.disabled = false;
+      last.click();
+    }""")
+    check("Remove itself refuses to take the last segment",
+          page.evaluate("() => drawerState(0).rows") == 1)
+
+    # Delegation reaches controls a kind switch writes in after binding.
+    page.evaluate("""() => {
+      root.innerHTML = drawerMarkup(0, "lfo");
+      surface.bind(root);
+    }""")
+    page.locator(f'{drawer0} [data-gen-kind-tab="loop"]').click()
+    page.locator(f"{drawer0} [data-add-param-segment]").click()
+    state = page.evaluate("() => drawerState(0)")
+    page.locator(f"{drawer0} [data-gen-apply]").click()
+    sent = page.evaluate("() => sent")
+    check("a kind switch's new rows and Apply answer without rebinding",
+          state["rows"] == 3 and not any(state["disabled"])
+          and len(sent) == 1 and sent[0].get("id") == "0",
+          repr((state, sent)))
+    check("drawer fixture emitted no page errors", not errors, repr(errors))
+    page.close()
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix="bopos-control-surface-") as temp:
         state_path = make_fixture(temp)
@@ -984,6 +1091,7 @@ def main():
                 check("component is loaded on the dashboard page", True)
                 check("dashboard emitted no page errors",
                       not dash_errors, repr(dash_errors))
+                drawer_pass(browser)
                 browser.close()
         finally:
             stop(fleet)
