@@ -47,6 +47,12 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     "Close panel". Values show at Pd precision (six significant figures).
     Say if anything reads wrong.
 
+16. **Editor input label (59/6)**: built and merged; parked until you OK the
+    label. In Patch Edit, a new picker under "Manifest & editor" reads
+    **"Input source"**: "—" (none), "simulated", or a device such as
+    "Ciro Toast · live". Screenshots: `screenshots/editor-input-59-6-*.png`.
+    OK as is?
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
@@ -76,6 +82,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    Monitor; values track the sensor, OLED text writes land, the pop-out
    window keeps streaming, and Performance disables the controls. Chromium
    only so far; Safari/Firefox and touch are untested.
+8. **Editor input (59/6)**: with Pd running in Patch Edit, pick a real
+   device; the patch sees its sensor values on 6662 as it would on the Pi.
+   Pick simulated; slider and pad moves reach the patch, and patch OLED
+   writes show in the preview.
 
 ## Ruled
 
