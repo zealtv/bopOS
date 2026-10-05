@@ -1309,7 +1309,7 @@ class Dashboard:
             await self.apply_show_mutation(
                 ws, show_model.move_item, data.get("uid"), data.get("after_uid"))
         elif kind == "remove_item":
-            await self.show_engine.step_stop(data.get("uid"))
+            # A removed playing step stops once the removal is saved.
             await self.apply_show_mutation(ws, show_model.remove_item, data.get("uid"))
         elif kind == "duplicate_item":
             await self.apply_show_mutation(ws, show_model.duplicate_item, data.get("uid"))
@@ -1489,7 +1489,7 @@ class Dashboard:
             self.show_undo.append(copy.deepcopy(self.show))
             del self.show_undo[:-100]
             self.show = new_show
-            self.show_engine.show = new_show
+            await self.show_engine.set_show(new_show)
             await self.broadcast("show", self.show)
             await self.broadcast("show_warnings", self.show_warnings())
 
@@ -1507,7 +1507,7 @@ class Dashboard:
                 await self.ws_error(ws, "The show undo could not be saved.")
                 return
             self.show = previous
-            self.show_engine.show = previous
+            await self.show_engine.set_show(previous)
             await self.broadcast("show", self.show)
             await self.broadcast("show_warnings", self.show_warnings())
 

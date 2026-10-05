@@ -307,7 +307,8 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
         dashboard.show_edit_lock = asyncio.Lock()
         dashboard.show_undo = []
         dashboard.show = original
-        dashboard.show_engine = SimpleNamespace(show=original)
+        dashboard.show_engine = ShowEngine(mock.Mock(), mock.AsyncMock())
+        dashboard.show_engine.show = original
         dashboard.broadcast = mock.AsyncMock()
         dashboard.show_load_invalid = False
 
@@ -367,6 +368,28 @@ class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
             os.remove(state.show_path)
             dashboard.load_project_show()
             self.assertFalse(dashboard.show_load_invalid)
+
+
+class ShowPlaybackConsistencyTests(unittest.IsolatedAsyncioTestCase):
+    """67/25: a playback entry always names a step that exists and is timing."""
+
+    async def test_expiry_drops_a_step_the_show_no_longer_has(self):
+        engine = ShowEngine(mock.Mock(), mock.AsyncMock())
+        engine.show = show_model.clean_show(document([step(duration_s=0.02)]))
+        await engine.step_start("a0000001")
+        engine.show = show_model.clean_show(document())
+        await asyncio.sleep(0.08)
+        self.assertEqual(engine.playback, {})
+
+    async def test_tiny_durations_rearm_no_faster_than_the_floor(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock())
+        engine.show = show_model.clean_show(document([
+            step(messages=[message()], duration_s=1e-9, play_count=None)]))
+        await engine.step_start("a0000001")
+        await asyncio.sleep(0.1)
+        await engine.stop_all_steps()
+        self.assertLess(bridge.set_param.call_count, 20)  # was ~3,000
 
 
 class GroupNameInvariantTests(unittest.TestCase):
