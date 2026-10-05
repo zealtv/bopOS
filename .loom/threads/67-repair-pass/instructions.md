@@ -40,6 +40,14 @@ Added 2026-10-05 from `lore:2026-10-05-bopos-review-install-services` (74/3):
 19. `19-node-process-ownership` — daemon/IO crashes unsupervised; stale PIDs
     kill unrelated processes; dead helper unit and restart wrapper.
 
+Added 2026-10-05 from `lore:2026-10-05-bopos-review-frontend` (74/2):
+
+20. `20-remote-hold-cancel` — a re-render mid-hold lets Remote reboot fire
+    after release (high).
+21. `21-module-panel-sync` — reconnect and late-inventory gaps in module panels.
+22. `22-spatial-cancelled-drag` — pointercancel leaves the map dragging.
+23. `23-control-listener-hygiene` — stale generator gates, leaked listeners.
+
 ## Constraints
 
 - Each fix lands with a test that fails before it.

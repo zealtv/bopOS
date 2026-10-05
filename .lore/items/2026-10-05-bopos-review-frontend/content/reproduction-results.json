@@ -1,0 +1,36 @@
+{
+  "reconnect": {
+    "enabledBeforeFreshSample": true,
+    "error": "TypeError: Cannot set properties of null (setting '0')"
+  },
+  "late_modules": {
+    "before": 0,
+    "after": 0
+  },
+  "picker_cleanup": {
+    "retainedWindowListeners": 20,
+    "missingFocus": 0
+  },
+  "drawer_rebinding": {
+    "rows": 6,
+    "listeners": {
+      "focusin": 6,
+      "focusout": 6
+    },
+    "firstRemoveDisabled": true
+  },
+  "empty_loop": {
+    "lastRemoveEnabled": true,
+    "remainingRows": 0
+  },
+  "spatial_cancel": {
+    "draggingAfterCancel": true,
+    "renderedSeats": 1
+  },
+  "detached_hold": [
+    {
+      "scope": "all",
+      "verb": "reboot"
+    }
+  ]
+}
