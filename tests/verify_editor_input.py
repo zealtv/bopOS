@@ -133,8 +133,23 @@ def main():
                     page.wait_for_function('installation.supervisor?.mode === "edit" && installation.editor?.active')
                     picker = page.locator('#editor-input-source')
                     assert picker.is_visible()
+                    # A device chosen before its inventory gets panels when modules arrive,
+                    # and loses them when they go.
+                    live = '.module-panel[data-module-uid="%s"]' % UID_A
+                    peer.modules = {}
+                    page.wait_for_function('uid => !Object.keys(installation.devices[uid].report.io.modules).length', arg=UID_A)
                     picker.select_option(UID_A)
                     page.wait_for_function('uid => installation.editor.input.source === uid', arg=UID_A)
+                    assert page.locator(live).count() == 0
+                    peer.modules = {'adc': modules['adc']}
+                    page.wait_for_function('selector => document.querySelectorAll(selector).length === 1', arg=live)
+                    peer.modules = modules
+                    page.wait_for_function('selector => document.querySelectorAll(selector).length === 2', arg=live)
+                    peer.modules = {'oled': modules['oled']}
+                    page.wait_for_function('selector => document.querySelectorAll(selector).length === 1', arg=live)
+                    assert page.locator(live).get_attribute('data-module-name') == 'oled'
+                    peer.modules = modules
+                    page.wait_for_function('selector => document.querySelectorAll(selector).length === 2', arg=live)
                     page.wait_for_function('uid => ws.acceptedCapture?.modules?.uid === uid', arg=UID_A)
                     assert '· live' in page.locator('[data-module-source]').first.inner_text()
                     original = peer.bundle(1.2345678)
@@ -177,6 +192,20 @@ def main():
                     baseline = polls(engine)
                     assert len(baseline) >= 3, baseline
                     assert all(row[0][2:] == [0.,0.,0.,0.] for row in baseline)
+                    # Reconnect callbacks before a fresh sample leave drive/release inert.
+                    stale = page.evaluate('''() => {
+                        const panel=document.querySelector('.module-panel[data-module-uid="simulated"][data-module-name="adc"]');
+                        const slider=panel.querySelector('[data-module-slider="0"]'), pad=panel.querySelector('[data-module-pad="1"]');
+                        const key={key:' ', preventDefault(){}}, thrown=[];
+                        pad.onkeydown(key);
+                        ws.emit('connection',false); ws.emit('connection',true);
+                        const enabled=!slider.disabled || !pad.disabled;
+                        try {slider.value=2; slider.oninput();} catch(error) {thrown.push(String(error));}
+                        try {pad.onkeyup(key);} catch(error) {thrown.push(String(error));}
+                        return {enabled, thrown};
+                    }''')
+                    assert stale == dict(enabled=False, thrown=[]), stale
+                    page.wait_for_function('!document.querySelector("[data-module-slider]").disabled')
                     slider = adc.locator('[data-module-slider="1"]')
                     slider.evaluate('(slider)=>{slider.value=3.3;slider.dispatchEvent(new Event("input"))}')
                     page.wait_for_function('document.querySelectorAll("[data-module-value]")[1].textContent.startsWith("3.3")')
@@ -257,7 +286,7 @@ def main():
                     assert page.evaluate('installation.editor.input.source') is None
                     assert errors == [], errors
                     browser.close()
-                print('PASS original-bundle forwarding, shared stream/refusal, hidden visual feed, unpick, continuous simulated rest, per-channel opposite rails, OLED commands, pop-out control, six-digit display, four screenshots, disconnect/session reset and Performance')
+                print('PASS late and removed live modules, inert drive before a fresh sample after reconnect, original-bundle forwarding, shared stream/refusal, hidden visual feed, unpick, continuous simulated rest, per-channel opposite rails, OLED commands, pop-out control, six-digit display, four screenshots, disconnect/session reset and Performance')
             except Exception:
                 print((root/'server.log').read_text()[-5000:])
                 try:
