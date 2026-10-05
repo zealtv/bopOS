@@ -391,9 +391,10 @@ def main():
                 module_row.locator('[data-io-field="type"]').select_option('lis3dh')
                 module_row.locator('[data-io-field="address"]').fill('0x1A')
                 module_row.locator('[data-io-field="optional"]').check()
-                page.locator('#manifest-editor').screenshot(path=os.path.join(
-                    ROOT, '.loom', 'threads', '59-i2c-inventory',
-                    '3-peripheral-lifecycle.stitching', 'manifest-io.png'))
+                # Optional: BOPOS_MANIFEST_SCREENSHOTS=<dir> saves the IO editor.
+                if os.environ.get('BOPOS_MANIFEST_SCREENSHOTS'):
+                    page.locator('#manifest-editor').screenshot(path=os.path.join(
+                        os.environ['BOPOS_MANIFEST_SCREENSHOTS'], 'manifest-io.png'))
 
                 param_rows = page.locator("#manifest-params .manifest-param")
                 drag_before(
