@@ -90,6 +90,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    helper is root-owned in `/usr/local/sbin`; one stick mounts, a second is
    ignored, removing the second leaves the first mounted. Checklist in
    `67-repair-pass/17-usb-service-hardening.tied/pi-check.md`.
+10. **Engine launch failures (67/18)**: on a Pi, a valid patch still launches
+    and plays; an audio config that stops the engine starting is detected and
+    rolled back, with audio resuming. Checklist in
+    `67-repair-pass/18-engine-launch-failures.tied/pi-check.md`.
 
 ## Ruled
 
