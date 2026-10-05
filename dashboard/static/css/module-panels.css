@@ -11,6 +11,12 @@
 .module-panel-status.has-error{color:var(--amber)}
 .module-panel-input{display:grid;grid-template-columns:40px minmax(110px,1fr) minmax(80px,1fr);gap:8px;align-items:center;font-size:12px;margin:6px 0}
 .module-panel-input output{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.module-panel-drive{grid-column:1/-1;display:flex;gap:8px;align-items:center}
+.module-panel-drive input{min-width:0;flex:1}
+.module-panel-drive button[aria-pressed="true"]{background:var(--accent);color:var(--bg)}
+.module-panel-command output[data-module-written]{color:var(--text);white-space:pre-wrap}
+.module-panel-oled{box-sizing:content-box;width:21ch;height:6em;max-width:100%;overflow:hidden;margin:0;padding:8px;background:#000;color:#fff;font:12px/1 monospace;white-space:pre}
+.module-panel-oled.is-inverted{background:#fff;color:#000}
 .module-panel-spark{width:100%;height:32px;background:var(--input);border-radius:3px}
 .module-panel-spark path{stroke:var(--accent);fill:none;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .module-panel-patch{display:block;margin-top:8px;padding:8px;background:var(--input);font-size:11px;overflow-wrap:anywhere}

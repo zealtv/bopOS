@@ -5,7 +5,7 @@
     "state", "distribution", "show", "show_warnings", "show_playback",
   ]);
   const STREAM_TYPES = new Set(["osc_in", "osc_out", "sync", "heartbeat",
-    "point_frame", "telemetry", "capture_counters", "clock_summary", "io_samples"]);
+    "point_frame", "telemetry", "capture_counters", "clock_summary", "io_samples", "editor_io"]);
   class ReconnectingSocket {
     constructor(path) {
       this.path = path;

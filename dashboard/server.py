@@ -33,6 +33,7 @@ import show_model
 from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from monitor_transport import MonitorTransport
+from editor_input import EditorInput
 from python.paramgen import ParamGrammarError, parse_message
 from python import performance_mode
 
@@ -200,6 +201,7 @@ class Dashboard:
             "declarations": [], "events": [], "points": {},
             "point_element": 0, "engine": None,
         }
+        self.editor_input = EditorInput(self)
         self.fleet_operation = None
         self.fleet_retries = {}
         self.fleet_generation = 0
@@ -239,6 +241,12 @@ class Dashboard:
         return task
 
     async def stop(self):
+        try:
+            if getattr(self, 'editor_input', None):
+                self.editor_input.close()
+        except Exception:
+            logging.getLogger("bopos.dashboard").exception(
+                "editor IO cleanup failed during dashboard shutdown")
         try:
             if getattr(self, 'monitor_transport', None):
                 await self.monitor_transport.close()
@@ -349,6 +357,10 @@ class Dashboard:
         except WebSocketDisconnect:
             pass
         finally:
+            self.editor_input.release(ws)
+            if self.editor_input.owner is ws:
+                self.editor_input.clear()
+                await self.broadcast("state")
             self.clients.discard(ws)
             self.wifi_confirmations.pop(ws, None)
             await ws.dispose()
@@ -361,6 +373,7 @@ class Dashboard:
             return
         uid = data.get("uid")
         serialized_mutations = {
+            "set_editor_input", "set_editor_input_value",
             "set_performance", "save_patch_manifest", "create_patch", "new_patch_version",
             "set_live_param", "set_live_automation",
             "replay_live_params", "set_device_enabled",
@@ -429,7 +442,18 @@ class Dashboard:
         if locked and getattr(self.state, "performance", False):
             await self.ws_error(ws, "Performance")
             return
-        if kind == "set_performance":
+        if kind == "set_editor_input":
+            try:
+                await self.editor_input.choose(data.get("source"), ws)
+            except (ValueError, OSError) as error:
+                await self.ws_error(ws, str(error))
+            await self.broadcast("state")
+        elif kind == "set_editor_input_value":
+            try:
+                self.editor_input.set_value(data, ws)
+            except ValueError as error:
+                await self.ws_error(ws, str(error))
+        elif kind == "set_performance":
             active = data.get("active")
             if not isinstance(active, bool):
                 return
@@ -1888,6 +1912,7 @@ class Dashboard:
             if editor["engine_alive"] == 0:
                 editor["status"] = "engine closed"
         public["editor"] = editor
+        editor["input"] = self.editor_input.snapshot()
         public["supervisor"] = {"mode": self.supervisor_mode}
         public["host_version"] = self.host_version
         return public
@@ -2049,6 +2074,8 @@ class Dashboard:
         editor["declarations"] = declarations
         editor["events"] = list(saved.get("events", ()))
         editor["io_modules"] = list(saved.get("io_modules", ()))
+        if self.editor_input.source == "simulated":
+            self.editor_input.reconcile()
         editor["params"] = {
             patch_manifest.qualify_param(declaration): previous_values.get(
                 patch_manifest.qualify_param(declaration), declaration.get("default", ""))
@@ -2473,6 +2500,8 @@ class Dashboard:
         if mode not in {"off", "simulate", "edit"}:
             raise ValueError(f"invalid supervisor mode {mode!r}")
         self.state.data["supervisor"] = {"mode": mode}
+        if mode != "edit":
+            self.editor_input.clear()
 
     async def terminate_supervisor_process(self):
         self.supervisor_generation += 1
@@ -2698,6 +2727,7 @@ class Dashboard:
     async def stop_edit(self):
         if self.supervisor_mode != "edit":
             return
+        self.editor_input.clear()
         await self.terminate_supervisor_process()
         self.clear_audition_devices()
         editor = self.state.data["editor"]
