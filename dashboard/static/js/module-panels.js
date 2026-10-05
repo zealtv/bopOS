@@ -37,6 +37,8 @@
       : deviceFor(uid)?.report?.io?.modules?.[name]?.type];
 
     function drive(panel, index, value, rest = null) {
+      // Inert until a fresh editor_io sample restores this session's values.
+      if (!panel.ready) return;
       panel.values[index] = value;
       ws.send("set_editor_input_value", {generation: installation.editor.generation,
         name: panel.name, index, value, rest});
@@ -251,7 +253,9 @@
     function syncEditor() {
       const editor = installation.editor || {};
       const source = editor.input?.source || "";
-      const session = `${editor.generation}:${source}:${JSON.stringify(editor.io_modules || [])}`;
+      const live = source === "simulated" ? []
+        : Object.entries(deviceFor(source)?.report?.io?.modules || {}).map(([name, module]) => [name, module.type]);
+      const session = JSON.stringify([editor.generation, source, editor.io_modules || [], live]);
       const control = document.querySelector("#editor-input-control");
       if (control) control.hidden = !editor.active || installation.performance;
       if (picker) {
@@ -414,6 +418,7 @@
       connected = active;
       if (!active) for (const panel of panels.values()) {
         panel.writePending = false;
+        panel.ready = false;
         panel.values = null;
         panel.history.forEach(history => history.splice(0));
         panel.element.querySelectorAll("[data-module-value], [data-module-patch]").forEach(output => output.textContent = "—");
@@ -423,7 +428,7 @@
       syncEditor();
       captureChanged();
     });
-    for (const event of ["state", "device_update", "device_offline", "device_removed"]) {
+    for (const event of ["state", "device_update", "report", "device_offline", "device_removed"]) {
       ws.on(event, () => { syncEditor(); refresh(); captureChanged(); if (event === "state") inputPending = false; });
     }
     window.ModulesMonitor = {toggle, has: (uid, name) => panels.has(key(uid, name))};
