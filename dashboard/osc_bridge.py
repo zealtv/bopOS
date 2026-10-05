@@ -699,16 +699,22 @@ class OSCBridge:
     async def points_loop(self):
         # ~25 Hz only while a point moves; a static set is one frame (sent by
         # the mutators above) then silence — silence = hold (contract sec 4.1)
+        previous_elapsed = None
         try:
             while True:
                 await asyncio.sleep(1.0 / points.RATE_HZ)
                 current = self.state.data.get("points") or {}
-                if any(points.is_dynamic(point) for point in current.values()):
+                elapsed = self._points_elapsed()
+                # Include the tick crossing a path's end, so its endpoint is
+                # delivered once before silence takes over.
+                if any(points.is_dynamic(point, elapsed)
+                       or points.is_dynamic(point, previous_elapsed)
+                       for point in current.values()):
                     self.send_points_frame()
-                    elapsed = time.monotonic() - self._points_started
                     evaluated = {str(point_id): list(points.current_xy(point, elapsed))
                                  for point_id, point in current.items()}
                     self.broadcast("point_frame", {"points": evaluated})
+                previous_elapsed = elapsed
         except asyncio.CancelledError:
             pass
 
