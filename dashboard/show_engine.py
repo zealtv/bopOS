@@ -156,14 +156,8 @@ class ShowEngine:
     def _send_message(self, message):
         address, target = message["address"], message["target"]
         args = [arg["value"] for arg in message["args"]]
-        if message.get("kind", "osc") != "osc":
-            log.warning("show engine: unsupported message kind; skipped")
-            return
+        # The model guarantees OSC messages; the resolver returns a list.
         selectors = self.resolve_targets(target)
-        if isinstance(selectors, tuple):
-            selectors = selectors[0]
-        if not isinstance(selectors, list):
-            selectors = [selectors] if selectors is not None else []
         if address.startswith("/e/") and len(address) > 3:
             identity = address[len("/e/"):]
             for selector in selectors:
@@ -292,9 +286,8 @@ class ShowEngine:
 
     async def _resolve_then_actions(self, uid, step, budget):
         actions = step["then_actions"]
-        if not actions:
-            action = {"type": "stop"}
-        elif len(actions) == 1:
+        # clean_step normalizes an empty action list to stop.
+        if len(actions) == 1:
             action = actions[0]
         else:
             action = self.random.choice(actions)
@@ -416,7 +409,7 @@ class ShowEngine:
         if len(self.playback) == 1:
             uid = next(iter(self.playback))
             step = self.step_by_uid(uid)
-            actions = step.get("then_actions", []) if step is not None else []
+            actions = step["then_actions"] if step is not None else []
             if len(actions) == 1:
                 action = actions[0]
                 kind = action.get("type")
