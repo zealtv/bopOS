@@ -457,3 +457,6 @@ details.icon-menu>summary::before{content:none}
 .patch-dialog-error{display:block;min-height:1em;margin:-6px 0 8px;color:var(--status-warn-text);font-size:12px}
 .patch-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
 @media(max-width:860px){.patches-tab{display:block}.patch-main{margin-top:16px}}
+#editor-input-control{display:flex;align-items:center;gap:12px;margin:12px 0;color:var(--dim);font-size:12px}
+#editor-input-control[hidden]{display:none}
+#editor-input-source{min-width:0;max-width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--input);color:var(--text);font:inherit}

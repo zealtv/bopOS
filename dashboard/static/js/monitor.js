@@ -1024,7 +1024,9 @@
         try { const choice = JSON.parse(value); return Array.isArray(choice) && choice.length === 2 ? [choice] : []; }
         catch (_error) { return []; }
       });
-      if (choices.some(([uid, name]) => !installation.devices?.[uid]?.report?.io?.modules?.[name])) return;
+      if (choices.some(([uid, name]) => uid === "simulated"
+        ? !installation.editor?.io_modules?.some(row => row.name === name)
+        : !installation.devices?.[uid]?.report?.io?.modules?.[name])) return;
       restored = true;
       for (const [uid, name] of choices) window.ModulesMonitor.toggle(uid, name, true, false);
     });

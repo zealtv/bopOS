@@ -166,7 +166,12 @@ class Client:
             if module:
                 # Subscribe before replacing: a busy/performance refusal leaves
                 # the old selection and its source ownership intact.
-                self.broker.dashboard.osc.subscribe_io(module['uid'], self, self.sample)
+                if module['uid'] == 'simulated':
+                    editor = self.broker.dashboard.editor_input
+                    if not editor.allowed or editor.source != 'simulated':
+                        raise ValueError('invalid-arguments')
+                else:
+                    self.broker.dashboard.osc.subscribe_io(module['uid'], self, self.sample)
         except ValueError as error:
             self.send_core({'type': 'capture_status', 'data': {'error': str(error),
                            'generation': self.selection['generation'],
