@@ -113,7 +113,7 @@ def main():
                     page.evaluate("ws.send('step_start', {uid: '0000000a'})")
                     page.wait_for_selector("#show-root .show-step-playing")
                     assert button(page).is_disabled()
-                    page.evaluate("ws.send('stop_all_steps')")
+                    page.locator('#show-root .show-transport-strip [data-show-action="step_stop"]').click()
                     page.wait_for_selector("#show-root .show-step-playing", state="detached")
                     assert not button(page).is_disabled()
                     assert not errors, errors

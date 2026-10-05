@@ -840,13 +840,10 @@
     } else if (type === "step_resume" && uid) {
       playback.steps[uid] = {...playbackState(uid), state: "playing"};
       playbackAt = performance.now();
-    } else if (type === "stop_all_steps") {
-      playback = {steps: {}};
     }
     syncCountdownTimer();
     render();
-    if (type === "stop_all_steps") ws.send(type, {});
-    else if (uid) ws.send(type, {uid});
+    if (uid) ws.send(type, {uid});
   }
 
   function updateStep(uid, patch) {

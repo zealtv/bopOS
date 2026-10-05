@@ -205,7 +205,7 @@ def main():
                     page.wait_for_function("refusals.length > 0")
                     assert page.evaluate("refusals") == ["That show could not be opened."]
                     assert page.evaluate("installation.current_show") == "Main"
-                    page.evaluate("ws.send('stop_all_steps')")
+                    page.locator('#show-root .show-transport-strip [data-show-action="step_stop"]').click()
                     page.wait_for_selector("#show-root .show-step-playing", state="detached")
                     action(page, "open-show", "Encore")
                     wait_show(page, "Encore")
