@@ -39,7 +39,7 @@ def frontend_types():
                 if len(choices) != 2:
                     raise AssertionError(f"Unresolved send: {path.name}: {argument}")
                 kinds.update(choices)
-            elif (path.name, argument) not in {("dashboard.js", "kind"), ("show.js", "type")}:
+            elif (path.name, argument) not in {("dashboard-devices.js", "kind"), ("show.js", "type")}:
                 raise AssertionError(f"Unresolved send: {path.name}: {argument}")
         if path.name == "show.js":
             kinds.update(re.findall(r"iconButton\(['\"]([a-z_]+)['\"]", source))
