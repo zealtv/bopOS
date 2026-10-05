@@ -160,8 +160,16 @@ def main():
                 browser = playwright.chromium.launch(headless=True)
                 page = browser.new_page(viewport={"width": 1440, "height": 1100})
                 page_errors = []
+                dialogs = []
+                accept_dialog = True
                 page.on("pageerror", lambda error: page_errors.append(str(error)))
-                page.on("dialog", lambda dialog: dialog.accept())
+                def handle_dialog(dialog):
+                    dialogs.append(dialog.message)
+                    if accept_dialog:
+                        dialog.accept()
+                    else:
+                        dialog.dismiss()
+                page.on("dialog", handle_dialog)
                 page.goto(base_url)
                 page.wait_for_selector("#ws-status.online")
                 page.wait_for_function(
@@ -202,6 +210,76 @@ def main():
                 check("a subsequent deployment switches both devices to beta",
                       page.evaluate("() => Object.values(installation.devices).every("
                                     "d => d.report?.patch === 'beta' && d.patch_badge === 'current')"))
+
+                # Update is available even at rest. Cancel must send nothing;
+                # accepting after a host edit converges only the selected box.
+                page.click("#tab-button-devices")
+                page.click(f'#device-roster [data-uid="{UID_A}"]')
+                page.wait_for_function("() => !!document.querySelector('#fleet-patch-retry')?.onclick")
+                check("current device offers Update patch", page.locator("#fleet-patch-retry").is_enabled()
+                      and page.locator("#fleet-patch-retry").inner_text() == "Update patch")
+                page.evaluate("""() => {
+                    window.patchPushMessages = [];
+                    const send = ws.send.bind(ws);
+                    ws.send = (type, data) => { patchPushMessages.push({type, data}); send(type, data); };
+                }""")
+                accept_dialog = False
+                page.click("#fleet-patch-retry")
+                check("cancel sends no update", page.evaluate(
+                    "() => !patchPushMessages.some(m => m.type === 'retry_fleet_patch')"))
+                check("update confirmation explains engine restart", "restart" in dialogs[-1]
+                      and "audio engine" in dialogs[-1])
+                accept_dialog = True
+                previous = page.evaluate("uid => installation.devices[uid].patches.find(p => p.name === 'beta').fingerprint", arg=UID_A)
+                write_patch(patches, "beta", b"beta-edited-on-host")
+                page.click("#fleet-patch-retry")
+                page.wait_for_function("""previous => {
+                    const d = installation.devices['02:53:49:4d:00:01'];
+                    return d.patch_badge === 'current' && d.patches.some(p => p.name === 'beta' && p.fingerprint !== previous);
+                }""", arg=previous, timeout=15000)
+                check("Update patch sends the selected UID", page.evaluate(
+                    "uid => patchPushMessages.some(m => m.type === 'retry_fleet_patch' && m.data.uid === uid)", arg=UID_A))
+                check("single-device update leaves the other box's content alone", page.evaluate(
+                    "uid => installation.devices[uid].patches.find(p => p.name === 'beta').fingerprint", arg=UID_B) == previous)
+
+                # Render snapshot edge cases alongside the real fleet. These
+                # synthetic arrivals cannot send OSC or disturb other journeys.
+                page.evaluate("""() => {
+                    installation.devices['offline-box'] = {uid: 'offline-box', online: false, alias: 'Offline Box'};
+                    installation.devices['spare-box'] = {uid: 'spare-box', online: true, alias: 'Spare Box'};
+                    installation.devices['sim-box'] = {uid: 'sim-box', online: true, virtual: true, seat_id: 3};
+                    installation.seats['3'] = {id: 3, name: 'Simulated Seat', bound: 'sim-box'};
+                    installation.seats['4'] = {id: 4, name: 'Offline Seat', bound: 'offline-box'};
+                    render();
+                }""")
+                for uid, reason in (("offline-box", "offline"), ("spare-box", "unassigned")):
+                    page.click(f'#device-roster [data-uid="{uid}"]')
+                    check(reason + " device keeps a disabled action with reason",
+                          page.locator("#fleet-patch-retry").is_disabled()
+                          and reason in page.locator("#patch-diagnostics .patch-target-note").inner_text().lower())
+                check("simulated diagnostic action is disabled with reason", page.evaluate("""() => {
+                    const root = document.createElement('div');
+                    root.innerHTML = patchDiagnostics(installation.devices['sim-box']);
+                    return root.querySelector('#fleet-patch-retry').disabled && root.textContent.includes('simulated');
+                }"""))
+                page.click(f'#device-roster [data-uid="{UID_A}"]')
+                screenshot_dir = os.environ.get("BOPOS_PUSH_SCREENSHOTS")
+                if screenshot_dir:
+                    os.makedirs(screenshot_dir, exist_ok=True)
+                    for width in (1440, 420):
+                        page.set_viewport_size({"width": width, "height": 1100})
+                        page.evaluate("document.querySelector('#patch-diagnostics').scrollIntoView({block: 'start'}); window.scrollBy(0, -55)")
+                        page.screenshot(path=os.path.join(screenshot_dir, f"device-update-{width}.png"))
+                page.click("#tab-button-patches")
+                for uid, reason in (("offline-box", "offline"), ("spare-box", "unassigned"), ("sim-box", "simulated")):
+                    check("push list explains " + reason, reason in page.locator(
+                        f'#patch-push-list [data-push-uid="{uid}"]').inner_text().lower())
+                check("no per-device picker can silently re-aim a push", page.locator("#fleet-patch-target").count() == 0)
+                if screenshot_dir:
+                    for width in (1440, 420):
+                        page.set_viewport_size({"width": width, "height": 1100})
+                        page.evaluate("document.querySelector('#patch-push-list').scrollIntoView({block: 'center'})")
+                        page.screenshot(path=os.path.join(screenshot_dir, f"patch-push-list-{width}.png"))
 
                 check("no page errors during the run", not page_errors, repr(page_errors))
                 browser.close()

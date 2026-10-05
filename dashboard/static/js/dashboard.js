@@ -277,6 +277,14 @@ function fleetPatchSummary() {
   const targets = `${assigned.length} assigned target${assigned.length === 1 ? "" : "s"}`;
   return installation.fleet_patch?.name ? `${targets}${progress ? ` · ${progress}` : ""}` : `No fleet patch set`;
 }
+function patchPushReason(d) {
+  const reasons = [];
+  if (!d.online) reasons.push("offline");
+  if (d.virtual) reasons.push("simulated");
+  if (d.revoking_assignment || !Object.values(installation.seats || {}).some((seat) => seat.bound === d.uid))
+    reasons.push("unassigned");
+  return reasons.join(" · ");
+}
 function contextualExecutionPatch() {
   const editor = installation.editor || {},
     sim = installation.simulation || {};

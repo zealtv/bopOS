@@ -32,21 +32,13 @@ function deviceEnabledIndicator(d) {
   return deviceEnabledMarkup(enabled, slash);
 }
 
-function patchDiagnostics(d, allowRemediation) {
+function patchDiagnostics(d) {
   const installed = Array.isArray(d.patches) ? d.patches : [];
   const active = installed.find((patch) => patch.active) || installed.find((patch) => patch.name === d.report?.patch);
   const desired = installation.fleet_patch || {};
   const fetchPhase = desired.name ? (d.fetch || {})[`patch:${desired.name}`] : null;
   const rows = installed.map((patch) => installedPatchRow(patch)).join("");
-  const remediation =
-    allowRemediation && d.online && ["missing", "stale", "stale_unverified", "mismatch", "failed", "timeout"].includes(d.patch_badge)
-      ? `<button id="fleet-patch-retry">Sync to fleet patch</button>`
-      : "";
-  const unboundNote =
-    !allowRemediation && desired.name
-      ? '<p class="dim patch-target-note">Assign this device to a Seat before syncing ' +
-        "content. OSC v1.5 does not UID-target patch distribution or switching.</p>"
-      : "";
+  const reason = patchPushReason(d) || (!desired.name ? "No fleet patch set" : "");
   const switchAttempt = d.patch_switch || {};
   return [
     `<section id="patch-diagnostics">`,
@@ -82,15 +74,19 @@ function patchDiagnostics(d, allowRemediation) {
     `</thead>`,
     `<tbody>${rows || '<tr><td colspan="4">No patch listing reported.</td></tr>'}</tbody>`,
     `</table>`,
-    `</div>${remediation ? `<div class="actions patch-remediation">${remediation}</div>` : ""}${unboundNote}${
-      d.virtual ? '<p class="dim">Host-backed simulated fleet; patch choice is controlled globally ' + "and needs no Send step.</p>" : ""
-    }</section>`,
+    `</div><div class="actions patch-remediation"><button id="fleet-patch-retry" ${reason || performanceActive() ? "disabled" : ""}>Update patch</button></div>`,
+    reason ? `<p class="dim patch-target-note">${esc(reason)}</p>` : "",
+    `</section>`,
   ].join("");
 }
 function bindPatchDiagnostics(d) {
   const retry = $("#fleet-patch-retry");
-  if (retry) retry.disabled = performanceActive();
-  if (retry) retry.onclick = () => ws.send("retry_fleet_patch", { uid: d.uid });
+  if (retry) retry.onclick = () => {
+    const current = installation.devices?.[d.uid];
+    if (!current || patchPushReason(current) || !installation.fleet_patch?.name || performanceActive()) return;
+    if (confirm(`Update patch on ${Identity.primary(current, installation)}? This may restart its audio engine.`))
+      ws.send("retry_fleet_patch", { uid: current.uid });
+  };
 }
 
 function audioConfigEqual(left, right) {
@@ -413,7 +409,7 @@ function renderDeviceDetail() {
     })}</section>
     ${deviceActionsMarkup(d, seat)}
     ${binding}
-    ${patchDiagnostics(d, !!seat)}
+    ${patchDiagnostics(d)}
     ${deviceControlSection(d)}
     ${audioSection(d)}
     ${logSection(d)}
