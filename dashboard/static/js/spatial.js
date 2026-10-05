@@ -517,6 +517,13 @@
       seatDrag = null;
       render(...last);
     };
+    svg.onpointercancel = svg.onlostpointercapture = () => {
+      if (!(seatDrag || pointDrag || listenerDrag || headingDrag || rangeDrag)) return;
+      // Cancellation is not a click or drop. Release the render guard and
+      // redraw the latest snapshot, including any streamed point/listener edits.
+      seatDrag = pointDrag = listenerDrag = headingDrag = rangeDrag = null;
+      render(...last);
+    };
   }
 
   function movePoint(id, x, y, final) {
@@ -696,6 +703,11 @@
     svg.onpointerup = () => {
       if (!editorPointDrag) return;
       if (editorPointDrag.at) sendEditorPoint(editorPointDrag.id, ...editorPointDrag.at, true);
+      editorPointDrag = null;
+      renderEditor(...editorLast);
+    };
+    svg.onpointercancel = svg.onlostpointercapture = () => {
+      if (!editorPointDrag) return;
       editorPointDrag = null;
       renderEditor(...editorLast);
     };
