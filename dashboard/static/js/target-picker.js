@@ -412,12 +412,14 @@
         if (openKey) writeStored(openKey, open);
         onOpenChange?.(open);
       }, true);
-      // The Control surface is a separate document from the Seats tab, so the
-      // focus seat arrives as a storage event rather than a function call.
-      window.addEventListener("storage", event => {
-        if (event.key === FOCUS_SEAT_KEY && followFocusSeat) render();
-      });
     }
+    // The Control surface is a separate document from the Seats tab, so the
+    // focus seat arrives as a storage event rather than a function call. Only
+    // a following picker listens, and `destroy` lets it go with its host.
+    const followFocus = event => {
+      if (event.key === FOCUS_SEAT_KEY) render();
+    };
+    if (host && followFocusSeat) window.addEventListener("storage", followFocus);
 
     return {
       render,
@@ -435,6 +437,7 @@
         host?.querySelector("[data-target-toggle]")?.focus();
       },
       set: next => apply(list(next, [])),
+      destroy: () => window.removeEventListener("storage", followFocus),
     };
   }
 

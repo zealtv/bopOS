@@ -541,6 +541,7 @@
       destroy: () => {
         renderAfterHold = false;
         cancelHold();
+        targetPicker.destroy?.();
         host.remove();
       },
       element: host,
