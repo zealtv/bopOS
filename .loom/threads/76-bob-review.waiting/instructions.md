@@ -53,6 +53,15 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     "Ciro Toast · live". Screenshots: `screenshots/editor-input-59-6-*.png`.
     OK as is?
 
+17. **Node process ownership (67/19)**: proposal in
+    `67-repair-pass/19-node-process-ownership.waiting/proposal.md` (summary at
+    the top). systemd owns the daemon, IO bridge and engine as three units
+    under a `bopos.target`; crashes restart on their own; PID files, stop
+    scripts and `pkill` go. Your calls: three new exact sudoers lines for
+    `systemctl start|stop|restart bopos-engine.service`, the journal split,
+    a one-time `provision.sh` + reboot per Pi with a temporary `start.sh` shim
+    (or a flag day), and engine `Restart=no`. Approve?
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
