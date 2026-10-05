@@ -45,7 +45,7 @@ done
         self.candidate = {'engine': 'fixture-engine', 'entrypoint': 'entry.txt',
                           'params': [{'name': 'gain', 'type': 'f'}], 'events': []}
         self.write_manifest(self.candidate)
-        self.env = dict(os.environ, PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'])
+        self.env = dict(os.environ, BOPOS_ENGINE_SURVIVAL_WAIT='0.2', PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'])
         self.addCleanup(self.stop_services)
 
     def write_script(self, relative, content):
@@ -171,7 +171,7 @@ exec /bin/sleep 60
 '''
         for name in ('pd', 'fixture-engine'):
             self.write_script('bin/' + name, engine)
-        self.env = dict(os.environ,
+        self.env = dict(os.environ, BOPOS_ENGINE_SURVIVAL_WAIT='0.2',
                         PATH=str(self.root / 'bin') + os.pathsep + os.environ['PATH'],
                         FIXTURE_ROOT=str(self.root), BOPOS_STOP_TIMEOUT='1',
                         BOPOS_JACK_START_TIMEOUT='0')

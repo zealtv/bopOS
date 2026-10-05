@@ -19,6 +19,7 @@ JACK_NPERIODS="${JACK_NPERIODS:-2}"
 JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
 JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
 AUDIO_WAIT_TIMEOUT="${BOPOS_AUDIO_WAIT_TIMEOUT:-60}"
+ENGINE_SURVIVAL_WAIT="${BOPOS_ENGINE_SURVIVAL_WAIT:-1}"
 JACK_PID=""
 ENGINE_PID=""
 
@@ -202,7 +203,7 @@ else
 fi
 # Catch immediate exec/startup failures before publishing successful PID records.
 # Survival during this short window is a launch check, not engine readiness.
-sleep 1
+sleep "$ENGINE_SURVIVAL_WAIT"
 check_engine_alive
 if [ "$ENGINE" = "pd" ]; then
     echo $ENGINE_PID > "$RUN_DIR/pd.pid"
