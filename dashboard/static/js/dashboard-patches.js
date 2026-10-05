@@ -56,6 +56,12 @@ function deployPatch(name) {
   )
     ws.send("set_fleet_patch", { patch: name, confirmed: true });
 }
+function patchPushList() {
+  return `<ul id="patch-push-list">${Object.values(installation.devices || {}).map((device) => {
+    const reason = patchPushReason(device);
+    return `<li data-push-uid="${esc(device.uid)}"><strong>${esc(Identity.primary(device, installation))}</strong> <span class="dim">${esc(reason || "Will receive patch")}</span></li>`;
+  }).join("")}</ul>`;
+}
 function renderPatchesTab() {
   const list = $("#patch-list"),
     detail = $("#patch-detail");
@@ -145,6 +151,7 @@ function renderPatchesTab() {
       }<dt>Engine</dt>`,
     `<dd>${esc(item?.valid ? patchEngine(item) : PATCH_BADGE_LABELS.missing)}</dd>`,
     `</dl>`,
+    `<h3>Push targets</h3>${patchPushList()}`,
   ].join("");
   const edit = $("#patch-edit"),
     deploy = $("#patch-deploy");

@@ -449,6 +449,8 @@ details.icon-menu>summary::before{content:none}
 .patch-detail-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .patch-detail-head h2{display:flex;align-items:center;gap:10px;margin:0;min-width:0;overflow-wrap:anywhere}
 .patch-detail-actions{display:flex;gap:8px;flex:none}
+#patch-push-list{list-style:none;padding:0;margin:8px 0 0}#patch-push-list li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+#fleet-patch-retry{text-transform:none}
 #patch-version-dialog,#patch-add-dialog{width:min(440px,calc(100vw - 32px));padding:18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text)}
 #patch-version-dialog::backdrop,#patch-add-dialog::backdrop{background:#0009}
 #patch-version-dialog h2,#patch-add-dialog h2{margin:0 0 6px}#patch-version-dialog p{margin:0}
