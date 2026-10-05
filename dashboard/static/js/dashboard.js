@@ -1,5 +1,4 @@
-const ws = new BopSocket("/ws");
-let installation = {devices: {}};
+let installation = { devices: {} };
 let selected = null;
 let selectedSeat = null;
 let selectedGroup = null;
@@ -13,9 +12,9 @@ let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
 const seatBindingDrafts = new Map();
-const logDestinationDrafts = new Map();  // uid -> unsaved log destination choice
+const logDestinationDrafts = new Map(); // uid -> unsaved log destination choice
 let patchFilter = "";
-let distribution = {assets: [], patches: []};
+let distribution = { assets: [], patches: [] };
 let assetFeedback = "";
 let assetFeedbackPending = null;
 let deviceFilter = "all";
@@ -30,98 +29,99 @@ let remoteCommandDraft = null;
 let remoteCommandSaving = false;
 let remoteCommandFeedback = "";
 let pendingCreatedPatch = null;
-const $ = selector => document.querySelector(selector);
-const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const $ = (selector) => document.querySelector(selector);
+const esc = (value) =>
+  String(value ?? "—").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const Identity = window.DeviceIdentity;
 const performanceActive = () => installation.performance === true;
-$("#performance-toggle").onclick = () => ws.send("set_performance", {active: !performanceActive()});
+$("#performance-toggle").onclick = () => ws.send("set_performance", { active: !performanceActive() });
 
 async function copyFullIdentity(button) {
-  const value=button.dataset.copyIdentity;
-  let copied=false;
+  const value = button.dataset.copyIdentity;
+  let copied = false;
   try {
-    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);copied=true;}
-  } catch(_error) {}
-  if(!copied){
-    const input=document.createElement("textarea");
-    input.value=value;input.setAttribute("readonly","");input.style.position="fixed";input.style.opacity="0";
-    document.body.append(input);input.select();
-    try{copied=document.execCommand("copy");}catch(_error){}
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      copied = true;
+    }
+  } catch (_error) {}
+  if (!copied) {
+    const input = document.createElement("textarea");
+    input.value = value;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.append(input);
+    input.select();
+    try {
+      copied = document.execCommand("copy");
+    } catch (_error) {}
     input.remove();
   }
-  const feedback=button.querySelector(".copy-feedback");
-  if(feedback){feedback.textContent=copied?"Copied":"Copy failed";setTimeout(()=>{if(feedback.isConnected)feedback.textContent="";},1400);}
+  const feedback = button.querySelector(".copy-feedback");
+  if (feedback) {
+    feedback.textContent = copied ? "Copied" : "Copy failed";
+    setTimeout(() => {
+      if (feedback.isConnected) feedback.textContent = "";
+    }, 1400);
+  }
 }
-document.addEventListener("click",event=>{const button=event.target.closest("[data-copy-identity]");if(button)copyFullIdentity(button);});
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-copy-identity]");
+  if (button) copyFullIdentity(button);
+});
 const GROUP_SLOTS = window.GroupSlots.palette;
 const TAB_NAMES = ["show", "control", "seats", "devices", "patches", "assets"];
 // The Control tab was called Dashboard until 2026-07-25 (37/10). Existing
 // bookmarks and links still say #dashboard, so keep resolving it.
-const TAB_ALIASES = {dashboard: "control"};
+const TAB_ALIASES = { dashboard: "control" };
 function tabFromHash(hash) {
   const name = TAB_ALIASES[hash] || hash;
   return TAB_NAMES.includes(name) ? name : null;
 }
 let activeTab = tabFromHash(location.hash.slice(1)) || "show";
 
-function activateTab(name, updateHash=true) {
-  if (!TAB_NAMES.includes(name)) name="show";
-  activeTab=name;
-  document.querySelectorAll("[data-tab]").forEach(button=>{
-    const active=button.dataset.tab===name;
+function activateTab(name, updateHash = true) {
+  if (!TAB_NAMES.includes(name)) name = "show";
+  activeTab = name;
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    const active = button.dataset.tab === name;
     button.setAttribute("aria-selected", active ? "true" : "false");
-    button.tabIndex=active ? 0 : -1;
+    button.tabIndex = active ? 0 : -1;
   });
-  document.querySelectorAll("[data-tab-panel]").forEach(panel=>{
-    panel.hidden=panel.dataset.tabPanel!==name;
+  document.querySelectorAll("[data-tab-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.tabPanel !== name;
   });
-  if (updateHash) history.replaceState(null,"",`#${name}`);
-  window.scrollTo(0,0);
-  if (name==="seats" && installation.room) requestAnimationFrame(()=>Spatial.render(installation,selectedSeat,selectSeat,ws,groupView()));
+  if (updateHash) history.replaceState(null, "", `#${name}`);
+  window.scrollTo(0, 0);
+  if (name === "seats" && installation.room)
+    requestAnimationFrame(() => Spatial.render(installation, selectedSeat, selectSeat, ws, groupView()));
 }
-document.querySelectorAll("[data-tab]").forEach(button=>{
-  button.onclick=()=>activateTab(button.dataset.tab);
-  button.onkeydown=event=>{
-    if (!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
+document.querySelectorAll("[data-tab]").forEach((button) => {
+  button.onclick = () => activateTab(button.dataset.tab);
+  button.onkeydown = (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    let index=TAB_NAMES.indexOf(activeTab);
-    if (event.key==="ArrowLeft") index=(index-1+TAB_NAMES.length)%TAB_NAMES.length;
-    if (event.key==="ArrowRight") index=(index+1)%TAB_NAMES.length;
-    if (event.key==="Home") index=0;
-    if (event.key==="End") index=TAB_NAMES.length-1;
+    let index = TAB_NAMES.indexOf(activeTab);
+    if (event.key === "ArrowLeft") index = (index - 1 + TAB_NAMES.length) % TAB_NAMES.length;
+    if (event.key === "ArrowRight") index = (index + 1) % TAB_NAMES.length;
+    if (event.key === "Home") index = 0;
+    if (event.key === "End") index = TAB_NAMES.length - 1;
     activateTab(TAB_NAMES[index]);
     $(`[data-tab="${TAB_NAMES[index]}"]`)?.focus();
   };
 });
-window.addEventListener("hashchange",()=>activateTab(tabFromHash(location.hash.slice(1))||"show",false));
-document.addEventListener("keydown",event=>{
-  if (event.key!=="Escape" || activeTab!=="seats" || event.target.matches("input,select,textarea")) return;
-  if (focusedGroup!==null) {
-    focusedGroup=null; renderGroups(); renderGroupMap(); Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
+window.addEventListener("hashchange", () => activateTab(tabFromHash(location.hash.slice(1)) || "show", false));
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || activeTab !== "seats" || event.target.matches("input,select,textarea")) return;
+  if (focusedGroup !== null) {
+    focusedGroup = null;
+    renderGroups();
+    renderGroupMap();
+    Spatial.render(installation, selectedSeat, selectSeat, ws, groupView());
   } else if (visibleGroupIds().length) clearGroupView();
 });
-activateTab(activeTab,false);
-
-function activateSeatSidebar(mode, moveFocus=false) {
-  seatSidebarMode=mode==="groups"?"groups":"seats";
-  const seats=seatSidebarMode==="seats";
-  $("#seat-sidebar-tab").setAttribute("aria-selected",seats?"true":"false");
-  $("#group-sidebar-tab").setAttribute("aria-selected",seats?"false":"true");
-  $("#seat-sidebar-tab").tabIndex=seats?0:-1;
-  $("#group-sidebar-tab").tabIndex=seats?-1:0;
-  $("#seat-sidebar-panel").hidden=!seats;
-  $("#group-sidebar-panel").hidden=seats;
-  if(moveFocus)$(seats?"#seat-sidebar-tab":"#group-sidebar-tab").focus();
-}
-$("#seat-sidebar-tab").onclick=()=>activateSeatSidebar("seats");
-$("#group-sidebar-tab").onclick=()=>activateSeatSidebar("groups");
-$("#seat-sidebar-tabs").onkeydown=event=>{
-  if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
-  event.preventDefault();
-  const groups=event.key==="ArrowRight"||event.key==="End";
-  activateSeatSidebar(groups?"groups":"seats",true);
-};
-activateSeatSidebar(seatSidebarMode);
+activateTab(activeTab, false);
 
 function mergeDevice(device) {
   if (device && device.uid) {
@@ -133,158 +133,70 @@ function mergeDevice(device) {
   }
   render();
 }
-ws.on("connection", connected => { $("#ws-status").textContent = connected ? "connected" : "disconnected"; $("#ws-status").className = connected ? "online" : "offline"; });
-ws.on("state", data => {
-  if (installation.project && installation.project !== data.project) {
-    selected=null; selectedSeat=null; selectedGroup=null; focusedGroup=null;
-    visibleGroups=[null,null,null,null]; seatBindingDrafts.clear(); logDestinationDrafts.clear();
-    editorPatchChoice=null; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
-    remoteCommandDraft=null; remoteCommandSaving=false; remoteCommandFeedback=""; pendingCreatedPatch=null;
-  }
-  installation=data; muted=!!data.muted; master=Number(data.master ?? 1);
-  reconcileSelection(); reconcileGroupView(); render();
-  const loading=$("#initial-loading"); if (loading) loading.hidden=true;
-});
-ws.on("device_update", data => { if (data && data.devices) installation = data; else mergeDevice(data); });
-ws.on("heartbeat", data => {
-  if (!data?.uid) return;
-  const heartbeatAt = String(data.timestamp ?? Date.now() / 1000);
-  heartbeats.set(data.uid, heartbeatAt);
-  const row = Array.from(document.querySelectorAll(".device-row"))
-    .find(element => element.dataset.uid === data.uid);
-  const blip = row?.querySelector(".heartbeat-blip");
-  if (!blip) return;
-  blip.classList.remove("pulse");
-  void blip.offsetWidth;
-  blip.classList.add("pulse");
-  blip.dataset.heartbeatAt = heartbeatAt;
-});
-ws.on("params_declaration", mergeDevice); ws.on("report", mergeDevice); ws.on("rev", mergeDevice);
-ws.on("patches", mergeDevice); ws.on("assets", mergeDevice);
-ws.on("distribution", data => {
-  distribution=data||{assets:[],patches:[]};
-  render();
-});
-ws.on("manifest_saved", data => {
-  const patch=data?.patch||editorPatchChoice;
-  const declarations=data?.declarations||data?.params||[];
-  if (patch && patch===editorPatchChoice) {
-    manifestDraft={patch,params:structuredClone(declarations),events:structuredClone(data.events||[]),io_modules:structuredClone(data.io_modules||[])};
-    manifestBaseline=structuredClone(manifestDraft);
-    manifestDirty=false;
-  }
-  if (installation.editor && installation.editor.patch===patch) {
-    installation.editor.declarations=structuredClone(declarations);
-    installation.editor.events=structuredClone(data.events||[]);
-    installation.editor.io_modules=structuredClone(data.io_modules||[]);
-  }
-  const warnings=(data?.warnings||[data?.pd_receive_warning]).filter(Boolean);
-  manifestFeedback=warnings.length?`Saved with warning: ${warnings.join(" ")}`:"Manifest saved. Live controls refreshed; the engine was not restarted.";
-  render();
-});
-ws.on("patch_created", data => {
-  if (data?.patch) pendingCreatedPatch=data.patch;
-  manifestDraft=null; manifestBaseline=null; manifestDirty=false;
-  manifestFeedback=data?.template_copied
-    ? `Created ${data.patch} with a manifest and a verbatim copy of Bob's patch template.`
-    : (data?.status||`Created ${data?.patch||"patch"} manifest-only; no template was copied.`);
-  ws.send("refresh_distribution",{});
-  render();
-});
-ws.on("notification", data => {
-  if (data?.scope==="patch_editor" || data?.patch) {
-    manifestFeedback=String(data.message||data.status||""); render();
-  }
-});
-ws.on("status", data => {
-  if (data?.scope==="patch_editor") {
-    manifestFeedback=String(data.message||data.status||""); render();
-  }
-});
-ws.on("device_offline", data => { if (installation.devices[data.uid]) installation.devices[data.uid].online = false; render(); });
-ws.on("mute_all", data => { muted = !!data.value; installation.muted=muted; render(); });
-ws.on("master", data => { master = Number(data.value); renderHeader(); });
-ws.on("room", data => { installation.room = data; render(); });
-ws.on("listener", data => { installation.listener = data; render(); });
-ws.on("points", data => { installation.points = data.points || {}; render(); });
-ws.on("editor_points", data => {
-  if (!installation.editor) return;
-  installation.editor.points=data.points||{};
-  Spatial.renderEditor(installation.editor,ws);
-});
-ws.on("editor_point_element", data => {
-  if (!installation.editor) return;
-  installation.editor.point_element=Number(data.element)||0;
-  Spatial.renderEditor(installation.editor,ws);
-});
-ws.on("point_frame", data => Spatial.frame(data.points || {}));
-ws.on("editor_event_fired", data => {
-  const status = $("#editor-event-status"); if (!status) return;
-  status.value = `${data.identity} fired`;
-});
-ws.on("error", data => {
-  if (remoteCommandSaving) {
-    remoteCommandSaving=false;
-    remoteCommandFeedback=`Not saved: ${data.message}`;
-    renderRemoteCommandEditor();
-    return;
-  }
-  if (manifestFeedback.endsWith("…")) {
-    manifestFeedback=`Not saved: ${data.message}`;
-    const feedback=$("#manifest-feedback"); if (feedback) feedback.textContent=manifestFeedback;
-  }
-  if (activeTab==="show" && typeof window.ShowInspectorError==="function") {
-    window.ShowInspectorError(data.message);
-    return;
-  }
-  alert(data.message);
-});
-ws.on("seat_reindexed", data => {
-  selectedSeat=Number(data.new_id); selected=occupant(installation.seats?.[String(selectedSeat)])?.uid||null; render();
-});
 function render() {
-  $("#project-bar-project").textContent=installation.project||"—";
-  $("#project-bar-site").textContent=installation.current_site||"—";
+  $("#project-bar-project").textContent = installation.project || "—";
+  $("#project-bar-site").textContent = installation.current_site || "—";
   window.ProjectMenu?.render();
-  $("#project-bar-patch").textContent=installation.fleet_patch?.name||"—";
-  $("#project-bar-show").textContent=installation.current_show||"—";
+  $("#project-bar-patch").textContent = installation.fleet_patch?.name || "—";
+  $("#project-bar-show").textContent = installation.current_show || "—";
   const devices = Object.values(installation.devices || {});
-  const seats = Object.values(installation.seats || {}).sort((a,b) => a.id-b.id);
-  const bound = new Set(seats.map(s => s.bound).filter(Boolean));
-  const physical = devices.filter(d=>!d.virtual).sort((a,b)=>Number(b.online)-Number(a.online)||(Number(b.last_seen)||0)-(Number(a.last_seen)||0));
-  const visible = physical.filter(device=>{
-    if (deviceFilter==="online" || deviceFilter==="offline") return !!device.online===(deviceFilter==="online");
-    if (deviceFilter==="bound" || deviceFilter==="unbound") return bound.has(device.uid)===(deviceFilter==="bound");
+  const seats = Object.values(installation.seats || {}).sort((a, b) => a.id - b.id);
+  const bound = new Set(seats.map((s) => s.bound).filter(Boolean));
+  const physical = devices
+    .filter((d) => !d.virtual)
+    .sort((a, b) => Number(b.online) - Number(a.online) || (Number(b.last_seen) || 0) - (Number(a.last_seen) || 0));
+  const visible = physical.filter((device) => {
+    if (deviceFilter === "online" || deviceFilter === "offline") return !!device.online === (deviceFilter === "online");
+    if (deviceFilter === "bound" || deviceFilter === "unbound") return bound.has(device.uid) === (deviceFilter === "bound");
     return true;
   });
   $("#assigned").innerHTML = seats.map(seatRow).join("") || '<p class="dim">No seats</p>';
-  const rosterFilter=$("#seat-roster-filter");
-  if (rosterFilter && document.activeElement!==rosterFilter) rosterFilter.value=seatRosterFilter;
-  const applyRosterFilter=()=>{
-    seatRosterFilter=rosterFilter?.value||"";
-    const value=seatRosterFilter.trim().toLowerCase();let matches=0;
-    document.querySelectorAll("#assigned [data-seat-filter]").forEach(row=>{
-      row.hidden=!!value&&!row.dataset.seatFilter.startsWith(value);
-      if(!row.hidden)matches++;
+  const rosterFilter = $("#seat-roster-filter");
+  if (rosterFilter && document.activeElement !== rosterFilter) rosterFilter.value = seatRosterFilter;
+  const applyRosterFilter = () => {
+    seatRosterFilter = rosterFilter?.value || "";
+    const value = seatRosterFilter.trim().toLowerCase();
+    let matches = 0;
+    document.querySelectorAll("#assigned [data-seat-filter]").forEach((row) => {
+      row.hidden = !!value && !row.dataset.seatFilter.startsWith(value);
+      if (!row.hidden) matches++;
     });
-    const empty=$("#seat-roster-filter-empty");if(empty)empty.hidden=!value||matches>0;
+    const empty = $("#seat-roster-filter-empty");
+    if (empty) empty.hidden = !value || matches > 0;
   };
-  if (rosterFilter) rosterFilter.oninput=applyRosterFilter;
+  if (rosterFilter) rosterFilter.oninput = applyRosterFilter;
   applyRosterFilter();
-  $("#device-roster").innerHTML = visible.map(device=>row(device,seats.find(seat=>seat.bound===device.uid))).join("") || '<p class="dim">No matching devices</p>';
+  $("#device-roster").innerHTML =
+    visible
+      .map((device) =>
+        row(
+          device,
+          seats.find((seat) => seat.bound === device.uid),
+        ),
+      )
+      .join("") || '<p class="dim">No matching devices</p>';
   window.WifiNetworks?.status();
-  document.querySelectorAll(".seat-row").forEach(el => {
-    el.onclick = event => { if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId)); };
+  document.querySelectorAll(".seat-row").forEach((el) => {
+    el.onclick = (event) => {
+      if (!event.target.closest("input")) selectSeat(Number(el.dataset.seatId));
+    };
     const input = el.querySelector("[data-seat-name]");
-    input.onchange = () => ws.send("update_seat", {id:Number(el.dataset.seatId), name:input.value});
+    input.onchange = () => ws.send("update_seat", { id: Number(el.dataset.seatId), name: input.value });
   });
-  document.querySelectorAll(".device-row:not(.seat-row)").forEach(el => el.onclick = () => select(el.dataset.uid));
-  $("#device-filter").value=deviceFilter;
-  $("#device-filter").onchange=event=>{deviceFilter=event.target.value;render();};
-  $("#forget-offline").onclick=()=>{if(confirm("Forget all offline unbound devices from this runtime roster?"))ws.send("forget_offline_unbound",{});};
-  $("#seat-add").onclick=()=>{
-    const id=nextFreeId(); selectedSeat=id; selected=null;
-    ws.send("add_seat",{id,name:`Seat ${id}`,positions:[]});
+  document.querySelectorAll(".device-row:not(.seat-row)").forEach((el) => (el.onclick = () => select(el.dataset.uid)));
+  $("#device-filter").value = deviceFilter;
+  $("#device-filter").onchange = (event) => {
+    deviceFilter = event.target.value;
+    render();
+  };
+  $("#forget-offline").onclick = () => {
+    if (confirm("Forget all offline unbound devices from this runtime roster?")) ws.send("forget_offline_unbound", {});
+  };
+  $("#seat-add").onclick = () => {
+    const id = nextFreeId();
+    selectedSeat = id;
+    selected = null;
+    ws.send("add_seat", { id, name: `Seat ${id}`, positions: [] });
   };
 
   renderEditor();
@@ -292,330 +204,126 @@ function render() {
   renderAssets();
   renderGroups();
   renderGroupMap();
-  Spatial.render(installation, selectedSeat, selectSeat, ws, groupView()); renderRoom();
-  renderHeader(); renderSeatDetail(); renderDeviceDetail();
+  Spatial.render(installation, selectedSeat, selectSeat, ws, groupView());
+  renderRoom();
+  renderHeader();
+  renderSeatDetail();
+  renderDeviceDetail();
 }
 function occupant(seat) {
-  const devices=Object.values(installation.devices||{});
-  return devices.find(d=>d.virtual&&Number(d.seat_id)===Number(seat.id)) || installation.devices?.[seat.bound];
+  const devices = Object.values(installation.devices || {});
+  return devices.find((d) => d.virtual && Number(d.seat_id) === Number(seat.id)) || installation.devices?.[seat.bound];
 }
 function reconcileSelection() {
   if (selectedSeat != null) {
-    const seat=installation.seats?.[String(selectedSeat)]||installation.seats?.[selectedSeat];
-    if (!seat) { selectedSeat=null; selected=null; return; }
-    selected=occupant(seat)?.uid||null;
+    const seat = installation.seats?.[String(selectedSeat)] || installation.seats?.[selectedSeat];
+    if (!seat) {
+      selectedSeat = null;
+      selected = null;
+      return;
+    }
+    selected = occupant(seat)?.uid || null;
     return;
   }
-  if (!selected || !installation.devices?.[selected]) { selected=null; return; }
-  const seat=Object.values(installation.seats||{}).find(item=>item.bound===selected);
-  if (seat) selectedSeat=seat.id;
+  if (!selected || !installation.devices?.[selected]) {
+    selected = null;
+    return;
+  }
+  const seat = Object.values(installation.seats || {}).find((item) => item.bound === selected);
+  if (seat) selectedSeat = seat.id;
 }
 
-function groupCatalog() {
-  return Object.values(installation.groups || {}).sort((a,b)=>Number(a.id)-Number(b.id));
-}
-function groupById(id) {
-  return installation.groups?.[String(id)] || installation.groups?.[id] || null;
-}
-function groupMembers(id) {
-  return Object.values(installation.seats || {}).filter(seat=>(seat.groups||[]).includes(Number(id))).sort((a,b)=>Number(a.id)-Number(b.id));
-}
-function visibleGroupIds() {
-  return visibleGroups.filter(id=>id!==null);
-}
-function reconcileGroupView() {
-  const valid=new Set(groupCatalog().map(group=>Number(group.id)));
-  visibleGroups=Array.from({length:4},(_item,index)=>{
-    const id=visibleGroups[index]; return id!==null&&valid.has(Number(id))?Number(id):null;
-  });
-  if (!valid.has(Number(focusedGroup))) focusedGroup=null;
-  if (!valid.has(Number(selectedGroup))) selectedGroup=null;
-}
-function groupView() {
-  return {visible:visibleGroupIds(),visibleSlots:[...visibleGroups],focused:focusedGroup,slots:GROUP_SLOTS};
-}
-// Adapted Lucide eye/eye-off geometry; see THIRD_PARTY_NOTICES.md.
-function eyeIcon(shown) {
-  const slash=shown?'':'<path d="M2 2l20 20"></path>';
-  return `<svg class="visibility-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle>${slash}</svg>`;
-}
-function ensureGroupVisible(id) {
-  id=Number(id);
-  if (visibleGroups.includes(id)) return true;
-  const slot=visibleGroups.findIndex(item=>item===null);
-  if (slot<0) {
-    groupMessage="Four groups are already shown; hide one to compare another.";
-    return false;
-  }
-  visibleGroups[slot]=id; groupMessage=""; return true;
-}
-function focusGroup(id) {
-  id=Number(id); selectedGroup=id; groupMemberFilter=""; activateSeatSidebar("groups");
-  if (focusedGroup===id) focusedGroup=null;
-  else if (ensureGroupVisible(id)) focusedGroup=id;
-  renderGroups(); renderGroupMap();
-  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
-}
-function toggleGroupVisible(id) {
-  id=Number(id);
-  if (visibleGroups.includes(id)) {
-    visibleGroups=visibleGroups.map(item=>item===id?null:item);
-    if (focusedGroup===id) focusedGroup=null;
-    groupMessage="";
-  } else ensureGroupVisible(id);
-  renderGroups(); renderGroupMap();
-  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
-}
-function clearGroupView() {
-  focusedGroup=null; visibleGroups=[null,null,null,null]; groupMessage="";
-  renderGroups(); renderGroupMap();
-  Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
-}
-function groupMarker(id) {
-  const index=visibleGroups.indexOf(Number(id));
-  if (index<0) return '<i class="group-slot hidden" aria-hidden="true">–</i>';
-  const slot=GROUP_SLOTS[index];
-  return `<i class="group-slot slot-${index+1}" style="--group-colour:${slot.colour}" aria-hidden="true">${index+1}</i>`;
-}
-function renderGroups() {
-  const panel=$("#group-sidebar-panel"), content=$("#groups-content"), summary=$("#groups-summary");
-  if (!panel || !content || !summary) return;
-  const previousFilter=$("#group-member-filter");
-  const restoreFilterFocus=document.activeElement===previousFilter;
-  const filterSelection=restoreFilterFocus
-    ? [previousFilter.selectionStart,previousFilter.selectionEnd] : null;
-  reconcileGroupView();
-  const groups=groupCatalog();
-  summary.textContent=`${visibleGroupIds().length} shown · ${groups.length} total`;
-  const rows=groups.map(group=>{
-    const id=Number(group.id), visible=visibleGroups.includes(id), count=groupMembers(id).length;
-    const action=`${visible?'Hide':'Show'} ${group.name} ${visible?'from':'on'} map`;
-    return `<div class="group-row${focusedGroup===id?' focused':''}${selectedGroup===id?' selected':''}" data-group-row="${id}">
-      <button class="group-focus" data-group-focus="${id}" aria-pressed="${focusedGroup===id}">${groupMarker(id)}<span><strong>${esc(group.name)}</strong><small>g${id} · ${count} ${count===1?'Seat':'Seats'}</small></span></button>
-      <button class="group-eye" data-group-eye="${id}" aria-pressed="${visible}" aria-label="${esc(action)}" title="${esc(action)}">${eyeIcon(visible)}</button>
-      <details class="group-overflow icon-menu"><summary aria-label="Actions for ${esc(group.name)}" title="Group actions">…</summary><div><button data-group-rename="${id}">Rename</button><button data-group-delete="${id}" class="danger">Delete</button></div></details>
-    </div>`;
-  }).join("");
-  const active=groupById(selectedGroup);
-  const members=active ? groupMembers(active.id) : [];
-  const seatQuery=groupMemberFilter.trim().toLowerCase();
-  const memberRows=active ? Object.values(installation.seats||{}).sort((a,b)=>Number(a.id)-Number(b.id)).map(seat=>{
-    const checked=(seat.groups||[]).includes(Number(active.id));
-    const search=String(seat.name||`Seat ${seat.id}`).trim().toLowerCase();
-    const device=seat.bound?installation.devices?.[seat.bound]:null;
-    const sync=!seat.bound?'unbound':device?.group_sync?.status||(device?.online?'waiting':'offline');
-    return `<label class="membership-check" data-group-member-filter="${esc(search)}" ${seatQuery&&!search.startsWith(seatQuery)?'hidden':''}><input type="checkbox" data-group-member="${seat.id}" ${checked?'checked':''}><span><strong>${esc(seat.name||`Seat ${seat.id}`)}</strong><small>Seat ${seat.id} · ${esc(sync)}</small></span></label>`;
-  }).join("") : "";
-  const detail=active ? `<section class="group-detail"><div class="group-detail-head"><div><strong>${esc(active.name)}</strong><small>g${active.id} · ${members.length} ${members.length===1?'Seat':'Seats'}</small></div><button id="group-show-map">Show on map</button></div><label class="group-filter">Filter Seats <input id="group-member-filter" type="text" placeholder="Names beginning with…" value="${esc(groupMemberFilter)}"></label><div class="membership-list">${memberRows||'<p class="dim">No Seats to add yet.</p>'}</div><p id="group-filter-empty" class="dim" ${seatQuery&&memberRows&&!Object.values(installation.seats||{}).some(seat=>String(seat.name||`Seat ${seat.id}`).trim().toLowerCase().startsWith(seatQuery))?'':'hidden'}>No Seat names begin with this filter.</p></section>` : "";
-  content.innerHTML=`<div class="group-rows">${rows||'<p class="dim">No groups yet</p>'}</div><p id="group-limit" class="group-limit" role="status" ${groupMessage?'':'hidden'}>${esc(groupMessage)}</p>${detail}`;
-  $("#group-create").onclick=()=>{const name=prompt("Group name:","");if(name?.trim())ws.send("create_group",{name:name.trim()});};
-  content.querySelectorAll("[data-group-focus]").forEach(button=>button.onclick=()=>focusGroup(button.dataset.groupFocus));
-  content.querySelectorAll("[data-group-eye]").forEach(button=>button.onclick=()=>toggleGroupVisible(button.dataset.groupEye));
-  content.querySelectorAll("[data-group-rename]").forEach(button=>button.onclick=()=>{const group=groupById(button.dataset.groupRename);const name=group&&prompt("Rename group:",group.name);if(name?.trim())ws.send("rename_group",{id:Number(group.id),name:name.trim()});});
-  content.querySelectorAll("[data-group-delete]").forEach(button=>button.onclick=()=>{const group=groupById(button.dataset.groupDelete);if(group&&confirm(`Delete ${group.name} (g${group.id})? Seat memberships will be removed.`)){visibleGroups=visibleGroups.map(id=>id===Number(group.id)?null:id);if(focusedGroup===Number(group.id))focusedGroup=null;if(selectedGroup===Number(group.id))selectedGroup=null;ws.send("delete_group",{id:Number(group.id)});}});
-  const show=$("#group-show-map"); if(show)show.onclick=()=>{if(focusedGroup!==Number(active.id))focusGroup(active.id);};
-  const memberFilter=$("#group-member-filter"); if(memberFilter){
-    const applyFilter=()=>{groupMemberFilter=memberFilter.value;const value=groupMemberFilter.trim().toLowerCase();let matches=0;content.querySelectorAll("[data-group-member-filter]").forEach(row=>{row.hidden=!!value&&!row.dataset.groupMemberFilter.startsWith(value);if(!row.hidden)matches++;});const empty=$("#group-filter-empty");if(empty)empty.hidden=!value||matches>0;};
-    memberFilter.oninput=applyFilter;
-    memberFilter.onchange=applyFilter;
-    memberFilter.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();applyFilter();}};
-    if(restoreFilterFocus){memberFilter.focus();if(filterSelection.every(value=>value!==null))memberFilter.setSelectionRange(...filterSelection);}
-  }
-  content.querySelectorAll("[data-group-member]").forEach(input=>input.onchange=()=>{
-    const seat=installation.seats?.[String(input.dataset.groupMember)]; if(!seat||!active)return;
-    const next=new Set((seat.groups||[]).map(Number)); input.checked?next.add(Number(active.id)):next.delete(Number(active.id));
-    seat.groups=[...next].sort((a,b)=>a-b); ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});
-    renderGroupMap(); Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());
-  });
-}
-function renderGroupMap() {
-  const bar=$("#group-map-bar"), legend=$("#group-map-legend"), message=$("#group-map-message");
-  if (!bar || !legend || !message) return;
-  bar.hidden=!visibleGroupIds().length;
-  legend.innerHTML=visibleGroups.map((id,index)=>{if(id===null)return"";const group=groupById(id);if(!group)return"";return `<button class="group-legend-chip${focusedGroup===id?' focused':''}" data-group-legend="${id}">${groupMarker(id)}<span>${esc(group.name)} <small>g${id}</small></span></button>`;}).join("");
-  legend.querySelectorAll("[data-group-legend]").forEach(button=>button.onclick=()=>focusGroup(button.dataset.groupLegend));
-  $("#group-view-clear").onclick=clearGroupView;
-  const focused=groupById(focusedGroup), empty=focused&&groupMembers(focused.id).length===0;
-  message.hidden=!empty; message.textContent=empty?`No Seats in ${focused.name} (g${focused.id})`:"";
-}
-function seatRow(seat) {
-  const d=occupant(seat), state=d?.virtual?'sim':(d?.online?'live':'empty');
-  const uid=d?.uid||"";
-  const heartbeatAt=heartbeats.get(uid);
-  const name=seat.name||`Seat ${seat.id}`;
-  return `<div class="device-row seat-row ${Number(seat.id)===Number(selectedSeat)?'selected':''} ${badgeTone(d?.patch_badge)}" data-uid="${esc(uid)}" data-seat-id="${seat.id}" data-seat-filter="${esc(String(name).trim().toLowerCase())}" role="button" tabindex="0"><i class="dot ${state==='live'?'online':state==='sim'?'sim':'offline'}"></i>${uid?`<i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i>`:''}<span><input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(name)}"><small>ID ${seat.id} · ${state}</small></span>${d?patchBadge(d.patch_badge):''}</div>`;
-}
-const PATCH_BADGE_LABELS = {unset:"not set",unknown:"unknown / last seen",switching:"switching",timeout:"switch timed out",failed:"switch failed",missing:"missing",mismatch:"mismatch",stale:"stale",stale_unverified:"stale (unverified)",current:"current"};
-const PATCH_BADGE_ORDER = ["current","switching","timeout","failed","missing","mismatch","stale","stale_unverified","unknown","unset"];
+const PATCH_BADGE_LABELS = {
+  unset: "not set",
+  unknown: "unknown / last seen",
+  switching: "switching",
+  timeout: "switch timed out",
+  failed: "switch failed",
+  missing: "missing",
+  mismatch: "mismatch",
+  stale: "stale",
+  stale_unverified: "stale (unverified)",
+  current: "current",
+};
+const PATCH_BADGE_ORDER = [
+  "current",
+  "switching",
+  "timeout",
+  "failed",
+  "missing",
+  "mismatch",
+  "stale",
+  "stale_unverified",
+  "unknown",
+  "unset",
+];
 function patchBadge(value) {
-  const badge=value||"unknown", label=PATCH_BADGE_LABELS[badge]||badge.replaceAll("_"," ");
+  const badge = value || "unknown",
+    label = PATCH_BADGE_LABELS[badge] || badge.replaceAll("_", " ");
   return `<span class="patch-badge patch-badge-${esc(badge)}" title="Fleet patch: ${esc(label)}">${esc(label)}</span>`;
 }
-function badgeTone(value) { return value && !["current","unset"].includes(value) ? "patch-exception" : ""; }
+function badgeTone(value) {
+  return value && !["current", "unset"].includes(value) ? "patch-exception" : "";
+}
 function fleetPatchSummary() {
-  const assigned=Object.values(installation.seats||{}).map(occupant).filter(Boolean);
-  const counts=new Map(); assigned.forEach(device=>counts.set(device.patch_badge||"unknown",(counts.get(device.patch_badge||"unknown")||0)+1));
-  const progress=PATCH_BADGE_ORDER.filter(badge=>counts.has(badge)).map(badge=>`${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`).join(" · ");
-  const targets=`${assigned.length} assigned target${assigned.length===1?'':'s'}`;
-  return installation.fleet_patch?.name?`${targets}${progress?` · ${progress}`:''}`:`No fleet patch set`;
-}
-function projectPatches() {
-  return Array.isArray(installation.patches)?installation.patches:[];
-}
-function catalogPatch(name) {
-  return (distribution.patches||[]).find(item=>item.name===name)||null;
-}
-function patchEngine(item) {
-  const manifest=item?.manifest&&typeof item.manifest==="object"?item.manifest:{};
-  return [manifest.engine??item?.engine, manifest.entrypoint??item?.entrypoint].filter(Boolean).join(" · ");
-}
-// New Version's suggested name: bump a trailing number (kite-v2 -> kite-v3,
-// keeping zero padding), else append -v2; skip names the catalog already has.
-function nextVersionName(live, taken) {
-  let name=live;
-  do {
-    const match=/^(.*?)(\d+)$/.exec(name);
-    name=match?`${match[1]}${String(Number(match[2])+1).padStart(match[2].length,"0")}`:`${name}-v2`;
-  } while (taken.has(name));
-  return name;
-}
-function focusSelectedPatch() {
-  requestAnimationFrame(()=>($("#patch-list .patch-item.selected")||$("#patch-filter"))?.focus());
-}
-function selectPatch(name) {
-  if (name===editorPatchChoice) return;
-  editorPatchChoice=name; manifestDraft=null; manifestBaseline=null; manifestDirty=false; manifestFeedback="";
-  render();
-}
-function launchEditor(patch) {
-  const editor=installation.editor||{}, mode=installation.supervisor?.mode||"off";
-  if (editor.active&&editor.patch===patch) {
-    if (confirm("Stop Patch edit and return audio control to the Live fleet?")) ws.send("set_edit",{active:false,confirmed:true});
-    return;
-  }
-  if (mode!=="edit") {
-    const question=mode==="simulate"
-      ? `Stop the running Simulation and edit "${patch}"?`
-      : `Open "${patch}" in Patch edit? Live fleet devices will not be driven.`;
-    if (!confirm(question)) return;
-  }
-  ws.send("set_edit",{active:true,patch,confirmed:mode!=="edit"});
-}
-function deployPatch(name) {
-  if(confirm(`Deploy "${name}" as the fleet patch? The dashboard will converge patch bytes, then restart audio engines across online assigned devices.`))ws.send("set_fleet_patch",{patch:name,confirmed:true});
-}
-function renderPatchesTab() {
-  const list=$("#patch-list"), detail=$("#patch-detail");
-  if (!list || !detail) return;
-  const live=installation.fleet_patch?.name||"";
-  const editor=installation.editor||{}, editing=installation.supervisor?.mode==="edit";
-  const names=projectPatches();
-  const filter=$("#patch-filter");
-  filter.oninput=()=>{patchFilter=filter.value;renderPatchesTab();};
-  const needle=patchFilter.trim().toLowerCase();
-  const shown=names.filter(name=>!needle||name.toLowerCase().includes(needle));
-  list.innerHTML=shown.map(name=>{
-    const item=catalogPatch(name);
-    const note=name===live?fleetPatchSummary():(item?.valid?patchEngine(item).split(" · ")[0]:PATCH_BADGE_LABELS.missing);
-    return `<button type="button" class="patch-item${name===editorPatchChoice?' selected':''}" data-patch="${esc(name)}"><span><strong>${esc(name)}</strong><small>${esc(note||"")}</small></span>${name===live?'<span class="patch-live-tag">Live</span>':''}</button>`;
-  }).join("");
-  list.querySelectorAll("[data-patch]").forEach(button=>{button.onclick=()=>selectPatch(button.dataset.patch);});
-  $("#refresh-distribution").onclick=()=>ws.send("refresh_distribution",{});
-  const taken=new Set((distribution.patches||[]).map(item=>item.name));
-  const newVersion=$("#patch-new-version");
-  newVersion.disabled=performanceActive()||!live||!catalogPatch(live)?.valid;
-  newVersion.onclick=()=>openVersionDialog(live,taken);
-  const addable=(distribution.patches||[]).filter(item=>item.valid&&!names.includes(item.name)).map(item=>item.name);
-  const addExisting=$("#patch-add-existing");
-  addExisting.disabled=!addable.length;
-  addExisting.onclick=()=>{
-    $("#patch-add-select").innerHTML=addable.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join("");
-    $("#patch-add-dialog").showModal();
-  };
-  $("#patch-add-dialog").onclose=()=>{
-    const dialog=$("#patch-add-dialog"), name=$("#patch-add-select").value;
-    if (dialog.returnValue==="add"&&name) {pendingCreatedPatch=name;ws.send("add_project_patch",{patch:name});}
-  };
-  const patch=editorPatchChoice, item=catalogPatch(patch);
-  if (!patch) { detail.innerHTML=`<p class="dim">${esc(fleetPatchSummary())}</p>`; return; }
-  const isLive=patch===live, editingThis=editor.active&&editor.patch===patch;
-  const lastPushed=isLive&&installation.fleet_patch?.staged_at?new Date(installation.fleet_patch.staged_at*1000).toLocaleString([], {day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
-  detail.innerHTML=`<div class="patch-detail-head"><h2>${esc(patch)}${isLive?' <span class="patch-live-tag">Live</span>':''}</h2><div class="patch-detail-actions"><button id="patch-edit">${editingThis?'Stop Editor':'Edit'}</button><button id="patch-deploy">${isLive?'Push':'Set Live'}</button></div></div>
-    <p class="dim">${isLive?'The live fleet runs this patch. Edit and push it in place, or make a New Version.':'Not live. Set Live pushes it to the fleet and switches every device to it.'}</p>
-    <dl><dt>Devices</dt><dd>${isLive?`<output id="fleet-patch-summary">${esc(fleetPatchSummary())}</output>`:(live?`on ${esc(live)} (live)`:esc(fleetPatchSummary()))}</dd>${lastPushed?`<dt>Last pushed</dt><dd>${esc(lastPushed)}</dd>`:''}<dt>Engine</dt><dd>${esc(item?.valid?patchEngine(item):PATCH_BADGE_LABELS.missing)}</dd></dl>`;
-  const edit=$("#patch-edit"), deploy=$("#patch-deploy");
-  edit.disabled=performanceActive()||(!item?.valid&&!editingThis);
-  edit.onclick=()=>launchEditor(patch);
-  deploy.disabled=performanceActive()||!item?.valid||editing;
-  deploy.onclick=()=>deployPatch(patch);
-}
-function openVersionDialog(live,taken) {
-  const dialog=$("#patch-version-dialog"), input=$("#patch-version-name"), error=$("#patch-version-error"), create=$("#patch-version-create");
-  dialog.querySelectorAll("[data-patch-version-live]").forEach(node=>{node.textContent=live;});
-  input.value=nextVersionName(live,taken);
-  const check=()=>{
-    const name=input.value.trim();
-    const exists=taken.has(name);
-    error.textContent=exists?`Patch '${name}' already exists.`:"";
-    create.disabled=!name||exists;
-  };
-  input.oninput=check; check();
-  dialog.onclose=()=>{
-    const name=input.value.trim();
-    if (dialog.returnValue==="create"&&name&&!taken.has(name)) {
-      pendingCreatedPatch=name;
-      ws.send("new_patch_version",{name});
-    }
-  };
-  dialog.returnValue="";
-  dialog.showModal();
-  input.select();
+  const assigned = Object.values(installation.seats || {})
+    .map(occupant)
+    .filter(Boolean);
+  const counts = new Map();
+  assigned.forEach((device) => counts.set(device.patch_badge || "unknown", (counts.get(device.patch_badge || "unknown") || 0) + 1));
+  const progress = PATCH_BADGE_ORDER.filter((badge) => counts.has(badge))
+    .map((badge) => `${counts.get(badge)} ${PATCH_BADGE_LABELS[badge]}`)
+    .join(" · ");
+  const targets = `${assigned.length} assigned target${assigned.length === 1 ? "" : "s"}`;
+  return installation.fleet_patch?.name ? `${targets}${progress ? ` · ${progress}` : ""}` : `No fleet patch set`;
 }
 function contextualExecutionPatch() {
-  const editor=installation.editor||{}, sim=installation.simulation||{};
-  if (editor.active&&editor.patch) return editor.patch;
-  if (activeTab==="patches"&&editorPatchChoice) return editorPatchChoice;
-  return sim.patch||installation.fleet_patch?.name||editorPatchChoice||null;
+  const editor = installation.editor || {},
+    sim = installation.simulation || {};
+  if (editor.active && editor.patch) return editor.patch;
+  if (activeTab === "patches" && editorPatchChoice) return editorPatchChoice;
+  return sim.patch || installation.fleet_patch?.name || editorPatchChoice || null;
 }
 
 function setExecutionTarget(target) {
-  if (target==="edit" && performanceActive()) return;
-  const mode=installation.supervisor?.mode||"off";
-  if (target==="off") {
-    if (mode==="simulate") {
+  if (target === "edit" && performanceActive()) return;
+  const mode = installation.supervisor?.mode || "off";
+  if (target === "off") {
+    if (mode === "simulate") {
       if (!confirm("Stop Simulation and return audio control to the Live fleet?")) return;
-      ws.send("set_simulation",{active:false,confirmed:true});
-    } else if (mode==="edit") {
+      ws.send("set_simulation", { active: false, confirmed: true });
+    } else if (mode === "edit") {
       if (!confirm("Stop Patch edit and return audio control to the Live fleet?")) return;
-      ws.send("set_edit",{active:false,confirmed:true});
+      ws.send("set_edit", { active: false, confirmed: true });
     }
     return;
   }
-  if (target==="simulate") {
-    if (mode==="simulate") return;
-    const patch=contextualExecutionPatch();
-    const question=mode==="edit"
-      ? `Stop Patch edit and hear "${patch||"the selected patch"}" in Simulation?`
-      : `Run "${patch||"the selected patch"}" in Simulation? Live fleet devices will not be driven.`;
+  if (target === "simulate") {
+    if (mode === "simulate") return;
+    const patch = contextualExecutionPatch();
+    const question =
+      mode === "edit"
+        ? `Stop Patch edit and hear "${patch || "the selected patch"}" in Simulation?`
+        : `Run "${patch || "the selected patch"}" in Simulation? Live fleet devices will not be driven.`;
     if (!confirm(question)) return;
-    ws.send("set_simulation",{active:true,patch,confirmed:true});
+    ws.send("set_simulation", { active: true, patch, confirmed: true });
     return;
   }
-  if (target==="edit") {
-    if (mode==="edit") {
+  if (target === "edit") {
+    if (mode === "edit") {
       activateTab("patches");
       focusSelectedPatch();
       return;
     }
-    const patch=contextualExecutionPatch();
-    if (mode==="simulate") {
-      if (!confirm(`Stop Simulation and edit "${patch||"the selected patch"}"?`)) return;
-      ws.send("set_simulation",{active:false,confirmed:true});
-      if (patch) ws.send("set_edit",{active:true,patch,confirmed:true});
+    const patch = contextualExecutionPatch();
+    if (mode === "simulate") {
+      if (!confirm(`Stop Simulation and edit "${patch || "the selected patch"}"?`)) return;
+      ws.send("set_simulation", { active: false, confirmed: true });
+      if (patch) ws.send("set_edit", { active: true, patch, confirmed: true });
     } else {
       if (patch) {
         if (!confirm(`Open "${patch}" in Patch edit? Live fleet devices will not be driven.`)) return;
-        ws.send("set_edit",{active:true,patch,confirmed:true});
+        ws.send("set_edit", { active: true, patch, confirmed: true });
       }
     }
     activateTab("patches");
@@ -623,1088 +331,146 @@ function setExecutionTarget(target) {
   }
 }
 
-function manifestSource(editor, patches, patch) {
-  const item=patches.find(candidate=>candidate.name===patch)||{};
-  const embedded=item.manifest && typeof item.manifest==="object" ? item.manifest : {};
-  const current=editor.patch===patch ? editor : {};
-  const params=current.declarations||embedded.params||item.params||item.declarations;
-  const events=current.events||embedded.events||item.events;
-  return {
-    engine:current.engine??embedded.engine??item.engine,
-    entrypoint:current.entrypoint??embedded.entrypoint??item.entrypoint,
-    caps:current.caps??embedded.caps??item.caps??[],
-    slots:current.slots??embedded.slots??item.slots??[],
-    params:Array.isArray(params)?params:[],
-    events:Array.isArray(events)?events:[],
-    io_modules:current.io_modules||embedded.io_modules||[],
-    available:Array.isArray(params)||Array.isArray(events)||Boolean(current.engine||embedded.engine||item.engine),
-    editable:Boolean(!performanceActive()&&editor.active&&editor.patch===patch),
-  };
-}
-function resetManifestDraft(patch, source) {
-  manifestDraft={patch,params:structuredClone(source.params),events:structuredClone(source.events),io_modules:structuredClone(source.io_modules)};
-  manifestBaseline=structuredClone(manifestDraft);
-  manifestDirty=false;
-}
-function manifestValue(value) {
-  if (Array.isArray(value)) return value.length?value.map(item=>typeof item==="string"?item:JSON.stringify(item)).join(", "):"none";
-  return value??"—";
-}
-function paramIdentity(param) {
-  const path=Array.isArray(param?.path)?param.path:[];
-  return [...path,param?.name||""].join("/");
-}
-function manifestParamsForSave(params) {
-  return structuredClone(params).map(param=>{
-    if (!Array.isArray(param.path) || !param.path.length) delete param.path;
-    if (param.kind==="toggle" || param.kind==="enum") {
-      delete param.min;
-      delete param.max;
-    }
-    delete param.group;
-    delete param.facilitator;
-    return param;
-  });
-}
-function manifestEventsForSave(events) {
-  return events.map(declaration=>{
-    const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-    const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
-    return {
-      name:String(declaration.name||""),
-      arity,
-      defaults:Array.from({length:arity},(_unused,index)=>Number(defaults[index])||0),
-      dashboard:declaration.dashboard===true,
-    };
-  });
-}
-function setManifestParamKind(param, kind) {
-  param.kind=kind;
-  if (kind==="float" || kind==="int") {
-    delete param.options;
-    if (typeof param.min!=="number") param.min=0;
-    if (typeof param.max!=="number") param.max=1;
-    if (typeof param.default!=="number") param.default=0;
-  } else if (kind==="toggle") {
-    delete param.options; delete param.min; delete param.max;
-    param.default=Number(param.default)===1?1:0;
-  } else if (kind==="enum") {
-    delete param.min; delete param.max;
-    if (!Array.isArray(param.options) || param.options.length<2) param.options=["option 0","option 1"];
-    if (!Number.isInteger(param.default) || param.default<0 || param.default>=param.options.length) param.default=0;
-  } else {
-    delete param.options; delete param.min; delete param.max;
-    if (typeof param.default!=="string") param.default="";
-  }
-}
-function paramManifestRow(param, index) {
-  const kind=param.kind||"float";
-  const path=Array.isArray(param.path)?param.path.join("/"):"";
-  const bounds=(kind==="float" || kind==="int")?`
-    <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min??"")}"></label>
-    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max??"")}"></label>`:"";
-  const options=kind==="enum"
-    ? `<label>options · one per line<textarea data-manifest-field="options" rows="2">${esc((param.options||[]).join("\n"))}</textarea></label>`:"";
-  const defaultType=kind==="text"?"text":"number";
-  return `<div class="manifest-row manifest-param" data-param-index="${index}">
-    <button type="button" class="manifest-drag-handle" data-manifest-drag="params" data-manifest-drag-index="${index}" aria-label="Drag parameter ${esc(paramIdentity(param)||index+1)}">⋮⋮</button>
-    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off"></label>
-    <label>name<input data-manifest-field="name" type="text" value="${esc(param.name||"")}" autocomplete="off"></label>
-    <label>kind<select data-manifest-field="kind">${["float","int","toggle","enum","text"].map(value=>`<option value="${value}" ${kind===value?"selected":""}>${value}</option>`).join("")}</select></label>
-    ${bounds}${options}
-    <label>default<input data-manifest-field="default" type="${defaultType}" ${defaultType==="number"?'step="any"':""} value="${esc(param.default??"")}"></label>
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard===true?"checked":""}> Remote</label>
-    <button data-remove-param="${index}" class="danger">Remove</button>
-  </div>`;
-}
-function eventManifestRow(declaration, index) {
-  const arity=Math.min(3,Math.max(0,Math.trunc(Number(declaration.arity)||0)));
-  const defaults=Array.isArray(declaration.defaults)?declaration.defaults:[];
-  const elements=Array.from({length:arity},(_unused,element)=>`
-    <label>element ${element}<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element]??0)}"></label>`).join("");
-  return `<div class="manifest-row manifest-event" data-event-index="${index}" data-arity="${arity}">
-    <button type="button" class="manifest-drag-handle" data-manifest-drag="events" data-manifest-drag-index="${index}" aria-label="Drag event ${esc(declaration.name||index+1)}">⋮⋮</button>
-    <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name||"")}" autocomplete="off"></label>
-    <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
-    ${elements}
-    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard===true?"checked":""}> Remote</label>
-    <button data-remove-event="${index}" class="danger">Remove</button>
-  </div>`;
-}
-function bindManifestEditor(source) {
-  document.querySelectorAll('.manifest-io').forEach(row=>{
-    const index=Number(row.dataset.ioIndex);
-    row.querySelectorAll('[data-io-field]').forEach(input=>{
-      input.oninput=input.onchange=()=>{
-        manifestDraft.io_modules[index][input.dataset.ioField]=input.type==='checkbox'?input.checked:input.value;
-        manifestDirty=true;
-      };
-    });
-    row.querySelector('[data-remove-io]').onclick=()=>{
-      manifestDraft.io_modules.splice(index,1); manifestDirty=true; renderManifestEditor(source);
-    };
-  });
-  document.querySelectorAll(".manifest-param").forEach(row=>{
-    const index=Number(row.dataset.paramIndex);
-    row.querySelectorAll("[data-manifest-field]").forEach(input=>{
-      const update=()=>{
-        const field=input.dataset.manifestField;
-        if (field==="kind") {
-          setManifestParamKind(manifestDraft.params[index],input.value);
-          manifestDirty=true;
-          renderManifestEditor(source);
-          return;
-        }
-        if (field==="path") {
-          manifestDraft.params[index][field]=input.value===""?[]:input.value.split("/");
-        } else if (field==="options") {
-          manifestDraft.params[index][field]=input.value.split("\n");
-        } else if (input.type==="checkbox") {
-          manifestDraft.params[index][field]=input.checked;
-        } else if (input.type==="number") {
-          manifestDraft.params[index][field]=input.value===""?"":Number(input.value);
-        } else {
-          manifestDraft.params[index][field]=input.value;
-        }
-        manifestDirty=true;
-      };
-      input.oninput=update;
-      input.onchange=update;
-    });
-  });
-  document.querySelectorAll(".manifest-event").forEach(row=>{
-    const index=Number(row.dataset.eventIndex);
-    manifestDraft.events[index].defaults=Array.isArray(manifestDraft.events[index].defaults)?manifestDraft.events[index].defaults:[];
-    row.querySelectorAll("[data-manifest-field]").forEach(input=>{
-      const update=()=>{
-        const declaration=manifestDraft.events[index];
-        const field=input.dataset.manifestField;
-        if(field==="arity"){
-          const arity=Math.min(3,Math.max(0,Math.trunc(Number(input.value)||0)));
-          declaration.arity=arity;
-          declaration.defaults=Array.from({length:arity},(_unused,element)=>Number(declaration.defaults?.[element])||0);
-          manifestDirty=true;
-          renderManifestEditor(source);
-          return;
-        }
-        declaration[field]=input.type==="checkbox"?input.checked:input.value;
-        manifestDirty=true;
-      };
-      input.oninput=update;
-      input.onchange=update;
-    });
-    row.querySelectorAll("[data-event-default]").forEach(input=>input.oninput=()=>{
-      manifestDraft.events[index].defaults[Number(input.dataset.eventDefault)]=Number(input.value)||0;
-      manifestDirty=true;
-    });
-  });
-  document.querySelectorAll("[data-remove-param]").forEach(button=>button.onclick=()=>{
-    const param=manifestDraft.params[Number(button.dataset.removeParam)];
-    if (!confirm(`Remove parameter "${paramIdentity(param)||"unnamed"}"? Engine routes do not change automatically; update the corresponding route in the patch.`)) return;
-    manifestDraft.params.splice(Number(button.dataset.removeParam),1); manifestDirty=true; renderManifestEditor(source);
-  });
-  document.querySelectorAll("[data-remove-event]").forEach(button=>button.onclick=()=>{
-    manifestDraft.events.splice(Number(button.dataset.removeEvent),1); manifestDirty=true; renderManifestEditor(source);
-  });
-  bindManifestReorder(source);
-}
-function clearManifestDropMarkers() {
-  document.querySelectorAll(".manifest-drop-before,.manifest-drop-after").forEach(row=>{
-    row.classList.remove("manifest-drop-before","manifest-drop-after");
-  });
-}
-function manifestDropAt(kind, clientY) {
-  const container=$(kind==="params"?"#manifest-params":"#manifest-events");
-  const selector=kind==="params"?".manifest-param":".manifest-event";
-  if (!container) return null;
-  const bounds=container.getBoundingClientRect();
-  if (clientY<bounds.top || clientY>bounds.bottom) {
-    clearManifestDropMarkers();
-    return null;
-  }
-  const rows=[...container.querySelectorAll(selector)]
-    .filter(row=>row!==manifestDrag?.row);
-  let index=0, next=null;
-  for (const row of rows) {
-    const rowBounds=row.getBoundingClientRect();
-    if (clientY<rowBounds.top+rowBounds.height/2) {
-      next=row;
-      break;
-    }
-    index+=1;
-  }
-  clearManifestDropMarkers();
-  if (next) next.classList.add("manifest-drop-before");
-  else if (rows.length) rows[rows.length-1].classList.add("manifest-drop-after");
-  return index;
-}
-function finishManifestDrag(event, commit, source) {
-  if (!manifestDrag || event.pointerId!==manifestDrag.pointerId) return;
-  const drag=manifestDrag;
-  manifestDrag=null;
-  if (drag.handle.hasPointerCapture?.(event.pointerId)) drag.handle.releasePointerCapture(event.pointerId);
-  drag.row.classList.remove("manifest-dragging");
-  $("#manifest-editor")?.classList.remove("manifest-drag-active");
-  clearManifestDropMarkers();
-  if (commit && drag.active && drag.drop!==null) {
-    const items=manifestDraft[drag.kind];
-    const [item]=items.splice(drag.index,1);
-    items.splice(drag.drop,0,item);
-    if (drag.drop!==drag.index) manifestDirty=true;
-    renderManifestEditor(source);
-  }
-  if (drag.active) event.preventDefault();
-}
-function bindManifestReorder(source) {
-  const panel=$("#manifest-editor");
-  if (!panel) return;
-  panel.onpointerdown=event=>{
-    if (event.button!==0 || manifestDrag) return;
-    const handle=event.target.closest("[data-manifest-drag]");
-    if (!handle || handle.disabled) return;
-    manifestDrag={
-      pointerId:event.pointerId,
-      kind:handle.dataset.manifestDrag,
-      index:Number(handle.dataset.manifestDragIndex),
-      handle,
-      row:handle.closest(".manifest-row"),
-      startX:event.clientX,
-      startY:event.clientY,
-      active:false,
-      drop:null,
-    };
-    handle.focus();
-    handle.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  };
-  panel.onpointermove=event=>{
-    if (!manifestDrag || event.pointerId!==manifestDrag.pointerId) return;
-    const distance=Math.hypot(event.clientX-manifestDrag.startX,event.clientY-manifestDrag.startY);
-    if (!manifestDrag.active && distance<7) return;
-    if (!manifestDrag.active) {
-      manifestDrag.active=true;
-      manifestDrag.row.classList.add("manifest-dragging");
-      panel.classList.add("manifest-drag-active");
-    }
-    if (event.clientY<70) window.scrollBy(0,-14);
-    else if (event.clientY>window.innerHeight-70) window.scrollBy(0,14);
-    manifestDrag.drop=manifestDropAt(manifestDrag.kind,event.clientY);
-    event.preventDefault();
-  };
-  panel.onpointerup=event=>finishManifestDrag(event,true,source);
-  panel.onpointercancel=event=>finishManifestDrag(event,false,source);
-}
-function renderManifestEditor(source) {
-  const panel=$("#manifest-editor"); if (!panel) return;
-  const patch=editorPatchChoice;
-  panel.hidden=!patch;
-  if (!patch) return;
-  if (!manifestDraft || manifestDraft.patch!==patch || (!manifestDirty && JSON.stringify({params:source.params,events:source.events,io_modules:source.io_modules})!==JSON.stringify({params:manifestDraft.params,events:manifestDraft.events,io_modules:manifestDraft.io_modules}))) {
-    resetManifestDraft(patch,source);
-  }
-  $("#manifest-readonly").innerHTML=`<dl><dt>Engine</dt><dd>${esc(manifestValue(source.engine))}</dd><dt>Entrypoint</dt><dd>${esc(manifestValue(source.entrypoint))}</dd><dt>Capabilities</dt><dd>${esc(manifestValue(source.caps))}</dd><dt>Asset slots</dt><dd>${esc(manifestValue(source.slots))}</dd></dl>`;
-  $("#manifest-params").innerHTML=manifestDraft.params.map(paramManifestRow).join("")||'<p class="dim">No parameters declared.</p>';
-  $("#manifest-events").innerHTML=manifestDraft.events.map(eventManifestRow).join("")||'<p class="dim">No events declared.</p>';
-  $('#manifest-io').innerHTML=manifestDraft.io_modules.map((module,index)=>`
-    <div class="manifest-row manifest-io" data-io-index="${index}">
-      <label>Name<input data-io-field="name" value="${esc(module.name)}"></label>
-      <label>Type<select data-io-field="type">${Object.keys(installation.io_types||{}).map(type=>`<option ${module.type===type?'selected':''}>${esc(type)}</option>`).join('')}</select></label>
-      <label>Address<input data-io-field="address" value="${esc(module.address)}" placeholder="0x48"></label>
-      <label class="manifest-check"><input data-io-field="optional" type="checkbox" ${module.optional?'checked':''}>Optional</label>
-      <button data-remove-io="${index}" aria-label="Remove IO module" title="Remove IO module">✕</button>
-    </div>`).join('')||'<p class="dim">No IO modules declared.</p>';
-  const addIO=$('#manifest-add-io');
-  addIO.disabled=!source.editable;
-  addIO.onclick=()=>{manifestDraft.io_modules.push({name:'',type:'ads1115',address:'0x48',optional:false});manifestDirty=true;renderManifestEditor(source);};
-  $("#manifest-feedback").textContent=manifestFeedback||(source.editable
-    ? "Path/name changes create a new OSC identity; engine routes never change automatically."
-    : "Launch this patch in edit mode to change its manifest.");
-  const addParam=$("#manifest-add-param"), addEvent=$("#manifest-add-event");
-  addParam.disabled=!source.editable; addEvent.disabled=!source.editable;
-  addParam.onclick=()=>{manifestDraft.params.push({path:[],name:"",kind:"float",min:0,max:1,default:0,dashboard:false});manifestDirty=true;renderManifestEditor(source);};
-  addEvent.onclick=()=>{manifestDraft.events.push({name:"",arity:0,defaults:[],dashboard:false});manifestDirty=true;renderManifestEditor(source);};
-  const save=$("#manifest-save"); save.disabled=!source.available||!source.editable;
-  save.title=!source.available?"Manifest data is not available for this patch.":(!source.editable?"Launch this patch in the editor before saving.":"");
-  save.onclick=()=>{
-    const before=(manifestBaseline?.params||[]).map(paramIdentity);
-    const after=manifestDraft.params.map(paramIdentity);
-    const changed=before.filter(identity=>identity&&!after.includes(identity));
-    if (changed.length && !confirm(`Save parameter move/rename/removal (${changed.map(item=>`/p/${item}`).join(", ")})? Engine routes do not follow manifest changes.`)) return;
-    manifestFeedback="Saving manifest…";
-    ws.send("save_patch_manifest",{patch,params:manifestParamsForSave(manifestDraft.params),events:manifestEventsForSave(manifestDraft.events),io_modules:structuredClone(manifestDraft.io_modules)});
-    save.blur();
-    $("#manifest-feedback").textContent=manifestFeedback;
-  };
-  bindManifestEditor(source);
-  if (!source.editable) panel.querySelectorAll('input,select,textarea,button').forEach(control=>{control.disabled=true;});
-}
-
-function canonicalRemoteCommands(value) {
-  const selected=new Set(Array.isArray(value)?value:[]);
-  return REMOTE_COMMANDS.filter(command=>selected.has(command));
-}
-function sameRemoteCommands(left,right) {
-  return JSON.stringify(left)===JSON.stringify(right);
-}
-// Remote device commands save on click (mockup 1): each change sends the
-// whole selection; the checkboxes follow the project state again once it
-// reflects the last selection sent.
-function renderRemoteCommandEditor() {
-  const current=canonicalRemoteCommands(installation.facilitator_commands);
-  if (remoteCommandSaving && sameRemoteCommands(current,remoteCommandDraft)) {
-    remoteCommandSaving=false;
-    remoteCommandFeedback="Saved project setting.";
-  }
-  if (!remoteCommandSaving) remoteCommandDraft=[...current];
-  document.querySelectorAll("[data-remote-command]").forEach(input=>{
-    input.checked=remoteCommandDraft.includes(input.dataset.remoteCommand);
-    input.onchange=()=>{
-      remoteCommandDraft=REMOTE_COMMANDS.filter(command=>{
-        const option=document.querySelector(`[data-remote-command="${command}"]`);
-        return option?.checked;
-      });
-      remoteCommandSaving=true;
-      remoteCommandFeedback="Saving project setting…";
-      ws.send("set_facilitator_commands",{commands:[...remoteCommandDraft]});
-      renderRemoteCommandEditor();
-    };
-  });
-  $("#remote-command-feedback").textContent=remoteCommandFeedback;
-}
-
-function renderEditorPreview(editor) {
-  Spatial.renderEditor(editor,ws);
-  const free=$("#editor-event-identity"), fire=$("#editor-event-fire");
-  if (!free || !fire || !editor.active) return;
-  const send=(identity,elements=[])=>{
-    if (!identity) return;
-    ws.send("fire_editor_event",{identity,elements});
-    $("#editor-event-status").value=`Firing ${identity}…`;
-  };
-  fire.onclick=()=>send(free.value.trim());
-  free.onkeydown=event=>{if(event.key==="Enter"){event.preventDefault();fire.click();}};
-}
-function renderEditor() {
-  renderRemoteCommandEditor();
-  $("#editor-panel").hidden=performanceActive();
-  if (performanceActive()) {
-    for (const selector of ["#patch-version-dialog", "#patch-add-dialog"]) {
-      const dialog=$(selector);
-      if (dialog?.open) dialog.close("cancel");
-    }
-  }
-  const editor=installation.editor||{active:false,status:"off",declarations:[],params:{}};
-  const patches=(distribution.patches||[]).filter(item=>item.valid);
-  // The Patches list is the picker: keep a chosen patch while it is the
-  // project's (or the one being edited); otherwise the edited one, the Patch,
-  // or the first of the project's patches.
-  const names=projectPatches();
-  const selectable=name=>name&&(names.includes(name)||name===editor.patch);
-  // A patch just created, versioned or added is selected once it is both in
-  // the catalog and the project's.
-  if (pendingCreatedPatch && names.includes(pendingCreatedPatch)
-      && patches.some(item=>item.name===pendingCreatedPatch)) {
-    editorPatchChoice=pendingCreatedPatch; pendingCreatedPatch=null;
-    manifestDraft=null; manifestBaseline=null; manifestDirty=false;
-  }
-  if (!selectable(editorPatchChoice)) {
-    editorPatchChoice=[editor.active?editor.patch:null,installation.fleet_patch?.name,names[0]].find(selectable)||null;
-  }
-  const newPatch=$("#editor-new-patch");
-  newPatch.disabled=performanceActive();
-  newPatch.onclick=()=>{
-    const name=prompt("New patch name (letters, numbers, . _ or -):","")?.trim();
-    if (!name) return;
-    manifestFeedback=`Creating ${name}…`;
-    ws.send("create_patch",{name});
-    renderEditor();
-  };
-  $("#editor-status").textContent=editor.active?`${editor.status||"running"} · ${editor.patch}`:(editor.status||"off");
-  const closed=editor.active&&editor.engine_alive!=null&&Number(editor.engine_alive)===0;
-  const engineNote=$("#editor-engine-note");
-  engineNote.hidden=!editor.active;
-  engineNote.textContent=!editor.active ? "" : closed
-    ? "Engine closed. It will stay closed until you explicitly relaunch it."
-    : editor.engine==="pd"?"PD is open for live editing.":"Runtime controls are live; GUI editing is PD-only in v1.";
-  const actions=$("#editor-session-actions");
-  actions.innerHTML=(editor.active&&closed)
-    ? `<button id="editor-relaunch">Relaunch</button>`:"";
-  $("#editor-relaunch")?.addEventListener("click",()=>ws.send("relaunch_edit",{}));
-  const focused=document.activeElement;
-  const source=manifestSource(editor,patches,editorPatchChoice);
-  if (!manifestDrag && !$("#manifest-editor").contains(focused)) renderManifestEditor(source);
-  renderEditorPreview(editor);
-  if ((interacting || focused?.matches?.('input[type="text"], input[type="number"], select'))
-      && $("#editor-panel").contains(focused)) return;
-  const declarations=editorControlDeclarations(editor);
-  const editorMember={
-    id:0,
-    automation_key:"editor",
-    params:editor.params||{},
-  };
-  $("#editor-params").innerHTML=editor.active
-    ? `<div class="editor-master-row"><span>Audition master</span><output data-precise="true">${Math.round(master*100)}%</output><input id="editor-master" type="range" min="0" max="1" step="0.01" value="${master}"></div><div class="promoted-controls">${declarations.length?editorSurface.tree("editor",null,[editorMember],declarations,false):'<p class="dim">No manifest controls.</p>'}</div>`:"";
-  editorSurface.bind($("#editor-params"));
-  const editorMaster=$("#editor-master");
-  if(editorMaster) {
-    editorMaster.oninput=()=>{master=Number(editorMaster.value);editorMaster.previousElementSibling.value=Math.round(master*100)+"%";ws.send("set_master",{value:master});};
-    // Master is a 0..1 level shown as integer percent; precision entry drives it
-    // in whole percent to match the readout and the slider's 1% step
-    // (40-precision-param-input).
-    const masterOut=editorMaster.previousElementSibling;
-    if(masterOut?.dataset.precise==="true") window.PrecisionField.attach(masterOut, {
-      min:0, max:100, integer:true, value:Math.round(master*100), label:"master", disabled:false,
-    }, value=>{master=value/100;editorMaster.value=master;ws.send("set_master",{value:master});},
-       editing=>{if(!editing)renderEditor();});
-  }
-}
-function row(d, seat) {
-  const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
-  const heartbeatAt = heartbeats.get(d.uid);
-  const assignment=d.revoking_assignment?"clearing assignment":seat?`bound · Seat ${seat.id}`:"unbound";
-  const telemetry=[d.version,d.rssi != null ? `${d.rssi} dBm` : null].filter(Boolean).join(" · ");
-  const classes = `${d.uid===selected?'selected':''} ${badgeTone(d.patch_badge)}`;
-  const button = `<button class="device-row ${classes}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i><i class="heartbeat-blip${heartbeatAt?' pulse':''}" ${heartbeatAt?`data-heartbeat-at="${esc(heartbeatAt)}"`:''} aria-hidden="true"></i><span><strong>${esc(Identity.primary(d,installation))}</strong>${telemetry?`<small>${esc(telemetry)}</small>`:''}<small class="device-binding-badge">${esc(assignment)}</small><small class="wifi-chip" data-wifi-sync>${esc(d.wifi_sync||"no Wi-Fi")}</small></span>${deviceEnabledIndicator(d)}${patchBadge(d.patch_badge)}</button>`;
-  const unmanaged = window.WifiNetworks?.unmanaged(d) || "";
-  return unmanaged ? `<div class="wifi-device-card ${classes}">${button}${unmanaged}</div>` : button;
-}
-
-function deviceEnabledPresentation(d) {
-  const desired=d.device_enabled!==false;
-  const status=String(d.enabled_status||"").toLowerCase();
-  const unsettled=status&&status!=="current"&&status!=="confirmed";
-  const state=desired?"Device enabled":"Device disabled";
-  const suffix=unsettled?` · ${status}`:"";
-  return {desired,status,label:state+suffix,terse:(desired?"enabled":"disabled")+suffix};
-}
-
-function deviceEnabledIndicator(d) {
-  const enabled=deviceEnabledPresentation(d);
-  const slash=enabled.desired?'':'<path d="M3 3l18 18"></path>';
-  return `<span class="device-enabled-indicator ${enabled.desired?'enabled':'disabled'} ${enabled.status&&enabled.status!=="current"&&enabled.status!=="confirmed"?'unsettled':''}" data-device-enabled-indicator data-enabled-status="${esc(enabled.status||'current')}" role="img" aria-label="${esc(enabled.label)}" title="${esc(enabled.label)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4V5z"></path><path d="M15.5 9.5a4 4 0 010 5"></path>${slash}</svg></span>`;
-}
-function renderRoom() {
-  const room = installation.room || {}; const listener = installation.listener || {};
-  const w = $("#room-w"), d = $("#room-d"), ox = $("#origin-x"), oy = $("#origin-y");
-  if (!w) return;
-  if (![w, d, ox, oy].includes(document.activeElement)) {
-    w.value = room.width ?? 10; d.value = room.depth ?? 8;
-    ox.value = room.origin?.[0] ?? 0; oy.value = room.origin?.[1] ?? 0;
-    ox.max = room.width ?? 10; oy.max = room.depth ?? 8;
-  }
-}
-["room-w", "room-d", "origin-x", "origin-y"].forEach(id => {
-  const input = document.getElementById(id);
-  if (input) input.onchange = () => ws.send("set_room", {
-    width: Number($("#room-w").value), depth: Number($("#room-d").value),
-    origin: [Number($("#origin-x").value), Number($("#origin-y").value)],
-  });
-});
 function renderHeader() {
-  const ds = Object.values(installation.devices || {}), online = ds.filter(d => d.online).length;
+  const ds = Object.values(installation.devices || {}),
+    online = ds.filter((d) => d.online).length;
   $("#online-count").textContent = `${online} / ${ds.length} online`;
   $("#host-version").textContent = installation.host_version || "—";
-  const mode=installation.supervisor?.mode||"off";
-  const activePerformance=performanceActive();
-  $("#performance-toggle").setAttribute("aria-checked",String(activePerformance));
-  const physical=ds.filter(device=>!device.virtual);
-  const pending=physical.filter(device=>device.report?.performance!==activePerformance
-    && (device.online||typeof device.report?.performance==="boolean")).length;
-  const unknown=physical.some(device=>device.online&&typeof device.report?.performance!=="boolean");
-  const warning=$("#performance-warning");
-  warning.hidden=pending===0;
-  warning.textContent=pending ? (activePerformance&&!unknown
-    ? `⚠ ${pending} devices still in development` : `⚠ Performance · ${pending} / ${physical.length}`) : "";
-  document.querySelectorAll("[data-execution-target]").forEach(button=>{
-    button.disabled=activePerformance&&button.dataset.executionTarget==="edit";
-    const active=button.dataset.executionTarget===mode;
-    button.setAttribute("aria-pressed",active?"true":"false");
+  const mode = installation.supervisor?.mode || "off";
+  const activePerformance = performanceActive();
+  $("#performance-toggle").setAttribute("aria-checked", String(activePerformance));
+  const physical = ds.filter((device) => !device.virtual);
+  const pending = physical.filter(
+    (device) => device.report?.performance !== activePerformance && (device.online || typeof device.report?.performance === "boolean"),
+  ).length;
+  const unknown = physical.some((device) => device.online && typeof device.report?.performance !== "boolean");
+  const warning = $("#performance-warning");
+  warning.hidden = pending === 0;
+  warning.textContent = pending
+    ? activePerformance && !unknown
+      ? `⚠ ${pending} devices still in development`
+      : `⚠ Performance · ${pending} / ${physical.length}`
+    : "";
+  document.querySelectorAll("[data-execution-target]").forEach((button) => {
+    button.disabled = activePerformance && button.dataset.executionTarget === "edit";
+    const active = button.dataset.executionTarget === mode;
+    button.setAttribute("aria-pressed", active ? "true" : "false");
   });
-  $("#mute-all").classList.toggle("active", muted); $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
+  $("#mute-all").classList.toggle("active", muted);
+  $("#mute-all").textContent = muted ? "MUTED — UNMUTE" : "MUTE ALL";
   // MUTE ALL lives in the Monitor dock's Globals panel, which is hidden while
   // the dock is collapsed; the header flag keeps a muted fleet always visible.
   const muteFlag = document.querySelector("[data-monitor-mute-flag]");
   if (muteFlag) muteFlag.hidden = !muted;
   if (document.activeElement !== $("#master")) $("#master").value = master;
   $("#master-out").value = Math.round(master * 100) + "%";
-  const editorMaster=$("#editor-master");
-  if(editorMaster&&document.activeElement!==editorMaster) editorMaster.value=master;
-  if(editorMaster?.previousElementSibling) editorMaster.previousElementSibling.value=Math.round(master*100)+"%";
+  const editorMaster = $("#editor-master");
+  if (editorMaster && document.activeElement !== editorMaster) editorMaster.value = master;
+  if (editorMaster?.previousElementSibling) editorMaster.previousElementSibling.value = Math.round(master * 100) + "%";
 }
 function select(uid) {
-  selected = uid; const d=installation.devices[uid];
-  selectedSeat = Object.values(installation.seats||{}).find(s=>s.bound===uid)?.id ?? d?.seat_id ?? null;
-  if (!d.declared) ws.send("request_params", {uid});
-  ws.send("request_patches", {uid});
-  render();
-}
-function selectSeat(id) {
-  activateSeatSidebar("seats");
-  // The Control tab's target picker follows the same shared key, so choosing a
-  // Seat here is the target it lands on (37/10, kept by
-  // 02-component-unification/07 — everything else about a target is per host).
-  window.TargetPicker?.focusSeat(id);
-  selectedSeat=id; const seat=installation.seats?.[String(id)]||installation.seats?.[id];
-  const d=seat&&occupant(seat); selected=d?.uid||null;
-  if(d&&!d.declared) ws.send("request_params",{uid:d.uid});
-  if(d) ws.send("request_patches",{uid:d.uid});
+  selected = uid;
+  const d = installation.devices[uid];
+  selectedSeat = Object.values(installation.seats || {}).find((s) => s.bound === uid)?.id ?? d?.seat_id ?? null;
+  if (!d.declared) ws.send("request_params", { uid });
+  ws.send("request_patches", { uid });
   render();
 }
 let interacting = false;
-document.addEventListener("pointerdown", e => { if (e.target.closest("#detail input, #detail select, #editor-panel input, #editor-panel select")) interacting = true; });
-document.addEventListener("pointerup", () => { interacting = false; });
-
-function patchDiagnostics(d, allowRemediation) {
-  const installed=Array.isArray(d.patches)?d.patches:[];
-  const active=installed.find(patch=>patch.active)||installed.find(patch=>patch.name===d.report?.patch);
-  const desired=installation.fleet_patch||{};
-  const fetchPhase=desired.name?(d.fetch||{})[`patch:${desired.name}`]:null;
-  const rows=installed.map(patch=>`<tr><td>${esc(patch.name)}</td><td>${patch.active?'active':'inactive'}</td><td>${patch.manifest?'valid':'invalid'}</td><td>${copyIdentity(patch.fingerprint,'unreported')}</td></tr>`).join("");
-  const remediation=allowRemediation&&d.online&&["missing","stale","stale_unverified","mismatch","failed","timeout"].includes(d.patch_badge)
-    ? `<button id="fleet-patch-retry">Sync to fleet patch</button>`:"";
-  const unboundNote=!allowRemediation&&desired.name
-    ? '<p class="dim patch-target-note">Assign this device to a Seat before syncing content. OSC v1.5 does not UID-target patch distribution or switching.</p>':"";
-  const switchAttempt=d.patch_switch||{};
-  return `<section id="patch-diagnostics"><div class="section-head"><h2>Patch diagnostics</h2>${patchBadge(d.patch_badge)}</div><p class="dim">observed current: <b>${esc(active?.name??d.report?.patch??'—')}</b></p><dl><dt>Desired patch</dt><dd>${esc(desired.name||'not set')}</dd><dt>Desired fingerprint</dt><dd>${copyIdentity(desired.fingerprint,'—')}</dd><dt>Reported content identity</dt><dd>${copyIdentity(active?.fingerprint,'unreported')}</dd><dt>Observed active patch</dt><dd>${esc(active?.name??d.report?.patch??'—')}</dd><dt>Switch attempt</dt><dd>${esc(switchAttempt.status||'none')}${switchAttempt.reason?` · ${esc(switchAttempt.reason)}`:''}</dd><dt>Fetch phase</dt><dd>${esc(fetchPhase||'none')}</dd><dt>Manifest / framework git</dt><dd>${esc(active?.manifest?'valid manifest':'invalid or unreported manifest')} · bopOS ${esc(d.report?.git_rev||'—')}</dd></dl><h3>Installed patches</h3><div class="patch-table-wrap"><table class="patch-table"><thead><tr><th>Patch</th><th>State</th><th>Manifest</th><th>Fingerprint / content identity</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No patch listing reported.</td></tr>'}</tbody></table></div>${remediation?`<div class="actions patch-remediation">${remediation}</div>`:''}${unboundNote}${d.virtual?'<p class="dim">Host-backed simulated fleet; patch choice is controlled globally and needs no Send step.</p>':''}</section>`;
-}
-function bindPatchDiagnostics(d) {
-  const retry=$("#fleet-patch-retry");
-  if(retry) retry.disabled=performanceActive();
-  if(retry) retry.onclick=()=>ws.send("retry_fleet_patch",{uid:d.uid});
-}
-
-function renderSeatDetail() {
-  const panel=$("#seat-detail");
-  if (!panel) return;
-  const seat=installation.seats?.[String(selectedSeat)]||installation.seats?.[selectedSeat];
-  if (!seat) { panel.innerHTML='<p class="dim">Select a Seat on the map or in the list.</p>'; return; }
-  const active=document.activeElement;
-  if (interacting || (panel.contains(active) && active.matches('input,select'))) return;
-  const devices=Object.values(installation.devices||{}).filter(device=>!device.virtual);
-  const boundElsewhere=new Set(Object.values(installation.seats||{})
-    .filter(other=>Number(other.id)!==Number(seat.id)).map(other=>other.bound).filter(Boolean));
-  const available=devices.filter(device=>!device.revoking_assignment&&(!boundElsewhere.has(device.uid)||device.uid===seat.bound));
-  if (seatBindingDrafts.get(seat.id)===seat.bound) seatBindingDrafts.delete(seat.id);
-  const bindingChoice=seatBindingDrafts.get(seat.id)??seat.bound??"";
-  const currentKnown=devices.find(device=>device.uid===seat.bound);
-  const options=[];
-  if (seat.bound && !currentKnown) options.push(`<option value="${esc(seat.bound)}" ${bindingChoice===seat.bound?'selected':''}>${esc(Identity.primary(seat.bound,installation))} · remembered offline</option>`);
-  if (currentKnown?.revoking_assignment) options.push(`<option value="${esc(currentKnown.uid)}" ${bindingChoice===currentKnown.uid?'selected':''} disabled>${esc(Identity.primary(currentKnown,installation))} · clearing old assignment</option>`);
-  options.push(...available.map(device=>`<option value="${esc(device.uid)}" ${device.uid===bindingChoice?'selected':''}>${esc(Identity.primary(device,installation))} · ${device.online?'online':'offline'}</option>`));
-  if (!seat.bound) options.unshift(`<option value="" ${bindingChoice?'':'selected'}>Choose a device</option>`);
-  const room=installation.room||{}, origin=room.origin||[0,0];
-  const positions=(seat.positions||[]).map((position,index)=>`<div class="position-row" data-seat-element="${index}"><strong>element ${index}</strong><label>x <input data-axis="x" type="number" step="0.01" value="${Math.round((position[0]-origin[0])*100)/100}"></label><label>y <input data-axis="y" type="number" step="0.01" value="${Math.round((position[1]-origin[1])*100)/100}"></label><button data-remove-element="${index}" class="danger">Remove</button></div>`).join('');
-  const binding=seat.bound ? installation.devices?.[seat.bound] : null;
-  const groupChecks=groupCatalog().map(group=>`<label class="membership-check"><input type="checkbox" data-seat-group="${group.id}" ${(seat.groups||[]).includes(Number(group.id))?'checked':''}><span><strong>${esc(group.name)}</strong><small>g${group.id}</small></span></label>`).join('');
-  const groupSync=binding?.group_sync?.status;
-  const choiceRevoking=!!devices.find(device=>device.uid===bindingChoice)?.revoking_assignment;
-  const elementLimit=(seat.positions||[]).length>=2;
-  panel.innerHTML=`<div class="seat-inspector-section"><h3>Seat workspace</h3>
-    <div class="assign"><label>name <input id="seat-name" type="text" value="${esc(seat.name||'')}"></label><button id="seat-rename">Apply name</button></div>
-    <div class="assign"><label>ID <input id="seat-id" type="number" min="0" step="1" value="${seat.id}"></label><button id="seat-reindex">Reindex</button><button id="seat-remove" class="danger">Delete Seat</button></div>
-    <div class="assign"><button id="seat-open-control">Open in Control</button></div></div>
-    <div class="seat-inspector-section"><h3>Elements</h3><div class="position-grid">${positions||'<p class="dim">No elements positioned yet.</p>'}</div><button id="seat-element-add" ${elementLimit?'disabled':''}>Add element</button></div>
-    <div class="seat-inspector-section"><h3>Groups</h3><div class="membership-list">${groupChecks||'<p class="dim">Open the Groups tab to create a group.</p>'}</div><small class="dim seat-group-sync">${seat.bound?`Node membership: ${esc(groupSync||'waiting')}`:'Membership retained while this Seat is unbound'}</small></div>
-    <div class="seat-inspector-section"><h3>Physical device</h3><small class="dim seat-binding-note">${seat.bound?`${esc(Identity.primary(binding||seat.bound,installation))} · ${binding?.online?'online':binding?'offline':'waiting to be seen'}${binding?.ip?` · ${esc(binding.ip)}`:''}`:'No device assigned'}</small>
-    <div class="assign"><label>device <select id="seat-device">${options.join('')||'<option value="">No available devices</option>'}</select></label><button id="seat-identify" ${choiceRevoking?'disabled':''}>Identify</button><button id="seat-bind" ${choiceRevoking?'disabled':''}>${seat.bound?'Assign / replace':'Assign'}</button>${seat.bound?'<button id="seat-unbind">Unassign</button>':''}</div></div>`;
-  const savePositions=positionsValue=>{seat.positions=positionsValue;ws.send("update_seat",{id:seat.id,positions:positionsValue});Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());};
-  panel.querySelectorAll('[data-seat-element] input').forEach(input=>input.onchange=()=>{
-    const row=input.closest('[data-seat-element]'), index=Number(row.dataset.seatElement);
-    const x=Number(row.querySelector('[data-axis="x"]').value), y=Number(row.querySelector('[data-axis="y"]').value);
-    if (!Number.isFinite(x)||!Number.isFinite(y)) return;
-    const next=structuredClone(seat.positions||[]); next[index]=[Math.round((x+origin[0])*100)/100,Math.round((y+origin[1])*100)/100]; savePositions(next);
-  });
-  panel.querySelectorAll('[data-remove-element]').forEach(button=>button.onclick=()=>{const next=structuredClone(seat.positions||[]);next.splice(Number(button.dataset.removeElement),1);savePositions(next);});
-  $("#seat-element-add").onclick=()=>{if((seat.positions||[]).length<2)savePositions([...(seat.positions||[]),[Number(origin[0])||0,Number(origin[1])||0]]);};
-  $("#seat-rename").onclick=()=>ws.send("update_seat",{id:seat.id,name:$("#seat-name").value});
-  // The Seats -> Control workflow, made explicit. Control used to FOLLOW this
-  // tab's selection ambiently, which D7 (Bob, 2026-07-31) retired at every N:
-  // one click here would silently re-aim a column, persist it, and with several
-  // columns destroy an arrangement with no undo. Additive instead -- focus a
-  // column already showing this Seat, else append one -- and it performs the
-  // tab switch the ambient version never did.
-  $("#seat-open-control").onclick=()=>{window.ControlHost?.openSeat(Number(seat.id));activateTab("control");};
-  $("#seat-reindex").onclick=()=>{const next=Number($("#seat-id").value);if(Number.isInteger(next)&&next>=0&&next!==Number(seat.id)&&confirm(`Change Seat ID ${seat.id} to ${next}? Live parameter values follow the new ID.`))ws.send("reindex_seat",{id:seat.id,new_id:next});};
-  $("#seat-remove").onclick=()=>{if(confirm(`Delete Seat ${seat.id}? Its live parameter values will also be removed.`))ws.send("remove_seat",{id:seat.id});};
-  panel.querySelectorAll("[data-seat-group]").forEach(input=>input.onchange=()=>{const next=new Set((seat.groups||[]).map(Number));input.checked?next.add(Number(input.dataset.seatGroup)):next.delete(Number(input.dataset.seatGroup));seat.groups=[...next].sort((a,b)=>a-b);ws.send("set_seat_groups",{id:Number(seat.id),groups:seat.groups});renderGroups();renderGroupMap();Spatial.render(installation,selectedSeat,selectSeat,ws,groupView());});
-  const chosen=()=>$("#seat-device").value;
-  $("#seat-device").onchange=()=>seatBindingDrafts.set(seat.id,chosen());
-  $("#seat-identify").onclick=()=>{const uid=chosen();if(uid&&installation.devices?.[uid])ws.send("identify",{uid});};
-  $("#seat-bind").onclick=()=>{const uid=chosen();if(!uid)return;const replacing=seat.bound&&seat.bound!==uid;if(!replacing||confirm(`Replace ${seat.bound} with ${uid} on Seat ${seat.id}?`))ws.send("bind_seat",{id:seat.id,uid,confirmed:!!replacing});};
-  const unbind=$("#seat-unbind");if(unbind)unbind.onclick=()=>{if(confirm(`Unassign ${seat.bound} from Seat ${seat.id}?`))ws.send("unbind_seat",{id:seat.id});};
-}
-
-function audioConfigEqual(left,right) {
-  return ["card","mixer_control","sample_rate","period_size","nperiods"]
-    .every(key=>(left?.[key]??null)===(right?.[key]??null));
-}
-
-function audioSection(d) {
-  const audio=d.report?.audio;
-  if(!audio||!audio.configured) return `<section id="device-audio"><div class="section-head"><div><h2>Audio</h2><p class="dim">Refresh the report to load audio settings and detected cards.</p></div></div></section>`;
-  const configured=audio.configured, active=audio.active, cards=Array.isArray(audio.cards)?audio.cards:[];
-  const available=cards.some(card=>card.id===configured.card);
-  const cardOptions=[
-    ...(!available?[`<option value="${esc(configured.card)}" selected disabled>${esc(configured.card)} — unavailable</option>`]:[]),
-    ...cards.map(card=>`<option value="${esc(card.id)}" ${card.id===configured.card?'selected':''}>${esc(card.label||card.id)} · ${esc(card.id)}</option>`)
-  ].join('');
-  const rates=[22050,32000,44100,48000,88200,96000];
-  const periods=[64,128,256,512,1024,2048];
-  const latency=Math.round(Number(configured.period_size)*Number(configured.nperiods)/Number(configured.sample_rate)*10000)/10;
-  const mismatch=active&&!audioConfigEqual(configured,active);
-  const receipt=d.audio_apply;
-  const feedback=receipt?.phase==="applied"?"Applied; audio engine restarted."
-    :receipt?.phase==="rolled-back"?"Could not start requested settings; restored the previous configuration."
-    :receipt?.phase==="rollback-failed"?"Audio recovery failed; inspect the node before use."
-    :receipt?.phase==="invalid"?"The node rejected those audio settings."
-    :receipt?.phase==="timeout"?"Audio apply timed out; refreshing observed state."
-    :audio.status==="applying"?"Applying settings and restarting audio…"
-    :audio.error||"";
-  return `<section id="device-audio" data-audio-status="${esc(audio.status||'unknown')}">
-    <div class="section-head"><div><h2>Audio</h2><p class="dim">${active?`${esc(active.card)} · ${esc(active.sample_rate)} Hz · ${esc(active.period_size)} frames × ${esc(active.nperiods)}`:"No active JACK configuration reported"}${mismatch?' · saved settings differ':''}</p></div><span class="audio-state">${esc(audio.status||"unknown")}</span></div>
-    <div class="audio-config-grid">
-      <label>sound card<select id="audio-card" ${d.online&&cards.length?'':'disabled'}>${cardOptions||'<option disabled>No playback cards detected</option>'}</select></label>
-      <label>sample rate<select id="audio-rate" ${d.online?'':'disabled'}>${rates.map(value=>`<option value="${value}" ${value===Number(configured.sample_rate)?'selected':''}>${value} Hz</option>`).join('')}</select></label>
-      <label>buffer size<select id="audio-period" ${d.online?'':'disabled'}>${periods.map(value=>`<option value="${value}" ${value===Number(configured.period_size)?'selected':''}>${value} frames</option>`).join('')}</select></label>
-      <label>periods<select id="audio-nperiods" ${d.online?'':'disabled'}>${[2,3].map(value=>`<option value="${value}" ${value===Number(configured.nperiods)?'selected':''}>${value}</option>`).join('')}</select></label>
-    </div>
-    <p class="dim audio-buffering">Approximate device buffering: <span id="audio-latency">${latency} ms</span>. End-to-end latency may be higher.</p>
-    <div class="audio-apply-row"><button id="audio-apply" ${!d.online||!available||audio.status==="applying"?'disabled':''}>Save &amp; restart audio engine</button><output id="audio-feedback" class="${receipt?.status==="err"?'error':''}" aria-live="polite">${esc(feedback)}</output></div>
-  </section>`;
-}
-
-function logSection(d) {
-  const log=d.report?.log;
-  if(!log||!log.destination) return `<section id="device-log"><div class="section-head"><div><h2>Logging</h2><p class="dim">Refresh the report to load the log destination.</p></div></div></section>`;
-  const destination=log.destination, effective=log.effective, usbPresent=!!log.usb_present;
-  if(logDestinationDrafts.get(d.uid)===destination) logDestinationDrafts.delete(d.uid);
-  const choice=logDestinationDrafts.get(d.uid)??destination;
-  const fellBack=destination==="usb"&&effective==="internal";
-  const receipt=d.log_apply;
-  const feedback=receipt?.phase==="applied"?(fellBack?"Saved — USB not mounted, logging to internal storage.":"Saved log destination.")
-    :receipt?.phase==="invalid"?"The node rejected that log destination."
-    :receipt?.phase==="timeout"?"Log destination apply timed out; refreshing observed state."
-    :receipt?.status==="pending"?"Saving log destination…"
-    :fellBack?"USB selected but no stick is mounted — logging to internal storage.":"";
-  const sub=effective==="ram"?"Performance":`Writing to ${effective==="usb"?"USB stick":"internal storage"}${fellBack?" (USB not mounted)":""} · USB ${usbPresent?"present":"absent"}`;
-  const opt=(value,label)=>`<option value="${value}" ${value===choice?'selected':''}>${label}</option>`;
-  return `<section id="device-log" data-log-effective="${esc(effective||'internal')}" data-log-usb="${usbPresent?'1':'0'}">
-    <div class="section-head"><div><h2>Logging</h2><p class="dim">${esc(sub)}</p></div><span class="log-state">${esc(effective||'internal')}</span></div>
-    <div class="log-config-row">
-      <label>destination<select id="log-destination" ${d.online?'':'disabled'}>${opt("internal","Internal storage (SD card)")}${opt("usb","USB stick")}</select></label>
-      <button id="log-apply" ${!d.online||choice===destination?'disabled':''}>Save log destination</button>
-      <output id="log-feedback" class="${receipt?.status==="err"?'error':''}" aria-live="polite">${esc(feedback)}</output>
-    </div></section>`;
-}
-
-function editorControlDeclarations(editor=installation.editor||{}) {
-  const parameters=(editor.declarations||[]).map(item=>({
-    ...item, path:item.path||[], identity:paramIdentity(item),
-  }));
-  const events=(editor.events||[]).map(item=>({
-    ...item, kind:"event", path:item.path||[], identity:paramIdentity(item),
-  }));
-  return [...parameters,...events];
-}
-
-// The editor is a one-member ControlSurface. It has no aggregate/mixed state:
-// the member is the audition engine itself. Its automation key remains
-// `editor` (not selector 0), matching the server-side isolation from Seat 0.
-const editorSurface=window.ControlSurface.create({
-  getState:()=>({
-    ...installation,
-    live_controls:{declarations:editorControlDeclarations()},
-  }),
-  send:({name,value})=>{
-    const editor=installation.editor;
-    if(editor)editor.params[name]=value;
-    ws.send("set_editor_param",{name,value});
-  },
-  sendEvent:({identity,elements})=>{
-    ws.send("fire_editor_event",{identity,elements});
-    return 0;
-  },
-  sendAutomation:({name,args})=>
-    ws.send("set_live_automation",{scope:"editor",id:null,name,args}),
-  setInteracting:editing=>{interacting=editing;},
-  requestRender:()=>renderEditor(),
+document.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("#detail input, #detail select, #editor-panel input, #editor-panel select")) interacting = true;
+});
+document.addEventListener("pointerup", () => {
+  interacting = false;
 });
 
-// The Device tab renders the same live controls the Control tab does, through
-// the shared component (37/07). Only the scope and the send differ: a device
-// write targets one device, resolved node-side to its seat selector.
-let deviceControlInteracting=false;
-const deviceSurface=window.ControlSurface.create({
-  getState:()=>installation,
-  deviceForSeat:seat=>seat?.bound?installation.devices?.[seat.bound]:null,
-  deviceForScope:uid=>installation.devices?.[uid],
-  send:({scope,id,name,value})=>ws.send("set_live_param",{scope,id,name,value}),
-  // Returns the lead so the panel's fire button can sweep for exactly as long
-  // as the event is actually scheduled for (04-event-fire-affordance).
-  sendEvent:({scope,id,identity,elements})=>{
-    const selector=scope==="all"?"all":scope==="group"?`g${id}`:String(id);
-    const leadMs=Math.min(10000,Math.max(0,Number(installation.event_lead_ms??500)||0));
-    ws.send("fire_event",{selector,identity,elements,lead_ms:leadMs});
-    return leadMs;
-  },
-  sendAutomation:({scope,id,name,args})=>ws.send("set_live_automation",{scope,id,name,args}),
-  setInteracting:editing=>{deviceControlInteracting=editing;},
-  requestRender:()=>renderDeviceDetail(),
-});
-
-const DEVICE_CONTROL_OPEN="bopos.device-control-open";
-function deviceControlOpen() {
-  // Collapsed by default (Bob, 2026-07-25); the choice is remembered.
-  try { return localStorage.getItem(DEVICE_CONTROL_OPEN)==="1"; }
-  catch (_error) { return false; }
-}
-function setDeviceControlOpen(open) {
-  try { localStorage.setItem(DEVICE_CONTROL_OPEN,open?"1":"0"); }
-  catch (_error) { /* private mode: the panel just forgets */ }
-}
-
-function deviceLiveSchema() {
-  const schema=installation.live_controls;
-  if(!schema||!Array.isArray(schema.declarations))return null;
-  // Event declarations travel beside the params (they are not `/p/*` values)
-  // and are folded back in here, at the surface that renders rows — so nothing
-  // else that reads `declarations` ever sees them.
-  const items=[...schema.declarations,...(Array.isArray(schema.events)?schema.events:[])];
-  return {patch:schema.patch,declarations:items.map(item=>({...item,path:item.path||[]}))};
-}
-
-function deviceControlSection(d) {
-  const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
-  const schema=deviceLiveSchema();
-  const open=deviceControlOpen();
-  const declarations=schema?.declarations||[];
-  const live=!!d.online&&Number(d.engine_alive)!==0;
-  // Offline shows last known values, disabled — never hidden (Bob, 2026-07-25).
-  const disabled=!seat||!live;
-  const why=!seat?'Unbound device — showing patch defaults. Live control targets content by Seat, so bind this device to a Seat first.'
-    :!live?'Offline — showing the last known values.':'';
-  const body=!declarations.length
-    ? '<p class="dim">This patch declares no parameters.</p>'
-    : `<div class="promoted-controls">${deviceSurface.tree("device",d.uid,seat?[seat]:[],declarations,disabled)}</div>`;
-  const source=schema?.patch?`<p class="dim">${esc(schema.patch)} · fleet patch</p>`:"";
-  return `<section id="device-control" class="device-control${disabled?' disabled':''}">
-    <div class="section-head"><div><h2>Device control</h2>${source}</div><button id="device-control-toggle" aria-expanded="${open}" aria-controls="device-control-body">${open?'Hide':'Show'}</button></div>
-    <div id="device-control-body" ${open?'':'hidden'}>${why?`<p class="dim">${esc(why)}</p>`:''}${body}</div>
-  </section>`;
-}
-
-function renderDeviceDetail() {
-  const d=installation.devices?.[selected];
-  if (!d || d.virtual) { $("#detail").innerHTML='<section><p class="dim">Select a physical device.</p></section>'; return; }
-  const active=document.activeElement;
-  if ($("#detail").contains(active) && active.matches('input,select')) {
-    updateDeviceEnabledControls(d); updateDeviceHostnameControls(d);
-    DeviceIO.update($("#detail"), d, (kind, data) => ws.send(kind, data));
-    return;
-  }
-  const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);
-  const emptySeats=Object.values(installation.seats||{}).filter(item=>!item.bound).sort((a,b)=>a.id-b.id);
-  const assignOptions=emptySeats.map(item=>`<option value="${item.id}">${esc(item.name||`Seat ${item.id}`)} · ID ${item.id}</option>`).join('');
-  const health=!d.online?'offline':Number(d.engine_alive)===0?'engine stopped':'healthy';
-  const displayAlias=Identity.primary(d,installation);
-  const hostnameTarget=displayAlias.trim().toLowerCase().replace(/\s+/g,"-");
-  const hostnamePending=d.hostname_status==="pending";
-  const hostnameCurrent=String(d.hostname||"").toLowerCase()===hostnameTarget;
-  const hostnameActionLabel=hostnamePending?"Setting…":hostnameCurrent?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";
-  const enabled=deviceEnabledPresentation(d);
-  // Wi-Fi RSSI is useful only with a coarse reading of what the number means.
-  // These thresholds deliberately describe installation reliability rather
-  // than theoretical link viability: -60 dBm or better is good, -61..-75 is
-  // marginal, and below -75 is poor. Wired/absent reports stay neutral.
-  const rssi=rssiPresentation(d.rssi);
-  const rssiMarkup=`<span class="device-rssi" data-rssi-health="${rssi.health}">${esc(rssi.text)}</span>`;
-  const binding=d.revoking_assignment
-    ? '<section id="device-binding"><h2>Assignment</h2><p class="dim">Clearing a stale node assignment. This device cannot be rebound until it acknowledges ID -1.</p></section>'
-    : seat
-      ? `<section id="device-binding"><div class="section-head"><div><h2>Assignment</h2><p class="dim">Bound to ${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}</p></div><button id="device-open-seat">Open Seat</button></div></section>`
-      : `<section id="device-binding"><h2>Assignment</h2><p class="dim">Unbound physical device. Assignment uses the same authoritative Seat transaction.</p><div class="assign"><label>empty Seat <select id="device-seat" ${assignOptions?'':'disabled'}>${assignOptions||'<option>No empty Seats</option>'}</select></label><button id="device-bind" ${assignOptions&&d.online?'':'disabled'}>Assign</button></div></section>`;
-  $("#detail").innerHTML=`<section><div class="section-head device-title"><h2>${esc(displayAlias)} ${d.undeclared?'<b class="badge">UNDECLARED</b>':''}</h2><div class="device-enabled-control"><output id="device-enabled-status" aria-live="polite">${esc(enabled.terse)}</output><button id="device-enabled-toggle">${d.device_enabled===false?'Enable':'Disable'}</button></div></div><div class="assign device-alias-editor"><label>device alias <input id="device-alias" type="text" maxlength="25" pattern="[A-Za-z]{2,12} [A-Za-z]{2,12}" value="${esc(displayAlias)}"></label><button id="device-alias-save">Rename</button><button id="device-alias-reset">Reset</button><button id="device-hostname-set" ${!d.online||hostnamePending||hostnameCurrent?'disabled':''}>${hostnameActionLabel}</button></div><dl><dt>Hostname</dt><dd id="device-hostname-value">${esc(d.hostname||'—')}</dd><dt>UID</dt><dd><code>${esc(d.uid)}</code></dd><dt>Seat</dt><dd>${seat?`${esc(seat.name||`Seat ${seat.id}`)} · ID ${seat.id}`:'unbound'}</dd><dt>Health</dt><dd class="device-health ${health==='healthy'?'online':health==='offline'? 'offline':''}">${health}</dd><dt>Last seen</dt><dd>${d.last_seen?ago(d.last_seen):'—'}</dd><dt>Version</dt><dd>${esc(d.version)}</dd><dt>Engine</dt><dd>${d.engine_alive?'alive':'stopped'}</dd><dt>RSSI</dt><dd>${rssiMarkup}</dd><dt>IP</dt><dd>${esc(d.ip)}</dd><dt>Converged</dt><dd>${d.rev?`${esc(d.rev.sha)} (${esc(d.rev.model)}, ${ago(d.rev.at)})${d.rev.status?` · ${esc(d.rev.status)} ${esc(d.rev.phase||'unknown')}`:''}`:'—'}</dd></dl></section>
-    <section><h2>Actions</h2><div class="actions"><button data-identify ${d.online?'':'disabled'}>Identify</button>${["reboot","shutdown","restart-engine","updatebopos"].map(v=>`<button data-action="${v}" ${d.online?'':'disabled'}>${actionLabel(v)}</button>`).join('')}${seat?'':'<button id="device-forget">Forget</button>'}</div></section>
-    ${binding}
-    ${patchDiagnostics(d,!!seat)}
-    ${deviceControlSection(d)}
-    ${audioSection(d)}
-    ${logSection(d)}
-    ${DeviceIO.section(d)}
-    <section class="device-assets-summary"><div class="section-head"><div><h2>Assets</h2><p class="dim">${!Array.isArray(d.assets)?'Inventory not yet reported':`${d.assets.length} installed slot${d.assets.length===1?'':'s'}`}</p></div><button id="device-open-assets">Open Assets</button></div></section>
-    <section><div class="section-head"><h2>Report</h2><button id="refresh-report" ${d.online?'':'disabled'}>Refresh report</button></div>${report(d.report)}</section>`;
-  bindDeviceDetailControls(d); bindPatchDiagnostics(d);
-  DeviceIO.bind($("#detail"), d, (kind, data) => ws.send(kind, data));
-}
-
-function rssiPresentation(raw) {
-  if (raw == null || raw === "") {
-    return {health:"neutral",text:"wired / unavailable"};
-  }
-  const value=Number(raw);
-  if (!Number.isFinite(value)) {
-    return {health:"neutral",text:"wired / unavailable"};
-  }
-  const health=value>=-60?"good":value>=-75?"marginal":"poor";
-  return {health,text:`${raw} dBm · ${health}`};
-}
-
-function updateDeviceEnabledControls(d) {
-  const enabled=deviceEnabledPresentation(d), button=$("#device-enabled-toggle"), status=$("#device-enabled-status");
-  if(button)button.textContent=d.device_enabled===false?"Enable":"Disable";
-  if(status)status.value=enabled.terse;
-}
-
-function updateDeviceHostnameControls(d) {
-  const alias=Identity.primary(d,installation);
-  const target=alias.trim().toLowerCase().replace(/\s+/g,"-");
-  const pending=d.hostname_status==="pending";
-  const current=String(d.hostname||"").toLowerCase()===target;
-  const button=$("#device-hostname-set");
-  if(button){button.disabled=!d.online||pending||current;button.textContent=pending?"Setting…":current?"Hostname set":d.hostname_status==="err"?"Retry hostname":"Set hostname";}
-  const value=$("#device-hostname-value");if(value)value.textContent=d.hostname||"—";
-}
-
-function bindDeviceDetailControls(d) {
-  const alias=Identity.primary(d,installation), registryEntry=installation.device_registry?.[d.uid]||{};
-  document.querySelectorAll("#detail [data-action]").forEach(button=>button.onclick=()=>{const verb=button.dataset.action;if(!confirm(`${actionLabel(verb)} ${alias}?`))return;ws.send("action",{uid:d.uid,verb});});
-  document.querySelectorAll("#detail [data-identify]").forEach(button=>button.onclick=()=>ws.send("identify",{uid:d.uid}));
-  const openSeat=$("#device-open-seat");if(openSeat)openSeat.onclick=()=>{const seat=Object.values(installation.seats||{}).find(item=>item.bound===d.uid);if(seat){selectSeat(Number(seat.id));activateTab("seats");}};
-  const bind=$("#device-bind");if(bind)bind.onclick=()=>{const id=Number($("#device-seat").value);if(Number.isInteger(id))ws.send("bind_seat",{id,uid:d.uid,confirmed:false});};
-  const aliasSave=$("#device-alias-save");if(aliasSave)aliasSave.onclick=()=>{const input=$("#device-alias"),value=input.value;if(input.reportValidity()){input.blur();ws.send("set_device_alias",{uid:d.uid,alias:value});}};
-  const aliasReset=$("#device-alias-reset");if(aliasReset)aliasReset.onclick=()=>{if(registryEntry.source!=="custom"||confirm(`Reset custom alias ${alias} to its generated name?`))ws.send("reset_device_alias",{uid:d.uid});};
-  const hostnameSet=$("#device-hostname-set");if(hostnameSet)hostnameSet.onclick=()=>ws.send("set_device_hostname",{uid:d.uid});
-  const enabledToggle=$("#device-enabled-toggle");if(enabledToggle)enabledToggle.onclick=()=>{const current=installation.devices?.[d.uid]||d;ws.send("set_device_enabled",{uid:d.uid,value:current.device_enabled===false?1:0});};
-  bindAudioControls(d);
-  bindLogControls(d);
-  bindDeviceControl(d);
-  const forget=$("#device-forget");if(forget)forget.onclick=()=>{const loss=registryEntry.source==="custom"?" Its custom alias will be deleted.":"";if(confirm(`Forget ${alias}?${loss}`))ws.send("forget_device",{uid:d.uid});};
-  $("#refresh-report").onclick=()=>ws.send("request_report",{uid:d.uid});
-  const openAssets=$("#device-open-assets");if(openAssets)openAssets.onclick=()=>{assetPicker.set([d.uid]);activateTab("assets");};
-}
-
-function bindDeviceControl(d) {
-  const toggle=$("#device-control-toggle");
-  if(toggle)toggle.onclick=()=>{setDeviceControlOpen(!deviceControlOpen());renderDeviceDetail();};
-  const body=$("#device-control-body");
-  if(body&&!body.hidden)deviceSurface.bind(body);
-}
-
-function bindAudioControls(d) {
-  const audio=d.report?.audio, card=$("#audio-card"), rate=$("#audio-rate"), period=$("#audio-period"), nperiods=$("#audio-nperiods"), apply=$("#audio-apply");
-  if(!audio?.configured||!card||!rate||!period||!nperiods||!apply)return;
-  const cards=Array.isArray(audio.cards)?audio.cards:[];
-  const config=()=>{
-    const selected=cards.find(item=>item.id===card.value);
-    const retainMixer=card.value===audio.configured.card
-      && (audio.configured.mixer_control==null
-        || selected?.mixer_controls?.includes(audio.configured.mixer_control));
-    return {
-      card:card.value,
-      mixer_control:retainMixer?audio.configured.mixer_control:null,
-      sample_rate:Number(rate.value),
-      period_size:Number(period.value),
-      nperiods:Number(nperiods.value)
-    };
-  };
-  const refresh=()=>{
-    const value=config(), selected=cards.find(item=>item.id===value.card);
-    apply.disabled=!d.online||audio.status==="applying"||!selected||audioConfigEqual(value,audio.configured);
-    const latency=Math.round(value.period_size*value.nperiods/value.sample_rate*10000)/10;
-    const output=$("#audio-latency");if(output)output.textContent=`${latency} ms`;
-  };
-  card.onchange=refresh;
-  [rate,period,nperiods].forEach(control=>control.onchange=refresh);
-  refresh();
-  apply.onclick=()=>{
-    const desired=config();
-    if(!confirm(`Restart the audio engine on ${Identity.primary(d,installation)}? Audio will stop briefly while these settings are tested.`))return;
-    apply.disabled=true;
-    const feedback=$("#audio-feedback");if(feedback){feedback.className="";feedback.value="Applying settings and restarting audio…";}
-    ws.send("set_audio_config",{uid:d.uid,config:desired});
-  };
-}
-
-function bindLogControls(d) {
-  const log=d.report?.log, select=$("#log-destination"), apply=$("#log-apply");
-  if(!log?.destination||!select||!apply)return;
-  const refresh=()=>{apply.disabled=!d.online||select.value===log.destination;};
-  select.onchange=()=>{logDestinationDrafts.set(d.uid,select.value);refresh();};
-  refresh();
-  apply.onclick=()=>{
-    const destination=select.value;
-    logDestinationDrafts.delete(d.uid);
-    const feedback=$("#log-feedback");if(feedback){feedback.className="";feedback.value="Saving log destination…";}
-    apply.disabled=true;
-    ws.send("set_log_config",{uid:d.uid,destination});
-  };
-}
-
-function actionLabel(verb) { return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " "); }
-function formatBytes(value) {
-  const bytes = Number(value) || 0;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
-  return `${(bytes/1024/1024).toFixed(1)} MB`;
-}
-
-function assetTargets() {
-  const seats=Object.values(installation.seats||{}), devices=Object.values(installation.devices||{});
-  const assigned=new Set(seats.map(seat=>seat.bound).filter(Boolean));
-  return devices.map(device=>{
-    const reasons=[];
-    if(device.virtual) reasons.push("simulation");
-    if(!device.online) reasons.push("offline");
-    if(!device.virtual&&!assigned.has(device.uid)) reasons.push("unassigned");
-    return {device,reasons,eligible:reasons.length===0};
-  }).sort((a,b)=>Number(b.eligible)-Number(a.eligible)||Identity.primary(a.device,installation).localeCompare(Identity.primary(b.device,installation)));
-}
-// The picker prunes a stale or ineligible choice to the first eligible chip, so
-// the "did the chosen device go away" fallback that used to live here is the
-// component's (02-component-unification/07).
-function selectedAssetDevice(targets=assetTargets()) {
-  const chosen=assetPicker.selection()[0];
-  return targets.find(target=>target.eligible&&target.device.uid===chosen)?.device||null;
-}
-function assetInventoryState(device,item) {
-  if(!device||device.assets===null||!Array.isArray(device.assets)) return {label:"unknown",installed:null};
-  const installed=device.assets.find(asset=>asset.name===item.name);
-  if(!installed) return {label:"absent",installed:null};
-  if(installed.fingerprint===null||typeof installed.fingerprint!=="string") return {label:"unknown",installed};
-  return {label:installed.fingerprint===item.fingerprint?"current":"stale",installed};
+function actionLabel(verb) {
+  return verb === "updatebopos" ? "Update bopOS" : verb.replaceAll("-", " ");
 }
 function fingerprintTail(value) {
-  return typeof value==="string"&&value ? `…${value.slice(-10)}` : null;
+  return typeof value === "string" && value ? `…${value.slice(-10)}` : null;
 }
-function copyIdentity(value, fallback="unknown") {
-  const tail=fingerprintTail(value);
-  if(!tail) return `<code>${esc(fallback)}</code>`;
-  return `<button type="button" class="identity-copy" data-copy-identity="${esc(value)}" title="${esc(value)}" aria-label="Copy full identity ${esc(value)}"><code>${esc(tail)}</code><span class="copy-feedback" aria-live="polite"></span></button>`;
+function copyIdentity(value, fallback = "unknown") {
+  const tail = fingerprintTail(value);
+  if (!tail) return `<code>${esc(fallback)}</code>`;
+  return [
+    `<button type="button" class="identity-copy" data-copy-identity="${
+      esc(value)
+      }" title="${
+      esc(value)
+      }" aria-label="Copy full identity ${
+      esc(value)
+      }"><code>${
+      esc(tail)
+      }</code>`,
+    `<span class="copy-feedback" aria-live="polite"></span>`,
+    `</button>`,
+  ].join("");
 }
-function assetFacts(item) {
-  const modified=Number(item.modified);
-  const timestamp=Number.isFinite(modified)&&modified>0 ? new Date(modified*1000) : null;
-  return `<dl class="asset-facts"><dt>Files</dt><dd>${item.files==null?'unknown':esc(item.files)}</dd><dt>Size</dt><dd>${item.bytes==null?'unknown':formatBytes(item.bytes)}</dd><dt>Modified</dt><dd>${timestamp?`<time datetime="${timestamp.toISOString()}">${timestamp.toLocaleString()}</time>`:'unknown'}</dd><dt>Fingerprint</dt><dd>${copyIdentity(item.fingerprint)}</dd></dl>`;
+function report(r) {
+  if (!r) return '<p class="dim">No report loaded.</p>';
+  const keys = [
+    "hostname",
+    "engine",
+    "patch",
+    "git_rev",
+    "uptime",
+    "has_i2c",
+    "has_wifi",
+    "audio_channels",
+    "screen",
+    "update_model",
+    "contract_version",
+    "device_enabled",
+    "mute_all",
+    "output_enabled",
+  ];
+  return `<dl>${keys.map((k) => `<dt>${k}</dt><dd>${k === "uptime" ? human(r[k]) : esc(r[k])}</dd>`).join("")}</dl>`;
 }
-function assetLiveState(device,slot,observed) {
-  const phase=device?.fetch?.[slot];
-  if(phase==="sent"||phase==="queued") return "queued";
-  if(phase==="fetching") return "fetching";
-  if(phase==="err") return "failed";
-  if(phase==="timeout") return "timed out";
-  return observed;
+function human(seconds) {
+  seconds = Number(seconds) || 0;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m ${seconds % 60}s`;
 }
-function assetCatalogRow(device,item) {
-  const observed=assetInventoryState(device,item), state=assetLiveState(device,item.name,observed.label);
-  const pending=state==="queued"||state==="fetching";
-  let action="", actionLabel="";
-  if(observed.label==="absent") { action="send"; actionLabel="Send"; }
-  else if(observed.label==="stale") { action="update"; actionLabel="Update"; }
-  else if(observed.label==="unknown") { action="send-update"; actionLabel="Send / update"; }
-  const unavailable=!device||pending;
-  const reason=!device?"Choose an online, assigned physical device":pending?"Transfer already in progress":"";
-  const primary=action?`<button data-asset-action="${action}" aria-label="${esc(`${actionLabel} ${item.name} to ${device?Identity.primary(device,installation):'selected device'}`)}" ${unavailable?`disabled title="${esc(reason)}"`:''}>${actionLabel}</button>`:'';
-  // Remove is offered on any installed catalog pack (current/stale/unknown),
-  // not just device-only extras. The active-slot warning lives in
-  // confirmAssetAction; server + node treat the drop by name (39-remove-installed-pack-from-device).
-  const removable=device&&observed.installed;
-  const remove=removable?`<button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${Identity.primary(device,installation)}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button>`:'';
-  const controls=`${primary}${remove}`||'<span class="asset-no-action">No action needed</span>';
-  return `<article class="asset-row" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action">${controls}</div></article>`;
+function ago(epoch) {
+  const s = Math.max(0, Math.round(Date.now() / 1000 - Number(epoch)));
+  return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ago` : `${Math.floor(s / 3600)}h ago`;
 }
-function assetExtraRow(device,item) {
-  const state=assetLiveState(device,item.name,"extra"), pending=state==="queued"||state==="fetching";
-  return `<article class="asset-row asset-extra" data-slot="${esc(item.name)}" data-state="${esc(state)}"><div class="asset-row-main"><strong>${esc(item.name)}</strong>${assetFacts(item)}</div><span class="asset-state asset-state-${state.replace(/[^a-z0-9]+/gi,'-')}" role="status" aria-live="polite">${esc(state)}</span><div class="asset-row-action"><button class="danger" data-asset-action="remove" aria-label="${esc(`Remove ${item.name} from ${Identity.primary(device,installation)}`)}" ${pending?'disabled title="Transfer already in progress"':''}>Remove</button></div></article>`;
-}
-function assetIsActive(device,slot) {
-  return Array.isArray(device?.active_asset_slots)&&device.active_asset_slots.includes(slot);
-}
-function confirmAssetAction(device,slot,action) {
-  const active=assetIsActive(device,slot);
-  if(action==="remove") {
-    if(active) return confirm(`Asset slot "${slot}" is declared by the active patch. Removing it can immediately break the running patch. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. Remove anyway?`);
-    return confirm(`Remove asset slot "${slot}" from ${Identity.primary(device,installation)}?`);
-  }
-  if(active&&action!=="send") return confirm(`Asset slot "${slot}" is declared by the active patch. Updating it in place can expose the running engine to a partial update or broken files. Safer sequence: send a new side-by-side generation, switch the patch, then remove the old slot. ${action==="update"?'Update':'Send / update'} anyway?`);
-  return true;
-}
-function resolveAssetFeedback(device) {
-  const pending=assetFeedbackPending;
-  if(!pending||!device||device.uid!==pending.uid||!Array.isArray(device.assets)) return;
-  const observedAt=Number(device.assets_observed_at)||0;
-  if(observedAt<=pending.observedAt) return;
-  const installed=device.assets.find(item=>item.name===pending.slot);
-  const resolved=pending.action==="remove" ? !installed : installed?.fingerprint===pending.fingerprint;
-  if(!resolved) return;
-  assetFeedback=pending.action==="remove"
-    ? `Removed ${pending.slot} from ${Identity.primary(device,installation)}; confirmed by observed inventory.`
-    : `${pending.slot} is current on ${Identity.primary(device,installation)}; confirmed by observed inventory.`;
-  assetFeedbackPending=null;
-}
-// The device domain of the shared target picker: one device, no All, and every
-// discovered device present — an ineligible one is visible but disabled, wearing
-// the reason it cannot be chosen (the Assets workflow is single-device by
-// design, thread 11b).
-const assetPicker=window.TargetPicker.create({
-  host:$("#asset-target-host"), id:"assets", storageKey:"bopos.target.assets",
-  spec:()=>({
-    label:"device", allowAll:false, multiple:false,
-    emptySummary:"No devices discovered", emptyTerse:"none",
-    sections:window.TargetPicker.deviceSections(assetTargets().map(target=>({
-      uid:target.device.uid,
-      label:Identity.primary(target.device,installation),
-      sub:target.reasons.join(", ")||null,
-      title:target.reasons.length?target.reasons.join(" · "):null,
-      disabled:!target.eligible,
-    }))),
-  }),
-  onChange:()=>{assetFeedback="";renderAssets();},
-});
-function renderAssets() {
-  const catalog=$("#asset-catalog"), extras=$("#asset-extras");
-  if(!catalog||!extras) return;
-  const active=document.activeElement, focusRow=active?.closest?.("[data-slot]"), focusSlot=focusRow?.dataset.slot, focusAction=active?.dataset?.assetAction, focusRefresh=active?.id==="asset-refresh";
-  // Render the picker first: pruning a departed or now-ineligible device is
-  // part of rendering it, and everything below reads the resolved choice.
-  assetPicker.render();
-  const targets=assetTargets(), device=selectedAssetDevice(targets);
-  resolveAssetFeedback(device);
-  const ineligible=targets.filter(target=>!target.eligible);
-  $("#asset-target-reasons").innerHTML=ineligible.length?ineligible.map(target=>`<span><strong>${esc(Identity.primary(target.device,installation))}</strong> · ${esc(target.reasons.join(' · '))}</span>`).join(''):targets.length?'<span class="dim">Every discovered device is eligible.</span>':'<span class="dim">No devices discovered.</span>';
-  $("#asset-catalog-summary").textContent=`${distribution.assets.length} host slot${distribution.assets.length===1?'':'s'}${device?` · compared with ${Identity.primary(device,installation)}`:''}`;
-  $("#asset-feedback").textContent=assetFeedback;
-  catalog.innerHTML=distribution.assets.length?distribution.assets.map(item=>assetCatalogRow(device,item)).join(''):'<p class="empty">No asset slots in the host catalog.</p>';
-  const hostNames=new Set(distribution.assets.map(item=>item.name));
-  const extraItems=device&&Array.isArray(device.assets)?device.assets.filter(item=>!hostNames.has(item.name)):[];
-  const inventoryBanner=!device?'<p class="asset-inventory-note">Choose an eligible target to compare its observed inventory.</p>':!Array.isArray(device.assets)?'<p class="asset-inventory-note unknown">Inventory unknown — this node has not replied yet, or does not support asset inventory.</p>':`<p class="asset-inventory-note current">Observed ${device.assets.length} installed slot${device.assets.length===1?'':'s'}${device.assets_observed_at?` · ${ago(device.assets_observed_at)}`:''}.</p>`;
-  const quarantine=device?.assets_quarantine?.length?`<p class="asset-inventory-note unknown">Inventory incomplete: ${device.assets_quarantine.length} malformed entr${device.assets_quarantine.length===1?'y was':'ies were'} excluded.</p>`:"";
-  extras.innerHTML=`${inventoryBanner}${quarantine}${extraItems.length?`<div class="asset-extras-heading"><h3>Device-only slots</h3><p class="dim">Installed on this device but absent from the host catalog.</p></div>${extraItems.map(item=>assetExtraRow(device,item)).join('')}`:''}`;
-  document.querySelectorAll("#tab-assets [data-asset-action]").forEach(button=>button.onclick=()=>{
-    const row=button.closest("[data-slot]"), slot=row.dataset.slot, action=button.dataset.assetAction;
-    if(!device||!confirmAssetAction(device,slot,action)) return;
-    assetFeedback=action==="remove"?`Removing ${slot} from ${Identity.primary(device,installation)}…`:`${action==="update"?'Updating':'Sending'} ${slot} to ${Identity.primary(device,installation)}…`;
-    const hostItem=distribution.assets.find(item=>item.name===slot);
-    assetFeedbackPending={uid:device.uid,slot,action,observedAt:Number(device.assets_observed_at)||0,fingerprint:hostItem?.fingerprint||null};
-    $("#asset-feedback").textContent=assetFeedback;
-    if(action==="remove") ws.send("drop_distribution",{uid:device.uid,kind:"asset",name:slot});
-    else ws.send("send_distribution",{uid:device.uid,kind:"asset",name:slot,confirmed_active:false});
-  });
-  $("#asset-refresh").onclick=()=>{assetFeedback="Refreshing host catalog…";$("#asset-feedback").textContent=assetFeedback;ws.send("refresh_distribution",{});};
-  if(focusSlot&&focusAction) document.querySelector(`#tab-assets [data-slot="${CSS.escape(focusSlot)}"] [data-asset-action="${CSS.escape(focusAction)}"]`)?.focus();
-  else if(focusRefresh) $("#asset-refresh").focus();
-}
-function nextFreeId() { const used = new Set(Object.values(installation.seats||{}).map(s=>Number(s.id))); let id=0; while (used.has(id)) id++; return id; }
-function report(r) { if (!r) return '<p class="dim">No report loaded.</p>'; const keys=["hostname","engine","patch","git_rev","uptime","has_i2c","has_wifi","audio_channels","screen","update_model","contract_version","device_enabled","mute_all","output_enabled"]; return `<dl>${keys.map(k=>`<dt>${k}</dt><dd>${k==='uptime'?human(r[k]):esc(r[k])}</dd>`).join('')}</dl>`; }
-function human(seconds) { seconds=Number(seconds)||0; return `${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m ${seconds%60}s`; }
-function ago(epoch) { const s=Math.max(0,Math.round(Date.now()/1000-Number(epoch))); return s<60?`${s}s ago`:s<3600?`${Math.floor(s/60)}m ago`:`${Math.floor(s/3600)}h ago`; }
-$("#mute-all").onclick=()=>{muted=!muted;installation.muted=muted;ws.send("mute_all",{value:muted?1:0});render();};
+$("#mute-all").onclick = () => {
+  muted = !muted;
+  installation.muted = muted;
+  ws.send("mute_all", { value: muted ? 1 : 0 });
+  render();
+};
 {
   const input = $("#master");
-  let last = 0, timer;
-  const send = () => { master = Number(input.value); ws.send("set_master", {value: master}); renderHeader(); };
-  input.oninput = () => { const now = performance.now(); if (now-last >= 33) { last=now; send(); } else { clearTimeout(timer); timer=setTimeout(send, 33-(now-last)); } };
+  let last = 0,
+    timer;
+  const send = () => {
+    master = Number(input.value);
+    ws.send("set_master", { value: master });
+    renderHeader();
+  };
+  input.oninput = () => {
+    const now = performance.now();
+    if (now - last >= 33) {
+      last = now;
+      send();
+    } else {
+      clearTimeout(timer);
+      timer = setTimeout(send, 33 - (now - last));
+    }
+  };
   input.onchange = send;
   input.onpointerup = send;
 }
-document.querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{const verb=b.dataset.all;if(!confirm(`${actionLabel(verb)} all physical devices?`))return;ws.send("action",{uid:"all",verb});});
-document.querySelectorAll("[data-execution-target]").forEach(button=>button.onclick=()=>setExecutionTarget(button.dataset.executionTarget));
+document.querySelectorAll("[data-all]").forEach(
+  (b) =>
+    (b.onclick = () => {
+      const verb = b.dataset.all;
+      if (!confirm(`${actionLabel(verb)} all physical devices?`)) return;
+      ws.send("action", { uid: "all", verb });
+    }),
+);
+document
+  .querySelectorAll("[data-execution-target]")
+  .forEach((button) => (button.onclick = () => setExecutionTarget(button.dataset.executionTarget)));

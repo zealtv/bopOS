@@ -1,239 +1,498 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><meta name="theme-color" content="#101316"><title>bopOS</title><script src="/js/theme.js"></script><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/project-bar.css"><link rel="stylesheet" href="/css/param-generator.css"><link rel="stylesheet" href="/css/control-panel.css"><link rel="stylesheet" href="/css/value-box.css"><link rel="stylesheet" href="/css/target-picker.css"><link rel="stylesheet" href="/css/control-column.css"><link rel="stylesheet" href="/css/card-identity.css"><link rel="stylesheet" href="/css/installation-notice.css">
-<link rel="stylesheet" href="/css/wifi-networks.css">
-<link rel="stylesheet" href="/css/performance.css">
-<link rel="stylesheet" href="/css/device-io.css">
-<link rel="stylesheet" href="/css/module-panels.css">
-<script src="/js/device-io.js"></script>
-</head>
-<body>
-  <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"><div class="bop-loader" aria-hidden="true"><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div></div>
-  <header><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1><button type="button" id="project-bar" aria-label="Project · Site · Patch · Show" aria-haspopup="dialog" aria-expanded="false" popovertarget="project-menu"><span><small>Project</small> <strong id="project-bar-project">—</strong></span><i aria-hidden="true">·</i><span><small>Site</small> <strong id="project-bar-site">—</strong></span><i aria-hidden="true">·</i><span><small>Patch</small> <strong id="project-bar-patch">—</strong></span><i aria-hidden="true">·</i><span><small>Show</small> <strong id="project-bar-show">—</strong></span><span aria-hidden="true">▾</span></button><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"><button data-execution-target="off" aria-pressed="true">Live</button><button data-execution-target="simulate" aria-pressed="false">Simulation</button><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div><div class="performance-control"><button type="button" id="performance-toggle" role="switch" aria-checked="false">Performance</button><output id="performance-warning" role="status" aria-live="polite" hidden></output></div><span class="app-header-spacer" aria-hidden="true"></span><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div><label class="theme-control"><span>theme</span><select id="theme-select" aria-label="Theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></header>
-  <!-- Global controls: authored here so their handlers bind at parse time, then
+  <head
+    ><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><meta
+      name="color-scheme"
+      content="dark light"
+    /><meta name="theme-color" content="#101316" /><title>bopOS</title
+    ><script src="/js/theme.js"></script
+    ><link rel="stylesheet" href="/css/style.css" /><link rel="stylesheet" href="/css/project-bar.css" /><link
+      rel="stylesheet"
+      href="/css/param-generator.css"
+    /><link rel="stylesheet" href="/css/control-panel.css" /><link rel="stylesheet" href="/css/value-box.css" /><link
+      rel="stylesheet"
+      href="/css/target-picker.css"
+    /><link rel="stylesheet" href="/css/control-column.css" /><link rel="stylesheet" href="/css/card-identity.css" /><link
+      rel="stylesheet"
+      href="/css/installation-notice.css"
+    />
+    <link rel="stylesheet" href="/css/wifi-networks.css" />
+    <link rel="stylesheet" href="/css/performance.css" />
+    <link rel="stylesheet" href="/css/device-io.css" />
+    <link rel="stylesheet" href="/css/module-panels.css" />
+    <script src="/js/device-io.js"></script>
+  </head>
+  <body>
+    <div id="initial-loading" class="initial-loading" role="status" aria-live="polite" aria-label="bopOS is loading"
+      ><div class="bop-loader" aria-hidden="true"
+        ><strong>bopOS</strong><span class="bop-beats"><i></i><i></i><i></i><i></i></span><small>loading...</small></div
+      ></div
+    >
+    <header
+      ><h1 class="app-brand">bopOS <small id="host-version" title="Dashboard host checkout">—</small></h1
+      ><button
+        type="button"
+        id="project-bar"
+        aria-label="Project · Site · Patch · Show"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        popovertarget="project-menu"
+        ><span><small>Project</small> <strong id="project-bar-project">—</strong></span
+        ><i aria-hidden="true">·</i><span><small>Site</small> <strong id="project-bar-site">—</strong></span
+        ><i aria-hidden="true">·</i><span><small>Patch</small> <strong id="project-bar-patch">—</strong></span
+        ><i aria-hidden="true">·</i><span><small>Show</small> <strong id="project-bar-show">—</strong></span
+        ><span aria-hidden="true">▾</span></button
+      ><div id="execution-target" class="execution-options" role="group" aria-label="Execution target"
+        ><button data-execution-target="off" aria-pressed="true">Live</button
+        ><button data-execution-target="simulate" aria-pressed="false">Simulation</button
+        ><button data-execution-target="edit" aria-pressed="false">Patch Edit</button></div
+      ><div class="performance-control"
+        ><button type="button" id="performance-toggle" role="switch" aria-checked="false">Performance</button
+        ><output id="performance-warning" role="status" aria-live="polite" hidden></output></div
+      ><span class="app-header-spacer" aria-hidden="true"></span
+      ><div class="app-health"><span id="online-count">0 / 0 online</span><span id="ws-status" class="offline">disconnected</span></div
+      ><label class="theme-control"
+        ><span>theme</span
+        ><select id="theme-select" aria-label="Theme"
+          ><option value="system">System</option
+          ><option value="light">Light</option
+          ><option value="dark">Dark</option></select
+        ></label
+      ></header
+    >
+    <!-- Global controls: authored here so their handlers bind at parse time, then
        relocated into the Monitor dock's Globals panel by monitor.js. -->
-  <div id="global-controls" class="monitor-globals" hidden>
-    <div class="monitor-globals-audio">
-      <label id="master-control">master <input id="master" type="range" min="0" max="1" step="0.01"><output id="master-out">100%</output></label>
-      <label id="event-lead-control">event lead · ms <input id="event-lead-ms" type="number" min="0" max="10000" step="50" value="500" data-integer="true"></label>
+    <div id="global-controls" class="monitor-globals" hidden>
+      <div class="monitor-globals-audio">
+        <label id="master-control"
+          >master <input id="master" type="range" min="0" max="1" step="0.01" /><output id="master-out">100%</output></label
+        >
+        <label id="event-lead-control"
+          >event lead · ms <input id="event-lead-ms" type="number" min="0" max="10000" step="50" value="500" data-integer="true"
+        /></label>
+      </div>
+      <button id="mute-all" class="danger">MUTE ALL</button>
     </div>
-    <button id="mute-all" class="danger">MUTE ALL</button>
-  </div>
-  <div class="primary-tabs">
-  <nav id="primary-tabs" class="primary-tab-list" aria-label="bopOS views" role="tablist">
-    <button id="tab-button-show" role="tab" aria-controls="tab-show" aria-selected="true" data-tab="show">Show</button>
-    <button id="tab-button-control" role="tab" aria-controls="tab-control" aria-selected="false" data-tab="control">Control</button>
-    <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
-    <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
-    <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
-    <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
-  </nav>
-  <!-- A link to another document, deliberately OUTSIDE role="tablist": inside
+    <div class="primary-tabs">
+      <nav id="primary-tabs" class="primary-tab-list" aria-label="bopOS views" role="tablist">
+        <button id="tab-button-show" role="tab" aria-controls="tab-show" aria-selected="true" data-tab="show">Show</button>
+        <button id="tab-button-control" role="tab" aria-controls="tab-control" aria-selected="false" data-tab="control">Control</button>
+        <button id="tab-button-seats" role="tab" aria-controls="tab-seats" aria-selected="false" data-tab="seats">Seats</button>
+        <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
+        <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
+        <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
+      </nav>
+      <!-- A link to another document, deliberately OUTSIDE role="tablist": inside
        it, assistive tech would announce a seventh tab that isn't one. -->
-  <a href="/facilitator" id="facilitator-link" class="view-link">Remote</a>
-  </div>
-  <div id="installation-notice" class="installation-notice" role="status" aria-live="polite" hidden></div>
-  <div class="tab-stage">
-    <section id="tab-control" class="tab-panel dashboard-tab" role="tabpanel" aria-labelledby="tab-button-control" data-tab-panel="control" hidden>
-      <!-- The Control surface is no longer an iframe of /facilitator
+      <a href="/facilitator" id="facilitator-link" class="view-link">Remote</a>
+    </div>
+    <div id="installation-notice" class="installation-notice" role="status" aria-live="polite" hidden></div>
+    <div class="tab-stage">
+      <section
+        id="tab-control"
+        class="tab-panel dashboard-tab"
+        role="tabpanel"
+        aria-labelledby="tab-button-control"
+        data-tab-panel="control"
+        hidden
+      >
+        <!-- The Control surface is no longer an iframe of /facilitator
            (3-iframe-retirement); since `4-n-columns/1-columns-layout` the tab
            holds a persisted set of them. `js/control-host.js` builds one
            <section> per card inside the grid below, and `js/control-column.js`
            builds everything inside a card — nothing in there is addressed by id.
 
            The strip carries the tab-scoped `+ card` action. -->
-      <div class="control-tab-strip">
-        <button type="button" id="control-add-column" class="add-column">+ card</button>
-      </div>
-      <div id="control-column-host"></div>
-    </section>
-    <section id="tab-seats" class="tab-panel seats-tab" role="tabpanel" aria-labelledby="tab-button-seats" data-tab-panel="seats" hidden>
-    <section id="spatial-section">
-      <div class="section-head"><h2>Seats</h2><span class="dim spatial-dimensions">room <input id="room-w" type="number" min="1" max="1000" step="0.5"> × <input id="room-d" type="number" min="1" max="1000" step="0.5"> m · origin <input id="origin-x" type="number" min="0" step="0.1">, <input id="origin-y" type="number" min="0" step="0.1"></span></div>
-      <div id="point-toolbar">
-        <button id="point-add">Add point</button>
-        <div id="point-list" aria-label="Points"></div>
-        <div id="point-editor" hidden>
-          <strong id="point-title">Point</strong>
-          <label><input id="point-enabled" type="checkbox" checked> on</label>
-          <label>radius <input id="point-radius" type="number" min="0.01" max="1000" step="0.1"> m</label>
-          <label>falloff <select id="point-falloff"><option value="0">linear</option><option value="1">smooth</option><option value="2">gauss</option></select></label>
-          <label>movement <select id="point-motion"><option value="static">still</option><option value="bounce">bounce</option></select></label>
-          <span id="bounce-fields"><label>x speed <input id="point-vx" type="number" step="0.1"> m/s</label><label>y speed <input id="point-vy" type="number" step="0.1"> m/s</label></span>
-          <button id="point-delete" class="danger">Delete</button>
+        <div class="control-tab-strip">
+          <button type="button" id="control-add-column" class="add-column">+ card</button>
         </div>
-      </div>
-      <div id="group-map-bar" hidden>
-        <div id="group-map-legend" aria-label="Visible Seat groups"></div>
-        <button id="group-view-clear">Clear group view</button>
-      </div>
-      <p id="group-map-message" class="group-map-message" role="status" hidden></p>
-      <svg id="spatial"></svg>
-    </section>
-      <aside class="seat-sidebar">
-        <div id="seat-sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Seat workspace objects">
-          <button id="seat-sidebar-tab" role="tab" aria-selected="true" aria-controls="seat-sidebar-panel">Seats</button>
-          <button id="group-sidebar-tab" role="tab" aria-selected="false" aria-controls="group-sidebar-panel">Groups</button>
-        </div>
-        <div id="seat-sidebar-panel" role="tabpanel" aria-labelledby="seat-sidebar-tab">
-          <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div>
-          <label class="seat-roster-filter">Filter Seats <input id="seat-roster-filter" type="text" placeholder="Names beginning with…"></label>
-          <div id="assigned" class="seat-roster-list"></div>
-          <p id="seat-roster-filter-empty" class="dim" hidden>No Seat names begin with this filter.</p>
-          <div id="seat-detail"><p class="dim">Select a Seat on the map or in the list.</p></div>
-        </div>
-        <div id="group-sidebar-panel" role="tabpanel" aria-labelledby="group-sidebar-tab" hidden>
-          <div class="section-head"><div><h2>Groups</h2><small id="groups-summary" class="dim">0 shown · 0 total</small></div><button id="group-create">Create group</button></div>
-          <div id="groups-content"></div>
-        </div>
-      </aside>
-    </section>
-    <section id="tab-devices" class="tab-panel devices-tab" role="tabpanel" aria-labelledby="tab-button-devices" data-tab-panel="devices" hidden>
-      <section id="wifi-panel" aria-labelledby="wifi-title">
-        <div class="section-head"><h2 id="wifi-title">Wi-Fi networks</h2><label>Country <select id="wifi-country" aria-label="Wi-Fi country"></select></label></div>
-        <div id="wifi-networks"></div>
-        <output id="wifi-warning" aria-live="polite"></output>
-        <footer><button id="wifi-add">+ Add network</button><button id="wifi-send">Send to all devices</button></footer>
+        <div id="control-column-host"></div>
       </section>
-      <dialog id="wifi-confirm" aria-labelledby="wifi-confirm-warning"><p id="wifi-confirm-warning"></p><form method="dialog"><button value="cancel" aria-label="✕">✕</button><button value="send">Send to all devices</button></form></dialog>
-      <aside class="device-sidebar">
-        <div class="section-head"><h2>Physical devices</h2><label class="device-filter">show <select id="device-filter" aria-label="Filter physical devices"><option value="all">all</option><option value="online">online</option><option value="offline">offline</option><option value="bound">bound</option><option value="unbound">unbound</option></select></label></div>
-        <div id="device-roster" class="device-roster-list"></div>
-        <!-- Icon buttons for the three recoverable fleet actions; the one that
-             takes the fleet down keeps its words (03-chrome-reclamation: "do
-             not make Shutdown All a bare glyph"). All four still confirm. -->
-        <footer class="fleet-actions"><button id="forget-offline" class="icon-button" title="Forget offline unbound devices" aria-label="Forget offline unbound devices"><span class="icon-glyph" aria-hidden="true">✕</span></button><button data-all="reboot" class="icon-button" title="Reboot all devices" aria-label="Reboot all devices"><span class="icon-glyph" aria-hidden="true">↻</span></button><button data-all="updatebopos" class="icon-button" title="Update bopOS on all devices" aria-label="Update bopOS on all devices"><span class="icon-glyph" aria-hidden="true">⇧</span></button><button data-all="shutdown" class="danger">Shutdown All</button></footer>
-      </aside>
-      <main class="device-detail"><div id="detail"><p class="empty">Select a device.</p></div></main>
-    </section>
-    <section id="tab-patches" class="tab-panel patches-tab" role="tabpanel" aria-labelledby="tab-button-patches" data-tab-panel="patches" hidden>
-      <!-- The project's patches as sidebar + detail, like Devices
-           (66-projects/6-patch-versions, mockups 1-3): the list is the picker,
-           so the separate host-patch and fleet-patch pickers are gone. -->
-      <aside class="patch-sidebar">
-        <div class="section-head"><h2>Patches</h2><span class="patch-sidebar-actions"><button id="refresh-distribution" class="icon-button" title="Refresh host patch and asset catalogs" aria-label="Refresh host patch and asset catalogs"><span class="icon-glyph" aria-hidden="true">↻</span></button><button id="patch-new-version">New Version</button></span></div>
-        <input id="patch-filter" class="patch-filter" type="text" placeholder="Filter patches…" aria-label="Filter patches" autocomplete="off">
-        <div id="patch-list" class="patch-list"></div>
-        <div class="patch-list-actions"><button id="patch-add-existing">Add Existing…</button><button id="editor-new-patch">New patch…</button></div>
-        <section id="remote-command-editor" aria-labelledby="remote-command-title">
-          <div class="section-head"><div><h3 id="remote-command-title">Remote device commands</h3><p class="dim">Project setting · buttons shown on Remote</p></div></div>
-          <fieldset id="remote-command-options">
-            <legend>Framework commands available from Remote</legend>
-            <label><input type="checkbox" data-remote-command="restart-engine"> Restart engine</label>
-            <label><input type="checkbox" data-remote-command="updatebopos"> Update bopOS</label>
-            <label><input type="checkbox" data-remote-command="reboot"> Reboot</label>
-            <label><input type="checkbox" data-remote-command="shutdown"> Shutdown</label>
-          </fieldset>
-          <output id="remote-command-feedback" class="dim" aria-live="polite"></output>
-        </section>
-      </aside>
-      <div class="patch-main">
-      <section id="patch-detail" aria-live="polite"></section>
-      <section id="editor-panel">
-        <div class="section-head"><div><h2>Manifest &amp; editor</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div><div id="editor-session-actions" class="mode-actions"></div></div>
-        <p id="editor-engine-note" class="dim" hidden></p>
-        <label id="editor-input-control" hidden><span data-editor-input-label>Input source</span>
-          <select id="editor-input-source"><option value="">—</option></select></label>
-        <section id="manifest-editor" aria-labelledby="manifest-editor-title">
-          <div class="section-head"><h3 id="manifest-editor-title">Manifest</h3><button id="manifest-save">Save manifest</button></div>
-          <div id="manifest-readonly"></div>
-          <div class="manifest-subhead"><h3>Events</h3><button id="manifest-add-event">Add event</button></div>
-          <div id="manifest-events"></div>
-          <div class="manifest-subhead"><h3>Parameters</h3><button id="manifest-add-param">Add parameter</button></div>
-          <div id="manifest-params"></div>
-          <div class="manifest-subhead"><h3>IO modules</h3><button id="manifest-add-io">Add IO module</button></div>
-          <p class="dim">Created when the engine starts. Optional modules may be absent on a device.</p>
-          <div id="manifest-io"></div>
-          <output id="manifest-feedback" class="dim" aria-live="polite"></output>
-        </section>
-        <div id="editor-params" class="device-control"></div>
-        <section id="editor-preview" aria-labelledby="editor-preview-title" hidden>
-          <div class="section-head"><div><h3 id="editor-preview-title">Points and events</h3><p class="dim">Session-only scratch controls for the running edit instance.</p></div></div>
-          <div class="editor-preview-grid">
-            <div class="editor-point-preview">
-              <div class="manifest-subhead"><h3>Point preview</h3><button id="editor-point-add">Add point</button></div>
-              <div id="editor-point-list" class="point-list" aria-label="Editor points"></div>
-              <fieldset id="editor-point-target"><legend>send point values to</legend><label><input type="radio" name="editor-point-element" value="0" checked> element 0</label><label><input type="radio" name="editor-point-element" value="1"> element 1</label></fieldset>
-              <div id="editor-point-controls" hidden>
-                <strong id="editor-point-title">Point</strong>
-                <label>radius <input id="editor-point-radius" type="number" min="0.01" max="1000" step="0.1"> m</label>
-                <label>falloff <select id="editor-point-falloff"><option value="0">linear</option><option value="1">smooth</option><option value="2">gauss</option></select></label>
-                <button id="editor-point-delete" class="danger">Delete</button>
-              </div>
-              <p class="dim editor-preview-help">The edit instance is pinned at the centre. Drag points around it to preview proximity.</p>
-              <svg id="editor-spatial" aria-label="Editor point preview"></svg>
-            </div>
-            <div class="editor-event-preview">
-              <h3>Try undeclared event</h3>
-              <label class="editor-free-event">try an undeclared identity <span><input id="editor-event-identity" type="text" maxlength="64" autocomplete="off"><button id="editor-event-fire">Fire</button></span></label>
-              <output id="editor-event-status" class="dim" aria-live="polite">Events fire immediately in the edit instance.</output>
+      <section id="tab-seats" class="tab-panel seats-tab" role="tabpanel" aria-labelledby="tab-button-seats" data-tab-panel="seats" hidden>
+        <section id="spatial-section">
+          <div class="section-head"
+            ><h2>Seats</h2
+            ><span class="dim spatial-dimensions"
+              >room <input id="room-w" type="number" min="1" max="1000" step="0.5" /> ×
+              <input id="room-d" type="number" min="1" max="1000" step="0.5" /> m · origin
+              <input id="origin-x" type="number" min="0" step="0.1" />, <input id="origin-y" type="number" min="0" step="0.1" /></span
+          ></div>
+          <div id="point-toolbar">
+            <button id="point-add">Add point</button>
+            <div id="point-list" aria-label="Points"></div>
+            <div id="point-editor" hidden>
+              <strong id="point-title">Point</strong>
+              <label><input id="point-enabled" type="checkbox" checked /> on</label>
+              <label>radius <input id="point-radius" type="number" min="0.01" max="1000" step="0.1" /> m</label>
+              <label
+                >falloff
+                <select id="point-falloff"
+                  ><option value="0">linear</option
+                  ><option value="1">smooth</option
+                  ><option value="2">gauss</option></select
+                ></label
+              >
+              <label
+                >movement
+                <select id="point-motion"
+                  ><option value="static">still</option
+                  ><option value="bounce">bounce</option></select
+                ></label
+              >
+              <span id="bounce-fields"
+                ><label>x speed <input id="point-vx" type="number" step="0.1" /> m/s</label
+                ><label>y speed <input id="point-vy" type="number" step="0.1" /> m/s</label></span
+              >
+              <button id="point-delete" class="danger">Delete</button>
             </div>
           </div>
+          <div id="group-map-bar" hidden>
+            <div id="group-map-legend" aria-label="Visible Seat groups"></div>
+            <button id="group-view-clear">Clear group view</button>
+          </div>
+          <p id="group-map-message" class="group-map-message" role="status" hidden></p>
+          <svg id="spatial"></svg>
         </section>
+        <aside class="seat-sidebar">
+          <div id="seat-sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="Seat workspace objects">
+            <button id="seat-sidebar-tab" role="tab" aria-selected="true" aria-controls="seat-sidebar-panel">Seats</button>
+            <button id="group-sidebar-tab" role="tab" aria-selected="false" aria-controls="group-sidebar-panel">Groups</button>
+          </div>
+          <div id="seat-sidebar-panel" role="tabpanel" aria-labelledby="seat-sidebar-tab">
+            <div class="section-head"><h2>Seats</h2><button id="seat-add">Create seat</button></div>
+            <label class="seat-roster-filter"
+              >Filter Seats <input id="seat-roster-filter" type="text" placeholder="Names beginning with…"
+            /></label>
+            <div id="assigned" class="seat-roster-list"></div>
+            <p id="seat-roster-filter-empty" class="dim" hidden>No Seat names begin with this filter.</p>
+            <div id="seat-detail"><p class="dim">Select a Seat on the map or in the list.</p></div>
+          </div>
+          <div id="group-sidebar-panel" role="tabpanel" aria-labelledby="group-sidebar-tab" hidden>
+            <div class="section-head"
+              ><div><h2>Groups</h2><small id="groups-summary" class="dim">0 shown · 0 total</small></div
+              ><button id="group-create">Create group</button></div
+            >
+            <div id="groups-content"></div>
+          </div>
+        </aside>
       </section>
-      </div>
-      <dialog id="patch-version-dialog" aria-labelledby="patch-version-title"><form method="dialog">
-        <h2 id="patch-version-title">New Version</h2>
-        <p class="dim">Copies <b data-patch-version-live></b> into a new patch in this project. The fleet keeps running <span data-patch-version-live></span> until you Set Live the new one.</p>
-        <label>Name <input id="patch-version-name" type="text" autocomplete="off"></label>
-        <output id="patch-version-error" class="patch-dialog-error" aria-live="polite"></output>
-        <div class="patch-dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="patch-version-create" value="create">Create Version</button></div>
-      </form></dialog>
-      <dialog id="patch-add-dialog" aria-labelledby="patch-add-title"><form method="dialog">
-        <h2 id="patch-add-title">Add Existing</h2>
-        <label>Patch <select id="patch-add-select"></select></label>
-        <div class="patch-dialog-actions"><button value="cancel" formnovalidate>Cancel</button><button id="patch-add-confirm" value="add">Add Existing</button></div>
-      </form></dialog>
-    </section>
-    <section id="tab-assets" class="tab-panel assets-tab" role="tabpanel" aria-labelledby="tab-button-assets" data-tab-panel="assets" hidden>
-      <section id="asset-target-panel" aria-labelledby="asset-target-title">
-        <div class="section-head"><h3 id="asset-target-title">Target device</h3></div>
-        <!-- The device domain of the shared target picker: one device, no All,
+      <section
+        id="tab-devices"
+        class="tab-panel devices-tab"
+        role="tabpanel"
+        aria-labelledby="tab-button-devices"
+        data-tab-panel="devices"
+        hidden
+      >
+        <section id="wifi-panel" aria-labelledby="wifi-title">
+          <div class="section-head"
+            ><h2 id="wifi-title">Wi-Fi networks</h2
+            ><label
+              >Country
+              <select id="wifi-country" aria-label="Wi-Fi country"></select></label
+          ></div>
+          <div id="wifi-networks"></div>
+          <output id="wifi-warning" aria-live="polite"></output>
+          <footer><button id="wifi-add">+ Add network</button><button id="wifi-send">Send to all devices</button></footer>
+        </section>
+        <dialog id="wifi-confirm" aria-labelledby="wifi-confirm-warning"
+          ><p id="wifi-confirm-warning"></p
+          ><form method="dialog"
+            ><button value="cancel" aria-label="✕">✕</button><button value="send">Send to all devices</button></form
+          ></dialog
+        >
+        <aside class="device-sidebar">
+          <div class="section-head"
+            ><h2>Physical devices</h2
+            ><label class="device-filter"
+              >show
+              <select id="device-filter" aria-label="Filter physical devices"
+                ><option value="all">all</option
+                ><option value="online">online</option
+                ><option value="offline">offline</option
+                ><option value="bound">bound</option
+                ><option value="unbound">unbound</option></select
+              ></label
+            ></div
+          >
+          <div id="device-roster" class="device-roster-list"></div>
+          <!-- Icon buttons for the three recoverable fleet actions; the one that
+             takes the fleet down keeps its words (03-chrome-reclamation: "do
+             not make Shutdown All a bare glyph"). All four still confirm. -->
+          <footer class="fleet-actions"
+            ><button
+              id="forget-offline"
+              class="icon-button"
+              title="Forget offline unbound devices"
+              aria-label="Forget offline unbound devices"
+              ><span class="icon-glyph" aria-hidden="true">✕</span></button
+            ><button data-all="reboot" class="icon-button" title="Reboot all devices" aria-label="Reboot all devices"
+              ><span class="icon-glyph" aria-hidden="true">↻</span></button
+            ><button data-all="updatebopos" class="icon-button" title="Update bopOS on all devices" aria-label="Update bopOS on all devices"
+              ><span class="icon-glyph" aria-hidden="true">⇧</span></button
+            ><button data-all="shutdown" class="danger">Shutdown All</button></footer
+          >
+        </aside>
+        <main class="device-detail"
+          ><div id="detail"><p class="empty">Select a device.</p></div></main
+        >
+      </section>
+      <section
+        id="tab-patches"
+        class="tab-panel patches-tab"
+        role="tabpanel"
+        aria-labelledby="tab-button-patches"
+        data-tab-panel="patches"
+        hidden
+      >
+        <!-- The project's patches as sidebar + detail, like Devices
+           (66-projects/6-patch-versions, mockups 1-3): the list is the picker,
+           so the separate host-patch and fleet-patch pickers are gone. -->
+        <aside class="patch-sidebar">
+          <div class="section-head"
+            ><h2>Patches</h2
+            ><span class="patch-sidebar-actions"
+              ><button
+                id="refresh-distribution"
+                class="icon-button"
+                title="Refresh host patch and asset catalogs"
+                aria-label="Refresh host patch and asset catalogs"
+                ><span class="icon-glyph" aria-hidden="true">↻</span></button
+              ><button id="patch-new-version">New Version</button></span
+            ></div
+          >
+          <input
+            id="patch-filter"
+            class="patch-filter"
+            type="text"
+            placeholder="Filter patches…"
+            aria-label="Filter patches"
+            autocomplete="off"
+          />
+          <div id="patch-list" class="patch-list"></div>
+          <div class="patch-list-actions"
+            ><button id="patch-add-existing">Add Existing…</button><button id="editor-new-patch">New patch…</button></div
+          >
+          <section id="remote-command-editor" aria-labelledby="remote-command-title">
+            <div class="section-head"
+              ><div
+                ><h3 id="remote-command-title">Remote device commands</h3><p class="dim">Project setting · buttons shown on Remote</p></div
+              ></div
+            >
+            <fieldset id="remote-command-options">
+              <legend>Framework commands available from Remote</legend>
+              <label><input type="checkbox" data-remote-command="restart-engine" /> Restart engine</label>
+              <label><input type="checkbox" data-remote-command="updatebopos" /> Update bopOS</label>
+              <label><input type="checkbox" data-remote-command="reboot" /> Reboot</label>
+              <label><input type="checkbox" data-remote-command="shutdown" /> Shutdown</label>
+            </fieldset>
+            <output id="remote-command-feedback" class="dim" aria-live="polite"></output>
+          </section>
+        </aside>
+        <div class="patch-main">
+          <section id="patch-detail" aria-live="polite"></section>
+          <section id="editor-panel">
+            <div class="section-head"
+              ><div><h2>Manifest &amp; editor</h2><output id="editor-status" class="dim" aria-live="polite">off</output></div
+              ><div id="editor-session-actions" class="mode-actions"></div
+            ></div>
+            <p id="editor-engine-note" class="dim" hidden></p>
+            <label id="editor-input-control" hidden
+              ><span data-editor-input-label>Input source</span>
+              <select id="editor-input-source"
+                ><option value="">—</option></select
+              ></label
+            >
+            <section id="manifest-editor" aria-labelledby="manifest-editor-title">
+              <div class="section-head"><h3 id="manifest-editor-title">Manifest</h3><button id="manifest-save">Save manifest</button></div>
+              <div id="manifest-readonly"></div>
+              <div class="manifest-subhead"><h3>Events</h3><button id="manifest-add-event">Add event</button></div>
+              <div id="manifest-events"></div>
+              <div class="manifest-subhead"><h3>Parameters</h3><button id="manifest-add-param">Add parameter</button></div>
+              <div id="manifest-params"></div>
+              <div class="manifest-subhead"><h3>IO modules</h3><button id="manifest-add-io">Add IO module</button></div>
+              <p class="dim">Created when the engine starts. Optional modules may be absent on a device.</p>
+              <div id="manifest-io"></div>
+              <output id="manifest-feedback" class="dim" aria-live="polite"></output>
+            </section>
+            <div id="editor-params" class="device-control"></div>
+            <section id="editor-preview" aria-labelledby="editor-preview-title" hidden>
+              <div class="section-head"
+                ><div
+                  ><h3 id="editor-preview-title">Points and events</h3
+                  ><p class="dim">Session-only scratch controls for the running edit instance.</p></div
+                ></div
+              >
+              <div class="editor-preview-grid">
+                <div class="editor-point-preview">
+                  <div class="manifest-subhead"><h3>Point preview</h3><button id="editor-point-add">Add point</button></div>
+                  <div id="editor-point-list" class="point-list" aria-label="Editor points"></div>
+                  <fieldset id="editor-point-target"
+                    ><legend>send point values to</legend
+                    ><label><input type="radio" name="editor-point-element" value="0" checked /> element 0</label
+                    ><label><input type="radio" name="editor-point-element" value="1" /> element 1</label></fieldset
+                  >
+                  <div id="editor-point-controls" hidden>
+                    <strong id="editor-point-title">Point</strong>
+                    <label>radius <input id="editor-point-radius" type="number" min="0.01" max="1000" step="0.1" /> m</label>
+                    <label
+                      >falloff
+                      <select id="editor-point-falloff"
+                        ><option value="0">linear</option
+                        ><option value="1">smooth</option
+                        ><option value="2">gauss</option></select
+                      ></label
+                    >
+                    <button id="editor-point-delete" class="danger">Delete</button>
+                  </div>
+                  <p class="dim editor-preview-help"
+                    >The edit instance is pinned at the centre. Drag points around it to preview proximity.</p
+                  >
+                  <svg id="editor-spatial" aria-label="Editor point preview"></svg>
+                </div>
+                <div class="editor-event-preview">
+                  <h3>Try undeclared event</h3>
+                  <label class="editor-free-event"
+                    >try an undeclared identity
+                    <span
+                      ><input id="editor-event-identity" type="text" maxlength="64" autocomplete="off" /><button id="editor-event-fire"
+                        >Fire</button
+                      ></span
+                    ></label
+                  >
+                  <output id="editor-event-status" class="dim" aria-live="polite">Events fire immediately in the edit instance.</output>
+                </div>
+              </div>
+            </section>
+          </section>
+        </div>
+        <dialog id="patch-version-dialog" aria-labelledby="patch-version-title"
+          ><form method="dialog">
+            <h2 id="patch-version-title">New Version</h2>
+            <p class="dim"
+              >Copies <b data-patch-version-live></b> into a new patch in this project. The fleet keeps running
+              <span data-patch-version-live></span> until you Set Live the new one.</p
+            >
+            <label>Name <input id="patch-version-name" type="text" autocomplete="off" /></label>
+            <output id="patch-version-error" class="patch-dialog-error" aria-live="polite"></output>
+            <div class="patch-dialog-actions"
+              ><button value="cancel" formnovalidate>Cancel</button
+              ><button id="patch-version-create" value="create">Create Version</button></div
+            >
+          </form></dialog
+        >
+        <dialog id="patch-add-dialog" aria-labelledby="patch-add-title"
+          ><form method="dialog">
+            <h2 id="patch-add-title">Add Existing</h2>
+            <label
+              >Patch
+              <select id="patch-add-select"></select
+            ></label>
+            <div class="patch-dialog-actions"
+              ><button value="cancel" formnovalidate>Cancel</button><button id="patch-add-confirm" value="add">Add Existing</button></div
+            >
+          </form></dialog
+        >
+      </section>
+      <section
+        id="tab-assets"
+        class="tab-panel assets-tab"
+        role="tabpanel"
+        aria-labelledby="tab-button-assets"
+        data-tab-panel="assets"
+        hidden
+      >
+        <section id="asset-target-panel" aria-labelledby="asset-target-title">
+          <div class="section-head"><h3 id="asset-target-title">Target device</h3></div>
+          <!-- The device domain of the shared target picker: one device, no All,
              ineligible devices present but disabled with their reason. -->
-        <div id="asset-target-host" aria-describedby="asset-target-reasons"></div>
-        <div id="asset-target-reasons" class="asset-target-reasons"></div>
-      </section>
-      <section id="asset-catalog-panel" aria-labelledby="asset-catalog-title">
-        <!-- The refresh control lives in the head of the card it refreshes, the
+          <div id="asset-target-host" aria-describedby="asset-target-reasons"></div>
+          <div id="asset-target-reasons" class="asset-target-reasons"></div>
+        </section>
+        <section id="asset-catalog-panel" aria-labelledby="asset-catalog-title">
+          <!-- The refresh control lives in the head of the card it refreshes, the
              way `#refresh-distribution` sits in the Fleet patch head. It used to
              hang in a `.assets-heading` div of its own, which `03-chrome-
              reclamation` emptied when it deleted the tab's h2 — leaving one
              button alone on the workspace ground, which design-language §12
              forbids (11-ground-and-card-audit). -->
-        <div class="section-head"><div><h3 id="asset-catalog-title">Host catalog</h3><p id="asset-catalog-summary" class="dim"></p><p class="dim">Each folder is one asset slot. Added or removed slots enter engine context on the next engine start.</p></div><button id="asset-refresh" class="icon-button" title="Refresh catalog" aria-label="Refresh catalog"><span class="icon-glyph" aria-hidden="true">↻</span></button></div>
-        <output id="asset-feedback" class="asset-feedback dim" aria-live="polite"></output>
-        <div id="asset-catalog" class="asset-catalog"></div>
-        <div id="asset-extras" class="asset-extras"></div>
+          <div class="section-head"
+            ><div
+              ><h3 id="asset-catalog-title">Host catalog</h3><p id="asset-catalog-summary" class="dim"></p
+              ><p class="dim">Each folder is one asset slot. Added or removed slots enter engine context on the next engine start.</p></div
+            ><button id="asset-refresh" class="icon-button" title="Refresh catalog" aria-label="Refresh catalog"
+              ><span class="icon-glyph" aria-hidden="true">↻</span></button
+            ></div
+          >
+          <output id="asset-feedback" class="asset-feedback dim" aria-live="polite"></output>
+          <div id="asset-catalog" class="asset-catalog"></div>
+          <div id="asset-extras" class="asset-extras"></div>
+        </section>
       </section>
-    </section>
-    <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show"><div id="show-root"></div></section>
-  </div>
-  <script src="/js/ws.js"></script><script src="/js/osc-message.js"></script><script src="/js/device-identity.js"></script><script src="/js/group-slots.js"></script><script src="/js/spatial.js"></script><script src="/js/target-picker.js"></script><script src="/js/control-surface.js"></script><script src="/js/dashboard.js"></script><script src="/js/module-panels.js"></script><script src="/js/monitor.js"></script><script src="/js/paramspec.js"></script><script src="/js/value-box.js"></script><script src="/js/precision-field.js"></script><script src="/js/param-generator.js"></script><script src="/js/control-column.js"></script><script src="/js/control-cards-model.js"></script><script src="/js/control-host.js"></script><script src="/js/show.js"></script>
-  <script src="/js/installation-notice.js"></script>
-  <script src="/js/wifi-networks.js"></script>
-  <div id="project-menu" popover aria-label="Project · Site · Show"></div>
-  <dialog id="project-site-dialog" class="project-dialog" aria-labelledby="project-site-title">
-    <form method="dialog">
-      <h2 id="project-site-title">New Site</h2>
-      <label>Name <input id="project-site-name" name="name" placeholder="e.g. Town Hall" required></label>
-      <fieldset><legend>Start from</legend>
-        <label><input type="radio" name="start" value="empty"> An empty room</label>
-        <label><input type="radio" name="start" value="existing" checked> An existing site <select id="project-site-source" aria-label="An existing site"></select></label>
-      </fieldset>
-      <p class="dim">Copies its room size, listener and Seat positions.</p>
-      <footer><button type="button" id="project-site-cancel">Cancel</button><button type="submit" value="create">Create Site</button></footer>
-    </form>
-  </dialog>
-  <dialog id="project-show-dialog" class="project-dialog" aria-labelledby="project-show-title">
-    <form method="dialog">
-      <h2 id="project-show-title">New Show</h2>
-      <label>Name <input id="project-show-name" name="name" required></label>
-      <fieldset><legend>Start from</legend>
-        <label><input type="radio" name="start" value="empty"> An empty show</label>
-        <label><input type="radio" name="start" value="existing" checked> An existing show <select id="project-show-source" aria-label="An existing show"></select></label>
-      </fieldset>
-      <footer><button type="button" id="project-show-cancel">Cancel</button><button type="submit" value="create">Create Show</button></footer>
-    </form>
-  </dialog>
-  <script src="/js/project-menu.js"></script>
-</body></html>
+      <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show"
+        ><div id="show-root"></div
+      ></section>
+    </div>
+    <script src="/js/ws.js"></script
+    ><script src="/js/osc-message.js"></script
+    ><script src="/js/device-identity.js"></script
+    ><script src="/js/group-slots.js"></script
+    ><script src="/js/spatial.js"></script
+    ><script src="/js/target-picker.js"></script
+    ><script src="/js/control-surface.js"></script
+    ><script src="/js/dashboard.js"></script
+    ><script src="/js/dashboard-seats.js"></script
+    ><script src="/js/dashboard-patches.js"></script
+    ><script src="/js/dashboard-devices.js"></script
+    ><script src="/js/dashboard-assets.js"></script
+    ><script src="/js/dashboard-events.js"></script
+    ><script src="/js/module-panels.js"></script
+    ><script src="/js/monitor.js"></script
+    ><script src="/js/paramspec.js"></script
+    ><script src="/js/value-box.js"></script
+    ><script src="/js/precision-field.js"></script
+    ><script src="/js/param-generator.js"></script
+    ><script src="/js/control-column.js"></script
+    ><script src="/js/control-cards-model.js"></script
+    ><script src="/js/control-host.js"></script
+    ><script src="/js/show.js"></script>
+    <script src="/js/installation-notice.js"></script>
+    <script src="/js/wifi-networks.js"></script>
+    <div id="project-menu" popover aria-label="Project · Site · Show"></div>
+    <dialog id="project-site-dialog" class="project-dialog" aria-labelledby="project-site-title">
+      <form method="dialog">
+        <h2 id="project-site-title">New Site</h2>
+        <label>Name <input id="project-site-name" name="name" placeholder="e.g. Town Hall" required /></label>
+        <fieldset
+          ><legend>Start from</legend>
+          <label><input type="radio" name="start" value="empty" /> An empty room</label>
+          <label
+            ><input type="radio" name="start" value="existing" checked /> An existing site
+            <select id="project-site-source" aria-label="An existing site"></select
+          ></label>
+        </fieldset>
+        <p class="dim">Copies its room size, listener and Seat positions.</p>
+        <footer
+          ><button type="button" id="project-site-cancel">Cancel</button><button type="submit" value="create">Create Site</button></footer
+        >
+      </form>
+    </dialog>
+    <dialog id="project-show-dialog" class="project-dialog" aria-labelledby="project-show-title">
+      <form method="dialog">
+        <h2 id="project-show-title">New Show</h2>
+        <label>Name <input id="project-show-name" name="name" required /></label>
+        <fieldset
+          ><legend>Start from</legend>
+          <label><input type="radio" name="start" value="empty" /> An empty show</label>
+          <label
+            ><input type="radio" name="start" value="existing" checked /> An existing show
+            <select id="project-show-source" aria-label="An existing show"></select
+          ></label>
+        </fieldset>
+        <footer
+          ><button type="button" id="project-show-cancel">Cancel</button><button type="submit" value="create">Create Show</button></footer
+        >
+      </form>
+    </dialog>
+    <script src="/js/project-menu.js"></script> </body
+></html>
