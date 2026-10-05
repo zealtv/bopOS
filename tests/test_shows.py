@@ -59,6 +59,13 @@ class ShowStorageTests(unittest.TestCase):
         (Path(self.state.shows_dir()) / "Broken.json").write_text("broken JSON")
         self.assertEqual(self.state.public()["show_steps"], {"Broken": None, "Empty": 0, "Show": 1})
 
+    def test_out_of_range_numbers_mark_only_that_show_unreadable(self):
+        bad = dict(STEP, messages=[{"uid": "0000000c", "address": "/x", "target": "all",
+                                    "args": [{"type": "i", "value": float("inf")}]}])
+        (Path(self.state.shows_dir()) / "Bad.json").write_text(
+            json.dumps(dict(show_model.empty_show("Bad"), items=[bad])))
+        self.assertEqual(self.state.public()["show_steps"], {"Bad": None, "Show": 1})
+
     def test_open_show_before_its_first_edit_copies_empty_and_is_listed(self):
         self.state.create_show("Fresh")
         os.remove(self.state.show_path)
@@ -291,6 +298,41 @@ class ShowActionTests(DashboardCase):
             await self.send(kind, **data)
             dash.ws_error.assert_awaited_once()
 
+
+
+class ShowNumberBoundaryTests(DashboardCase):
+    """67/24: malformed numbers fail closed at the show boundary."""
+
+    async def test_out_of_range_edits_return_an_error_and_change_nothing(self):
+        dash = self.dash
+        step = dash.show["items"][0]["uid"]
+        await self.send("add_message", step_uid=step, message={
+            "address": "/x", "target": "all", "args": []})
+        message = dash.show["items"][0]["messages"][0]["uid"]
+        before = copy.deepcopy(dash.show)
+        for kind, data in (
+            ("update_step", {"uid": step, "duration_s": 10 ** 400}),
+            ("add_message", {"step_uid": step, "message": {
+                "address": "/x", "target": "all", "args": [{"type": "i", "value": float("inf")}]}}),
+            ("update_message", {"uid": message, "args": [{"type": "i", "value": 2 ** 31}]}),
+            ("update_message", {"uid": message, "address": "/a b#"}),
+        ):
+            with self.subTest(kind=kind, data=data):
+                dash.ws_error.reset_mock()
+                await self.send(kind, **data)
+                dash.ws_error.assert_awaited_once()
+                self.assertEqual(dash.show, before)
+
+    async def test_open_show_with_an_out_of_range_number_starts_read_only(self):
+        dash = self.dash
+        doc = json.loads(Path(dash.state.show_path).read_text())
+        doc["items"][0]["duration_s"] = 10 ** 400
+        Path(dash.state.show_path).write_text(json.dumps(doc))
+        restarted = Dashboard(dash.args)
+        self.addCleanup(restarted.osc.close)
+        self.assertTrue(restarted.show_load_invalid)
+        self.assertEqual(restarted.show["items"], [])
+        self.assertIsNone(restarted.state.public()["show_steps"]["Show"])
 
 
 class ClearShowTests(DashboardCase):

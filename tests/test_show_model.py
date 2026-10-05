@@ -111,6 +111,54 @@ class ShowSchemaTests(unittest.TestCase):
             with self.subTest(bad=bad):
                 self.assertIsNone(show_model.clean_message(bad))
 
+    def test_numeric_arguments_are_checked_against_their_wire_type_not_coerced(self):
+        for raw, expected in (
+            ({"type": "i", "value": 2147483647}, 2147483647),
+            ({"type": "i", "value": -2147483648}, -2147483648),
+            ({"type": "i", "value": 2.0}, 2),
+            ({"type": "f", "value": 3}, 3.0),
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(show_model.clean_arg(raw), {"type": raw["type"], "value": expected})
+                self.assertIs(type(show_model.clean_arg(raw)["value"]), type(expected))
+        for raw in (
+            {"type": "i", "value": 1.9},
+            {"type": "i", "value": "12"},
+            {"type": "i", "value": 2 ** 31},
+            {"type": "i", "value": -2 ** 31 - 1},
+            {"type": "i", "value": float("inf")},
+            {"type": "f", "value": "1e5"},
+            {"type": "f", "value": 1e39},
+            {"type": "f", "value": int("9" * 400)},
+        ):
+            with self.subTest(raw=raw):
+                self.assertIsNone(show_model.clean_arg(raw))
+
+    def test_addresses_follow_osc_address_rules(self):
+        for address in ("/pt", "/p/gain0", "/e/notes/on", "/all/os/master"):
+            with self.subTest(address=address):
+                self.assertIsNotNone(show_model.clean_message(message(address=address)))
+        for address in ("/", "//", "/a b#", "/x//y", "/x/", "/a*", "/p/{a,b}", "/p\t", "/é"):
+            with self.subTest(address=address):
+                self.assertIsNone(show_model.clean_message(message(address=address)))
+        show = document([step(messages=[message()])])
+        new_show, _, error = show_model.update_message(show, "b0000001", {"address": "/x//y"})
+        self.assertIs(new_show, show)
+        self.assertEqual(error, "address must be a non-empty OSC address.")
+
+    def test_out_of_range_edits_return_an_error_and_leave_the_show(self):
+        show = document([step(messages=[message()])])
+        for result in (
+            show_model.update_step(show, "a0000001", {"duration_s": 10 ** 400}),
+            show_model.add_message(show, "a0000001", message(
+                "b0000002", args=[{"type": "i", "value": float("inf")}])),
+            show_model.update_message(show, "b0000001", {"args": [{"type": "i", "value": 2 ** 31}]}),
+        ):
+            new_show, item, error = result
+            self.assertIs(new_show, show)
+            self.assertIsNone(item)
+            self.assertTrue(error)
+
     def test_uids_are_unique_with_separate_item_and_message_namespaces(self):
         shared = "a0000001"
         valid = document([
@@ -404,6 +452,12 @@ class ShowPersistenceTests(unittest.TestCase):
                     step("a0000001"),
                     step("a0000001"),
                 ], name="broken")),
+                json.dumps(document([step(duration_s=1e999)])),
+                json.dumps(document([step(duration_s=10 ** 400)])),
+                json.dumps(document([step(messages=[message(
+                    args=[{"type": "i", "value": float("inf")}])])])),
+                json.dumps(document([step(messages=[message(
+                    args=[{"type": "f", "value": 10 ** 400}])])])),
             ):
                 with self.subTest(content=content):
                     path.write_text(content)
