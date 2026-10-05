@@ -48,6 +48,12 @@ Added 2026-10-05 from `lore:2026-10-05-bopos-review-frontend` (74/2):
 22. `22-spatial-cancelled-drag` — pointercancel leaves the map dragging.
 23. `23-control-listener-hygiene` — stale generator gates, leaked listeners.
 
+Added 2026-10-05 from `lore:2026-10-05-bopos-review-show-model` (74/4):
+
+24. `24-show-number-boundary` — one bad number in a show file stops the
+    dashboard (high); edits drop sockets; coerced, unbounded args.
+25. `25-show-playback-consistency` — ghost "playing" steps; a 30k/s repeat.
+
 ## Constraints
 
 - Each fix lands with a test that fails before it.

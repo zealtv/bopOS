@@ -1,0 +1,18 @@
+F1 load_show(int_inf) raises OverflowError (only ValueError is caught)
+F1 load_show(float_bigint) raises OverflowError (only ValueError is caught)
+F1 load_show(duration_s=400-digit int) raises OverflowError
+F1 InstallationState.show_step_counts with that file raises OverflowError
+F2 update_step(duration_s=10**400) raises OverflowError
+F2 add_message(i=Infinity) raises OverflowError
+F3 clean_arg({'type': 'i', 'value': 1.9}) -> {'type': 'i', 'value': 1}
+F3 clean_arg({'type': 'i', 'value': '12'}) -> {'type': 'i', 'value': 12}
+F3 clean_arg({'type': 'f', 'value': '1e5'}) -> {'type': 'f', 'value': 100000.0}
+F3 clean_arg({'type': 'i', 'value': 2147483648}) -> {'type': 'i', 'value': 2147483648}
+F3 2**31 is sent with OSC type tag 'h' (int64), not 'i'
+F3 2**64 is accepted by the model and raises BuildError at send
+F4 step_start raises BuildError; the step stays 'playing' with no timer (show_playing() true until Stop all)
+F5 after undo + expiry: playback=['80c2e9a4'] state=playing remaining=0.0 (never cleared; clear_show and show management stay refused)
+F6 duration_s=1e-9, play_count=null accepted; ~29,460 OSC sends/s
+F7 3 state snapshots x 5 shows -> 15 show-file loads
+F8 addresses '/', '/a b#', '/x//y' are accepted
+all reproductions observed; fixtures in /tmp/bopos-74-4-9mgc0jga
