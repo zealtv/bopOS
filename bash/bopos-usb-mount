@@ -13,12 +13,16 @@
 # costs at worst a truncated last line — the append-only log's accepted
 # failure mode.
 set -euo pipefail
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 
 MOUNT_POINT="/media/bopos-usb"
 BOPOS_USER="pi"
+OWNER_FILE="/run/bopos-usb.owner"
+LOCK_FILE="/run/bopos-usb.lock"
 
 usage() {
-    echo "usage: bopos-usb-mount {mount <devname>|unmount}" >&2
+    echo "usage: bopos-usb-mount {mount|unmount} <devname>" >&2
     exit 2
 }
 
@@ -65,26 +69,38 @@ mount_stick() {
             exit 0
             ;;
     esac
+    printf '%s\n' "$devname" > "$OWNER_FILE"
     echo "bopos-usb-mount: mounted $dev ($fstype) at $MOUNT_POINT"
 }
 
 unmount_stick() {
+    local devname="$1" owner
+    [ -f "$OWNER_FILE" ] || return 0
+    owner="$(cat "$OWNER_FILE")"
+    [ "$owner" = "$devname" ] || return 0
     if mountpoint -q "$MOUNT_POINT"; then
         # A yanked stick may already be gone; lazy unmount reclaims the point.
         umount "$MOUNT_POINT" 2>/dev/null \
             || umount -l "$MOUNT_POINT" 2>/dev/null \
-            || true
+            || return 1
         echo "bopos-usb-mount: unmounted $MOUNT_POINT"
     fi
+    rm -f "$OWNER_FILE"
 }
+
+# Keep the lock file in place: deleting it could let another instance lock a
+# different inode. Hold the lock from the ownership check through the update.
+[ "$#" -eq 2 ] || usage
+case "$1" in mount|unmount) ;; *) usage ;; esac
+exec 9> "$LOCK_FILE"
+flock 9
 
 case "${1:-}" in
     mount)
-        [ "$#" -eq 2 ] || usage
         mount_stick "$2"
         ;;
     unmount)
-        unmount_stick
+        unmount_stick "$2"
         ;;
     *)
         usage

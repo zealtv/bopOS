@@ -13,5 +13,5 @@ Before=umount.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/home/pi/bopOS/bash/bopos-usb-mount mount %I
-ExecStop=/home/pi/bopOS/bash/bopos-usb-mount unmount
+ExecStart=/usr/local/sbin/bopos-usb-mount mount %I
+ExecStop=/usr/local/sbin/bopos-usb-mount unmount %I
