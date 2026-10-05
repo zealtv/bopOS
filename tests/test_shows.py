@@ -1,4 +1,5 @@
 """A project's several shows: storage, migration, and the menu's show actions."""
+import asyncio
 import copy
 import json
 import os
@@ -398,6 +399,63 @@ class ClearShowTests(DashboardCase):
         undo = len(dash.show_undo)
         await self.send("clear_show")
         self.assertEqual(len(dash.show_undo), undo)
+
+
+class ShowPlaybackConsistencyTests(DashboardCase):
+    """67/25: playback lists only steps that exist and are timing."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.dash.show_engine.bridge = mock.Mock()
+        self.first = self.dash.show["items"][0]["uid"]
+
+    async def add_timed_step(self):
+        await self.send("add_step", after_uid=self.first)
+        uid = self.dash.show["items"][1]["uid"]
+        await self.send("update_step", uid=uid, duration_s=0.05)
+        return uid
+
+    async def test_undo_that_removes_a_playing_step_stops_it(self):
+        dash = self.dash
+        uid = await self.add_timed_step()
+        await self.send("step_start", uid=uid)
+        await self.send("undo_show")  # the duration edit; the step stays
+        self.assertIn(uid, dash.show_engine.playback)
+        await self.send("undo_show")  # the add
+        self.assertFalse(dash.show_playing())
+        await self.send("clear_show")
+        self.assertEqual(dash.show["items"], [])
+        dash.ws_error.assert_not_awaited()
+
+    async def test_a_failing_send_still_times_the_step_and_clear_works_after(self):
+        dash = self.dash
+        uid = await self.add_timed_step()
+        await self.send("add_message", step_uid=uid, message={
+            "address": "/x", "target": "all", "args": []})
+        await self.send("add_message", step_uid=uid, message={
+            "address": "/y", "target": "all", "args": []})
+        dash.show_engine.bridge.send.side_effect = [RuntimeError("build"), None]
+        with self.assertLogs("bopos.show_engine", "ERROR"):
+            await self.send("step_start", uid=uid)
+        dash.show_engine.bridge.send.assert_called_with("/y", [])
+        self.assertIsNotNone(dash.show_engine.playback[uid]["timer"])
+        await asyncio.sleep(0.15)
+        self.assertFalse(dash.show_playing())
+        await self.send("clear_show")
+        self.assertEqual(dash.show["items"], [])
+        dash.ws_error.assert_not_awaited()
+
+    async def test_remove_stops_a_playing_step_only_when_the_removal_lands(self):
+        dash = self.dash
+        await self.send("step_start", uid=self.first)
+        dash.show_load_invalid = True  # write-blocked: the removal is refused
+        await self.send("remove_item", uid=self.first)
+        dash.ws_error.assert_awaited_once()
+        self.assertEqual(dash.show_engine.playback[self.first]["state"], "playing")
+        dash.show_load_invalid = False
+        await self.send("remove_item", uid=self.first)
+        self.assertEqual(dash.show["items"], [])
+        self.assertFalse(dash.show_playing())
 
 
 if __name__ == "__main__":

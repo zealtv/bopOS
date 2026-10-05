@@ -44,6 +44,11 @@ log = logging.getLogger("bopos.show_engine")
 # playback and logs rather than hanging the process.
 MAX_SYNCHRONOUS_RESOLUTIONS = 50
 
+# Shortest re-arm delay. The model refuses duration_s == 0 with infinite
+# play_count, but a tiny positive duration would still re-send every loop
+# turn (~30k OSC/s); this keeps it to at most 100 repeats a second.
+MIN_REARM_S = 0.01
+
 
 class ShowEngine:
     def __init__(self, bridge, broadcast, seed=None, event_lead_ms=None,
@@ -139,8 +144,14 @@ class ShowEngine:
     # ----------------------------------------------------------------
 
     async def _emit_messages(self, step):
+        # One failing message is logged and skipped, so the rest still send
+        # and the step's timer is still armed -- playback never strands.
         for message in step["messages"]:
-            self._send_message(message)
+            try:
+                self._send_message(message)
+            except Exception:
+                log.exception("show engine: message to %s failed; skipped",
+                              message["address"])
 
     def _send_message(self, message):
         address, target = message["address"], message["target"]
@@ -187,6 +198,7 @@ class ShowEngine:
         state["expiry_mono"] = None
 
     def _arm_timer(self, uid, duration):
+        duration = max(duration, MIN_REARM_S)
         state = self.playback[uid]
         state["expiry_mono"] = time.monotonic() + duration
         state["remaining_s"] = duration
@@ -199,7 +211,10 @@ class ShowEngine:
     async def _on_expiry(self, uid):
         step = self.step_by_uid(uid)
         state = self.playback.get(uid)
-        if step is None or state is None or state["state"] != "playing":
+        if state is None or state["state"] != "playing":
+            return
+        if step is None:  # removed from the show while it played
+            await self.step_stop(uid)
             return
         state["timer"] = None
         play_count = step["play_count"]
@@ -362,6 +377,15 @@ class ShowEngine:
         self._cancel_timer(uid)
         await self._resolve_then_actions(uid, step, MAX_SYNCHRONOUS_RESOLUTIONS)
         await self._broadcast_playback()
+
+    async def set_show(self, show):
+        """Swap in an edited show, stopping any step it no longer holds."""
+        self.show = show
+        missing = [uid for uid in self.playback if self.step_by_uid(uid) is None]
+        for uid in missing:
+            await self._stop_step(uid)
+        if missing:
+            await self._broadcast_playback()
 
     async def stop_all_steps(self):
         for uid in list(self.playback):
