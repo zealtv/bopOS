@@ -62,6 +62,15 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     a one-time `provision.sh` + reboot per Pi with a temporary `start.sh` shim
     (or a flag day), and engine `Restart=no`. Approve?
 
+18. **Update patch and push targets (58/1, 58/3)**: built and merged; parked
+    until you OK the new wording. The Device page always shows **"Update
+    patch"**, disabled with a reason (offline / unassigned / simulated / No
+    fleet patch set). It confirms with **"Update patch on <device>? This may
+    restart its audio engine."** The Patches tab lists **"Push targets"**, each
+    marked **"Will receive patch"** or with its reason. Screenshots:
+    `screenshots/update-patch-58-1440.png`, `screenshots/push-targets-58-1440.png`.
+    OK as is?
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
