@@ -86,6 +86,10 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    device; the patch sees its sensor values on 6662 as it would on the Pi.
    Pick simulated; slider and pad moves reach the patch, and patch OLED
    writes show in the preview.
+9. **USB helper (67/17)**: reprovision a Pi with no stick inserted; the
+   helper is root-owned in `/usr/local/sbin`; one stick mounts, a second is
+   ignored, removing the second leaves the first mounted. Checklist in
+   `67-repair-pass/17-usb-service-hardening.tied/pi-check.md`.
 
 ## Ruled
 
