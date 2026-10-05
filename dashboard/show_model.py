@@ -22,10 +22,19 @@ import math
 import os
 import re
 import secrets
+import sys
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python.paramgen import wire_number
 
 SCHEMA = 1
 UID_RE = re.compile(r"[0-9a-f]{8}")
 TARGET_RE = re.compile(r"all|[0-9]+|g[0-9]+")
+# OSC 1.0: one or more non-empty parts of printable ASCII, none of which is
+# space, `#`, `/`, or a pattern character (`*?,[]{}`).
+ADDRESS_RE = re.compile(r"(?:/(?:(?![#*,/?\[\]{}])[!-~])+)+")
 NAMED_GROUP_PREFIX = "group:"
 MESSAGE_KINDS = frozenset(("osc",))
 THEN_ACTION_TYPES = frozenset((
@@ -87,15 +96,30 @@ def clean_arg(value):
     raw = value.get("value")
     if kind == "s":
         return {"type": "s", "value": raw} if isinstance(raw, str) else None
-    if isinstance(raw, bool):
+    # Checked, never coerced: an `i` is integral and int32, an `f` is a
+    # finite float32 (strings and bools are neither).
+    if kind == "i" and isinstance(raw, float) and raw.is_integer():
+        raw = int(raw)
+    if kind == "i" and not isinstance(raw, int):
+        return None
+    if not wire_number(raw, kind):
+        return None
+    return {"type": kind, "value": raw if kind == "i" else float(raw)}
+
+
+def clean_address(value):
+    return value if isinstance(value, str) and ADDRESS_RE.fullmatch(value) else None
+
+
+def clean_duration(value):
+    """A finite duration_s >= 0 as float, or None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     try:
-        number = float(raw) if kind == "f" else int(raw)
-    except (TypeError, ValueError):
+        value = float(value)
+    except OverflowError:
         return None
-    if kind == "f" and not math.isfinite(number):
-        return None
-    return {"type": kind, "value": number}
+    return value if math.isfinite(value) and value >= 0 else None
 
 
 def clean_message(value):
@@ -107,8 +131,8 @@ def clean_message(value):
     alias = value.get("alias")
     if alias is not None and not isinstance(alias, str):
         return None
-    address = value.get("address")
-    if not isinstance(address, str) or not address.startswith("/") or address.strip() != address:
+    address = clean_address(value.get("address"))
+    if address is None:
         return None
     raw_args = value.get("args", [])
     if not isinstance(raw_args, list):
@@ -239,11 +263,8 @@ def clean_step(value):
         if message is None:
             return None
         messages.append(message)
-    duration_s = value.get("duration_s")
-    if isinstance(duration_s, bool) or not isinstance(duration_s, (int, float)):
-        return None
-    duration_s = float(duration_s)
-    if not math.isfinite(duration_s) or duration_s < 0:
+    duration_s = clean_duration(value.get("duration_s"))
+    if duration_s is None:
         return None
     play_count = value.get("play_count")
     if play_count is not None and (isinstance(play_count, bool)
@@ -457,11 +478,10 @@ def update_step(show, uid, patch):
             return show, None, "alias must be text or null."
         candidate["alias"] = alias
     if "duration_s" in patch:
-        duration_s = patch["duration_s"]
-        if (isinstance(duration_s, bool) or not isinstance(duration_s, (int, float))
-                or not math.isfinite(duration_s) or duration_s < 0):
+        duration_s = clean_duration(patch["duration_s"])
+        if duration_s is None:
             return show, None, "duration_s must be a number >= 0."
-        candidate["duration_s"] = float(duration_s)
+        candidate["duration_s"] = duration_s
     if "play_count" in patch:
         play_count = patch["play_count"]
         if play_count is not None and (isinstance(play_count, bool)
@@ -605,8 +625,8 @@ def update_message(show, uid, patch):
             return show, None, "alias must be text or null."
         candidate["alias"] = alias
     if "address" in patch:
-        address = patch["address"]
-        if not isinstance(address, str) or not address.startswith("/") or address.strip() != address:
+        address = clean_address(patch["address"])
+        if address is None:
             return show, None, "address must be a non-empty OSC address."
         candidate["address"] = address
     if "args" in patch:
@@ -708,6 +728,6 @@ def load_show(path):
         return empty_show(), False
     try:
         cleaned = clean_show(json.loads(text), fallback_name="")
-    except ValueError:
+    except (ValueError, ArithmeticError):
         cleaned = None
     return (cleaned, True) if cleaned is not None else (empty_show(), False)
