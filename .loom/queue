@@ -11,9 +11,6 @@
 2-split-osc-handle
 5-dashboard-js-readability
 1-split-handle-ws
-6-split-manifest-validate
 19-node-process-ownership
-20-remote-hold-cancel
 21-module-panel-sync
-22-spatial-cancelled-drag
 23-control-listener-hygiene
