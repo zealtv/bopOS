@@ -117,6 +117,8 @@ class InstallationState:
 
     def __init__(self, data_dir, devices_file=None, *, project=None, read_only=False):
         self.data_dir = os.path.abspath(data_dir)
+        # show file path -> (stat identity, step count); see show_step_counts.
+        self._show_step_cache = {}
         # Host-global session choice, never replaced by opening a project.
         from python import performance_mode
         self.performance_path = os.path.join(self.data_dir, "performance.json")
@@ -1370,11 +1372,25 @@ class InstallationState:
 
     def show_step_counts(self):
         """Steps per show for the project menu (dividers don't count); None
-        for a show that won't load."""
-        counts = {}
+        for a show that won't load. Every snapshot calls this, so a file is
+        only reloaded when its stat changes (an edit here or elsewhere)."""
+        counts, cache = {}, {}
         for name in self.list_shows():
-            doc, valid = show_model.load_show(self.show_file(name))
-            counts[name] = sum(item["kind"] == "step" for item in doc["items"]) if valid else None
+            path = self.show_file(name)
+            try:
+                stat = os.stat(path)
+                identity = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+            except OSError:
+                identity = None
+            cached = self._show_step_cache.get(path)
+            if cached is not None and cached[0] == identity:
+                count = cached[1]
+            else:
+                doc, valid = show_model.load_show(path)
+                count = sum(item["kind"] == "step" for item in doc["items"]) if valid else None
+            counts[name] = count
+            cache[path] = (identity, count)
+        self._show_step_cache = cache
         return counts
 
     def _require_shows(self):

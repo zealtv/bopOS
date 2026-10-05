@@ -59,6 +59,28 @@ class ShowStorageTests(unittest.TestCase):
         (Path(self.state.shows_dir()) / "Broken.json").write_text("broken JSON")
         self.assertEqual(self.state.public()["show_steps"], {"Broken": None, "Empty": 0, "Show": 1})
 
+    def test_step_counts_reload_only_changed_show_files(self):
+        def steps(expected, loads):
+            with mock.patch.object(show_model, "load_show", wraps=show_model.load_show) as load:
+                self.assertEqual(self.state.public()["show_steps"], expected)
+            self.assertEqual(load.call_count, loads)
+        steps({"Show": 1}, 1)
+        steps({"Show": 1}, 0)
+        show_model.save_show(self.state.show_path, dict(show_model.empty_show("Show"), items=[STEP, dict(STEP, uid="0000000c")]))
+        steps({"Show": 2}, 1)
+        self.state.create_show("Copy", "Show")
+        steps({"Copy": 2, "Show": 2}, 1)
+        self.state.rename_show("Moved")
+        steps({"Moved": 2, "Show": 2}, 1)
+        self.state.select_show("Show")
+        self.state.delete_show("Moved")
+        steps({"Show": 2}, 0)
+        (Path(self.state.shows_dir()) / "Outside.json").write_text("broken JSON")
+        steps({"Outside": None, "Show": 2}, 1)
+        steps({"Outside": None, "Show": 2}, 0)
+        (Path(self.state.shows_dir()) / "Outside.json").write_text(json.dumps(show_model.empty_show("Outside")))
+        steps({"Outside": 0, "Show": 2}, 1)
+
     def test_open_show_before_its_first_edit_copies_empty_and_is_listed(self):
         self.state.create_show("Fresh")
         os.remove(self.state.show_path)
