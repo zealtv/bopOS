@@ -106,23 +106,32 @@ def validate(candidate, patch_path, require_entrypoint=True):
     # Validation supplies the normalized engine value, but never mutates a
     # caller-owned dictionary while deciding whether it is safe to write.
     manifest = dict(candidate)
-    if not isinstance(manifest, dict):
-        return None, f"{MANIFEST_NAME} must be a JSON object"
+    error = _validate_entry(manifest, patch_path, require_entrypoint)
+    if error is not None:
+        return None, error
+    for check in (_validate_params, _validate_events, _validate_io_modules,
+                  _validate_caps):
+        error = check(manifest)
+        if error is not None:
+            return None, error
+    return manifest, None
 
+
+def _validate_entry(manifest, patch_path, require_entrypoint):
     engine = manifest.get("engine", "pd")
     if not isinstance(engine, str) or not engine.strip() or '\0' in engine:
-        return None, "engine must be a non-empty string"
+        return "engine must be a non-empty string"
     manifest["engine"] = engine.strip()
 
     entrypoint = manifest.get("entrypoint")
     if (not isinstance(entrypoint, str) or not entrypoint.strip()
             or '\0' in entrypoint):
-        return None, "entrypoint must be a non-empty string"
+        return "entrypoint must be a non-empty string"
     entrypoint = entrypoint.strip()
     normalized_entrypoint = os.path.normpath(entrypoint)
     if (os.path.isabs(entrypoint) or normalized_entrypoint == ".."
             or normalized_entrypoint.startswith(".." + os.sep)):
-        return None, "entrypoint must stay inside the patch directory"
+        return "entrypoint must stay inside the patch directory"
     patch_root = os.path.realpath(patch_path)
     resolved_entrypoint = os.path.realpath(
         os.path.join(patch_path, normalized_entrypoint))
@@ -131,132 +140,160 @@ def validate(candidate, patch_path, require_entrypoint=True):
     except ValueError:
         contained = False
     if not contained:
-        return None, "entrypoint must resolve inside the patch directory"
+        return "entrypoint must resolve inside the patch directory"
     manifest["entrypoint"] = entrypoint
     if (require_entrypoint
             and not os.path.isfile(os.path.join(patch_path, normalized_entrypoint))):
-        return None, f"entrypoint {entrypoint!r} not found in {patch_path}"
+        return f"entrypoint {entrypoint!r} not found in {patch_path}"
+    return None
 
+
+def _normalize_param_metadata(param):
+    legacy_dashboard = param.pop("facilitator", _MISSING)
+    if legacy_dashboard is not _MISSING and not isinstance(legacy_dashboard, bool):
+        return f"param {param.get('name')}: facilitator must be true or false"
+    if ("dashboard" in param and legacy_dashboard is not _MISSING
+            and param["dashboard"] != legacy_dashboard):
+        return (f"param {param.get('name')!r}: dashboard and legacy "
+                "facilitator values conflict")
+    if "dashboard" not in param and legacy_dashboard is not _MISSING:
+        param["dashboard"] = legacy_dashboard
+    # ``group`` was presentation-only. Accept old manifests, but do not
+    # preserve it in the normalized model or any subsequent save.
+    param.pop("group", None)
+    return None
+
+
+def _validate_param_kind(param):
+    name = param["name"]
+    if "type" in param:
+        return (f"param {name}: type was removed (2026-07-28); "
+                f"use kind ({'/'.join(PARAM_KINDS)})")
+    kind = param.get("kind")
+    if not isinstance(kind, str) or kind not in PARAM_KINDS:
+        return f"param {name}: kind must be one of {'/'.join(PARAM_KINDS)}"
+    options = param.get("options")
+    if kind == "enum":
+        if (not isinstance(options, list)
+                or not 2 <= len(options) <= MAX_PARAM_OPTIONS):
+            return (f"param {name}: options must be a list of 2–"
+                    f"{MAX_PARAM_OPTIONS} labels")
+        if any(not isinstance(label, str)
+               or OPTION_LABEL.fullmatch(label) is None for label in options):
+            return (f"param {name}: each option must be 1–32 characters "
+                    "without newlines")
+        if len(set(options)) != len(options):
+            return f"param {name}: option labels must be unique"
+        # The indices are the value range, so min/max are derived rather
+        # than authored. Accepting a matching pair keeps a round-tripped
+        # manifest (the editor saves what it loaded) valid.
+        for key, derived in (("min", 0), ("max", len(options) - 1)):
+            if param.get(key) is None:
+                param[key] = derived
+            elif param[key] != derived:
+                return (f"param {name}: {key} is derived from options "
+                        f"({derived}), not authored")
+    elif options is not None:
+        return f"param {name}: options only apply to kind enum"
+    if kind == "toggle":
+        # The binary range is derived rather than authored. Accepting a
+        # matching pair keeps a round-tripped manifest (the editor saves
+        # what it loaded) valid, while a different pair remains an error.
+        for key, derived in (("min", 0), ("max", 1)):
+            if param.get(key) is None:
+                param[key] = derived
+            elif param[key] != derived:
+                return (f"param {name}: {key} is derived for kind "
+                        f"toggle ({derived}), not authored")
+    return None
+
+
+def _validate_param_values(param):
+    name, kind = param["name"], param["kind"]
+    low, high, default = param.get("min"), param.get("max"), param.get("default")
+    if kind == "text":
+        if "min" in param or "max" in param:
+            return f"param {name}: min/max do not apply to kind text"
+        if default is not None and not isinstance(default, str):
+            return f"param {name}: text default must be a string"
+    else:
+        numbers = [v for v in (low, high, default) if v is not None]
+        if any(not wire_number(v, PARAM_KINDS[kind]) for v in numbers):
+            return f"param {name}: min/max/default must be numbers"
+    if kind == "enum" and default is not None and default != int(default):
+        return f"param {name}: default {default} is not an option index"
+    if kind == "toggle" and default is not None and default not in (0, 1):
+        return f"param {name}: toggle default must be 0 or 1"
+    if low is not None and high is not None and low > high:
+        return f"param {name}: min {low} > max {high}"
+    if default is not None:
+        if low is not None and default < low:
+            return f"param {name}: default {default} below min {low}"
+        if high is not None and default > high:
+            return f"param {name}: default {default} above max {high}"
+    if "role" in param:
+        return (f"param {name}: role was removed (2026-07-12); "
+                "dashboard controls come from dashboard:true, "
+                "inspection from /report")
+    dashboard = param.get("dashboard")
+    if dashboard is not None and not isinstance(dashboard, bool):
+        return f"param {name}: dashboard must be true or false"
+    return None
+
+
+def _validate_params(manifest):
     params = manifest.get("params", [])
     if not isinstance(params, list):
-        return None, "params must be a list"
+        return "params must be a list"
     normalized_params = []
     param_identities = set()
     for original in params:
         if not isinstance(original, dict):
-            return None, f"param {original!r} must be an object"
+            return f"param {original!r} must be an object"
         param = dict(original)
-        legacy_dashboard = param.pop("facilitator", _MISSING)
-        if legacy_dashboard is not _MISSING and not isinstance(legacy_dashboard, bool):
-            return None, f"param {param.get('name')}: facilitator must be true or false"
-        if ("dashboard" in param and legacy_dashboard is not _MISSING
-                and param["dashboard"] != legacy_dashboard):
-            return None, (f"param {param.get('name')!r}: dashboard and legacy "
-                          "facilitator values conflict")
-        if "dashboard" not in param and legacy_dashboard is not _MISSING:
-            param["dashboard"] = legacy_dashboard
-        # ``group`` was presentation-only. Accept old manifests, but do not
-        # preserve it in the normalized model or any subsequent save.
-        param.pop("group", None)
+        error = _normalize_param_metadata(param)
+        if error is not None:
+            return error
         try:
             identity = qualify_param(param)
         except ValueError as error:
-            return None, str(error)
-        name = param["name"]
+            return str(error)
         if identity in param_identities:
-            return None, f"duplicate param identity {identity!r}"
+            return f"duplicate param identity {identity!r}"
         param_identities.add(identity)
-        if "type" in param:
-            return None, (f"param {name}: type was removed (2026-07-28); "
-                          f"use kind ({'/'.join(PARAM_KINDS)})")
-        kind = param.get("kind")
-        if not isinstance(kind, str) or kind not in PARAM_KINDS:
-            return None, f"param {name}: kind must be one of {'/'.join(PARAM_KINDS)}"
-        options = param.get("options")
-        if kind == "enum":
-            if (not isinstance(options, list)
-                    or not 2 <= len(options) <= MAX_PARAM_OPTIONS):
-                return None, (f"param {name}: options must be a list of 2–"
-                              f"{MAX_PARAM_OPTIONS} labels")
-            if any(not isinstance(label, str)
-                   or OPTION_LABEL.fullmatch(label) is None for label in options):
-                return None, (f"param {name}: each option must be 1–32 characters "
-                              "without newlines")
-            if len(set(options)) != len(options):
-                return None, f"param {name}: option labels must be unique"
-            # The indices are the value range, so min/max are derived rather
-            # than authored. Accepting a matching pair keeps a round-tripped
-            # manifest (the editor saves what it loaded) valid.
-            for key, derived in (("min", 0), ("max", len(options) - 1)):
-                if param.get(key) is None:
-                    param[key] = derived
-                elif param[key] != derived:
-                    return None, (f"param {name}: {key} is derived from options "
-                                  f"({derived}), not authored")
-        elif options is not None:
-            return None, f"param {name}: options only apply to kind enum"
-        if kind == "toggle":
-            # The binary range is derived rather than authored. Accepting a
-            # matching pair keeps a round-tripped manifest (the editor saves
-            # what it loaded) valid, while a different pair remains an error.
-            for key, derived in (("min", 0), ("max", 1)):
-                if param.get(key) is None:
-                    param[key] = derived
-                elif param[key] != derived:
-                    return None, (f"param {name}: {key} is derived for kind "
-                                  f"toggle ({derived}), not authored")
-        low, high, default = param.get("min"), param.get("max"), param.get("default")
-        if kind == "text":
-            if "min" in param or "max" in param:
-                return None, f"param {name}: min/max do not apply to kind text"
-            if default is not None and not isinstance(default, str):
-                return None, f"param {name}: text default must be a string"
-        else:
-            numbers = [v for v in (low, high, default) if v is not None]
-            if any(not wire_number(v, PARAM_KINDS[kind]) for v in numbers):
-                return None, f"param {name}: min/max/default must be numbers"
-        if kind == "enum" and default is not None and default != int(default):
-            return None, f"param {name}: default {default} is not an option index"
-        if kind == "toggle" and default is not None and default not in (0, 1):
-            return None, f"param {name}: toggle default must be 0 or 1"
-        if low is not None and high is not None and low > high:
-            return None, f"param {name}: min {low} > max {high}"
-        if default is not None:
-            if low is not None and default < low:
-                return None, f"param {name}: default {default} below min {low}"
-            if high is not None and default > high:
-                return None, f"param {name}: default {default} above max {high}"
-        if "role" in param:
-            return None, (f"param {name}: role was removed (2026-07-12); "
-                          "dashboard controls come from dashboard:true, "
-                          "inspection from /report")
-        dashboard = param.get("dashboard")
-        if dashboard is not None and not isinstance(dashboard, bool):
-            return None, f"param {name}: dashboard must be true or false"
+        error = _validate_param_kind(param)
+        if error is not None:
+            return error
+        error = _validate_param_values(param)
+        if error is not None:
+            return error
         normalized_params.append(param)
     manifest["params"] = normalized_params
+    return None
 
+
+def _validate_events(manifest):
     events = manifest.get("events", [])
     if not isinstance(events, list):
-        return None, "events must be a list"
+        return "events must be a list"
     normalized_events = []
     event_identities = set()
     for original in events:
         if not isinstance(original, dict):
-            return None, f"event {original!r} must be an object"
+            return f"event {original!r} must be an object"
         event = dict(original)
         try:
             identity = qualify_param(event)
         except ValueError as error:
-            return None, str(error)
+            return str(error)
         name = event["name"]
         if identity in event_identities:
-            return None, f"duplicate event identity {identity!r}"
+            return f"duplicate event identity {identity!r}"
         event_identities.add(identity)
         arity = event.get("arity", 1)
         if (not isinstance(arity, int) or isinstance(arity, bool)
                 or not 0 <= arity <= MAX_EVENT_ARITY):
-            return None, f"event {name}: arity must be 0, 1, 2 or {MAX_EVENT_ARITY}"
+            return f"event {name}: arity must be 0, 1, 2 or {MAX_EVENT_ARITY}"
         event["arity"] = arity
         # Per-element labels were retired 2026-07-28 (Bob): an event carries
         # one label, its name, and elements are numbered floats. Older
@@ -266,47 +303,52 @@ def validate(candidate, patch_path, require_entrypoint=True):
         if defaults is not None:
             if (not isinstance(defaults, list) or len(defaults) != arity
                     or any(not wire_number(value, 'f') for value in defaults)):
-                return None, f"event {name}: defaults must be {arity} numbers"
+                return f"event {name}: defaults must be {arity} numbers"
         dashboard = event.get("dashboard")
         if dashboard is not None and not isinstance(dashboard, bool):
-            return None, f"event {name}: dashboard must be true or false"
+            return f"event {name}: dashboard must be true or false"
         normalized_events.append(event)
     if normalized_events or "events" in manifest:
         manifest["events"] = normalized_events
+    return None
 
+
+def _validate_io_modules(manifest):
     modules = manifest.get("io_modules", [])
     if not isinstance(modules, list):
-        return None, "io_modules must be a list"
+        return "io_modules must be a list"
     normalized_modules, module_names = [], set()
     for original in modules:
         if not isinstance(original, dict):
-            return None, "IO module must be an object"
+            return "IO module must be an object"
         name = original.get("name")
         if not io_protocol.valid_name(name):
-            return None, f"IO module {name!r}: invalid or reserved name"
+            return f"IO module {name!r}: invalid or reserved name"
         if name in module_names:
-            return None, f"duplicate IO module name {name!r}"
+            return f"duplicate IO module name {name!r}"
         module_names.add(name)
         if (not isinstance(original.get("type"), str)
                 or original["type"] not in PERIPHERAL_TYPES):
-            return None, f"IO module {name!r}: unknown type"
+            return f"IO module {name!r}: unknown type"
         address = original.get("address")
         if (not isinstance(address, str)
                 or re.fullmatch(r"0x[0-9a-fA-F]{2}", address) is None
                 or not 0x03 <= int(address, 16) <= 0x77):
-            return None, f"IO module {name!r}: address must be 0x03–0x77"
+            return f"IO module {name!r}: address must be 0x03–0x77"
         if "optional" in original and not isinstance(original["optional"], bool):
-            return None, f"IO module {name!r}: optional must be true or false"
+            return f"IO module {name!r}: optional must be true or false"
         normalized_modules.append(dict(original, address=address.lower()))
     if modules or "io_modules" in manifest:
         manifest["io_modules"] = normalized_modules
+    return None
 
+
+def _validate_caps(manifest):
     for key, kind in (("caps", "caps"), ("slots", "slots")):
         values = manifest.get(key, [])
         if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
-            return None, f"{kind} must be a list of strings"
-
-    return manifest, None
+            return f"{kind} must be a list of strings"
+    return None
 
 
 def load(patch_path):
