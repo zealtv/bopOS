@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOPOS_DIR="$(dirname "$SCRIPT_DIR")"
 RUN_DIR="$BOPOS_DIR/run"
@@ -17,6 +19,8 @@ JACK_NPERIODS="${JACK_NPERIODS:-2}"
 JACK_START_TIMEOUT="${BOPOS_JACK_START_TIMEOUT:-15}"
 JACK_STOP_TIMEOUT="${BOPOS_STOP_TIMEOUT:-15}"
 AUDIO_WAIT_TIMEOUT="${BOPOS_AUDIO_WAIT_TIMEOUT:-60}"
+JACK_PID=""
+ENGINE_PID=""
 
 stop_failed_jack() {
     pid="$1"
@@ -32,7 +36,50 @@ stop_failed_jack() {
         elapsed=$((elapsed + 1))
     done
     wait "$pid" 2>/dev/null || true
-    rm -f "$RUN_DIR/jackd.pid"
+    if [ "$(cat "$RUN_DIR/jackd.pid" 2>/dev/null)" = "$pid" ]; then
+        rm -f "$RUN_DIR/jackd.pid"
+    fi
+}
+
+cleanup_failed_launch() {
+    local status=$?
+    [ "$status" -ne 0 ] || return 0
+    set +e
+    # Use only this shell's child PIDs, never pre-existing run records or pkill.
+    if [ -n "$ENGINE_PID" ]; then
+        kill "$ENGINE_PID" 2>/dev/null || true
+        local elapsed=0
+        while kill -0 "$ENGINE_PID" 2>/dev/null; do
+            if [ "$elapsed" -ge "$JACK_STOP_TIMEOUT" ]; then
+                kill -KILL "$ENGINE_PID" 2>/dev/null || true
+                break
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
+        wait "$ENGINE_PID" 2>/dev/null || true
+        if [ "$(cat "$RUN_DIR/engine.pid" 2>/dev/null)" = "$ENGINE_PID" ]; then
+            rm -f "$RUN_DIR/engine.pid" "$RUN_DIR/engine.name"
+        fi
+        if [ "$(cat "$RUN_DIR/pd.pid" 2>/dev/null)" = "$ENGINE_PID" ]; then
+            rm -f "$RUN_DIR/pd.pid"
+        fi
+    fi
+    if [ -n "$JACK_PID" ]; then
+        stop_failed_jack "$JACK_PID"
+    fi
+    exit "$status"
+}
+trap cleanup_failed_launch EXIT
+
+check_engine_alive() {
+    if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+        local status=0
+        wait "$ENGINE_PID" || status=$?
+        # Even an immediate clean exit is not a running audio engine.
+        [ "$status" -ne 0 ] || status=1
+        exit "$status"
+    fi
 }
 
 # Determine active patch
@@ -62,7 +109,8 @@ fi
 rmdir "$ASSETS_DIR/samplepacks" 2>/dev/null || true
 
 # bopOS-owned run context, delivered atomically at launch (never over OSC)
-eval "$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")"
+RUN_CONTEXT_OUTPUT=$(python3 "$BOPOS_DIR/python/runcontext.py" "$ACTIVE_PATCH")
+eval "$RUN_CONTEXT_OUTPUT"
 BOPOS_SEED="${BOPOS_SEED:-$((RANDOM % 1000000))}"
 BOPOS_RUN_ID="${BOPOS_RUN_ID:-fallback-$BOPOS_SEED}"
 BOPOS_VERSION="${BOPOS_VERSION:-unknown}"
@@ -122,6 +170,7 @@ for ((i=0; i<=JACK_START_TIMEOUT; i++)); do
     if ! kill -0 "$JACK_PID" 2>/dev/null; then
         wait "$JACK_PID" 2>/dev/null || true
         rm -f "$RUN_DIR/jackd.pid"
+        JACK_PID=""
         echo "ERROR: Jack exited before becoming ready" >&2
         exit 1
     fi
@@ -134,7 +183,6 @@ for ((i=0; i<=JACK_START_TIMEOUT; i++)); do
 done
 if [ "$JACK_READY" -ne 1 ]; then
     echo "ERROR: Jack did not become ready within ${JACK_START_TIMEOUT}s" >&2
-    stop_failed_jack "$JACK_PID"
     exit 1
 fi
 echo "Jack is ready."
@@ -147,11 +195,17 @@ if [ "$ENGINE" = "pd" ]; then
     # PUREDATA — run context lands on the bopos-context bus in the same launch
     pd -nogui -jack -open "$PATCH_PATH/$ENTRYPOINT" -send "; bopos-context seed $BOPOS_SEED; bopos-context run-id $BOPOS_RUN_ID; bopos-context patch $ACTIVE_PATCH; bopos-context assets $BOPOS_ASSETS_PD; bopos-context version $BOPOS_VERSION; bopos-context patch-fingerprint $BOPOS_PATCH_FINGERPRINT; bopos-context groups $BOPOS_GROUPS" &
     ENGINE_PID=$!
-    echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 else
     echo "------------------- Starting $ENGINE..."
     BOPOS_ACTIVEPATCH=$ACTIVE_PATCH BOPOS_SEED=$BOPOS_SEED BOPOS_RUN_ID=$BOPOS_RUN_ID BOPOS_VERSION=$BOPOS_VERSION BOPOS_PATCH_FINGERPRINT=$BOPOS_PATCH_FINGERPRINT BOPOS_GROUPS="$BOPOS_GROUPS" BOPOS_ENGINE_PORT="${BOPOS_ENGINE_PORT:-6661}" "$ENGINE" "$PATCH_PATH/$ENTRYPOINT" &
     ENGINE_PID=$!
+fi
+# Catch immediate exec/startup failures before publishing successful PID records.
+# Survival during this short window is a launch check, not engine readiness.
+sleep 1
+check_engine_alive
+if [ "$ENGINE" = "pd" ]; then
+    echo $ENGINE_PID > "$RUN_DIR/pd.pid"
 fi
 echo $ENGINE_PID > "$RUN_DIR/engine.pid"
 basename "$ENGINE" > "$RUN_DIR/engine.name"
@@ -163,3 +217,4 @@ if [ -f "$PATCH_PATH/start.sh" ]; then
 else
     echo "------------------- No patch start script found, skipping..."
 fi
+check_engine_alive
