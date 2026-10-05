@@ -51,19 +51,32 @@ def falloff(enum, distance, radius):
         return 0.0
     try:
         curve = FALLOFFS.get(int(enum), _linear)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         curve = _linear
     return max(0.0, min(1.0, curve(distance / radius)))
+
+
+def _integer(value, minimum=0):
+    """Int32, without truncation of malformed numeric fields."""
+    try:
+        number = float(value)
+        if (isinstance(value, bool) or not minimum <= number <= 2**31 - 1
+                or not number.is_integer()):
+            return None
+        return int(number)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _point(values):
     """(x, y, r, f) from four wire args, or None."""
     try:
         x, y, r = float(values[0]), float(values[1]), float(values[2])
-        f = int(float(values[3]))
-    except (TypeError, ValueError, IndexError):
+        f = _integer(values[3], minimum=-(2**31))
+    except (TypeError, ValueError, OverflowError, IndexError):
         return None
-    if not all(math.isfinite(v) for v in (x, y, r)):
+    if f is None or not all(-3.4028234663852886e38 <= v <= 3.4028234663852886e38
+                            for v in (x, y, r)):
         return None
     return (x, y, r, f)
 
@@ -76,32 +89,25 @@ def parse_wire(parts, args):
       "set"   -> (id, (x, y, r, f))
       "clear" -> id
     """
-    if parts == ["pt", "clear"] and args:
-        try:
-            return ("clear", int(float(args[0])))
-        except (TypeError, ValueError):
-            return None
+    if parts == ["pt", "clear"] and len(args) == 1:
+        point_id = _integer(args[0])
+        return ("clear", point_id) if point_id is not None else None
     if parts != ["pt"] or not args:
         return None
     if len(args) == 5:
-        try:
-            point_id = int(float(args[0]))
-        except (TypeError, ValueError):
+        point_id = _integer(args[0])
+        if point_id is None:
             return None
         point = _point(args[1:5])
         return ("set", (point_id, point)) if point is not None else None
-    try:
-        count = int(float(args[0]))
-    except (TypeError, ValueError):
-        return None
-    if count < 0 or len(args) != 1 + 5 * count:
+    count = _integer(args[0])
+    if count is None or len(args) != 1 + 5 * count:
         return None
     points = {}
     for index in range(count):
         chunk = args[1 + 5 * index:6 + 5 * index]
-        try:
-            point_id = int(float(chunk[0]))
-        except (TypeError, ValueError):
+        point_id = _integer(chunk[0])
+        if point_id is None:
             return None
         point = _point(chunk[1:])
         if point is None:

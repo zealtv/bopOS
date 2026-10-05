@@ -31,10 +31,12 @@ def sanitize_point(raw, room=None):
     if not isinstance(raw, dict):
         return None
     try:
-        point_id = int(raw.get("id"))
-    except (TypeError, ValueError):
+        value = raw.get("id")
+        point_id = int(value)
+    except (TypeError, ValueError, OverflowError):
         return None
-    if point_id < 0:
+    if (isinstance(value, bool) or not 0 <= point_id <= 2**31 - 1
+            or isinstance(value, float) and value != point_id):
         return None
     center = _center(room)
     point = {
@@ -88,13 +90,17 @@ def current_xy(point, elapsed):
     return (a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local)
 
 
-def is_dynamic(point):
+def is_dynamic(point, elapsed=None):
     """True when the point moves over time -- the broadcast loop must tick;
     a static point applies in one frame and silence = hold does the rest."""
     motion = point.get("motion")
     if not motion:
         return False
-    return motion["type"] in ("orbit", "bounce") or len(motion["points"]) > 1
+    if motion["type"] in ("orbit", "bounce"):
+        return True
+    return (len(motion["points"]) > 1
+            and (motion.get("loop") or elapsed is None
+                 or elapsed < motion.get("started", 0.0) + motion["duration"]))
 
 
 def frame_args(points, elapsed):
@@ -116,11 +122,11 @@ def sparse_args(point, elapsed):
 
 
 def _falloff_enum(value):
-    if value in FALLOFF_ENUMS:
+    if isinstance(value, str) and value in FALLOFF_ENUMS:
         return FALLOFF_ENUMS[value]
     try:
         enum = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return DEFAULT_FALLOFF
     return enum if enum in FALLOFF_ENUMS.values() else DEFAULT_FALLOFF
 
@@ -153,8 +159,11 @@ def _sanitize_motion(motion, room=None, origin=None):
                              _clamp_float(velocity[1], 0.45, -100.0, 100.0)],
                 "bounds": [room_width, room_depth]}
     if kind == "path":
+        raw_points = motion.get("points")
+        if not isinstance(raw_points, (list, tuple)):
+            return None
         points = [p for p in (_coerce_point(item) for item in
-                              (motion.get("points") or [])) if p]
+                              raw_points) if p]
         if not points:
             return None
         return {"type": "path", "points": points,
@@ -164,9 +173,8 @@ def _sanitize_motion(motion, room=None, origin=None):
 
 
 def _center(room):
-    if isinstance(room, dict) and room.get("width") and room.get("depth"):
-        return (float(room["width"]) / 2.0, float(room["depth"]) / 2.0)
-    return (5.0, 4.0)
+    width, depth = _room_bounds(room)
+    return (width / 2.0, depth / 2.0)
 
 
 def _room_bounds(room):
@@ -193,13 +201,13 @@ def _coerce_point(value):
 
 def _finite(value):
     return (isinstance(value, (int, float)) and not isinstance(value, bool)
-            and math.isfinite(value))
+            and -3.4028234663852886e38 <= value <= 3.4028234663852886e38)
 
 
 def _clamp_float(value, fallback, low, high):
     try:
         result = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return fallback
     if not math.isfinite(result):
         return fallback

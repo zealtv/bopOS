@@ -124,6 +124,31 @@ class FileConvergenceTests(unittest.TestCase):
         self.assertFalse((target / "nested" / "two.txt").exists())
         self.assertEqual(list(target.rglob("*.part")), [])
 
+    def test_file_fetch_copies_only_canonical_source_files(self):
+        write_file(self.source / "nested" / "keep.txt", b"keep")
+        write_file(self.source / ".hidden" / "secret.txt", b"hidden")
+        write_file(self.source / "unfinished.part", b"partial")
+        outside = self.root / "outside"
+        write_file(outside / "secret.txt", b"outside")
+        (self.source / "linked-file.txt").symlink_to(outside / "secret.txt")
+        (self.source / "linked-dir").symlink_to(outside, target_is_directory=True)
+        (self.source / "nested" / "linked-dir").symlink_to(
+            outside, target_is_directory=True)
+
+        ok, detail = self.fetch("pack")
+
+        self.assertTrue(ok, detail)
+        destination = self.assets / "pack"
+        self.assertEqual(sorted(path.relative_to(destination).as_posix()
+                                for path in destination.rglob("*") if path.is_file()),
+                         ["nested/keep.txt"])
+        self.assertFalse((destination / "linked-dir").exists())
+        self.assertFalse((destination / "nested" / "linked-dir").exists())
+        self.assertEqual(fetcher.identity.directory_manifest(str(self.source)),
+                         fetcher.identity.directory_manifest(str(destination)))
+        self.assertEqual(fetcher.identity.fingerprint(str(self.source)),
+                         fetcher.identity.fingerprint(str(destination)))
+
     def test_valid_patch_replaces_only_after_staging_converges(self):
         destination = self.patches / "stage"
         write_patch(destination, b"old")

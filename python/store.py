@@ -11,6 +11,7 @@ they sacrifice persistence by design, not by crashing.
 import json
 import os
 import re
+import tempfile
 
 KEY_PATTERN = re.compile(r"[A-Za-z0-9._-]+$")
 
@@ -36,16 +37,24 @@ class Store:
         if not self.persistent:
             self.memory[str(key)] = values
             return True
+        tmp = None
         try:
             os.makedirs(self.root, exist_ok=True)
-            tmp = self.path(key) + ".tmp"
-            with open(tmp, "w") as target:
+            with tempfile.NamedTemporaryFile(mode="w", prefix=".store-",
+                                             dir=self.root, delete=False) as target:
+                tmp = target.name
                 json.dump(values, target)
             os.replace(tmp, self.path(key))
             return True
         except OSError as error:
             print(f"store: could not persist {key!r}: {error}")
             return False
+        finally:
+            if tmp is not None:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
     def get(self, key):
         if not valid_key(key):
