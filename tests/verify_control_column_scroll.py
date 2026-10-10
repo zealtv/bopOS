@@ -290,6 +290,14 @@ def main():
                       and max(remote["widths"]) <= 560,
                       json.dumps(remote))
                 page.set_viewport_size({"width": 1200, "height": 900})
+                # Remote redraws its cards on every fleet update. On a loaded
+                # CI runner the measurement once caught all four at zero size
+                # straight after the resize (scheduled run, 2026-10-09), so
+                # wait for laid-out cards before judging their geometry.
+                page.wait_for_function(
+                    "() => { const cards=[...document.querySelectorAll("
+                    "'.live-card')]; return cards.length === 4 && cards.every("
+                    "card => card.getBoundingClientRect().width > 0); }")
                 remote_sparse = page.eval_on_selector_all(
                     ".live-card",
                     "cards => cards.map(card => ({"
