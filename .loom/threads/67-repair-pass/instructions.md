@@ -54,6 +54,11 @@ Added 2026-10-05 from `lore:2026-10-05-bopos-review-show-model` (74/4):
     dashboard (high); edits drop sockets; coerced, unbounded args.
 25. `25-show-playback-consistency` — ghost "playing" steps; a 30k/s repeat.
 
+Added 2026-10-11 by Bob, first in the queue:
+
+26. `26-flaky-launch-pid-test` — an engine-launch test fails intermittently
+    under the fast suite and blocks unrelated commits.
+
 ## Constraints
 
 - Each fix lands with a test that fails before it.
