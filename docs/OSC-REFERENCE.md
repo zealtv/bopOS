@@ -209,15 +209,36 @@ stripped straight to the engine — bopos.py never interprets them:
 
 `f` in a point tuple is the falloff enum: `0` linear, `1` smooth, `2` gauss.
 
-### Sync and cue plane
+### Events (`/e/*`)
 
-Framework-owned, no selector — always fleet-wide:
+Targetable, patch-declared events with 0–3 float elements (contract §3.2).
+The node strips the selector and the time, and hands the engine a bare
+`/e/<identity> [<e0> [<e1> [<e2>]]]`:
+
+| address | args | what it does | reply (port) |
+|---|---|---|---|
+| `/<selector>/e/<segment>[/<segment>...] <sharedTimeNs:s> [<e0:f> [<e1:f> [<e2:f>]]]` | time first, then 0–3 floats | schedules the event for `sharedTimeNs + offset` on each matching node | — |
+| `/<selector>/e/<segment>[/<segment>...] "0" [<e0:f> ...]` | the exact string `"0"` | **fire on arrival**: no scheduling, each node fires as its packet lands | — |
+
+**From a bare OSC client, send `"0"`.** `sharedTimeNs` is a reading of the
+dashboard backend's own `time.monotonic_ns()` clock (roughly "nanoseconds
+since the dashboard machine booted"). A client on another machine has no way
+to know that clock. A time that has already passed by more than the 50 ms
+late grace gets logged as `DROPPED` and never fires, and a time too far
+ahead waits in the scheduler until that clock catches up. Synchronized
+events currently come only from the dashboard: its event controls and
+show playback stamp `now + event_lead_ms`. The time must be a string even
+though it looks numeric, and the elements must be floats (`f`, not `i`):
+a node silently drops a packet that breaks either rule.
+
+### Sync plane
+
+Framework-owned clock sync (contract §3.1); the dashboard is the clock leader:
 
 | address | args | direction | reply (port) |
 |---|---|---|---|
 | `/sync/ping <seq:i> <leaderTimeNs:s>` | leader → fleet | broadcast, 6660 | `/sync/pong <seq:i> <leaderTimeNs:s> <uid:s> <deviceTimeNs:s>` (5550) |
 | `/<id>/sync/offset <offsetNs:s>` | leader → one node | unicast, 6660 | — |
-| `/cue <cueId:s> <sharedTimeNs:s>` | leader → fleet | broadcast, 6660 | — (relayed to the engine at the local deadline as bare `/cue <cueId>`) |
 
 ## 2. What comes back on 5550 (fleet → controller)
 
@@ -248,7 +269,7 @@ sending the commands above, or unprompted (heartbeats):
 ## 3. The engine surface (localhost, one node at a time)
 
 These never leave one Pi — they're for patch and engine authors, not a
-fleet-wide OSC client. `/id`, `/os/master`, `/p/*`, `/pt`, `/cue`, and
+fleet-wide OSC client. `/id`, `/os/master`, `/p/*`, `/pt`, `/e/*`, and
 `/notify` arrive on the **engine's** port (6661 in production, or the
 audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
 `/report`, `/log`, `/admin` are sent **by the engine to bopos.py** on **7770**.
@@ -261,7 +282,7 @@ audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
 | `/os/master <0..1:f>` | the master term | on change, and on catch-up when a device (re)appears |
 | `/p/<segment>[/<segment>...] <values…>` | patch-declared | whenever a matching `/p/*` command arrives |
 | `/pt <point:i> <element:i> <value:f>` | one shaped scalar per point × element | ~20–30 Hz while moving |
-| `/cue <id:s>` | bare cue id, no time | at the synced local deadline |
+| `/e/<segment>[/<segment>...] [<e0:f> [<e1:f> [<e2:f>]]]` | 0–3 floats; no selector, no time | at the synced local deadline, or on arrival for `"0"` |
 | `/notify <event:s>` | `identify`, `checkout`, `updatebopos`, `shutdown`, `reboot`, `restart-engine` | on the matching admin action |
 
 **Launch-delivered run context** (never over OSC — `-send` for PD at
@@ -327,6 +348,13 @@ oscsend 10.0.0.5 6660 /all/os/to ss "02:53:49:4d:00:01" reboot
 oscsend 10.0.0.5 6660 /all/os/patch s demo-pd
 # listen on 5550 for: /os/rev <sha> <model> <uid> <status> <phase>
 # e.g. "ok switched" on success, "not-found" if demo-pd isn't installed
+```
+
+**Fire a patch event on every node** (`hit` here, with one element, a
+velocity of 0.8). The time is the string `"0"`, so each node fires on arrival:
+
+```sh
+oscsend 10.0.0.5 6660 /all/e/hit sf 0 0.8
 ```
 
 **A raw Python one-liner** (no `liblo` needed) for the same disable, using the
