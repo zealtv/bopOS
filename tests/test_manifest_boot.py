@@ -160,8 +160,17 @@ echo $$ >> "$FIXTURE_ROOT/launched"
 [ "$CASE" != jack-death ] || exit 88
 exec /bin/sleep 60
 ''')
+        # Like the real probe, report ready only once the server has started:
+        # here, once the fake jackd has recorded its pid. Answering sooner let
+        # the launcher's cleanup kill jackd before it wrote to `launched`.
+        # BOPOS_JACK_START_TIMEOUT=0 allows one probe, so the wait lives here.
         self.write_script('bin/jack_lsp', '''#!/bin/bash
-[ "$CASE" != jack-timeout ] && [ "$CASE" != jack-death ]
+[ "$CASE" != jack-timeout ] && [ "$CASE" != jack-death ] || exit 1
+for _ in $(seq 250); do
+  [ -s "$FIXTURE_ROOT/launched" ] && exit 0
+  sleep 0.02
+done
+exit 1
 ''')
         engine = '''#!/bin/bash
 echo $$ >> "$FIXTURE_ROOT/launched"
