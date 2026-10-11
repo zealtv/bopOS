@@ -26,3 +26,4 @@ When touching anything on the wire, work from `docs/OSC-CONTRACT.md` (v1.21 as o
 - [[decision-gates]]
 - [[manifest-and-patch-distribution]]
 - [[pd-float-precision]]
+- [[external-osc-timing]]

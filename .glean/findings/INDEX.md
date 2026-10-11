@@ -4,6 +4,7 @@
 - [[cross-repo]] — kite-choir-brains coordinates the artwork — When work is spool- or Kite-Choir-specific, check kite-choir-brains' own loom first — coordinate, don't duplicate.
 - [[dashboard-vocabulary]] — Dashboard names and UI rules — When writing dashboard UI or prose, use the shipped names and the ratified design rules.
 - [[decision-gates]] — Some choices are Bob's to ratify — When a stitch reaches a user-facing, wire, or strategy decision, write a proposal and stop rather than implementing past it.
+- [[external-osc-timing]] — Synced events from outside apps go through the dashboard — When someone wants Ableton, Max, TouchOSC or another OSC app to send forward-synced `/e/*` events, the answer (Bob, 2026-10-11) is to route through the dashboard, which holds the clock — not node-side or sender-clock timing.
 - [[fix-and-simplify-first]] — Fix and simplify before adding — When choosing between adding a capability and repairing or removing something, repair first — Bob: *"I want to fix and simplify things before making them more complicated."*
 - [[hardware-claims]] — Don't claim hardware you didn't run — When a stitch involves real Pis, audio or peripherals, record which half ran — software gates and hardware checks are separate claims.
 - [[horizon-refactor]] — One device, one engine, probably Pd — the assumption on its way out — When a design touches engines, launch, ports or per-device identity, phrase it so it survives several engine instances per device and a non-Pd engine.
