@@ -53,7 +53,8 @@ USAGE
 }
 
 # Mutating commands accept --json and then report their result as one JSON
-# object instead of prose. The human output is the default and is unchanged.
+# object instead of prose. Human lifecycle output keeps its established first
+# line and names the destination on a second line when a directory moved.
 MUTATION_JSON=false
 MUTATION_COMMAND=""
 MUTATION_ARGS=()
@@ -141,6 +142,13 @@ mutation_result() {
   shift 4
   if [[ "$MUTATION_JSON" != true ]]; then
     printf '%s\n' "$*"
+    if [[ "$changed" == true && -n "$path" ]]; then
+      case "$MUTATION_COMMAND" in
+        claim|tend|release|wait|resume|tie|drop)
+          printf '%s\n' "$path"
+          ;;
+      esac
+    fi
     return 0
   fi
 
@@ -286,36 +294,48 @@ state_of_name() {
   printf 'plain\n'
 }
 
-state_label() {
-  case "$1" in
-    stitching) printf 'claimed\n' ;;
-    waiting) printf 'waiting\n' ;;
-    tending) printf 'tended\n' ;;
-    tied) printf 'tied\n' ;;
-    dropped) printf 'dropped\n' ;;
-    plain) printf 'loose end\n' ;;
-  esac
+declare -A STATE_LABEL=(
+  [stitching]=claimed
+  [waiting]=waiting
+  [tending]=tended
+  [tied]=tied
+  [dropped]=dropped
+  [plain]="loose end"
+)
+
+# Sets CHILDREN to the recognized children of a directory, without forking.
+recognized_children_r() {
+  local dir="$1" entry entries
+  shopt -s nullglob
+  entries=("$dir"/*)
+  shopt -u nullglob
+  CHILDREN=()
+  for entry in "${entries[@]}"; do
+    [[ -d "$entry" && -f "$entry/instructions.md" ]] || continue
+    CHILDREN+=("$entry")
+  done
 }
 
 recognized_children() {
-  local dir="$1"
-  local entry
-  shopt -s nullglob
-  for entry in "$dir"/*; do
-    [[ -d "$entry" && -f "$entry/instructions.md" ]] || continue
-    printf '%s\n' "$entry"
+  local CHILDREN=()
+  recognized_children_r "$1"
+  (( ${#CHILDREN[@]} == 0 )) || printf '%s\n' "${CHILDREN[@]}"
+}
+
+# Appends every recognized stitch beneath a directory to WALKED, depth first.
+walk_recognized_into() {
+  local CHILDREN=() entry
+  recognized_children_r "$1"
+  for entry in "${CHILDREN[@]}"; do
+    WALKED+=("$entry")
+    walk_recognized_into "$entry"
   done
-  shopt -u nullglob
 }
 
 walk_recognized() {
-  local dir="$1"
-  local entry
-  while IFS= read -r entry; do
-    [[ -n "$entry" ]] || continue
-    printf '%s\n' "$entry"
-    walk_recognized "$entry"
-  done < <(recognized_children "$dir")
+  local WALKED=()
+  walk_recognized_into "$1"
+  (( ${#WALKED[@]} == 0 )) || printf '%s\n' "${WALKED[@]}"
 }
 
 walk_all_stitches() {
@@ -359,6 +379,11 @@ declare -A INDEX_UNRESOLVED_CHILDREN=()
 declare -A INDEX_INVALID=()
 declare -A INDEX_CYCLIC=()
 declare -A QUEUE_POSITION=()
+declare -A EDGES_OF=()
+declare -A MAP_CHILDREN=()
+declare -A MAP_TREE_CHILDREN=()
+declare -A MAP_SORTED_EDGES_OF=()
+declare -A MAP_CYCLE_OF=()
 QUEUE_LOCK_DIR=""
 QUEUE_TEMP=""
 
@@ -391,6 +416,7 @@ reset_index() {
   INDEX_INVALID=()
   INDEX_CYCLIC=()
   QUEUE_POSITION=()
+  EDGES_OF=()
 }
 
 queue_id_is_active() {
@@ -481,6 +507,7 @@ index_effective_state() {
 }
 
 index_add_edge() {
+  EDGES_OF["$1"]+="${#EDGE_DEPENDENTS[@]} "
   EDGE_DEPENDENTS+=("$1")
   EDGE_TARGETS+=("$2")
   EDGE_STATES+=("$3")
@@ -575,6 +602,46 @@ index_detect_cycles() {
   )
 }
 
+# Fork-free variants: set REPLY instead of printing, for the index hot path.
+state_of_name_r() {
+  case "$1" in
+    *.stitching) REPLY=stitching ;;
+    *.waiting) REPLY=waiting ;;
+    *.tending) REPLY=tending ;;
+    *.tied) REPLY=tied ;;
+    *.dropped) REPLY=dropped ;;
+    *) REPLY=plain ;;
+  esac
+}
+
+strip_state_suffix_r() {
+  state_of_name_r "$1"
+  if [[ "$REPLY" == plain ]]; then REPLY="$1"; else REPLY="${1%.$REPLY}"; fi
+}
+
+index_effective_state_r() {
+  local dir="$1" direct="$2"
+  if [[ "$direct" == tied || "$direct" == dropped ]]; then REPLY="$direct"; return; fi
+  case "$dir" in
+    "$LOOM_DIR/legacy-v1/tied"/*) REPLY=tied; return ;;
+    "$LOOM_DIR/legacy-v1/dropped"/*) REPLY=dropped; return ;;
+    "$LOOM_DIR/tied"/*)
+      [[ "${dir%/*}" == "$LOOM_DIR/tied" ]] && { REPLY=tied; return; } ;;
+    "$LOOM_DIR/dropped"/*)
+      [[ "${dir%/*}" == "$LOOM_DIR/dropped" ]] && { REPLY=dropped; return; }
+      REPLY=abandoned; return ;;
+  esac
+  local parent="${dir%/*}"
+  while [[ "$parent" != "$LOOM_DIR/threads" &&
+           "$parent" != "$LOOM_DIR/tied" &&
+           "$parent" != "$LOOM_DIR/dropped" ]]; do
+    state_of_name_r "${parent##*/}"
+    if [[ "$REPLY" == dropped ]]; then REPLY=abandoned; return; fi
+    parent="${parent%/*}"
+  done
+  REPLY="$direct"
+}
+
 build_index() {
   reset_index
   local dir name id direct state relative root parent ancestors cursor
@@ -585,8 +652,8 @@ build_index() {
   while IFS= read -r dir; do
     [[ -n "$dir" ]] || continue
     all_paths+=("$dir")
-    name="$(basename "$dir")"
-    id="$(strip_state_suffix "$name")"
+    name="${dir##*/}"
+    strip_state_suffix_r "$name"; id="$REPLY"
     relative="${dir#$LOOM_DIR/}"
     if ! is_valid_id "$id"; then
       INDEX_ERRORS+=("malformed stitch directory '$relative'")
@@ -595,8 +662,8 @@ build_index() {
 
     INDEX_COUNT["$id"]=$(( ${INDEX_COUNT[$id]:-0} + 1 ))
     if [[ "${INDEX_COUNT[$id]}" == 1 ]]; then
-      direct="$(state_of_name "$name")"
-      state="$(index_effective_state "$dir" "$direct")"
+      state_of_name_r "$name"; direct="$REPLY"
+      index_effective_state_r "$dir" "$direct"; state="$REPLY"
       INDEX_PATH["$id"]="$dir"
       INDEX_RELATIVE["$id"]="$relative"
       INDEX_DIRECT_STATE["$id"]="$direct"
@@ -622,7 +689,8 @@ build_index() {
           INDEX_ERRORS+=("invalid completed-at for '$id': expected a regular file")
           INDEX_INVALID["$id"]=1
         else
-          completed_raw="$(cat "$dir/completed-at"; printf x)"
+          IFS= read -r -d '' completed_raw < "$dir/completed-at" || true
+          completed_raw+=x
           if [[ "$completed_raw" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2})$'\n'x$ ]]; then
             completed_at="${BASH_REMATCH[1]}"
           else
@@ -641,20 +709,22 @@ build_index() {
       terminal_ancestor=""
       root="$id"
       while :; do
-        cursor="$(dirname "$cursor")"
+        cursor="${cursor%/*}"
         case "$cursor" in
           "$LOOM_DIR/threads"|"$LOOM_DIR/tied"|"$LOOM_DIR/dropped"|\
           "$LOOM_DIR/legacy-v1/tied"|"$LOOM_DIR/legacy-v1/dropped")
             break
             ;;
         esac
-        parent="$(strip_state_suffix "$(basename "$cursor")")"
+        local cursor_name="${cursor##*/}" cursor_state
+        state_of_name_r "$cursor_name"; cursor_state="$REPLY"
+        strip_state_suffix_r "$cursor_name"; parent="$REPLY"
         [[ -n "$immediate_parent" ]] || immediate_parent="$parent"
         if [[ -z "$waiting_ancestor" &&
-              "$(state_of_name "$(basename "$cursor")")" == waiting ]]; then
+              "$cursor_state" == waiting ]]; then
           waiting_ancestor="$cursor"
         fi
-        case "$(state_of_name "$(basename "$cursor")")" in
+        case "$cursor_state" in
           tied|dropped)
             [[ -n "$terminal_ancestor" ]] || terminal_ancestor="$cursor"
             ;;
@@ -675,16 +745,16 @@ build_index() {
 
   local child_parent child_state
   for dir in "${all_paths[@]}"; do
-    child_parent="$(dirname "$dir")"
+    child_parent="${dir%/*}"
     case "$child_parent" in
       "$LOOM_DIR/threads"|"$LOOM_DIR/tied"|"$LOOM_DIR/dropped"|\
       "$LOOM_DIR/legacy-v1/tied"|"$LOOM_DIR/legacy-v1/dropped")
         continue
         ;;
     esac
-    parent="$(strip_state_suffix "$(basename "$child_parent")")"
+    strip_state_suffix_r "${child_parent##*/}"; parent="$REPLY"
     is_valid_id "$parent" || continue
-    child_state="$(state_of_name "$(basename "$dir")")"
+    state_of_name_r "${dir##*/}"; child_state="$REPLY"
     if [[ "$child_state" != tied && "$child_state" != dropped ]]; then
       INDEX_UNRESOLVED_CHILDREN["$parent"]=$(( ${INDEX_UNRESOLVED_CHILDREN[$parent]:-0} + 1 ))
     fi
@@ -692,7 +762,7 @@ build_index() {
 
   local needs entry target target_count edge_state cause
   for dir in "${all_paths[@]}"; do
-    id="$(strip_state_suffix "$(basename "$dir")")"
+    strip_state_suffix_r "${dir##*/}"; id="$REPLY"
     is_valid_id "$id" || continue
     needs="$dir/needs"
     if [[ -e "$needs" && ! -d "$needs" ]]; then
@@ -703,9 +773,9 @@ build_index() {
     [[ -d "$needs" ]] || continue
     shopt -s nullglob dotglob
     for entry in "$needs"/*; do
-      [[ "$(basename "$entry")" != "." && "$(basename "$entry")" != ".." ]] ||
+      [[ "${entry##*/}" != "." && "${entry##*/}" != ".." ]] ||
         continue
-      target="$(basename "$entry")"
+      target="${entry##*/}"
       if [[ ! -f "$entry" || -L "$entry" ]]; then
         INDEX_ERRORS+=("invalid dependency entry for '$id': every immediate needs/ entry must be a regular file")
         INDEX_INVALID["$id"]=1
@@ -770,8 +840,7 @@ dependencies_ready() {
   local id="$1" i
   [[ -z "${INDEX_INVALID[$id]:-}" ]] || return 1
   [[ -z "${INDEX_CYCLIC[$id]:-}" ]] || return 1
-  for (( i=0; i<${#EDGE_DEPENDENTS[@]}; i++ )); do
-    [[ "${EDGE_DEPENDENTS[$i]}" == "$id" ]] || continue
+  for i in ${EDGES_OF[$id]:-}; do
     [[ "${EDGE_STATES[$i]}" == satisfied ]] || return 1
   done
   return 0
@@ -787,8 +856,7 @@ dependency_path_exists() {
     [[ "$current" != "$sought" ]] || return 0
     [[ -z "${seen[$current]:-}" ]] || continue
     seen["$current"]=1
-    for (( i=0; i<${#EDGE_DEPENDENTS[@]}; i++ )); do
-      [[ "${EDGE_DEPENDENTS[$i]}" == "$current" ]] || continue
+    for i in ${EDGES_OF[$current]:-}; do
       [[ "${INDEX_COUNT[${EDGE_TARGETS[$i]}]:-0}" == 1 ]] || continue
       frontier+=("${EDGE_TARGETS[$i]}")
     done
@@ -810,18 +878,17 @@ is_effectively_ready() {
 has_terminal_ancestor() {
   local dir="$1"
   if [[ "$INDEX_BUILT" == true ]]; then
-    local indexed_id
-    indexed_id="$(strip_state_suffix "$(basename "$dir")")"
-    [[ -n "${INDEX_TERMINAL_ANCESTOR[$indexed_id]:-}" ]]
+    strip_state_suffix_r "${dir##*/}"
+    [[ -n "${INDEX_TERMINAL_ANCESTOR[$REPLY]:-}" ]]
     return
   fi
-  local parent
-  parent="$(dirname "$dir")"
+  local parent="${dir%/*}"
   while [[ "$parent" != "$LOOM_DIR/threads" ]]; do
-    case "$(state_of_name "$(basename "$parent")")" in
+    state_of_name_r "${parent##*/}"
+    case "$REPLY" in
       tied|dropped) return 0 ;;
     esac
-    parent="$(dirname "$parent")"
+    parent="${parent%/*}"
   done
   return 1
 }
@@ -829,20 +896,19 @@ has_terminal_ancestor() {
 has_waiting_ancestor() {
   local dir="$1"
   if [[ "$INDEX_BUILT" == true ]]; then
-    local indexed_id
-    indexed_id="$(strip_state_suffix "$(basename "$dir")")"
-    [[ -n "${INDEX_WAITING_ANCESTOR[$indexed_id]:-}" ]] || return 1
-    printf '%s\n' "${INDEX_WAITING_ANCESTOR[$indexed_id]}"
+    strip_state_suffix_r "${dir##*/}"
+    [[ -n "${INDEX_WAITING_ANCESTOR[$REPLY]:-}" ]] || return 1
+    printf '%s\n' "${INDEX_WAITING_ANCESTOR[$REPLY]}"
     return 0
   fi
-  local parent
-  parent="$(dirname "$dir")"
+  local parent="${dir%/*}"
   while [[ "$parent" != "$LOOM_DIR/threads" ]]; do
-    if [[ "$(state_of_name "$(basename "$parent")")" == waiting ]]; then
+    state_of_name_r "${parent##*/}"
+    if [[ "$REPLY" == waiting ]]; then
       printf '%s\n' "$parent"
       return 0
     fi
-    parent="$(dirname "$parent")"
+    parent="${parent%/*}"
   done
   return 1
 }
@@ -1213,19 +1279,16 @@ print_stitch_tree() {
   local prefix="${2:-}"
   local abandoned="${3:-false}"
   local waiting_inherited="${4:-false}"
-  local entries=()
+  local CHILDREN=() entries=()
   local entry
-  while IFS= read -r entry; do
-    [[ -n "$entry" ]] || continue
-    entries+=("$entry")
-  done < <(recognized_children "$dir")
+  recognized_children_r "$dir"
+  entries=("${CHILDREN[@]}")
 
   local count="${#entries[@]}"
   local i=0
   for entry in "${entries[@]}"; do
     i=$((i + 1))
-    local name
-    name="$(basename "$entry")"
+    local name="${entry##*/}"
     local branch="├──"
     local child_prefix="│   "
     if (( i == count )); then
@@ -1234,13 +1297,13 @@ print_stitch_tree() {
     fi
     local tag=""
     local state
-    state="$(state_of_name "$name")"
+    state_of_name_r "$name"; state="$REPLY"
     local child_abandoned="$abandoned"
     local child_waiting="$waiting_inherited"
     if [[ "$abandoned" == true ]]; then
       tag=" (abandoned)"
     elif [[ "$state" != plain ]]; then
-      tag=" ($(state_label "$state"))"
+      tag=" (${STATE_LABEL[$state]})"
       if [[ "$state" == dropped ]]; then
         child_abandoned=true
       elif [[ "$state" == waiting ]]; then
@@ -1252,8 +1315,11 @@ print_stitch_tree() {
       fi
     elif [[ "$waiting_inherited" == true ]]; then
       tag=" (waiting inherited)"
-    elif is_effectively_ready "$(strip_state_suffix "$name")"; then
-      tag=" (loose end)"
+    else
+      strip_state_suffix_r "$name"
+      if is_effectively_ready "$REPLY"; then
+        tag=" (loose end)"
+      fi
     fi
     printf '%s%s %s%s\n' "$prefix" "$branch" "$name" "$tag"
     print_stitch_tree \
@@ -1271,10 +1337,11 @@ has_unresolved_children() {
 
 list_goals() {
   local dir
-  while IFS= read -r dir; do
-    [[ -n "$dir" ]] || continue
-    basename "$dir"
-  done < <(recognized_children "$LOOM_DIR/threads")
+  local CHILDREN=()
+  recognized_children_r "$LOOM_DIR/threads"
+  for dir in "${CHILDREN[@]}"; do
+    printf '%s\n' "${dir##*/}"
+  done
 }
 
 list_loose_ends() {
@@ -1302,7 +1369,7 @@ list_ready_ids() {
 
   while IFS= read -r dir; do
     [[ -n "$dir" ]] || continue
-    id="$(strip_state_suffix "$(basename "$dir")")"
+    strip_state_suffix_r "${dir##*/}"; id="$REPLY"
     if [[ -z "${emitted[$id]:-}" ]] && is_effectively_ready "$id"; then
       printf '%s\n' "$id"
     fi
@@ -1350,9 +1417,10 @@ list_by_state() {
   local dir
   while IFS= read -r dir; do
     [[ -n "$dir" ]] || continue
-    [[ "$(state_of_name "$(basename "$dir")")" == "$state" ]] || continue
+    state_of_name_r "${dir##*/}"
+    [[ "$REPLY" == "$state" ]] || continue
     has_terminal_ancestor "$dir" && continue
-    if [[ "$scope" == goal && "$(dirname "$dir")" != "$LOOM_DIR/threads" ]]; then
+    if [[ "$scope" == goal && "${dir%/*}" != "$LOOM_DIR/threads" ]]; then
       continue
     fi
     printf '%s\n' "${dir#$LOOM_DIR/threads/}"
@@ -1396,6 +1464,10 @@ missing_trays() {
 
 json_string() {
   local value="$1" output="" char code i
+  if [[ "$value" != *[\"\\[:cntrl:]]* ]]; then
+    printf '"%s"' "$value"
+    return
+  fi
   for (( i=0; i<${#value}; i++ )); do
     char="${value:i:1}"
     case "$char" in
@@ -1424,6 +1496,54 @@ json_nullable_string() {
   else
     printf 'null'
   fi
+}
+
+# Child lists, sorted edge lists and cycle membership for every stitch, built
+# once so the emitters look them up instead of rescanning the index per stitch.
+# Ids never contain spaces, so each list is a space-separated string.
+map_prepare() {
+  local id parent child tray relative i dependent target cycle member
+  local members=()
+  MAP_CHILDREN=()
+  MAP_TREE_CHILDREN=()
+  MAP_SORTED_EDGES_OF=()
+  MAP_CYCLE_OF=()
+
+  while IFS=$'\037' read -r parent child; do
+    MAP_CHILDREN["$parent"]+="$child "
+  done < <(
+    for id in "${!INDEX_PARENT[@]}"; do
+      [[ "${INDEX_COUNT[$id]:-0}" == 1 && -n "${INDEX_PARENT[$id]}" ]] ||
+        continue
+      printf '%s\037%s\n' "${INDEX_PARENT[$id]}" "$id"
+    done | sort -t $'\037' -k1,1 -k2,2
+  )
+
+  while IFS=$'\037' read -r relative id tray parent; do
+    MAP_TREE_CHILDREN["$tray/$parent"]+="$id "
+  done < <(
+    for id in "${!INDEX_PATH[@]}"; do
+      [[ "${INDEX_COUNT[$id]:-0}" == 1 ]] || continue
+      printf '%s\037%s\037%s\037%s\n' "${INDEX_RELATIVE[$id]}" "$id" \
+        "${INDEX_TRAY[$id]}" "${INDEX_PARENT[$id]:-}"
+    done | sort -t $'\037' -k1,1
+  )
+
+  while IFS=$'\037' read -r dependent target i; do
+    MAP_SORTED_EDGES_OF["$dependent"]+="$i "
+  done < <(
+    for (( i=0; i<${#EDGE_DEPENDENTS[@]}; i++ )); do
+      printf '%s\037%s\037%s\n' \
+        "${EDGE_DEPENDENTS[$i]}" "${EDGE_TARGETS[$i]}" "$i"
+    done | sort -t $'\037' -k1,1 -k2,2 -k3,3n
+  )
+
+  for cycle in "${INDEX_CYCLES[@]}"; do
+    IFS=',' read -ra members <<< "$cycle"
+    for member in "${members[@]}"; do
+      [[ -n "${MAP_CYCLE_OF[$member]:-}" ]] || MAP_CYCLE_OF["$member"]="$cycle"
+    done
+  done
 }
 
 map_ids_by_path() {
@@ -1512,20 +1632,6 @@ queue_dependency_warnings() {
   done | sort -t $'\t' -k1,1 -k2,2 -k3,3
 }
 
-map_stitch_cycle() {
-  local id="$1" cycle member
-  local members=()
-  for cycle in "${INDEX_CYCLES[@]}"; do
-    IFS=',' read -ra members <<< "$cycle"
-    for member in "${members[@]}"; do
-      if [[ "$member" == "$id" ]]; then
-        printf '%s\n' "$cycle"
-        return
-      fi
-    done
-  done
-}
-
 map_emit_id_array() {
   local values=("$@") value first=true
   printf '['
@@ -1545,23 +1651,6 @@ map_emit_csv_id_array() {
   map_emit_id_array "${values[@]}"
 }
 
-map_child_ids() {
-  local parent="$1" id
-  for id in "${!INDEX_PARENT[@]}"; do
-    [[ "${INDEX_COUNT[$id]:-0}" == 1 &&
-       "${INDEX_PARENT[$id]:-}" == "$parent" ]] || continue
-    printf '%s\n' "$id"
-  done | sort
-}
-
-map_edge_indexes_for() {
-  local dependent="$1" i
-  for (( i=0; i<${#EDGE_DEPENDENTS[@]}; i++ )); do
-    [[ "${EDGE_DEPENDENTS[$i]}" == "$dependent" ]] || continue
-    printf '%s\t%s\n' "${EDGE_TARGETS[$i]}" "$i"
-  done | sort -t $'\t' -k1,1 -k2,2n | cut -f2
-}
-
 map_emit_dependency() {
   local i="$1" cause="${EDGE_CAUSES[$1]}"
   printf '{"from":'
@@ -1578,12 +1667,11 @@ map_emit_dependency() {
 map_emit_stitch_dependencies() {
   local id="$1" i first=true
   printf '['
-  while IFS= read -r i; do
-    [[ -n "$i" ]] || continue
+  for i in ${MAP_SORTED_EDGES_OF[$id]:-}; do
     [[ "$first" == true ]] || printf ','
     map_emit_dependency "$i"
     first=false
-  done < <(map_edge_indexes_for "$id")
+  done
   printf ']'
 }
 
@@ -1594,8 +1682,8 @@ map_emit_stitch() {
   local children=()
   is_effectively_ready "$id" && ready=true
   [[ -n "${INDEX_WAITING_ANCESTOR[$id]:-}" ]] && waiting=true
-  cycle="$(map_stitch_cycle "$id")"
-  mapfile -t children < <(map_child_ids "$id")
+  cycle="${MAP_CYCLE_OF[$id]:-}"
+  read -ra children <<< "${MAP_CHILDREN[$id]:-}"
 
   printf '{"id":'; json_string "$id"
   printf ',"root_id":'; json_string "${INDEX_ROOT[$id]}"
@@ -1770,51 +1858,39 @@ map_emit_json() {
 }
 
 map_block_reason() {
-  local id="$1" i ancestor
+  local id="$1" i
   if [[ -n "${INDEX_WAITING_ANCESTOR[$id]:-}" ]]; then
-    ancestor="$(strip_state_suffix "$(basename "${INDEX_WAITING_ANCESTOR[$id]}")")"
-    printf 'waiting under %s\n' "$ancestor"
+    strip_state_suffix_r "${INDEX_WAITING_ANCESTOR[$id]##*/}"
+    REPLY="waiting under $REPLY"
     return
   fi
   case "${INDEX_DIRECT_STATE[$id]}" in
-    stitching) printf 'claimed\n'; return ;;
-    waiting) printf 'waiting\n'; return ;;
-    tending) printf 'tended\n'; return ;;
+    stitching) REPLY=claimed; return ;;
+    waiting) REPLY=waiting; return ;;
+    tending) REPLY=tended; return ;;
   esac
   if [[ -n "${INDEX_CYCLIC[$id]:-}" ]]; then
-    printf 'dependency cycle\n'
+    REPLY="dependency cycle"
     return
   fi
   if [[ -n "${INDEX_INVALID[$id]:-}" ]]; then
-    printf 'invalid structure\n'
+    REPLY="invalid structure"
     return
   fi
   if (( ${INDEX_UNRESOLVED_CHILDREN[$id]:-0} > 0 )); then
-    printf '%s unresolved child stitch(es)\n' \
-      "${INDEX_UNRESOLVED_CHILDREN[$id]}"
+    REPLY="${INDEX_UNRESOLVED_CHILDREN[$id]} unresolved child stitch(es)"
     return
   fi
-  for (( i=0; i<${#EDGE_DEPENDENTS[@]}; i++ )); do
-    [[ "${EDGE_DEPENDENTS[$i]}" == "$id" &&
-       "${EDGE_STATES[$i]}" != satisfied ]] || continue
+  for i in ${EDGES_OF[$id]:-}; do
+    [[ "${EDGE_STATES[$i]}" != satisfied ]] || continue
     if [[ "${EDGE_STATES[$i]}" == broken ]]; then
-      printf 'needs %s (%s)\n' "${EDGE_TARGETS[$i]}" "${EDGE_CAUSES[$i]}"
+      REPLY="needs ${EDGE_TARGETS[$i]} (${EDGE_CAUSES[$i]})"
     else
-      printf 'needs %s\n' "${EDGE_TARGETS[$i]}"
+      REPLY="needs ${EDGE_TARGETS[$i]}"
     fi
     return
   done
-  printf 'not ready\n'
-}
-
-map_tree_children() {
-  local parent="$1" tray="$2" id
-  for id in "${!INDEX_PATH[@]}"; do
-    [[ "${INDEX_COUNT[$id]:-0}" == 1 &&
-       "${INDEX_PARENT[$id]:-}" == "$parent" &&
-       "${INDEX_TRAY[$id]}" == "$tray" ]] || continue
-    printf '%s\t%s\n' "${INDEX_RELATIVE[$id]}" "$id"
-  done | sort -t $'\t' -k1,1 | cut -f2
+  REPLY="not ready"
 }
 
 map_has_tray() {
@@ -1828,7 +1904,7 @@ map_has_tray() {
 map_print_tree() {
   local parent="$1" tray="$2" prefix="${3:-}" id state tag
   local entries=()
-  mapfile -t entries < <(map_tree_children "$parent" "$tray")
+  read -ra entries <<< "${MAP_TREE_CHILDREN[$tray/$parent]:-}"
 
   local count="${#entries[@]}" i=0 branch child_prefix
   for id in "${entries[@]}"; do
@@ -1887,7 +1963,8 @@ map_emit_plain() {
     [[ "$state" != tied && "$state" != dropped &&
        "$state" != abandoned ]] || continue
     is_effectively_ready "$id" && continue
-    printf -- '- %s  (%s)\n' "$id" "$(map_block_reason "$id")"
+    map_block_reason "$id"
+    printf -- '- %s  (%s)\n' "$id" "$REPLY"
     has_coming=true
   done < <(map_ids_by_path)
   [[ "$has_coming" == true ]] || echo "(none)"
@@ -1927,6 +2004,7 @@ cmd_map() {
     esac
   done
   build_index
+  map_prepare
   if [[ "$mode" == json ]]; then
     map_emit_json
   else
