@@ -41,9 +41,10 @@ thread uses **tilt bank** so the old concept doesn't come back by name. Rename i
 
 An early version of this stitch proposed loading banks into RAM for gapless loops. Bob ruled
 against that: *"I want to avoid loading in to ram. Would prefer adding subtle fades and using
-readsf~. This is the strategy throughout."* That ruling is the Glean finding
-`stream-audio-with-readsf`, and it applies to all of bopOS. `bop.stream~` already uses `readsf~`,
-so start there.
+readsf~. This is the strategy throughout."* The rule is **Kite Choir's, not bopOS's**: Bob, same
+day, *"That streaming rule is for kite choir specifically, not bopOS in other contexts."* It lives in
+the Kite Choir brains Glean as `stream-kite-choir-audio-with-readsf`. This player is built for Kite
+Choir, so it follows the rule. `bop.stream~` already uses `readsf~`, so start there.
 
 - **Bandwidth is small.** 9 ch × 48 kHz × 16-bit is about 0.86 MB/s, well inside what an SD card
   reads. Expect two streams at once during a loop crossfade.

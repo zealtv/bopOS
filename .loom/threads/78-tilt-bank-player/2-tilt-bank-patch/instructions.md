@@ -2,8 +2,8 @@
 
 **Goal:** a Pd abstraction that plays a tilt bank from tilt.
 
-- Stream the bank (format from `1`) with `readsf~`, as the Glean finding `stream-audio-with-readsf`
-  says. Start from `bop.stream~`. Read the channel count from the file header (`soundfiler` with no
+- Stream the bank (format from `1`) with `readsf~`, as the Kite Choir Glean finding
+  `stream-kite-choir-audio-with-readsf` says. Start from `bop.stream~`. Read the channel count from the file header (`soundfiler` with no
   arrays) and read the parameter file.
 - Loop with two players and a subtle crossfade at the loop point. Use the same fade for bank switches.
   Start each spool at a random offset.

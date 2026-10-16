@@ -15,7 +15,6 @@
 - [[pd-float-precision]] — Keep large numbers and absolute time out of Pd — When a value travels to Pure Data over OSC, it must fit a 32-bit float — six significant figures at most.
 - [[playwright-gotchas]] — Playwright gotchas in the dashboard journeys — When writing or debugging a `tests/verify_*.py` browser journey, these are the traps earlier sessions fell into.
 - [[simplification-push]] — Presets are retired; projects and pin removal are next — When touching patch pinning or how installation, venue, show and fleet patch fit together, don't extend the retired snapshot facility — Bob is folding the remaining model into projects (2026-10-03).
-- [[stream-audio-with-readsf]] — Stream audio from the SD card with readsf~; don't load it into RAM — Play sound files in bopOS by streaming them with `readsf~` and hiding loop points and switches with
 - [[test-rig]] — The Finn Jet / Ciro Toast rig — When hardware verification is needed, the two-device rig is Finn Jet (fleet node) and Ciro Toast (standalone); `bop000` is a spare Zero 2 W.
 - [[verification]] — Verify at the right level, and run tests from the venv — When checking a change, use `tools/run-tests.sh` from `~/.venvs/bopos` and pick the level from `docs/VERIFICATION.md`.
 - [[ws-snapshot-handlers]] — Late websocket handlers only see snapshots listed in ws.js — When adding `ws.on(<type>, …)` in a script that loads after `dashboard.js`, check the type is in `SNAPSHOT_TYPES` in `ws.js`, or the handler can miss the connect burst forever.
