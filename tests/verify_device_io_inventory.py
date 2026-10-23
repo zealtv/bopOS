@@ -132,7 +132,9 @@ def main():
                                  {"address": "0x48", "claimed": False},
                                  {"address": "0x1a", "claimed": True},
                                  {"address": "0x19", "claimed": False},
-                                 {"address": "0x29", "claimed": False}]
+                                 {"address": "0x29", "claimed": False},
+                                 {"address": "0x42", "claimed": False},
+                                 {"address": "0x4c", "claimed": True}]
                     modules = {
                         "adc": {"type": "ads1115", "address": "0x48", "state": "running", "error": None},
                         "tilt": {"type": "lis3dh", "address": "0x19", "state": "errored", "error": "create-failed"},
@@ -151,12 +153,14 @@ def main():
                     state("not-scanned")
                     scan_bus()
                     state("addresses")
-                    assert card.locator("[data-io-address] code").all_text_contents() == ["0x19", "0x1a", "0x29", "0x48", "0x5a"]
+                    assert card.locator("[data-io-address] code").all_text_contents() == ["0x19", "0x1a", "0x29", "0x42", "0x48", "0x4c", "0x5a"]
                     assert " ".join(card.locator('[data-io-address="0x1a"]').inner_text().split()) == "0x1a Kernel claimed (UU)"
                     assert card.locator('[data-io-address="0x48"] .device-io-hint').inner_text() == "ADS1x15?"
                     assert card.locator('[data-io-address="0x19"] .device-io-hint').inner_text() == "LIS3DH?"
                     assert card.locator('[data-io-address="0x5a"] .device-io-hint').inner_text() == "MPR121?"
                     assert card.locator('[data-io-address="0x29"] .device-io-hint').count() == 0
+                    assert card.locator('[data-io-address="0x42"] .device-io-hint').inner_text() == "PiicoDev Button?"
+                    assert " ".join(card.locator('[data-io-address="0x4c"]').inner_text().split()) == "0x4c Kernel claimed (UU) DigiAMP+?"
                     assert "Address hints are tentative." in card.inner_text()
                     for name, expected in (("adc", "running"), ("tilt", "errored"), ("touch", "missing")):
                         assert card.locator(f'[data-io-module="{name}"] .device-io-state').get_attribute("data-state") == expected

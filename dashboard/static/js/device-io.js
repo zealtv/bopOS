@@ -1,8 +1,10 @@
 (function () {
   const scanTimes = new Map();
-  // Tentative matches at the defaults used by the shipped drivers. A scan
-  // observes addresses, not chip identities; never infer a module from one.
-  const hints = {"0x48": "ADS1x15?", "0x19": "LIS3DH?", "0x5a": "MPR121?"};
+  // Tentative matches at the defaults used by the shipped drivers, plus the
+  // DigiAMP+ codec, which the kernel normally claims. A scan observes
+  // addresses, not chip identities; never infer a module from one.
+  const hints = {"0x19": "LIS3DH?", "0x42": "PiicoDev Button?", "0x48": "ADS1x15?",
+    "0x4c": "DigiAMP+?", "0x5a": "MPR121?"};
   const escape = value => String(value ?? "").replace(/[&<>"']/g,
     character => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"}[character]));
 
@@ -25,11 +27,11 @@
     const lastScan = scannedAt ? new Date(scannedAt * 1000).toLocaleString()
       : io && !io.scanned ? "never" : "time unavailable";
     const addressRows = state === "addresses" ? addresses.map(row => {
-      const hint = row.claimed ? "" : hints[row.address];
+      const hint = hints[row.address];
       return `<li class="device-io-address" data-io-address="${escape(row.address)}">
         <code>${escape(row.address)}</code>
-        ${row.claimed ? '<span class="device-io-claimed">Kernel claimed (UU)</span>'
-          : hint ? `<span class="device-io-hint">${hint}</span>` : ""}</li>`;
+        ${row.claimed ? '<span class="device-io-claimed">Kernel claimed (UU)</span>' : ""}
+        ${hint ? `<span class="device-io-hint">${hint}</span>` : ""}</li>`;
     }).join("") : "";
     const modules = Object.entries(io?.modules || {}).sort(([left], [right]) => left.localeCompare(right));
     // Unassigned devices cannot answer selector-addressed /os/params. Use
