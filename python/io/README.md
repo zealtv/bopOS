@@ -30,7 +30,7 @@ Each supported driver contains a literal `DESCRIPTION` with ordered input
 channels, units and ranges, and output commands/arguments. `io_catalog.py`
 reads these on the dashboard host without importing chip dependencies.
 Input units match the values delivered to the patch: ADC volts, LIS3DH tilt
-degrees, MPR121 filtered counts and switch flags. Outputs are last write wins.
+degrees then acceleration in m/s², MPR121 filtered counts and switch flags. Outputs are last write wins.
 
 ### From Pure Data, create peripherals dynamically
 
@@ -46,9 +46,16 @@ Message boxes into `[s to-bopos-io]`:
 All sensor data arrives in a single OSC bundle at the poll rate:
 ```
 /adc1 3.3 1.2 0.0 0.5
-/tilt 0.1 -0.5 0.9
+/tilt 0.1 -0.5 0.9 0.2 -9.8 0.1
 /touch 512 234 789 ... (12 values)
 ```
+
+`lis3dh` sends its three tilt angles in degrees (`x y z`, the PiicoDev
+library's `angle` formulas) followed by the same sample's acceleration in m/s²
+(`accel_x accel_y accel_z`). A patch that unpacks only the first three values
+is unaffected. Acceleration gives a roll-independent tilt: for a sensor whose
+Y axis runs along a tube, `atan2(accel_y, sqrt(accel_x² + accel_z²))` is the
+tube's angle from level whichever way it has rolled.
 
 ### Control poll rate
 ```

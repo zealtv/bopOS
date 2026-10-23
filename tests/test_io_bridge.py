@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import math
 from pathlib import Path
 import sys
 import threading
@@ -328,6 +329,22 @@ class LIS3DHTests(unittest.TestCase):
         driver.side_effect = OSError('no chip at requested address')
         with self.assertRaises(OSError):
             lis.IO_LIS3DH(address=0x4B).setup()
+
+    def test_read_sends_library_angles_then_acceleration_from_one_sample(self):
+        driver = Mock()
+        with patch.dict(sys.modules, PiicoDev_LIS3DH=types.SimpleNamespace(PiicoDev_LIS3DH=driver)):
+            lis = load_module('lis3dh_under_test', IO_DIR / 'io_lis3dh.py')
+        sensor = lis.IO_LIS3DH()
+        sensor.setup()
+        # A tube tilted up 30 degrees along Y, rolled 90 degrees.
+        driver.return_value.acceleration = (8.4929, 4.9033, 0.0)
+        x, y, z = driver.return_value.acceleration
+        expected = [math.degrees(math.atan2(y, z)), math.degrees(math.atan2(z, x)),
+                    math.degrees(math.atan2(x, y)), x, y, z]
+        self.assertEqual(sensor.read_data(), expected)
+        self.assertAlmostEqual(math.degrees(math.atan2(y, math.hypot(x, z))), 30, places=3)
+        channels = [row['channel'] for row in lis.DESCRIPTION['inputs']]
+        self.assertEqual(channels, ['x', 'y', 'z', 'accel_x', 'accel_y', 'accel_z'])
 
 
 if __name__ == '__main__':

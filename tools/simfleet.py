@@ -572,6 +572,7 @@ class SimFleet:
                 values = [((sample + index * 5) % 33) / 10.0 for index in range(4)]
             elif kind == 'lis3dh':
                 values = [float((sample + index * 60) % 180 - 90) for index in range(3)]
+                values += [float((sample + index * 13) % 39 - 19) for index in range(3)]
             elif kind == 'mpr121':
                 values = [(sample + index * 50) % 1024 for index in range(12)]
             elif kind == 'switch':

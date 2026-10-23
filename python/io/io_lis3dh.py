@@ -1,14 +1,17 @@
 # io_lis3dh.py
 """
 LIS3DH 3-Axis Accelerometer
-Reads tilt/acceleration in x, y, z axes
+Reads tilt angles and acceleration in x, y, z axes
 default address: 0x19 
 """
+
+from math import atan2, degrees
 
 from PiicoDev_LIS3DH import PiicoDev_LIS3DH
 
 class IO_LIS3DH:
-    """LIS3DH accelerometer - outputs x, y, z tilt angles in degrees."""
+    """LIS3DH accelerometer - outputs x, y, z tilt angles in degrees, then
+    x, y, z acceleration in m/s^2."""
     
     def __init__(self, bus=None, address=None):
         self.address = 0x19 if address is None else address
@@ -22,14 +25,19 @@ class IO_LIS3DH:
     
     def read_data(self):
         """
-        Read angle on all 3 axes.
-        Returns: [x, y, z] in degrees
+        Read angle and acceleration on all 3 axes from one sample.
+        Returns: [x, y, z] in degrees, then [x, y, z] in m/s^2
         """
-        angle = self.motion.angle # This returns a tuple: (x, y, z)
+        # One read for both: the angles are the library's `angle` formulas,
+        # applied here so they match the acceleration they came from.
+        x, y, z = self.motion.acceleration
         return [
-            angle[0],
-            angle[1],
-            angle[2]
+            degrees(atan2(y, z)),
+            degrees(atan2(z, x)),
+            degrees(atan2(x, y)),
+            x,
+            y,
+            z
         ]
     
     def write_data(self, **kwargs):
@@ -47,6 +55,10 @@ DESCRIPTION = {
         {"channel":"x","unit":"degrees","range":[-180,180]},
         {"channel":"y","unit":"degrees","range":[-180,180]},
         {"channel":"z","unit":"degrees","range":[-180,180]},
+        # +/-2 g, the library's default range.
+        {"channel":"accel_x","unit":"m/s^2","range":[-19.62,19.62]},
+        {"channel":"accel_y","unit":"m/s^2","range":[-19.62,19.62]},
+        {"channel":"accel_z","unit":"m/s^2","range":[-19.62,19.62]},
     ],
     "outputs": [
 
