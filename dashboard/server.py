@@ -176,6 +176,7 @@ class Dashboard(WSHandlers):
                              args.send_port, args.osc_target,
                              self.replay_live_params_for_seat,
                              stream_port=getattr(args, 'stream_port', 5551))
+        self.osc.event_declaration = self.live_event_declaration
         self.osc.wifi_applied = self.wifi_applied
         self.monitor_transport = MonitorTransport(self)
         self.osc.tap = self.monitor_transport.tap
@@ -639,6 +640,15 @@ class Dashboard(WSHandlers):
             declarations.append(projected)
         return declarations
 
+    def live_event_declaration(self, identity):
+        """Event schema of the execution target: editor audition or fleet."""
+        if self.supervisor_mode == "edit":
+            patch = self.state.data.get("editor", {}).get("patch")
+            manifest = self.live_control_manifest(patch) if patch else None
+        else:
+            manifest = self.live_control_manifest()
+        return patch_manifest.declared_event(manifest, identity)
+
     def live_event_declarations(self, patch_name=None):
         """Declared event params for the staged patch.
 
@@ -958,8 +968,7 @@ class Dashboard(WSHandlers):
         public["host_version"] = self.host_version
         return public
 
-    @staticmethod
-    def validate_event_command(data):
+    def validate_event_command(self, data):
         selector = data.get("selector")
         event_identity = data.get("identity")
         elements = data.get("elements")
@@ -980,7 +989,8 @@ class Dashboard(WSHandlers):
         if not isinstance(elements, list):
             return None, "Event fields must be a list."
         try:
-            elements = patch_manifest.event_values(elements)
+            elements = patch_manifest.coerce_event_values(
+                self.live_event_declaration(event_identity), elements)
         except ValueError as error:
             return None, str(error)
         return (selector, event_identity, elements), None

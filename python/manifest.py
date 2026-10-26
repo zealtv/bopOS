@@ -82,6 +82,33 @@ def event_values(values):
     return [event_scalar(value) for value in values]
 
 
+def declared_event(manifest, identity):
+    """Find an event by canonical identity in a validated manifest."""
+    if manifest is None:
+        return None
+    return next((event for event in manifest.get("events", ())
+                 if qualify_param(event) == identity), None)
+
+
+def coerce_event_values(declaration, values):
+    """Coerce supplied fields only; never fill missing fields or defaults.
+
+    Undeclared events keep the historical numeric-float convention, with
+    strings added as text. Declared kinds determine tags regardless of JSON's
+    loss of the integer/float distinction.
+    """
+    values = list(values)
+    if declaration is None:
+        return event_values([coerce_event_field({"kind": "float"}, value)
+                             if isinstance(value, (int, float)) else value
+                             for value in values])
+    fields = declaration.get("fields", ())
+    if len(values) > len(fields):
+        raise ValueError("event has more values than declared fields")
+    return event_values([coerce_event_field(field, value)
+                         for field, value in zip(fields, values)])
+
+
 def coerce_event_field(field, value):
     """Check/coerce one value against a validated field declaration.
 

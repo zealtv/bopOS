@@ -107,6 +107,7 @@ class OSCProtocol(asyncio.DatagramProtocol):
 class OSCBridge:
     def __init__(self, state, broadcast, listen_port, send_port, target,
                  live_param_replay=None, stream_port=5551):
+        self.event_declaration = lambda identity: None
         self.state = state
         self.broadcast = broadcast
         self.listen_port = listen_port
@@ -652,7 +653,8 @@ class OSCBridge:
                        for part in identity_parts)
                 or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
             raise ValueError(f"bad event identity {identity!r}")
-        elements = patch_manifest.event_values(elements)
+        elements = patch_manifest.coerce_event_values(
+            self.event_declaration(identity), elements)
         lead_ms = min(max(int(lead_ms), 0), 10000)
         shared_time_ns = (
             0 if lead_ms == 0

@@ -333,6 +333,9 @@ class EventPlaneTests(unittest.TestCase):
         sender = Sender()
         bridge.sender = sender
         values = ["folder/file", 2**24, -2**24, 0.123456789] + [0]*12
+        bridge.event_declaration = lambda _identity: {"fields": [
+            {"kind": "text"}, {"kind": "int"}, {"kind": "int"},
+            {"kind": "float"}] + [{"kind": "int"}]*12}
         try:
             bridge.fire_event("all", "play", values, 0)
         finally:
@@ -349,6 +352,44 @@ class EventPlaneTests(unittest.TestCase):
         self.assertEqual(engine[1], "," + frame[1][2:])
         self.assertEqual(engine[2:5], values[:3])
         self.assertAlmostEqual(engine[5], .123457, places=6)
+
+    def test_dashboard_declared_kinds_determine_wire_tags(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(state, lambda *_args: None, 0, 0, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        declaration = {"name": "play", "fields": [
+            {"kind": "float"}, {"kind": "int"}, {"kind": "text"}]}
+        bridge.event_declaration = lambda identity: manifest.declared_event(
+            {"events": [declaration]}, identity)
+        try:
+            bridge.fire_event("all", "play", [1, 2.0, "folder"], 0)
+            self.assertEqual(sender.frames[-1][0][1:], [",sfis", "0", 1.0, 2, "folder"])
+            for values in ([1, 2, 3], [1, 2, "folder", 4]):
+                with self.assertRaises(ValueError):
+                    bridge.fire_event("all", "play", values, 0)
+            bridge.fire_event("all", "unknown", [2, "folder"], 0)
+            self.assertEqual(sender.frames[-1][0][1], ",sfs")
+        finally:
+            bridge.close()
+
+    def test_dashboard_event_lookup_uses_fleet_or_edited_patch(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(data={
+            "supervisor": {"mode": "simulate"}, "editor": {"patch": "edited"}})
+        fleet = {"name": "play", "fields": [{"kind": "float"}]}
+        edited = {"name": "play", "fields": [{"kind": "int"}]}
+        dashboard.live_control_manifest = mock.Mock(side_effect=lambda name=None: {
+            "events": [edited if name == "edited" else fleet]})
+        data = {"selector": "all", "identity": "play", "elements": [1]}
+        event, error = dashboard.validate_event_command(data)
+        self.assertIsNone(error)
+        self.assertIs(type(event[2][0]), float)
+        dashboard.state.data["supervisor"]["mode"] = "edit"
+        event, error = dashboard.validate_event_command(dict(data, elements=[2.0]))
+        self.assertIsNone(error)
+        self.assertIs(type(event[2][0]), int)
+        self.assertEqual(event[2], [2])
 
     def test_wire_limits_rejected_by_node_simfleet_and_audition(self):
         invalid = [[""], ["two words"], ["é"], ["a"*256], ["\x7f"],
