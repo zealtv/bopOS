@@ -141,6 +141,7 @@ class OSCBridge:
         self._sync_generation_at = 0  # execution-mode/relay boundary, even without routes
         self._ping_task = None
         self._points_task = None
+        self.outside_points_until = 0
         self._points_started = time.monotonic()  # motion clock zero
         self._assign_replayed = {}  # uid -> monotonic time of last full replay
         self._live_param_replayed = {}  # uid -> last converged appearance replay
@@ -668,6 +669,8 @@ class OSCBridge:
         return time.monotonic() - self._points_started
 
     def send_points_frame(self):
+        if time.monotonic() < getattr(self, "outside_points_until", 0):
+            return
         # one atomic full-state frame (contract sec 4.1). /pt is selector-less,
         # so the catch-up "unicast" to a reappearing device is a re-broadcast
         # every other node applies idempotently.
@@ -700,6 +703,8 @@ class OSCBridge:
         try:
             while True:
                 await asyncio.sleep(1.0 / points.RATE_HZ)
+                if time.monotonic() < getattr(self, "outside_points_until", 0):
+                    continue
                 current = self.state.data.get("points") or {}
                 elapsed = self._points_elapsed()
                 # Include the tick crossing a path's end, so its endpoint is

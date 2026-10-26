@@ -32,6 +32,7 @@ from show_engine import ShowEngine
 from osc_bridge import FETCH_TIMEOUT_SECONDS, OSCBridge, source_for_peer
 from monitor_transport import MonitorTransport
 from editor_input import EditorInput
+from osc_input import OSCInput
 from python.paramgen import ParamGrammarError, parse_message
 from ws_handlers import PATCH_NAME_RE as NAME_RE, WS_HANDLERS, WSHandlers
 
@@ -176,6 +177,7 @@ class Dashboard(WSHandlers):
                              args.send_port, args.osc_target,
                              self.replay_live_params_for_seat,
                              stream_port=getattr(args, 'stream_port', 5551))
+        self.osc_input = OSCInput(self, getattr(args, "input_port", 5552))
         self.osc.event_declaration = self.live_event_declaration
         self.osc.wifi_applied = self.wifi_applied
         self.monitor_transport = MonitorTransport(self)
@@ -228,6 +230,11 @@ class Dashboard(WSHandlers):
 
     async def start(self):
         await self.osc.start()
+        try:
+            await self.osc_input.start()
+        except Exception:
+            self.osc.close()
+            raise
         self.osc.send_audition_listener()
         self.spawn(self.offline_sweep())
 
@@ -238,6 +245,8 @@ class Dashboard(WSHandlers):
         return task
 
     async def stop(self):
+        if getattr(self, "osc_input", None):
+            self.osc_input.close()
         try:
             if getattr(self, 'editor_input', None):
                 self.editor_input.close()
@@ -474,6 +483,7 @@ class Dashboard(WSHandlers):
         outside = self.project_unassign_set(candidate)
         async with self.show_edit_lock:
             await self.show_engine.stop_all_steps()
+            self.osc_input.ramp.cancel()
             self.state.select_project(candidate)
             self.supersede_fleet_operation()
             self.osc.automation.clear()
@@ -937,6 +947,7 @@ class Dashboard(WSHandlers):
     async def public_state(self):
         desired = await self.live_fleet_patch()
         public = dict(self.state.public())
+        public["osc_input"] = self.osc_input.snapshot()
         public["performance"] = self.state.performance
         public["io_types"] = io_catalog.descriptions()
         public["wifi_secret_ssids"] = sorted(self.wifi_secrets.values)
@@ -1839,6 +1850,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="bopOS web dashboard")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--listen-port", type=int, default=5550)
+    parser.add_argument("--input-port", type=int, default=5552)
     parser.add_argument("--stream-port", type=int, default=5551)
     parser.add_argument("--send-port", type=int, default=6660)
     parser.add_argument("--osc-target", default="255.255.255.255")

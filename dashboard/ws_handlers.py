@@ -586,10 +586,7 @@ class WSHandlers:
     @ws_handler('set_master')
     async def _ws_set_master(self, kind, data, ws):
         master = self.state.clean_master(data.get("value"))
-        self.state.data["master"] = master
-        self.state.save_debounced()
-        self.osc.send_master()
-        await self.broadcast("master", {"value": master})
+        self.osc_input.set_master(master)
 
     @ws_handler('set_event_lead')
     async def _ws_set_event_lead(self, kind, data, ws):

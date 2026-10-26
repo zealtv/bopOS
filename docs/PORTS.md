@@ -7,16 +7,17 @@ the complete message-by-message list (every address you can construct by
 hand, with the port it goes on), see
 [OSC-REFERENCE.md](OSC-REFERENCE.md).
 
-## The eight ports
+## The nine ports
 
-The ratified map has three LAN ports and five localhost ports. LAN ports
-5550, 5551 and 6660 are active; 5551 carries only leased development IO
+The ratified map has four LAN ports and five localhost ports. LAN ports
+5550, 5551, 5552 and 6660 are active; 5551 carries only leased development IO
 streams. IO control replies and leased bundle copies on 7771 ship in v1.21.
 
 | port | scope | listener | sender | carries |
 |---:|---|---|---|---|
 | **5550** | LAN | dashboard | `bopos.py` on every node | heartbeats, status, command replies |
 | **5551** | LAN unicast | dashboard | `bopos.py` | leased development IO value streams to the requesting host |
+| **5552** | LAN | dashboard | outside OSC apps | declared events/parameters, points and `/bop/*`; follows the active target (§4.3) |
 | **6660** | LAN | `bopos.py` (sole binder) | dashboard | fleet commands, events, point frames |
 | 6661 | localhost | active engine | `bopos.py` | the selector-stripped engine surface |
 | 6662 | localhost | active engine | `python/io/main.py` | bundled peripheral sensor data and IO control replies |
@@ -32,6 +33,7 @@ flowchart LR
         engine["engine"]
         io["io bridge"]
     end
+    external["outside OSC app"] -- "5552" --> dash
     dash -- "6660" --> bopos
     bopos -- "5550" --> dash
     bopos -- "5551 · leased IO values" --> dash
@@ -56,5 +58,5 @@ flowchart LR
 - **Audition instances move the number, not the shape:** a preview engine on
   the laptop is assigned its own port via `BOPOS_ENGINE_PORT` and receives
   exactly the same selector-free surface as a production engine on 6661.
-- **Firewalls:** the dashboard machine must accept UDP 5550 and 5551 inbound and be
+- **Firewalls:** the dashboard machine must accept UDP 5550, 5551 and 5552 inbound and be
   able to broadcast UDP 6660 on the installation network.

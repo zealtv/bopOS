@@ -470,7 +470,7 @@ class InstallationState:
     def durable(self):
         return {"schema": SCHEMA, "current_site": self.data["current_site"],
                 "current_show": self.data["current_show"],
-                "master": self.data.get("master", 1.0),
+                "master": self.data.get("master_destination", self.data.get("master", 1.0)),
                 "event_lead_ms": self.clean_event_lead_ms(
                     self.data.get("event_lead_ms")),
                 "facilitator_commands": self.clean_facilitator_commands(

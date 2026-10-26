@@ -1,392 +1,81 @@
-# OSC quick reference
+# Outside OSC input
 
-Every OSC message a bopOS node speaks, senders and receivers both, with the
-complete address, argument types, port, and what to expect back. This is a
-**quick reference for constructing messages by hand** — with a bare OSC
-client (`oscsend`, TouchOSC, a Python one-liner) and no dashboard in front of
-you. [`docs/OSC-CONTRACT.md`](OSC-CONTRACT.md) is the **normative** spec;
-where this page and the contract disagree, the contract wins. See also
-[`docs/PORTS.md`](PORTS.md) for the one-page port map.
+Send outside apps (qtable, Max, Ableton, TouchOSC) to **UDP 5552 on the
+dashboard machine**. Any source may send. Messages follow the active target:
+Live, Simulation or Patch Edit. The dashboard owns the clock and stamps events
+before fan-out, so the sender supplies only fields.
 
-**Requested by Bob, 2026-07-17:** "If I need to, for example, control a device
-and I don't have the dashboard in front of me, I need to be able to look at
-that list and understand the message that I need to construct to send a
-message and which port I need to send it to." This page is that list.
+The normative rules are [OSC-CONTRACT.md §4.3](OSC-CONTRACT.md#43-outside-app-input);
+[PORTS.md](PORTS.md) lists all transport ports. Tests can override the input
+with `--input-port` (default 5552).
 
-## How to read the tables
-
-- **address** — the literal OSC address, with `<selector>` where one is
-  legal. `all` = every node; a bare non-negative integer = one Seat's `id`;
-  `g<n>` = every node currently in group `n` (e.g. `g0`). Assignment and the
-  two exact-UID envelopes below are exceptions — their address is always the
-  literal `all`, never a numeric selector.
-- **args** — in wire order, typed. `s` = string, `i` = 32-bit int, `f` =
-  32-bit float. Anything documented as a string here MUST be sent as a
-  string even if it looks numeric (git shorthands, uids, nanosecond
-  timestamps) — bopOS never puts a value needing more than 32-bit float
-  precision on the wire as a float (contract §12).
-- **port** — where to send it. LAN traffic (6660/5550) reaches any node on
-  the installation network; the four localhost ports (6661/6662/7770/8880)
-  are internal to one running node and unreachable from another computer.
-- **reply** — what comes back, and on which port. "—" means no reply is
-  sent; resend if you're not sure it landed (every fleet command is
-  full-state and idempotent, so resending is always safe).
-
-## 1. Commands you send to the fleet (LAN, port 6660)
-
-`bopos.py` is the only thing on a node that binds 6660 — it is broadcast-only
-UDP, so anything you send here reaches every node on the network and each
-node decides for itself whether the address/selector/uid matches it. Replies
-come back **unicast** to your sender port on **5550**, except where noted.
-
-### Identity, liveness, debug
-
-| address | args | what it does | reply (port) |
-|---|---|---|---|
-| `/all/os/ping <token>` | `token` any type | liveness probe, echoed back | `/os/pong <token> <uid:s>` (5550) |
-| `/<selector>/os/report` | — | ask for the static-facts JSON | `/os/report <json:s>` (5550) |
-| `/<selector>/os/identify` | — | the box chirps/flashes (locate on install day) | — |
-| `/all/os/identify <uid:s>` | `uid` | compatibility alias for exact-uid identify; only the matching node flashes | — |
-| `/<selector>/os/probe <what:s>` | `what` | one-shot pull of a retained value (`id`, `uid`, `version`, `update_model`, or anything a patch has `/report`-ed) | `/os/probe <id:i> <what:s> <values…>` (5550); unknown `what` gets no reply |
-
-### Output controls
-
-| address | args | what it does | reply (port) |
-|---|---|---|---|
-| `/all/os/mute <0\|1>` | `0` or `1`, int | session fleet-safety overlay — a transport-level kill, spam-safe | — |
-| `/all/os/to <uid:s> enabled <0\|1>` | `uid`, `0`/`1` int | persists whether **that physical box's** audio output is enabled | `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` (5550) |
-
-Effective output is `device_enabled AND NOT mute_all`. If you only have
-`oscsend` and need silence *now*, `/all/os/mute 1` is the fastest single
-message and hits every node on the network.
-
-### Exact-UID administration envelope (v1.5)
-
-One node, addressed by its stable `uid` (on a Pi, `uid == MAC`), not a
-numeric Seat id — useful for a box that isn't assigned yet, or when you want
-to be certain you're hitting exactly one physical device:
-
-```
-/all/os/to <uid:s> <verb:s> [args…]
-```
-
-| verb | args | what it does | reply (port) |
-|---|---|---|---|
-| `enabled` | `<0\|1:i>` | see Output controls above | `/os/enabled` (5550) |
-| `hostname` | `<name:s>` | applies one validated lowercase hostname (1–63 chars, alnum + internal hyphens) | `/os/hostname <uid:s> <name:s> <ok\|err:s>` (5550) |
-| `audio-config` | `<json:s>` | validates and transactionally applies one complete detected-card/JACK configuration, restarting the audio engine and rolling back on failure | `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
-| `log-config` | `<json:s>` | **v1.13.** persists one bounded log destination `{"destination":"internal"\|"usb"}` as `LOG_DESTINATION` in `bopos.config`; no engine restart, no rollback; `usb` falls back to `internal` when the stick is absent (resolved per log entry) | `/os/log-config <uid:s> <ok\|err:s> <json:s>` (5550) |
-| `identify` | — | chirp/flash | — |
-| `wifi-config` | `<json:s>` | **v1.20.** complete ordered WPA-Personal list plus country; null PSK keeps the device secret; argument-less privileged helper; replies before network re-evaluation, no rollback; installation-LAN broadcast readable by every host — provision only on an operator-controlled network, with dashboard warning before any passphrase send | `/os/wifi-config <uid:s> <ok\|err:s> <phase:s> <json:s>` (5550) |
-| `report` | — | static-facts JSON | `/os/report <json:s>` (5550) |
-| `reboot` | — | reboot the node | bare `/os/rev <sha:s> <model:s> <uid:s>` (5550), sent before the box goes down |
-| `shutdown` | — | power off | bare `/os/rev …` (5550), sent before power-off |
-| `restart-engine` | — | stop/relaunch just the engine, not the OS | bare `/os/rev …` (5550) |
-| `updatebopos` | — | converge the bopOS framework (git pull + reboot on a persistent host) | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set; success is sent before the reboot request, a rejected reboot sends a second `err reboot` |
-| `unassign` | — | idempotently revoke: id → `-1`, positions cleared, group membership cleared, hostname retained | `/id -1` to its own engine + an immediate heartbeat (5550) as the revocation confirmation |
-
-Any other verb (`patch`, `checkout`, `droppatch`,
-`dropassets`, patch parameters, probes, storage, distribution) is **not**
-reachable through this envelope by design (contract §3) — use the
-selector-addressed form below instead. Every listed verb above except
-`enabled`/`hostname`/`audio-config`/`log-config`/`wifi-config` takes **zero** arguments; sending any
-triggers a silent
-reject (no reply, no effect).
-
-### Wi-Fi configuration (v1.20)
-
-Request JSON is exactly `{"country":"GB","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"psk":null}]}`.
-`country` is a known ISO 3166-1 alpha-2 code; SSIDs are unique, 1–32 UTF-8
-bytes; hidden/enabled are booleans; PSKs are null (keep an existing device
-secret) or 8–63 printable ASCII characters. List order is priority. Missing,
-extra, wrongly typed, partial, duplicate, out-of-range or no-enabled-network
-requests reject whole, as does null without an existing device secret.
-Open/enterprise networks, Ethernet and static IP are excluded.
-
-Phases: `applied` (`ok`), `invalid`, `unavailable` (no Wi-Fi/helper/authorization),
-`failed` (helper/network manager refused), all others `err`. Receipt and
-`/os/report` carry only `{"managed":true,"country":"GB","active":"workshop","networks":[{"ssid":"show-1","hidden":true,"enabled":true,"secret":true}],"unmanaged":["imager-net"]}`;
-`active` can be null. Without Wi-Fi or a helper: `{"managed":false}` only.
-Listing an unmanaged SSID adopts that profile; unspecified unmanaged profiles
-are never deleted. Disabled networks keep their secrets but are never joined.
-The pre-provisioned helper takes JSON on stdin, never process arguments;
-`--status` returns redacted state. Receipts precede network re-evaluation;
-the returning heartbeat confirms recovery. No rollback — recovery is physical.
-Passphrases never appear in public state, reports, receipts, console taps or
-project/venue files. Field devices join only hidden, passphrase-protected
-networks; requests broadcast on the LAN and are readable by every host there.
-
-### Seat-group membership (v1.5)
-
-```
-/all/os/groups <uid:s> <group-id:i>...
-```
-
-Replaces the node's complete group membership (an empty tail clears it).
-IDs must be unique non-negative int32s. Reply: `/os/groups <uid:s>
-<sorted-group-id:i>...` (5550) on success; a mismatch, invalid/duplicate ID,
-or persistence failure changes nothing and gets **no** reply.
-
-### Assignment
-
-```
-/all/os/assign <uid:s> <id:i> <name:s> [x:f y:f]×N
-```
-
-Literal `all` only — never a numeric or group selector, even one that
-happens to match. Sets the node's Seat id, hostname, and 0-indexed element
-positions (one `x y` pair per element, pair order = element index).
-Idempotent full-state. No direct reply; the node's next heartbeat carries
-the new id as the ack.
-
-### Lifecycle and provisioning (generic selector)
-
-These take `all`, a numeric Seat id, or `g<n>` — not just `all` — so you can
-target one Seat, one group, or the whole fleet:
-
-```
-/<selector>/os/<verb> [args…]
-```
-
-| verb | args | what it does | reply (port) |
-|---|---|---|---|
-| `reboot` | — | reboot | `/os/rev <sha:s> <model:s> <uid:s>` (5550) sent *before* the box goes down |
-| `shutdown` | — | power off | same `/os/rev` shape, sent before power-off |
-| `restart-engine` | — | stop/relaunch the engine only | `/os/rev …` (5550) |
-| `updatebopos` | — | converge the bopOS framework (`/os/update` has no alias — removed) | `/os/rev … <status:s> <phase:s>` (5550) — this verb *does* set status/phase; success is sent before a reboot is requested, and a rejected reboot sends a second `err reboot` |
-| `checkout` | `<branch:s>` | checkout a branch, then converge | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set |
-| `patch` | `<name:s>` | stop engine, switch active patch, relaunch — never reboots | `/os/rev … <status:s> <phase:s>` (5550) — status/phase set; phases: `invalid-name`, `not-found`, `stop-failed`, `write-failed`, `start-failed`, `restore-failed`, `ok switched` |
-| `droppatch` | `<name:s>` | remove an installed, inactive patch (refuses the active one) | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `active-patch`, `remove-failed`, `ok dropped` |
-| `dropassets` | `<slot:s>` | remove an installed asset slot | `/os/rev … <status:s> <phase:s>` (5550); phases: `invalid-name`, `remove-failed`, `ok dropped` |
-| `mute` | `<0\|1:i>` | same as `/all/os/mute` above, but selector-generic | — |
-
-`/os/rev`'s full shape is `<sha:s> <model:s> <uid:s> [<status:s>
-<phase:s>]` — the contract marks status/phase optional (v1.6). As of the
-2026-07-17 outcome-receipts revision, every verb in this table sets
-status/phase on both success and failure, so `/os/rev` alone tells you
-whether the operation landed. Older nodes running framework builds before
-this revision may still send the bare three-field form for `patch`,
-`droppatch` and `dropassets` — if you see a bare
-reply from one of those three verbs, that's an old node, not a refusal.
-
-An ephemeral (live-image) node answers every provisioning verb here with an
-honest no-op `/os/rev` (no filesystem write) rather than pretending to
-persist.
-
-### Patch and asset distribution, params, storage
-
-```
-/<selector>/os/<verb> [args…]
-```
-
-| verb | args | what it does | reply (port) |
-|---|---|---|---|
-| `params` | — | the active patch's raw `bopos.patch.json` | `/os/params <json:s>` (5550) |
-| `patches` | — | installed-patch inventory: `{name, active, manifest, fingerprint?}` | `/os/patches <json:s>` (5550) |
-| `assets` | — | installed asset-slot inventory: `{name, fingerprint, files, bytes}` | `/os/assets <json:s>` (5550) |
-| `fetch` | `<source-uri:s> <slot:s>` (or `patch:<name>` as the slot) | pull an asset slot or patch by diff (`http:`/`file:` schemes) | `/os/fetch-progress <slot:s> <queued\|fetching:s>` while pending, then `/os/fetched <slot:s> <ok\|err:s>` (5550) |
-| `store` | `<key:s> <values…>` | write to the node's persistence store | — |
-| `load` | `<key:s>` | read from the node's persistence store | `/os/load <key:s> <values…>` (5550) |
-
-Dashboard push is the patch deployment route. A successful fetch replaces an
-existing clone through staged convergence and manifest validation, removing
-its local `.git` directory or file without following an external Git pointer;
-fetch or validation failure preserves the old copy, and installation failure
-restores it (contract §9).
-
-### Patch parameters, master, and spatial points
-
-These are **provided terms and patch-owned values**, relayed selector-
-stripped straight to the engine — bopos.py never interprets them:
-
-| address | args | what it does | reply (port) |
-|---|---|---|---|
-| `/<selector>/p/<segment>[/<segment>...]` | patch-declared, see `bopos.patch.json` | drives one patch parameter (nested paths join with `/`, e.g. `instrument/marimba/gain`) | — |
-| `/<selector>/os/master <0..1:f>` | one float | the framework's one universal output-stage term | — |
-| `/pt <count:i> (<id:i> <x:f> <y:f> <r:f> <f:i>)×count` | one frame, all points, atomic | full-state spatial point frame; no selector — always fleet-wide | — |
-| `/pt <id:i> <x:f> <y:f> <r:f> <f:i>` | one point | sparse single-point update (5 args = the shorthand form) | — |
-| `/pt/clear <id:i>` | one id | releases a point (fades to hold=0) | — |
-
-`f` in a point tuple is the falloff enum: `0` linear, `1` smooth, `2` gauss.
-
-### Events (`/e/*`)
-
-Targetable, patch-declared events with 0–16 typed fields (contract §3.2).
-The node strips the selector and the time, and hands the engine a bare
-`/e/<identity> [<e0> … <e15>]`:
-
-| address | args | what it does | reply (port) |
-|---|---|---|---|
-| `/<selector>/e/<segment>[/<segment>...] <sharedTimeNs:s> [<e0> … <e15>]` | time first, then up to 16 f/i/s fields | schedules the event for `sharedTimeNs + offset` on each matching node | — |
-| `/<selector>/e/<segment>[/<segment>...] "0" [<e0> … <e15>]` | the exact string `"0"` | **fire on arrival**: no scheduling, each node fires as its packet lands | — |
-
-**From a bare OSC client, send `"0"`.** `sharedTimeNs` is a reading of the
-dashboard backend's own `time.monotonic_ns()` clock (roughly "nanoseconds
-since the dashboard machine booted"). A client on another machine has no way
-to know that clock. A time that has already passed by more than the 50 ms
-late grace gets logged as `DROPPED` and never fires, and a time too far
-ahead waits in the scheduler until that clock catches up. Synchronized
-events currently come only from the dashboard: its event controls and
-show playback stamp `now + event_lead_ms`. The time must be a string even
-though it looks numeric, and fields must use the `f`, `i` or `s` tags and limits above.
-A node silently drops a packet that breaks these rules.
-
-### Sync plane
-
-Framework-owned clock sync (contract §3.1); the dashboard is the clock leader:
-
-| address | args | direction | reply (port) |
-|---|---|---|---|
-| `/sync/ping <seq:i> <leaderTimeNs:s>` | leader → fleet | broadcast, 6660 | `/sync/pong <seq:i> <leaderTimeNs:s> <uid:s> <deviceTimeNs:s>` (5550) |
-| `/<id>/sync/offset <offsetNs:s>` | leader → one node | unicast, 6660 | — |
-
-## 2. What comes back on 5550 (fleet → controller)
-
-You don't send these — they're what to expect listening on 5550 after
-sending the commands above, or unprompted (heartbeats):
-
-| address | args | when |
+| Address | Arguments | Effect |
 |---|---|---|
-| `/hb <uid:s> <id:i> <version:s> <engine-alive:i> [rssi:i]` | — | every 10 s (2 s while unassigned); the sole liveness signal |
-| `/os/pong <token> <uid:s>` | echoes the ping's type | reply to `/os/ping` |
-| `/os/report <json:s>` | — | reply to `report` |
-| `/os/probe <id:i> <what:s> <values…>` | — | reply to `probe` |
-| `/os/enabled <uid:s> <device-enabled:i> <output-enabled:i>` | — | reply to the exact-uid `enabled` verb |
-| `/os/hostname <uid:s> <name:s> <ok\|err:s>` | — | reply to the exact-uid `hostname` verb |
-| `/os/audio-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | terminal reply to exact-uid `audio-config`; phase is `applied`, `invalid`, `rolled-back`, or `rollback-failed` |
-| `/os/log-config <uid:s> <ok\|err:s> <json:s>` | — | reply to exact-uid `log-config`; json is the complete `log` state object (`destination`, `effective`, `usb_present`) |
-| `/os/groups <uid:s> <group-id:i>...` | sorted | reply to `/all/os/groups` |
-| `/os/wifi-config <uid:s> <ok\|err:s> <phase:s> <json:s>` | — | **v1.20.** terminal reply to exact-uid `wifi-config`; phases `applied`, `invalid`, `unavailable`, `failed`; JSON is the redacted `wifi` object also carried by `/os/report`, never a passphrase |
-| `/os/rev <sha:s> <model:s> <uid:s> [<status:s> <phase:s>]` | — | reply to every lifecycle/provisioning verb (`patches`/`assets` are queries, they reply with their listing instead); `reboot`/`shutdown`/`restart-engine` send the bare three-field form (nothing to report before the box goes away), every other verb sets status/phase |
-| `/os/load <key:s> <values…>` | — | reply to `load` |
-| `/os/params <json:s>` | — | reply to `params` |
-| `/os/patches <json:s>` | — | reply to `patches` |
-| `/os/assets <json:s>` | — | reply to `assets` |
-| `/os/fetch-progress <slot:s> <queued\|fetching:s>` | — | while a `fetch` is pending |
-| `/os/fetched <slot:s> <ok\|err:s>` | — | terminal reply to `fetch` |
-| `/sync/pong <seq:i> <leaderTimeNs:s> <uid:s> <deviceTimeNs:s>` | — | reply to `/sync/ping` |
+| `/<target>/<identity>` | declared event fields or parameter arguments | short form, when unambiguous |
+| `/<target>/e/<identity>` | declared event fields | event, stamped with now + event lead |
+| `/<target>/p/<identity>` | parameter arguments | parameter, including fades, loop and lfo grammar |
+| `/pt`, `/point`, `/pt/clear` | point arguments from §4.1 | unchanged point messages |
+| `/bop/master` | `<0..1> [duration]` | immediate master or linear fade |
+| `/bop/mute` | `<0|1>` | execution MUTE ALL |
+| `/bop/lead` | `<whole ms: 0..10000>` | persistent event lead |
 
-## 3. The engine surface (localhost, one node at a time)
+A target is `all`, a seat number (for example `12`), a group selector (`g3`),
+or its group name (`spot1`). Group names resolve to selectors before sending.
+Identities are slash-separated paths from the active patch's `bopos.patch.json`.
+Only declared messages are accepted. Live and Simulation use the fleet patch;
+Patch Edit uses the edited patch.
 
-These never leave one Pi — they're for patch and engine authors, not a
-fleet-wide OSC client. `/id`, `/os/master`, `/p/*`, `/pt`, `/e/*`, and
-`/notify` arrive on the **engine's** port (6661 in production, or the
-audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
-`/report`, `/log`, `/admin` are sent **by the engine to bopos.py** on **7770**.
+Use explicit `/e/` or `/p/` if an identity occurs in both planes, or starts
+with `os`, `io`, `sync`, `e` or `p`. For example, a declared event with identity "os/play"
+is addressed as `/all/e/os/play`.
 
-### bopos.py → engine (6661)
+Events accept up to 16 declared float/int/toggle/enum/text fields, in order.
+Numbers coerce to their declared OSC type; integer kinds require whole numbers.
+Out-of-range finite numbers clamp to the declared range. Omitted trailing
+optional fields take their defaults; required omissions, extra fields, invalid
+types or invalid text are rejected. Text is 1–255 printable ASCII bytes without
+whitespace; integers have magnitude at most 2^24. Do not include a time or the
+`"0"` sentinel on this input. Lead zero makes the dashboard send fire-on-arrival;
+otherwise it stamps a shared deadline. Sender bundle timetags are ignored.
 
-| address | args | when |
-|---|---|---|
-| `/id <n:int32>` | resolved Seat id; `-1` means unassigned | on assignment/unassignment, after `/config`, and on engine-ready replay |
-| `/os/master <0..1:f>` | the master term | on change, and on catch-up when a device (re)appears |
-| `/p/<segment>[/<segment>...] <values…>` | patch-declared | whenever a matching `/p/*` command arrives |
-| `/pt <point:i> <element:i> <value:f>` | one shaped scalar per point × element | ~20–30 Hz while moving |
-| `/e/<segment>[/<segment>...] [<e0> … <e15>]` | up to 16 f/i/s fields; no selector, no time | at the synced local deadline, or on arrival for `"0"` |
-| `/notify <event:s>` | `identify`, `checkout`, `updatebopos`, `shutdown`, `reboot`, `restart-engine` | on the matching admin action |
+Parameters retain their argument grammar, including node-side automation.
+Their values and automation are recorded for dashboard UI and catch-up.
+Point frames pass through; the dashboard pauses its own motion and catch-up
+frames until outside points have been silent for two seconds.
 
-**Launch-delivered run context** (never over OSC — `-send` for PD at
-process start, environment variables for other engines): `seed`, `run-id`,
-`patch`, `assets`, and — additive, v1.7 — `version` and `patch-fingerprint`.
-PD gets `bopos-context version <string>` / `bopos-context patch-fingerprint
-<string>`; other engines get `BOPOS_VERSION` / `BOPOS_PATCH_FINGERPRINT`.
-`patch-fingerprint` is the literal string `unknown` when it can't be
-resolved without blocking launch on a hash.
+Master duration accepts milliseconds as a number or a duration such as `250ms`,
+`10s`, `1.5m`. The dashboard sends steps at about 25 Hz and the UI follows.
+Any new master value cancels a fade. The destination is saved at fade start.
+Mute follows execution state; lead persists in the project.
 
-In v1.9, `assets` is the ordered list of absolute installed asset-slot paths:
-PD gets `bopos-context assets <absolute-path...>` and other engines get the
-same list as a JSON array in `BOPOS_ASSETS`. The list may be empty and is
-refreshed on the next engine start after a slot is added or removed.
-
-### Engine → bopos.py (7770)
-
-| address | args | what it does | reply |
-|---|---|---|---|
-| `/config` | — | ask for identity; retry until `/id` arrives | `/id <n:int32>` (6661) |
-| `/store <key:s> <values…>` | — | persistence write | — |
-| `/load <key:s>` | — | persistence read | `/load <key:s> <values…>` (6661) |
-| `/report <name:s> <values…>` | — | retain a typed value for `/os/probe` to pull later | — |
-| `/log <stream:s> <values…>` | — | **v1.12, additive.** Append one node-stamped, tab-separated line to the per-stream daily append-only file `<stream>-YYYY-MM-DD.log` under the log destination (internal default `~/bopos-logs/`; internal/usb selection is a later revision). Fire-and-forget like `/store`. `stream` matches `[A-Za-z0-9_-]+`; an invalid or missing name is dropped with a logged warning, never fatal. | — |
-| `/admin <action:s>` | `action` ∈ `update-bopos`, `shutdown`, `reboot` | **v1.7, additive.** A patch running on the Pi asks bopos.py for the same node-lifecycle action the LAN `/os/*` verbs already provide — routes to the identical implementation (`updatebopos`/`shutdown`/`reboot`). No selector, no reply to the engine (these are terminal or restart the engine anyway); `/os/rev` outcome receipts still flow to the LAN model where a real requester exists. An unknown or missing action logs a warning and is otherwise ignored — never fatal. |
-
-The PD-side bus that would let a real `[bopos]`-using patch send `/admin` is
-not wired yet (`pd/bopos~.pd` — Bob's `.pd` edit, not an agent's); other
-engines can send it directly over the localhost socket today.
-
-## 4. Worked examples
-
-Using [`oscsend`](https://liblo.sourceforge.net/) (part of `liblo-tools`;
-`brew install liblo` / `apt install liblo-tools`). Replace
-`10.0.0.5`/`02:53:49:4d:00:01` with your dashboard-machine broadcast address
-and the target node's real `uid`.
-
-**Disable one physical device's audio output**, dashboard or not in front of you:
+Examples using `oscsend` (replace `192.168.1.10` with the dashboard IP, and
+identities/fields with declarations in your patch):
 
 ```sh
-oscsend 10.0.0.5 6660 /all/os/to ssi "02:53:49:4d:00:01" enabled 0
+# Declared event hit with one float field; dashboard supplies the time.
+oscsend 192.168.1.10 5552 /all/e/hit f 0.8
+# Same event for a named group, using the short form.
+oscsend 192.168.1.10 5552 /spot1/hit f 0.8
+# Typed fields: text, float, toggle. No timestamp.
+oscsend 192.168.1.10 5552 /all/e/trig/play sfi samples/spot1 0.75 1
+# Declared parameter automation.
+oscsend 192.168.1.10 5552 /12/p/gain fs 0.5 2s
+oscsend 192.168.1.10 5552 /bop/master fs 0.25 3s
+oscsend 192.168.1.10 5552 /bop/mute i 1
+oscsend 192.168.1.10 5552 /bop/lead i 500
 ```
 
-Enable the same box: swap the trailing `0` for `1`. MUTE ALL
-instead: `oscsend 10.0.0.5 6660 /all/os/mute i 1` (no uid needed — it's a
-fleet broadcast).
+There are no OSC error replies. Recent rejections and clamps are kept in an
+in-memory ring of 50 entries, available in dashboard state (`osc_input.recent`),
+with time, sender, address and reason. Restart clears it.
 
-**Reboot one Seat by its assigned id** (Seat 7 here) instead of by uid:
+Device administration remains on node port 6660, as specified in
+[the contract](OSC-CONTRACT.md). For example,
+`/all/os/to <uid> enabled <0|1>` sets one physical device's output permission;
+its receipt is `/os/enabled <uid> <device-enabled> <output-enabled>` on 5550. The input intentionally accepts only the
+commands above. Low-level device-wire events on 6660 still require the exact
+string `"0"` for fire-on-arrival or a dashboard-clock nanosecond timestamp.
+Outside clients should use 5552 for synchronized events.
 
-```sh
-oscsend 10.0.0.5 6660 /7/os/reboot
-```
-
-Or the same box addressed by uid through the admin envelope:
-
-```sh
-oscsend 10.0.0.5 6660 /all/os/to ss "02:53:49:4d:00:01" reboot
-```
-
-**Switch which patch is active** fleet-wide, then watch for convergence:
-
-```sh
-oscsend 10.0.0.5 6660 /all/os/patch s demo-pd
-# listen on 5550 for: /os/rev <sha> <model> <uid> <status> <phase>
-# e.g. "ok switched" on success, "not-found" if demo-pd isn't installed
-```
-
-**Fire a patch event on every node** (`hit` here, with one element, a
-velocity of 0.8). The time is the string `"0"`, so each node fires on arrival:
-
-```sh
-oscsend 10.0.0.5 6660 /all/e/hit sf 0 0.8
-```
-
-**A raw Python one-liner** (no `liblo` needed) for the same disable, using the
-`pyOSC3` module this repo already vendors:
-
-```python
-import pyOSC3
-msg = pyOSC3.OSCMessage("/all/os/to")
-msg.append("02:53:49:4d:00:01"); msg.append("enabled"); msg.append(0)
-client = pyOSC3.OSCClient(); client.connect(("10.0.0.5", 6660)); client.send(msg)
-```
-
-## Verified against
-
-Every row above was cross-checked against `docs/OSC-CONTRACT.md` and the
-actual handler tables in `python/bopos.py` — `handle_lan_datagram`,
-`dispatch_uid_admin`/`UID_ADMIN_VERBS`, `dispatch_admin_verb`/
-`LIFECYCLE_VERBS`/`PROVISION_VERBS`, and the 7770 callback map
-(`ENGINE_ADMIN_VERBS` plus `/config`/`/store`/`/load`/`/report`), plus a live
-run against `tools/simfleet.py` (Device enabled and report). See
-`.loom/tied/4-osc-quickref/notes.md` for the original cross-check log that
-found the gap this doc now describes as fixed: through the 2026-07-17
-outcome-receipts revision, `droppatch`,
-`dropassets`, and `patch` always replied with a **bare** `/os/rev` even on
-refusal or failure — the contract's `[<status> <phase>]` was optional, and
-only `updatebopos`/`checkout` populated it. See
-`.loom/tied/rev-outcome-receipts/notes.md` for that fix.
-
-Typed event example (v1.22): `/all/e/trig/play "0" "samples/spot1" 0.75 1`
-uses tags `ssfi` (timestamp, text, float, toggle). The engine receives
-`/e/trig/play "samples/spot1" 0.75 1`, tags `sfi`. Text must be 1–255 printable
-ASCII bytes without whitespace; integers have magnitude at most 2^24.
-Update every node before relying on typed events: older nodes silently drop
-non-float fields. Push migrated `fields` manifests with the framework update;
-`arity`/`defaults` declarations are no longer accepted.
+Typed fields require all nodes updated to v1.22 or later and migrated `fields`
+manifests pushed with the framework update; older nodes silently drop them.

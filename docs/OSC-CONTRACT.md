@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.22** — in progress; base ratified 2026-07-07; latest revision 2026-10-26. The
+**Version 1.23** — in progress; base ratified 2026-07-07; latest revision 2026-10-26. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -321,7 +321,7 @@ keyword is the patch author's foot-gun to avoid.
 
 ## 4. Ports and transport
 
-Eight ports; 5551 and 7771 added in v1.21. The three LAN ports
+Nine ports; 5552 added in v1.23. The four LAN ports
 are the public contract; the five localhost ports are one device's internal plumbing. As of
 v1.2 **`bopos.py` is the node's only LAN citizen**: it alone binds 6660 and
 sends on 5550 and the leased development stream port 5551. Engines — PD
@@ -334,6 +334,7 @@ helper-death, and production-macOS N=1 gates passed, 2026-07-12.)
 |---|---|---|---|
 | 5550 | dashboard | bopos.py | LAN broadcast, fleet → dash |
 | 5551 | dashboard | bopos.py | LAN unicast: leased development IO value streams to the requesting dashboard (§6) |
+| 5552 | dashboard | outside OSC apps, any source | LAN input; dashboard translates and stamps for the active execution target (§4.3) |
 | 6660 | bopos.py (sole binder) | dashboard | LAN broadcast, dash → fleet |
 | 6661 | engine (`[bopos]` in PD, OSCdefs in SC, …) | bopos.py | localhost: the selector-stripped engine surface (§4.2) |
 | 6662 | engine | io/main.py; dashboard editor input | localhost: peripheral streams and control replies |
@@ -526,6 +527,53 @@ be sent as OSC floats or used by engines for synchronized event timing; bopOS
 MAY provide civil date/time to an engine, safely encoded, for patch-level
 calendar behaviour. The request/event interface for that is deliberately
 deferred and unratified.
+
+### 4.3 Outside-app input
+
+The dashboard listens on UDP **5552**, accepting any source without replies.
+`--input-port` overrides it for isolated tests. This is the outside-app entry
+point; device-wire ports and their grammar remain as specified above.
+All forwarding uses the current execution target: Live, Simulation or Patch Edit.
+The fleet manifest applies in Live/Simulation; the edited patch manifest applies
+in Patch Edit. Only declared events and parameters are accepted here.
+
+| Input address | Arguments | Translation/effect |
+|---|---|---|
+| `/<target>[/e]/<identity>` | event fields, without a time | `/<selector>/e/<identity> <timeNs:string> <fields…>` |
+| `/<target>[/p]/<identity>` | parameter arguments | `/<selector>/p/<identity> <args…>`; records scalar/automation state like dashboard controls |
+| `/pt`, `/point`, `/pt/clear` | device-wire point arguments | passes through unchanged |
+| `/bop/master` | `<0..1> [duration]` | master immediately or a linear dashboard ramp at ~25 Hz |
+| `/bop/mute` | `<0|1>` | execution MUTE ALL; dashboard follows |
+| `/bop/lead` | `<ms>` | whole milliseconds, 0–10000; persists and dashboard follows |
+
+Targets are `all`, a nonnegative seat number, `g<id>` of an existing group,
+or a group name (resolved to `g<id>`). Group names are unique lowercase
+`[a-z0-9_-]{1,32}`, excluding `all`, `bop`, `os`, `io`, `sync`, `e`, `p`,
+all-digit names and `g` followed by digits. Existing invalid names are repaired
+on load through the group-name adoption notice.
+
+An explicit `/e/` or `/p/` requires a declaration in that plane. A short
+identity must occur in exactly one plane, and cannot start with `os`, `io`,
+`sync`, `e` or `p`; use the explicit form for these identities.
+
+Event fields use §3.2's kinds and wire limits. Numeric float/int coercion is
+accepted; int/toggle/enum inputs must be whole numbers. Finite out-of-range
+values clamp to declared min/max (including toggle 0–1 and enum 0–n−1).
+Text must be a string. Missing trailing optional fields use declared defaults;
+missing required fields, extra fields, invalid kinds and undeclared identities
+are rejected. The dashboard stamps its monotonic nanoseconds plus the saved
+`event_lead_ms`; lead zero sends the exact string `"0"`. Senders supply neither
+a timestamp nor a sentinel. Incoming OSC bundle timetags are ignored.
+
+Parameters and point arguments pass through unchanged. Outside points suppress
+the dashboard's motion and catch-up frames for two seconds after the latest
+outside point message. Master duration uses §3.3's duration forms (bare numbers
+are ms). Its destination persists before the ramp starts; intermediate steps
+update the dashboard, and any new master value from UI or OSC cancels the fade.
+
+Rejections and event clamps have no OSC reply. They enter a runtime-only ring
+of the last 50 entries (time, sender IP, address, kind and reason), exposed in
+dashboard state as `osc_input: {port, recent}`; restart clears it.
 
 ## 5. Identity, assignment, persistence
 
@@ -1320,3 +1368,4 @@ reasoning.
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
 | 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Per-module Re-init now ships (§6, §11): `io-reinit <name>` returns `/os/io-reinit <uid> <ok\|err> {name,error}`; local `/io/reinit` / `/io/reinitialized` repair only the active-manifest declaration under the IO lock, sharing the write FIFO and existing timeouts/reasons. Repair remains allowed in Performance, and the Device-tab button is disabled offline/pending/undeclared; simfleet has matching behavior. Live driver-described Modules panels, Device-tab Show in Monitor, ordinary dock/panel windows, and host-side Performance refusal of operator writes now ship through the existing Monitor broker and IO verbs; Patch Edit input now reuses the shared stream for byte-preserving forwarding to localhost 6662 or continuously polled simulated inputs. The same panels reverse their controls, receive existing patch output commands on localhost 8880, preview OLED output, reset per session, and release on unpick/editor exit/browser loss/Performance; no new wire grammar or port is added. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b, §8d and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.tied/proposal-stream-wire.md`, ratified 2026-10-04; `2-device-tab-inventory.stitching/reinit-verification.md`; `9-module-panels.stitching/instructions.md`; `6-live-sensor-in-patch-edit.stitching/instructions.md` (§4–§5 ratified proposal) |
 | 1.22 | 2026-10-26 | Typed event fields (§3.2, §8): up to 16 named float/int/toggle/enum/text fields, trailing optional defaults, preserved OSC tags, text and integer limits. Hard break: arity/defaults declarations rejected; push migrated patches with the framework update. Update every node before relying on typed fields: older nodes silently drop non-float events (and events over their three-field limit). No mixed-fleet warning UI. | Bob, ratified `80-osc-input/1-typed-event-fields` |
+| 1.23 | 2026-10-26 | Dashboard outside-app input on UDP 5552 (§4.3): declared-only manifest translation, group-name targets, default filling, typed numeric coercion and clamping, dashboard event stamps, parameter mirrors, outside-point precedence, master fades and persisted lead. No device-wire grammar change. | Bob, ratified `80-osc-input/2-dashboard-osc-input.tied/proposal.md` §8 |
