@@ -41,6 +41,10 @@ Implementation:
 9. `9-osc-tab` — build the ratified tab. Needs 8.
 10. `10-qtable-rig-check` — qtable through bopOS on the rig. Needs 5 and 7.
 
+Queued first on 2026-10-26 (Bob): 3, 6, 4, 7, 8, 9. Bob's own items — 5, 10,
+and the mockup from 8 — are parked `.waiting` and listed in `76-bob-review`
+(Open 19–20, Hardware checks 11–12).
+
 ## Coordination
 
 `62-split-elements/4-contract-amendment` is the other contract amendment in

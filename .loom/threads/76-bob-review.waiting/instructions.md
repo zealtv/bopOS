@@ -71,6 +71,18 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `screenshots/update-patch-58-1440.png`, `screenshots/push-targets-58-1440.png`.
     OK as is?
 
+19. **OSC tab mockup (80/8)** — *not ready yet; added 2026-10-26.* Once the
+    OSC input (`80-osc-input/7-osc-input-port`) is built, `8-osc-tab-mockup`
+    produces a mockup from the running app and parks here: the tab's layout
+    and wording, per `80-osc-input/2-dashboard-osc-input.tied/proposal.md` §5.
+    Approve before `9-osc-tab` builds it.
+
+20. **Pd receives typed event fields (80/5)** — *added 2026-10-26; waits on
+    `80-osc-input/3-event-fields-wire`.* Check that `pd/bopos~.pd`'s `/e/`
+    path passes text (symbol) and int fields through to the patch unchanged;
+    edit it if not (`64-pd-edits-owed` if an agent writes the edit up). →
+    `80-osc-input/5-pd-event-fields.waiting`.
+
 ## Hardware checks (Bob's hands; software halves are done)
 
 1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
@@ -112,6 +124,14 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     and plays; an audio config that stops the engine starting is detected and
     rolled back, with audio resuming. Checklist in
     `67-repair-pass/18-engine-launch-failures.tied/pi-check.md`.
+11. **Typed events in Pd (80/5)**: on the rig, a scheduled event with a text
+    field arrives in Pd intact. Software half: `80-osc-input/3-event-fields-wire`
+    (not built as of 2026-10-26). → `80-osc-input/5-pd-event-fields.waiting`.
+12. **qtable through bopOS (80/10)**: qtable → dashboard UDP 5552 → Finn Jet /
+    Ciro Toast. Kite Choir `trig/play` events with text fields land in sync;
+    `/bop/master` fades; `/bop/mute` silences. Software half:
+    `80-osc-input/7-osc-input-port` (not built as of 2026-10-26). →
+    `80-osc-input/10-qtable-rig-check.waiting`.
 
 ## Ruled
 
