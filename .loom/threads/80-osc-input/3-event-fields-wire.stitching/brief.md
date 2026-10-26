@@ -37,9 +37,9 @@ your diff, and lands it on main. Bob is the project owner and isn't watching; do
   owns it. You may write files inside your stitch's directory.
 - **Don't run `codex-usage` or `claude-usage`.** The manager tracks usage.
 - **Never edit a `.pd` file.** If Pd needs a change, write it down in `worker-result.md`.
-- **Bob's live dashboard is running** from the main checkout (`dashboard/server.py`, UDP 5550/5551,
-  TCP 8080). Don't stop it, don't send to it, and don't bind those ports in ad-hoc runs; tests and
-  simfleet runs must use their own/ephemeral ports. No real hardware: simfleet only.
+- Bob's dashboard has been stopped for this run, so the default ports are free, but two workers run in
+  parallel: tests and simfleet runs should use their own/ephemeral ports, and don't leave servers
+  running when you finish. No real hardware: simfleet only.
 - Tests: `./tools/run-tests.sh fast` from the venv (`~/.venvs/bopos`) while iterating, plus
   `./tools/run-tests.sh browser` if you touched dashboard UI. UDP binds may need a run outside the
   sandbox: ask for escalation rather than skipping them.
