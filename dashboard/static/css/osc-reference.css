@@ -1,0 +1,34 @@
+.osc-tab{max-width:1100px}
+.osc-tab h3{margin:0}
+.osc-tab .section-head p{margin:4px 0 0}
+.osc-endpoint{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+.osc-copy{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-bar)}
+.osc-copy small{color:var(--dim);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.osc-copy code{font-size:16px;font-variant-numeric:tabular-nums}
+.osc-copy button{min-height:32px;padding:4px 9px;text-transform:none;font-size:12px}
+.osc-copy .copy-feedback{color:var(--green)}
+.osc-copy button:has(.copy-feedback:not(:empty)) .copy-label{display:none}
+.osc-rows{display:grid;gap:8px;margin-top:12px}
+.osc-row{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,1.4fr);gap:8px 18px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-bar)}
+.osc-row code{font-size:13px;overflow-wrap:anywhere}
+.osc-addresses{display:grid;gap:3px}
+.osc-addresses small{color:var(--dim);font-size:11px}
+.osc-detail{display:flex;flex-wrap:wrap;gap:4px 14px;align-content:flex-start;font-size:12px;color:var(--dim)}
+.osc-detail b{color:var(--text);font-weight:650}
+.osc-flag{color:var(--amber);font-size:12px}
+.osc-opt{color:var(--dim)}
+.osc-groups{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.osc-group{display:flex;gap:10px;align-items:center;padding:7px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface-bar);font-size:13px}
+.osc-group code{color:var(--dim);font-size:12px}
+.osc-recent-row{display:grid;grid-template-columns:90px 120px minmax(120px,1fr) minmax(0,2fr);gap:4px 14px;padding:7px 4px;border-bottom:1px solid var(--group-line);font-size:12px}
+.osc-recent-row:last-child{border-bottom:0}
+.osc-recent-row time,.osc-recent-row .osc-who{color:var(--dim);font-variant-numeric:tabular-nums}
+.osc-recent-row code{overflow-wrap:anywhere}
+.osc-recent-clamp .osc-why::before{content:"clamp  ";color:var(--accent-cyan)}
+.osc-recent-rejection .osc-why::before{content:"⚠ ";color:var(--amber)}
+@media(max-width:760px){
+  .osc-row{grid-template-columns:1fr}
+  .osc-recent-row{grid-template-columns:70px 1fr}
+  .osc-recent-row code,.osc-recent-row .osc-why{grid-column:1/-1}
+}
+.osc-detail span span{margin-left:10px}

@@ -4,7 +4,9 @@ from collections import deque
 from dataclasses import dataclass, field
 import math
 import re
+import socket
 import time
+from urllib.parse import urlsplit
 
 import live_params
 from python import manifest as schema
@@ -116,6 +118,55 @@ def _translate(address, args, manifest, groups, now_ns, lead_ms):
     return Translation('event', wire, [stamp, *values], clamps, selector, identity)
 
 
+COMMANDS = (
+    {'address': '/bop/master', 'args': '<0..1> [<duration>]',
+     'note': 'master level; with a duration (ms, 250ms, 10s, 1.5m) it fades there'},
+    {'address': '/bop/mute', 'args': '<0|1>', 'note': 'MUTE ALL'},
+    {'address': '/bop/lead', 'args': '<ms 0..10000>', 'note': 'event lead time'},
+)
+
+
+def _range(declaration):
+    kind = declaration.get('kind')
+    if kind == 'text':
+        return {}
+    out = {key: declaration[key] for key in ('min', 'max', 'default')
+           if declaration.get(key) is not None}
+    if kind == 'enum':
+        out['options'] = list(declaration.get('options', ()))
+    return out
+
+
+def reference(manifest, groups):
+    """What the port accepts for this manifest: the OSC tab's whole content.
+
+    Ambiguity follows `_translate`: a short address works only when the
+    identity is declared in exactly one plane and does not start with a
+    plane name.
+    """
+    manifest = manifest or {}
+    events, params = manifest.get('events', ()), manifest.get('params', ())
+    event_ids = {schema.qualify_param(item) for item in events}
+    param_ids = {schema.qualify_param(item) for item in params}
+
+    def short_ok(identity):
+        return identity.split('/')[0] not in RESERVED and (identity in event_ids) != (identity in param_ids)
+
+    return {
+        'commands': list(COMMANDS),
+        'events': [{
+            'identity': identity, 'short_ok': short_ok(identity),
+            'fields': [{'name': f['name'], 'kind': f['kind'], 'optional': bool(f.get('optional')),
+                        **_range(f)} for f in item.get('fields', ())],
+        } for item in events for identity in (schema.qualify_param(item),)],
+        'params': [{'identity': identity, 'short_ok': short_ok(identity), 'kind': item['kind'],
+                    **_range(item)}
+                   for item in params for identity in (schema.qualify_param(item),)],
+        'groups': [{'id': int(key), 'name': group.get('name') or ''}
+                   for key, group in sorted(groups.items(), key=lambda pair: int(pair[0]))],
+    }
+
+
 class MasterRamp:
     """Clock/scheduler injected so fades and cancellation need no real time."""
     def __init__(self, emit, clock=time.monotonic, schedule=None):
@@ -183,8 +234,35 @@ class OSCInput:
         if self.transport:
             self.transport.close()
 
+    def active_manifest(self):
+        """The patch manifest the input resolves against (editor patch in Patch Edit)."""
+        app = self.dashboard
+        patch = app.state.data.get('editor', {}).get('patch') if app.supervisor_mode == 'edit' else None
+        return app.live_control_manifest(patch) if patch or app.supervisor_mode != 'edit' else None
+
+    def host(self):
+        """The LAN address senders should aim at; looked up once."""
+        if not hasattr(self, '_host'):
+            public = getattr(self.dashboard.args, 'public_url', None)
+            configured = urlsplit(public).hostname if isinstance(public, str) else None
+            if configured:
+                self._host = configured
+            else:
+                try:  # connect() on UDP sends nothing; it only picks the outgoing interface
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+                        probe.connect(('192.0.2.1', 9))
+                        self._host = probe.getsockname()[0]
+                except OSError:
+                    self._host = None
+        return self._host
+
     def snapshot(self):
-        return {'port': self.port, 'recent': list(self.recent)}
+        app = self.dashboard
+        patch = app.state.data.get('editor', {}).get('patch') if app.supervisor_mode == 'edit' else (
+            app.state.data.get('fleet_patch') or {}).get('name')
+        return {'port': self.port, 'host': self.host(), 'recent': list(self.recent),
+                'target': {'mode': app.supervisor_mode, 'patch': patch},
+                'reference': reference(self.active_manifest(), app.state.data.get('groups', {}))}
 
     def note(self, ip, address, reason, kind):
         self.recent.append({'time': time.time(), 'sender': ip, 'address': address,
@@ -234,8 +312,7 @@ class OSCInput:
 
     def handle(self, address, args, ip):
         app = self.dashboard
-        patch = app.state.data.get('editor', {}).get('patch') if app.supervisor_mode == 'edit' else None
-        manifest = (app.live_control_manifest(patch) if patch or app.supervisor_mode != 'edit' else None)
+        manifest = self.active_manifest()
         result, error = translate(address, args, manifest, app.state.data.get('groups', {}),
                                   time.monotonic_ns(), app.state.data.get('event_lead_ms', 500))
         if error:

@@ -71,7 +71,7 @@ document.addEventListener("click", (event) => {
   if (button) copyFullIdentity(button);
 });
 const GROUP_SLOTS = window.GroupSlots.palette;
-const TAB_NAMES = ["show", "control", "seats", "devices", "patches", "assets"];
+const TAB_NAMES = ["show", "control", "seats", "devices", "patches", "assets", "osc"];
 // The Control tab was called Dashboard until 2026-07-25 (37/10). Existing
 // bookmarks and links still say #dashboard, so keep resolving it.
 const TAB_ALIASES = { dashboard: "control" };

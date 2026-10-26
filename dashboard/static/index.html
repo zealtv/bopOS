@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="/css/performance.css" />
     <link rel="stylesheet" href="/css/device-io.css" />
     <link rel="stylesheet" href="/css/module-panels.css" />
+    <link rel="stylesheet" href="/css/osc-reference.css" />
     <script src="/js/device-io.js"></script>
   </head>
   <body>
@@ -81,6 +82,7 @@
         <button id="tab-button-devices" role="tab" aria-controls="tab-devices" aria-selected="false" data-tab="devices">Devices</button>
         <button id="tab-button-patches" role="tab" aria-controls="tab-patches" aria-selected="false" data-tab="patches">Patches</button>
         <button id="tab-button-assets" role="tab" aria-controls="tab-assets" aria-selected="false" data-tab="assets">Assets</button>
+        <button id="tab-button-osc" role="tab" aria-controls="tab-osc" aria-selected="false" data-tab="osc">OSC</button>
       </nav>
       <!-- A link to another document, deliberately OUTSIDE role="tablist": inside
        it, assistive tech would announce a seventh tab that isn't one. -->
@@ -429,6 +431,44 @@
           <div id="asset-extras" class="asset-extras"></div>
         </section>
       </section>
+      <section
+        id="tab-osc"
+        class="tab-panel osc-tab"
+        role="tabpanel"
+        aria-labelledby="tab-button-osc"
+        data-tab-panel="osc"
+        hidden
+      >
+        <section id="osc-send-panel" aria-labelledby="osc-send-title">
+          <div class="section-head"
+            ><div><h3 id="osc-send-title">Send to</h3><p id="osc-target" class="dim"></p></div></div
+          >
+          <div id="osc-endpoint" class="osc-endpoint"></div>
+        </section>
+        <section id="osc-commands-panel" aria-labelledby="osc-commands-title">
+          <div class="section-head"><h3 id="osc-commands-title">Commands</h3></div>
+          <div id="osc-commands"></div>
+        </section>
+        <section id="osc-events-panel" aria-labelledby="osc-events-title">
+          <div class="section-head"><h3 id="osc-events-title">Events</h3></div>
+          <div id="osc-events"></div>
+        </section>
+        <section id="osc-params-panel" aria-labelledby="osc-params-title">
+          <div class="section-head"><h3 id="osc-params-title">Parameters</h3></div>
+          <div id="osc-params"></div>
+        </section>
+        <section id="osc-groups-panel" aria-labelledby="osc-groups-title">
+          <div class="section-head"><h3 id="osc-groups-title">Targets</h3></div>
+          <div id="osc-groups"></div>
+        </section>
+        <section id="osc-recent-panel" aria-labelledby="osc-recent-title">
+          <div class="section-head"
+            ><div><h3 id="osc-recent-title">Recent rejections and clamps</h3
+              ><p class="dim">The last 50 since the dashboard started.</p></div></div
+          >
+          <div id="osc-recent"></div>
+        </section>
+      </section>
       <section id="tab-show" class="tab-panel show-tab" role="tabpanel" aria-labelledby="tab-button-show" data-tab-panel="show"
         ><div id="show-root"></div
       ></section>
@@ -459,6 +499,7 @@
     ><script src="/js/show.js"></script>
     <script src="/js/installation-notice.js"></script>
     <script src="/js/wifi-networks.js"></script>
+    <script src="/js/osc-reference.js"></script>
     <div id="project-menu" popover aria-label="Project · Site · Show"></div>
     <dialog id="project-site-dialog" class="project-dialog" aria-labelledby="project-site-title">
       <form method="dialog">
