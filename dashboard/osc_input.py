@@ -186,11 +186,15 @@ class OSCInput:
     def set_master(self, value, duration=0):
         app = self.dashboard
         origin = app.state.data.get('master', 1.0)
-        # Flush the destination before transient steps replace the live value.
+        # Fades flush the destination before transient steps replace the live
+        # value. Immediate writes retain the UI's existing save debounce.
         previous = app.state.data.get('master_destination')
         app.state.data['master_destination'] = value
         try:
-            app.state.save()
+            if duration:
+                app.state.save()
+            else:
+                app.state.save_debounced()
         except (OSError, ValueError, TypeError):
             if previous is None:
                 app.state.data.pop('master_destination', None)

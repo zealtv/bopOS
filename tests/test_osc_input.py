@@ -1,5 +1,5 @@
 """Declared outside OSC input, runtime routing and deterministic fades."""
-import json
+import asyncio
 from pathlib import Path
 import sys
 import tempfile
@@ -194,7 +194,10 @@ class RuntimeTests(unittest.TestCase):
             # Another save mid-fade must keep the destination.
             state.save()
             self.assertEqual(InstallationState(directory, None).data['master'], .2)
-            receiver.set_master(.7)
+            async def immediate():
+                receiver.set_master(.7)
+                await state.close()
+            asyncio.run(immediate())
             self.assertAlmostEqual(state.data['master'], .7)
             self.assertEqual(state.durable()['master'], .7)
 

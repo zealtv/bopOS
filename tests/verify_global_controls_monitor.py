@@ -139,6 +139,7 @@ def main():
                 sys.executable, os.path.join(ROOT, "dashboard", "server.py"),
                 "--host", "127.0.0.1", "--port", str(http_port),
                 "--listen-port", str(listen_port),
+                "--input-port", "0", "--stream-port", "0",
                 "--send-port", str(send_port),
                 "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
                 "--assets-dir", assets, "--patches-dir", patches,
