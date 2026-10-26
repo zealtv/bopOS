@@ -24,7 +24,7 @@
 .osc-recent-row:last-child{border-bottom:0}
 .osc-recent-row time,.osc-recent-row .osc-who{color:var(--dim);font-variant-numeric:tabular-nums}
 .osc-recent-row code{overflow-wrap:anywhere}
-.osc-recent-clamp .osc-why::before{content:"clamp  ";color:var(--accent-cyan)}
+.osc-recent-clamp .osc-why::before{content:"clamp  ";color:var(--dim)}
 .osc-recent-rejection .osc-why::before{content:"⚠ ";color:var(--amber)}
 @media(max-width:760px){
   .osc-row{grid-template-columns:1fr}

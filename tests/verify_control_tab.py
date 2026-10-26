@@ -238,7 +238,7 @@ def main():
                 # The standalone view moved into the tab bar and is named
                 # Remote. It is an <a> to another document, so it must sit
                 # BESIDE role="tablist"; inside it, assistive tech announces a
-                # seventh tab that isn't one.
+                # eighth tab that isn't one.
                 check("the standalone view is a tab-bar link named Remote",
                       page.locator(".primary-tabs #facilitator-link")
                       .inner_text().strip() == "Remote")
@@ -250,9 +250,9 @@ def main():
                       .count() == 0)
                 # Scoped to the primary list on purpose: the Seats sidebar and
                 # the Monitor dock are tablists too.
-                check("the primary tablist still holds exactly the six tabs",
+                check("the primary tablist still holds exactly the seven tabs",
                       page.locator('#primary-tabs[role="tablist"] [role="tab"]')
-                      .count() == 6)
+                      .count() == 7)
                 check("the dead Control heading is gone",
                       page.locator("#tab-control h2").count() == 0
                       and page.locator("#tab-control .eyebrow").count() == 0)
