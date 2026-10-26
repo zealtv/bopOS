@@ -1,0 +1,3 @@
+23:02:15 sim2 id=2 event typed/check fired dev_deadline=1963453068643708 fire_mono=1963453077817166 elements=folder/file 1 1
+23:02:15 sim1 id=-1 event typed/check fired dev_deadline=1963453068643708 fire_mono=1963453077901333 elements=folder/file 1 1
+PASS: outside UDP -> dashboard stamp, clamp and default -> simfleet on two nodes; isolated ephemeral ports

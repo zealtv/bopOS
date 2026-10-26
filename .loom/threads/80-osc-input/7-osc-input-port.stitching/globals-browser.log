@@ -1,0 +1,19 @@
+[PASS] MUTE ALL has left the app header
+[PASS] the master fader has left the app header
+[PASS] the master fader has left the Control tab
+[PASS] the Show transport no longer carries event lead
+[PASS] no stray event-lead control survives the relocation
+[PASS] master, event lead, and MUTE ALL share the Globals panel
+[PASS] event lead sits with the master fader
+[PASS] MUTE ALL keeps its danger affordance
+[PASS] the Globals panel is reachable from the collapsed dock
+[PASS] the relocated master fader still sets master
+[PASS] the relocated event lead still sets the lead time
+[PASS] the relocated MUTE ALL still mutes
+[PASS] the collapsed dock hides the Globals panel
+[PASS] a muted fleet stays visible on the collapsed dock
+[PASS] the collapsed mute flag unmutes and then disappears
+[PASS] the Globals selection survives a reload
+[PASS] no page errors during the journey
+
+all global-control checks passed
