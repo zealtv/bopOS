@@ -1612,12 +1612,14 @@ def handle_lan_datagram(datagram, source, reply_socket, state=None):
                 or any(manifest.PARAM_NAME.fullmatch(part) is None
                        for part in identity_parts)
                 or len(event_identity.encode("ascii")) > manifest.MAX_PARAM_IDENTITY_BYTES
-                or not 1 <= len(args) <= manifest.MAX_EVENT_ARITY + 1
+                or not 1 <= len(args) <= manifest.MAX_EVENT_FIELDS + 1
                 or not isinstance(args[0], str)
-                or any(not isinstance(value, float) for value in args[1:])):
+                or decoded[1] != ",s" + "".join(
+                    "s" if isinstance(v, str) else "i" if isinstance(v, int) else "f"
+                    for v in args[1:])):
             return True
         try:
-            elements = [float(value) for value in args[1:]]
+            elements = manifest.event_values(args[1:])
         except (TypeError, ValueError):
             return True
         shared_time = str(args[0])
@@ -2166,10 +2168,11 @@ def admin_callback(path='', tags='', args='', source=''):
 
 def fire_event_to_engine(identity, elements):
     # Absolute shared time stays in Python. The engine sees only the relative,
-    # selector-free event fire and its 0–3 float elements.
+    # selector-free event fire and its typed fields.
     msg = OSCMessage("/e/" + identity)
-    for element in elements:
-        msg.append(float(f"{float(element):.6g}"), 'f')
+    for element in manifest.event_values(elements):
+        tag = "s" if isinstance(element, str) else "i" if isinstance(element, int) else "f"
+        msg.append(element, tag)
     send_to_engine(msg)
 
 

@@ -116,7 +116,7 @@ def make_fixture(root):
             "engine": "test", "entrypoint": "main.bin",
             "params": [{"name": "density", "kind": "float", "min": 0, "max": 1,
                         "default": .2, "dashboard": True}],
-            "events": [{"name": "go", "arity": 0, "dashboard": True}],
+            "events": [{"name": "go", "fields": [], "dashboard": True}],
             "caps": [], "slots": [],
         }, target)
 

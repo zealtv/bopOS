@@ -153,8 +153,8 @@ def make_fixture(root):
         # Declared, rendered, and inert: the `<target>/e/*` wire is
         # `44-event-plane`'s question, so this row must render without
         # sending anything.
-        "events": [{"name": "strike", "arity": 2,
-                "defaults": [64, 127],
+        "events": [{"name": "strike", "fields": [{"name": "note", "kind": "float", "default": 64},
+                           {"name": "velocity", "kind": "float", "default": 127}],
                     "dashboard": True}],
         "caps": [], "slots": [],
     }

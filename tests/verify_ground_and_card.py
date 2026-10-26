@@ -196,7 +196,7 @@ def make_fixture(root):
                 {"name": "size", "kind": "float", "min": 0, "max": 1,
                  "default": .4, "path": ["reverb"], "dashboard": True},
             ],
-            "events": [{"name": "strike", "arity": 2, "defaults": [64, 127],
+            "events": [{"name": "strike", "fields": [{"name": "element0", "kind": "float", "default": 64.0}, {"name": "element1", "kind": "float", "default": 127.0}],
                         "dashboard": True}],
             "caps": [], "slots": [],
         }, target)

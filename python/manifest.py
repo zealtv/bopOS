@@ -41,8 +41,9 @@ MAX_PARAM_IDENTITY_BYTES = 255
 MAX_PARAM_OPTIONS = 64
 OPTION_LABEL = re.compile(r"[^\x00\r\n]{1,32}")
 # Events use the targetable `<target>/e/*` plane. Zero-element events are
-# momentary named fires; one to three elements carry patch-defined floats.
-MAX_EVENT_ARITY = 3
+# momentary named fires; fields carry typed scalars.
+MAX_EVENT_FIELDS = 16
+MAX_EVENT_INT = 2 ** 24
 _MISSING = object()
 
 
@@ -52,6 +53,63 @@ def param_wire_type(declaration):
         return None
     kind = declaration.get("kind")
     return PARAM_KINDS.get(kind) if isinstance(kind, str) else None
+
+
+def event_scalar(value):
+    """Validate a manifest-independent event scalar; preserve its OSC tag."""
+    if isinstance(value, str):
+        if not 1 <= len(value) <= 255 or any(not 33 <= ord(c) <= 126 for c in value):
+            raise ValueError("event text must be 1–255 printable ASCII bytes without whitespace")
+        return value
+    if isinstance(value, bool):
+        raise ValueError("event numbers must not be booleans")
+    if isinstance(value, int):
+        if abs(value) > MAX_EVENT_INT:
+            raise ValueError("event integer exceeds 2^24")
+        return value
+    if isinstance(value, float) and wire_number(value, "f"):
+        rounded = float(format(value, ".6g"))
+        if wire_number(rounded, "f"):
+            return rounded
+    raise ValueError("event field must be a finite OSC float, integer or text")
+
+
+def event_values(values):
+    """Check the wire limits without consulting a manifest."""
+    values = list(values)
+    if len(values) > MAX_EVENT_FIELDS:
+        raise ValueError("events support at most 16 fields")
+    return [event_scalar(value) for value in values]
+
+
+def coerce_event_field(field, value):
+    """Check/coerce one value against a validated field declaration.
+
+    Integral numeric inputs become OSC integers; text never coerces numbers.
+    Out-of-range values are rejected rather than clamped.
+    """
+    tag = param_wire_type(field)
+    if tag == "s":
+        if not isinstance(value, str):
+            raise ValueError("event text must be a string")
+    elif tag in ("i", "f"):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("event numeric field must be a number")
+        if not wire_number(value, tag):
+            raise ValueError("event number does not fit its OSC type")
+        if tag == "i":
+            if value != int(value):
+                raise ValueError("event integer field must be integral")
+            value = int(value)
+        else:
+            value = float(value)
+        if field.get("min") is not None and value < field["min"]:
+            raise ValueError("event value below min")
+        if field.get("max") is not None and value > field["max"]:
+            raise ValueError("event value above max")
+    else:
+        raise ValueError("unknown event field kind")
+    return event_scalar(value)
 
 
 def qualify_param(declaration):
@@ -290,20 +348,47 @@ def _validate_events(manifest):
         if identity in event_identities:
             return f"duplicate event identity {identity!r}"
         event_identities.add(identity)
-        arity = event.get("arity", 1)
-        if (not isinstance(arity, int) or isinstance(arity, bool)
-                or not 0 <= arity <= MAX_EVENT_ARITY):
-            return f"event {name}: arity must be 0, 1, 2 or {MAX_EVENT_ARITY}"
-        event["arity"] = arity
-        # Per-element labels were retired 2026-07-28 (Bob): an event carries
-        # one label, its name, and elements are numbered floats. Older
-        # manifests are cleaned on read rather than rejected.
+        if "arity" in event or "defaults" in event:
+            return f"event {name}: arity/defaults were removed; use fields"
+        fields = event.get("fields", [])
+        if not isinstance(fields, list) or len(fields) > MAX_EVENT_FIELDS:
+            return f"event {name}: fields must be a list of at most 16 fields"
+        normalized_fields, names = [], set()
+        optional_seen = False
+        for original_field in fields:
+            if not isinstance(original_field, dict):
+                return f"event {name}: field must be an object"
+            field = dict(original_field)
+            if any(key in field for key in ("path", "dashboard", "facilitator")):
+                return f"event {name}: fields have no path or dashboard"
+            try:
+                field_name = qualify_param(field)
+            except ValueError as error:
+                return f"event {name}: {error}"
+            if field_name in names:
+                return f"event {name}: duplicate field name {field_name!r}"
+            names.add(field_name)
+            error = _validate_param_kind(field) or _validate_param_values(field)
+            if error:
+                return f"event {name} field: {error}"
+            optional = field.get("optional", False)
+            if not isinstance(optional, bool):
+                return f"event {name}: optional must be true or false"
+            if optional_seen and not optional:
+                return f"event {name}: optional fields must trail required fields"
+            optional_seen = optional_seen or optional
+            if optional and field.get("default") is None:
+                return f"event {name}: optional field requires a default"
+            try:
+                for key in ("min", "max", "default"):
+                    if field.get(key) is not None:
+                        coerce_event_field(field, field[key])
+            except ValueError as error:
+                return f"event {name} field {field_name}: {error}"
+            field["optional"] = optional
+            normalized_fields.append(field)
+        event["fields"] = normalized_fields
         event.pop("labels", None)
-        defaults = event.get("defaults")
-        if defaults is not None:
-            if (not isinstance(defaults, list) or len(defaults) != arity
-                    or any(not wire_number(value, 'f') for value in defaults)):
-                return f"event {name}: defaults must be {arity} numbers"
         dashboard = event.get("dashboard")
         if dashboard is not None and not isinstance(dashboard, bool):
             return f"event {name}: dashboard must be true or false"

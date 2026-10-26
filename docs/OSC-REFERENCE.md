@@ -211,14 +211,14 @@ stripped straight to the engine — bopos.py never interprets them:
 
 ### Events (`/e/*`)
 
-Targetable, patch-declared events with 0–3 float elements (contract §3.2).
+Targetable, patch-declared events with 0–16 typed fields (contract §3.2).
 The node strips the selector and the time, and hands the engine a bare
-`/e/<identity> [<e0> [<e1> [<e2>]]]`:
+`/e/<identity> [<e0> … <e15>]`:
 
 | address | args | what it does | reply (port) |
 |---|---|---|---|
-| `/<selector>/e/<segment>[/<segment>...] <sharedTimeNs:s> [<e0:f> [<e1:f> [<e2:f>]]]` | time first, then 0–3 floats | schedules the event for `sharedTimeNs + offset` on each matching node | — |
-| `/<selector>/e/<segment>[/<segment>...] "0" [<e0:f> ...]` | the exact string `"0"` | **fire on arrival**: no scheduling, each node fires as its packet lands | — |
+| `/<selector>/e/<segment>[/<segment>...] <sharedTimeNs:s> [<e0> … <e15>]` | time first, then up to 16 f/i/s fields | schedules the event for `sharedTimeNs + offset` on each matching node | — |
+| `/<selector>/e/<segment>[/<segment>...] "0" [<e0> … <e15>]` | the exact string `"0"` | **fire on arrival**: no scheduling, each node fires as its packet lands | — |
 
 **From a bare OSC client, send `"0"`.** `sharedTimeNs` is a reading of the
 dashboard backend's own `time.monotonic_ns()` clock (roughly "nanoseconds
@@ -228,8 +228,8 @@ late grace gets logged as `DROPPED` and never fires, and a time too far
 ahead waits in the scheduler until that clock catches up. Synchronized
 events currently come only from the dashboard: its event controls and
 show playback stamp `now + event_lead_ms`. The time must be a string even
-though it looks numeric, and the elements must be floats (`f`, not `i`):
-a node silently drops a packet that breaks either rule.
+though it looks numeric, and fields must use the `f`, `i` or `s` tags and limits above.
+A node silently drops a packet that breaks these rules.
 
 ### Sync plane
 
@@ -282,7 +282,7 @@ audition port set by `BOPOS_ENGINE_PORT`); `/config`, `/store`, `/load`,
 | `/os/master <0..1:f>` | the master term | on change, and on catch-up when a device (re)appears |
 | `/p/<segment>[/<segment>...] <values…>` | patch-declared | whenever a matching `/p/*` command arrives |
 | `/pt <point:i> <element:i> <value:f>` | one shaped scalar per point × element | ~20–30 Hz while moving |
-| `/e/<segment>[/<segment>...] [<e0:f> [<e1:f> [<e2:f>]]]` | 0–3 floats; no selector, no time | at the synced local deadline, or on arrival for `"0"` |
+| `/e/<segment>[/<segment>...] [<e0> … <e15>]` | up to 16 f/i/s fields; no selector, no time | at the synced local deadline, or on arrival for `"0"` |
 | `/notify <event:s>` | `identify`, `checkout`, `updatebopos`, `shutdown`, `reboot`, `restart-engine` | on the matching admin action |
 
 **Launch-delivered run context** (never over OSC — `-send` for PD at
@@ -382,3 +382,11 @@ outcome-receipts revision, `droppatch`,
 refusal or failure — the contract's `[<status> <phase>]` was optional, and
 only `updatebopos`/`checkout` populated it. See
 `.loom/tied/rev-outcome-receipts/notes.md` for that fix.
+
+Typed event example (v1.22): `/all/e/trig/play "0" "samples/spot1" 0.75 1`
+uses tags `ssfi` (timestamp, text, float, toggle). The engine receives
+`/e/trig/play "samples/spot1" 0.75 1`, tags `sfi`. Text must be 1–255 printable
+ASCII bytes without whitespace; integers have magnitude at most 2^24.
+Update every node before relying on typed events: older nodes silently drop
+non-float fields. Push migrated `fields` manifests with the framework update;
+`arity`/`defaults` declarations are no longer accepted.

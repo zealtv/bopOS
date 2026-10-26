@@ -301,40 +301,57 @@ class ManifestTests(unittest.TestCase):
             self.declaration("mode", "enum", options=["a", "b"], default=.5)])
 
     def test_event_declarations_are_validated_beside_the_params(self):
-        loaded, error = self.validate(
-            [self.declaration("gain")],
-            events=[{"name": "note", "arity": 2, "defaults": [64, 127]},
-                    {"name": "hit", "path": ["drum"]},
-                    {"name": "snap", "arity": 0}],
-        )
+        fields = [dict(name="folder", kind="text"),
+                  dict(name="gain", kind="float", min=0, max=1, default=1,
+                       optional=True)]
+        candidate = self.candidate(events=[dict(name="play", fields=fields),
+                                           dict(name="snap")])
+        loaded, error = manifest.validate(candidate, self.patch)
         self.assertIsNone(error)
-        self.assertEqual(loaded["events"][0]["arity"], 2)
-        # Arity defaults to a single element, the mockup's `event[1]`.
-        self.assertEqual(loaded["events"][1]["arity"], 1)
-        self.assertEqual(
-            manifest.qualify_param(loaded["events"][1]), "drum/hit")
-        self.assertEqual(loaded["events"][2]["arity"], 0)
-
-        self.assert_invalid(events=[{"name": "note", "arity": -1}])
-        self.assert_invalid(events=[{"name": "note", "arity": 4}])
-        self.assert_invalid(events=[{"name": "note", "defaults": ["loud"]}])
-        # An event carries one label, its name (Bob, 2026-07-28). A stale
-        # per-element `labels` key is stripped on read, never rejected.
-        stripped, error = self.validate(
-            [self.declaration("gain")],
-            events=[{"name": "note", "arity": 2, "labels": ["only"]}])
-        self.assertIsNone(error)
-        self.assertNotIn("labels", stripped["events"][0])
+        self.assertEqual(loaded["events"][1]["fields"], [])
+        self.assertFalse(loaded["events"][0]["fields"][0]["optional"])
+        self.assertNotIn("optional", fields[0])
+        bad_fields = [
+            fields[::-1], fields + [fields[0]],
+            [dict(name="x", kind="text", optional=True)],
+            [dict(name="x", kind="text", default="has space")],
+            [dict(name="x", kind="int", default=2**24+1)],
+            [dict(name="x", kind="int", default=1.5)],
+            [dict(name="x", kind="toggle", default=2)],
+            [dict(name="x", kind="enum", options=["a", "b"], default=2)],
+            [dict(name="x", kind="float", optional=1)],
+            [dict(name="x", kind="float", path=[])],
+            [dict(name="x", kind="text", default="")],
+            "bad", [None],
+        ]
+        for fields in bad_fields:
+            with self.subTest(fields=fields):
+                self.assert_invalid(events=[dict(name="play", fields=fields)])
+        for key in ("arity", "defaults"):
+            self.assert_invalid(events=[dict(name="play", **{key: None})])
+        fields = [dict(name=f"x{i}", kind="float") for i in range(16)]
+        self.assertIsNone(self.validate(events=[dict(name="play", fields=fields)])[1])
+        self.assert_invalid(events=[dict(name="play", fields=fields+[dict(name="extra", kind="text")])])
         self.assert_invalid(events=[{"name": "note"}, {"name": "note"}])
         self.assert_invalid(events=[{"name": "bad name"}])
         self.assert_invalid(events="note")
-        # The same identity is unambiguous across the distinct /p and /e planes.
-        loaded, error = self.validate(
-            [self.declaration("note", "int", min=0, max=1)],
-            events=[{"name": "note", "arity": 0}],
-        )
-        self.assertIsNone(error)
-        self.assertEqual(loaded["events"][0]["name"], "note")
+
+    def test_event_field_coercion_preserves_declared_tags_and_ranges(self):
+        for field, value, expected in [
+                (dict(kind="float", min=0, max=1), 1, 1.0),
+                (dict(kind="int"), 4.0, 4),
+                (dict(kind="text"), "folder/file", "folder/file"),
+                (dict(kind="toggle", min=0, max=1), 0, 0),
+                (dict(kind="enum", min=0, max=1), 1, 1)]:
+            result = manifest.coerce_event_field(field, value)
+            self.assertEqual(result, expected)
+            self.assertIs(type(result), type(expected))
+        for field, value in [(dict(kind="float", max=1), 2),
+                             (dict(kind="int"), 1.2),
+                             (dict(kind="text"), 1),
+                             (dict(kind="text"), "with space")]:
+            with self.assertRaises(ValueError):
+                manifest.coerce_event_field(field, value)
 
     def test_atomic_write_normalizes_without_mutating_the_candidate(self):
         candidate = self.candidate([

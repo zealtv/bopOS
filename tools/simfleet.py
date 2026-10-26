@@ -1048,12 +1048,11 @@ class SimFleet:
                 or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
                        for part in identity_parts)
                 or len(identity.encode("ascii")) > patch_manifest.MAX_PARAM_IDENTITY_BYTES
-                or not 1 <= len(args) <= patch_manifest.MAX_EVENT_ARITY + 1
-                or not isinstance(args[0], str)
-                or any(not isinstance(value, float) for value in args[1:])):
+                or not 1 <= len(args) <= patch_manifest.MAX_EVENT_FIELDS + 1
+                or not isinstance(args[0], str)):
             return
         try:
-            elements = [float(value) for value in args[1:]]
+            elements = patch_manifest.event_values(args[1:])
             shared = int(args[0])
         except (TypeError, ValueError):
             return

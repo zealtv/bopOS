@@ -22,9 +22,8 @@
   "events": [
     {
       "name": "snap",
-      "arity": 0,
-      "defaults": [],
-      "dashboard": false
+      "dashboard": false,
+      "fields": []
     }
   ],
   "caps": [],

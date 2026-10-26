@@ -977,14 +977,13 @@ class Dashboard(WSHandlers):
                        for part in identity_parts)
                 or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
             return None, "Event identity does not match the /p/* segment grammar."
-        if (not isinstance(elements, list)
-                or len(elements) > patch_manifest.MAX_EVENT_ARITY
-                or any(not isinstance(value, (int, float))
-                       or isinstance(value, bool)
-                       or not math.isfinite(value)
-                       for value in elements)):
-            return None, "Event elements must be a list of 0–3 finite numbers."
-        return (selector, event_identity, [float(value) for value in elements]), None
+        if not isinstance(elements, list):
+            return None, "Event fields must be a list."
+        try:
+            elements = patch_manifest.event_values(elements)
+        except ValueError as error:
+            return None, str(error)
+        return (selector, event_identity, elements), None
 
     @staticmethod
     async def ws_error(ws, message):

@@ -48,6 +48,8 @@ ORIGINAL_ARGV = sys.argv
 sys.argv = ["bopos.py", "unknown"]
 
 import bopos  # noqa: E402
+import audition
+import manifest
 import simfleet  # noqa: E402
 from osc_bridge import OSCBridge  # noqa: E402
 from server import Dashboard  # noqa: E402
@@ -324,6 +326,77 @@ class EventPlaneTests(unittest.TestCase):
         self.assertEqual(values[3], shared + device.sync_offset_ns)
         callback(*values)
         self.assertIn("event nested/go fired", logs[0][1])
+
+    def test_typed_bridge_node_and_engine_keep_tags(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(state, lambda *_args: None, 0, 0, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        values = ["folder/file", 2**24, -2**24, 0.123456789] + [0]*12
+        try:
+            bridge.fire_event("all", "play", values, 0)
+        finally:
+            bridge.close()
+        frame = sender.frames[0][0]
+        self.assertEqual(frame[1], ",ssii" + "f" + "i"*12)
+        packet = OSCBridge._datagram(frame[0], frame[2:])
+        reply = types.SimpleNamespace(sendto=lambda *_args: None)
+        node = types.SimpleNamespace(id=4, groups=())
+        with mock.patch.object(bopos, "send_to_engine") as send:
+            self.assertTrue(bopos.handle_lan_datagram(packet, ("127.0.0.1", 1), reply, node))
+        engine = pyOSC3.decodeOSC(send.call_args.args[0].getBinary())
+        self.assertEqual(engine[0], "/e/play")
+        self.assertEqual(engine[1], "," + frame[1][2:])
+        self.assertEqual(engine[2:5], values[:3])
+        self.assertAlmostEqual(engine[5], .123457, places=6)
+
+    def test_wire_limits_rejected_by_node_simfleet_and_audition(self):
+        invalid = [[""], ["two words"], ["é"], ["a"*256], ["\x7f"],
+                   [2**24+1], [-2**24-1], [float("nan")],
+                   [float("inf")], [0]*17]
+        node = types.SimpleNamespace(id=4, groups=())
+        fleet = object.__new__(simfleet.SimFleet)
+        fleet.devices = [types.SimpleNamespace(unresponsive=False, state="running",
+                                              device_id=4, groups=())]
+        fleet.args = types.SimpleNamespace(drop=0)
+        fleet.protocol = simfleet.ContractProtocol()
+        fleet.fire_event = mock.Mock()
+        relay = object.__new__(audition.AuditionRig)
+        relay.nodes = [types.SimpleNamespace(device_id=4, groups=())]
+        relay.fire_event = mock.Mock()
+        for values in invalid:
+            with self.subTest(values=values):
+                packet = OSCBridge._datagram("/all/e/play", ["0", *values])
+                with mock.patch.object(bopos, "fire_event_to_engine") as fire:
+                    bopos.handle_lan_datagram(packet, ("127.0.0.1", 1), None, node)
+                    fire.assert_not_called()
+                fleet.handle_event(["all", "e", "play"], ["0", *values])
+                relay.schedule_event(["all", "e", "play"], ["0", *values])
+        fleet.fire_event.assert_not_called()
+        relay.fire_event.assert_not_called()
+        with self.assertRaises(ValueError):
+            manifest.event_values([True])
+
+    def test_audition_and_simfleet_typed_scheduled_receipt(self):
+        node = types.SimpleNamespace(device_id=4, groups=())
+        relay = object.__new__(audition.AuditionRig)
+        relay.nodes = [node]
+        relay.pending_events = []
+        import itertools
+        relay.event_sequence = itertools.count()
+        relay.send_engine = mock.Mock()
+        values = ["a"*255, 2**24, -2**24, .25]
+        relay.schedule_event(["all", "e", "play"], [str(time.monotonic_ns()-1), *values])
+        relay.dispatch_due_events()
+        relay.send_engine.assert_called_once_with(node, "/e/play", tuple(values))
+        fleet = object.__new__(simfleet.SimFleet)
+        node.unresponsive, node.state = False, "running"
+        node.sync_offset_ns = node.sync_skew_ns = 0
+        fleet.devices, fleet.args = [node], types.SimpleNamespace(drop=0)
+        fleet.protocol = simfleet.ContractProtocol()
+        fleet.schedule = mock.Mock()
+        fleet.handle_event(["all", "e", "play"], [str(time.monotonic_ns()), *values])
+        self.assertEqual(fleet.schedule.call_args.args[4], values)
 
     def test_event_lead_does_not_load_the_retired_key(self):
         with tempfile.TemporaryDirectory(prefix="bopos-event-lead-") as root:

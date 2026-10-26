@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.21** — in progress; base ratified 2026-07-07; latest revision 2026-10-04. The
+**Version 1.22** — in progress; base ratified 2026-07-07; latest revision 2026-10-26. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -143,7 +143,7 @@ failure changes nothing and emits no success receipt.
 | `/os/*` | framework | identity, liveness, admin, discovery, persistence, distribution (absorbs `/helper/*` and `/system/*`) |
 | `/io/*` | framework | offboard bus peripherals (I2C today; verbs are bus-agnostic) |
 | `/sync/*` | framework (Python) | forward clock sync — shape pinned in §3.1 (clock-sync thread) |
-| `/e/*` | **patch identities / framework scheduling** | targetable, patch-declared events with 0–3 free-form float elements (§3.2); well-formed undeclared identities are still scheduled |
+| `/e/*` | **patch identities / framework scheduling** | targetable, patch-declared events with 0–16 typed fields (§3.2); well-formed undeclared identities are still scheduled |
 | `/pt` (canonical `/point`) | framework/dashboard | point geometry broadcast — moving sound sources, arbitrary count; each device decomposes locally (§4.1) |
 | `/p/*` | **patch** | patch-declared parameters — the only place output semantics live; numeric params also accept the framework-owned automation grammar (§3.3) |
 
@@ -211,22 +211,26 @@ split-owner plane.
 Leader → fleet (6660):
 
 ```
-/<selector>/e/<identity> <sharedTimeNs:string> [<e0:float> [<e1:float> [<e2:float>]]]
+/<selector>/e/<identity> <sharedTimeNs:string> [<e0> … <e15>]
 ```
 
 Node → engine (localhost 6661), at the local deadline:
 
 ```
-/e/<identity> [<e0:float> [<e1:float> [<e2:float>]]]
+/e/<identity> [<e0> … <e15>]
 ```
 
 - `<identity>` has the `/p/*` segment grammar: 1–8 non-empty
   `[A-Za-z0-9_-]+` segments and at most 255 ASCII bytes when slash-joined.
   Nesting is preserved and wire indices are 0-based by default.
-- The element list has arity 0–3. Elements are free-form 32-bit OSC floats,
-  identified by 0-based position; meanings such as note/velocity/duration are
-  patch convention, not framework semantics. A zero-element fire has no engine
-  arguments.
+- Up to 16 fields: `float` uses OSC `f`; `int`, `toggle` and `enum`
+  use `i`; `text` uses `s`. Integer magnitudes are at most 2^24 (16 777 216)
+  so engine float32 numbers retain them exactly. Text is 1–255 printable ASCII
+  bytes with no whitespace. Floats are finite float32 values rounded to six
+  significant figures before sending. A zero-field fire has no engine arguments.
+- Nodes enforce these wire limits without consulting declarations; senders check
+  declared kinds, ranges, toggle 0/1 and enum indices. Every engine instance
+  receives the original field tags, without selector or timestamp.
 - `sharedTimeNs` is the decimal string of an integer leader
   `monotonic_ns()` count and always comes first because the element list is
   variable-length. The engine never receives it.
@@ -408,7 +412,7 @@ selector-stripped:
 /p/<segment>[/<segment>...] <values…>
                                patch-declared parameters (§8)
 /pt <point> <element> <value>  shaped point scalars (§4.1)
-/e/<segment>[/<segment>...] [<e0> [<e1> [<e2>]]]
+/e/<segment>[/<segment>...] [<e0> … <e15>]
                                scheduled relative event fire (§3.2)
 /notify <event>                framework notifications (identify, update, …)
 /groups <int...>               Seat-group membership: sorted ids, or the
@@ -978,7 +982,7 @@ A patch ships **`bopos.patch.json`** in its patch root:
     {"name":"backing", "kind":"float", "min":0, "max":1, "default":0.8},
     {"name":"echo",    "kind":"toggle", "default":0} ],
   "events": [
-    {"name":"snap", "arity":0, "description":"Fire the snap gesture"} ],
+    {"name":"snap", "fields":[], "description":"Fire the snap gesture"} ],
   "caps": ["screen"], "slots": ["samplepacks"] }
 ```
 
@@ -1047,17 +1051,19 @@ A patch ships **`bopos.patch.json`** in its patch root:
   **derived** from the option count (`0`…`n-1`); an authored pair that
   disagrees is invalid, so a saved manifest round-trips. Only the control
   surface reads the labels.
-- **`events` (optional; wired in v1.14):** a top-level
-  list beside `params`, each `{"name": …, "path": […], "arity": 0|1|2|3,
-  "defaults": […], "dashboard": bool}`. `name`/`path` qualify
-  exactly like a param; `/p/*` and `/e/*` are distinct planes, so the same
-  qualified identity may be declared once in each. An event carries **one
-  label — its `name`**; elements are free-form floats named only by 0-based
-  position (per-element `labels` were retired 2026-07-28, Bob). What an
-  element means — note/velocity/duration is the common case — is patch
-  convention, not an enforced framework meaning. Fires use `/e/*`
-  (§3.2), always forward-synchronized unless the installation-wide
-  `event_lead_ms` is `0`. A zero-element event is a momentary named fire.
+- **`events` (optional; typed fields in v1.22):** a top-level list beside
+  `params`, each `{"name": …, "path": […], "fields": […], "dashboard": bool}`.
+  Identity qualifies exactly like a param; `/p/*` and `/e/*` are distinct planes.
+  `fields` may be empty or absent (a momentary named fire), with at most 16
+  entries. Each field is a param declaration without `path` or `dashboard`:
+  unique `name` within the event, the same five kinds, ranges, options and
+  defaults, plus boolean `optional` (default false). Optional fields must trail
+  required fields and carry a default, including text. Senders fill omitted
+  optional fields from defaults and reject omitted required fields. Field
+  defaults and ranges must fit the §3.2 wire limits. `arity` and `defaults`
+  are rejected: migrate to `fields`, with no compatibility shim. Field names
+  supersede the v1.16 positional-label rule. Fires always forward-sync unless
+  `event_lead_ms` is zero, using the exact `"0"` sentinel (§3.2).
 
 **`io_modules` (optional; v1.21):** a top-level list of declarations, for example
 `[{"name":"adc","type":"ads1115","address":"0x48"},
@@ -1313,3 +1319,4 @@ reasoning.
 | 1.19 | 2026-10-03 | Retire the Git patch-deployment route (§4.2, §7, §9): remove `/os/addpatch`, `/os/pullpatch`, the engine `/admin update-patch` action and the `git` patch-inventory field, with no aliases or compatibility handlers. Patch selection uses installed bytes without a Git pull. Dashboard push through `/os/fetch` is the sole deployment route; a successful push converts an existing clone to ordinary installed content, removing its local Git metadata through staged, validated replacement with rollback on failure. Framework Git update, checkout and revision reporting are unchanged. Pin engine `/id` to int32 on assignment, unassignment, `/config` and ready replay (§4.2), preserving resolved values and the `-1` sentinel; real Pd confirms identical context delivery for float/int inputs. | stitch `68-remove-git-patch-route`, `proposal.md` and Bob's ratification ruling; stitch `10-engine-id-int`, Bob's conditional integer ruling and real-Pd verification |
 | 1.20 | 2026-10-04 | **Exact-device Wi-Fi configuration (§6, additive).** `/all/os/to <uid> wifi-config <json>` → `/os/wifi-config <uid> <ok\|err> <phase> <json>`. The request is the complete ordered list of bopOS-managed WPA-Personal networks plus the Wi-Fi country; list order is priority. Each network carries `ssid`, `hidden`, `enabled` and `psk`, where `psk: null` keeps the device's existing secret. Invalid, partial or duplicate lists, and lists with no enabled network, reject whole. The node applies through a pre-provisioned argument-less privileged helper, replies, then lets the network manager re-evaluate; there is no rollback. Receipts and `/os/report` carry a redacted `wifi` object (`managed`, `country`, `active`, `networks` with `secret: true\|false`, `unmanaged` SSIDs) and never a passphrase. **Trust:** the request travels as an installation-LAN broadcast like every exact-device verb, readable by any host on that network; it is intended for provisioning on an operator-controlled network only, and the dashboard warns before any send that carries a passphrase. Devices in the field join only hidden, passphrase-protected networks. | `33b-device-network-config/1-network-config-design.tied/decisions.md` §8, Bob's ratification 2026-10-04 |
 | 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Per-module Re-init now ships (§6, §11): `io-reinit <name>` returns `/os/io-reinit <uid> <ok\|err> {name,error}`; local `/io/reinit` / `/io/reinitialized` repair only the active-manifest declaration under the IO lock, sharing the write FIFO and existing timeouts/reasons. Repair remains allowed in Performance, and the Device-tab button is disabled offline/pending/undeclared; simfleet has matching behavior. Live driver-described Modules panels, Device-tab Show in Monitor, ordinary dock/panel windows, and host-side Performance refusal of operator writes now ship through the existing Monitor broker and IO verbs; Patch Edit input now reuses the shared stream for byte-preserving forwarding to localhost 6662 or continuously polled simulated inputs. The same panels reverse their controls, receive existing patch output commands on localhost 8880, preview OLED output, reset per session, and release on unpick/editor exit/browser loss/Performance; no new wire grammar or port is added. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b, §8d and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.tied/proposal-stream-wire.md`, ratified 2026-10-04; `2-device-tab-inventory.stitching/reinit-verification.md`; `9-module-panels.stitching/instructions.md`; `6-live-sensor-in-patch-edit.stitching/instructions.md` (§4–§5 ratified proposal) |
+| 1.22 | 2026-10-26 | Typed event fields (§3.2, §8): up to 16 named float/int/toggle/enum/text fields, trailing optional defaults, preserved OSC tags, text and integer limits. Hard break: arity/defaults declarations rejected; push migrated patches with the framework update. Update every node before relying on typed fields: older nodes silently drop non-float events (and events over their three-field limit). No mixed-fleet warning UI. | Bob, ratified `80-osc-input/1-typed-event-fields` |

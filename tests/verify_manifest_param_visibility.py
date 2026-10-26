@@ -91,8 +91,8 @@ PARAMS = [
      "min": 1, "max": 8, "default": 3},
 ]
 EVENTS = [
-    {"name": "strike", "arity": 1, "defaults": [1], "dashboard": True},
-    {"name": "release", "arity": 0, "defaults": [], "dashboard": True},
+    {"name": "strike", "fields": [{"name": "element0", "kind": "float", "default": 1.0}], "dashboard": True},
+    {"name": "release", "fields": [], "dashboard": True},
 ]
 
 

@@ -652,12 +652,7 @@ class OSCBridge:
                        for part in identity_parts)
                 or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
             raise ValueError(f"bad event identity {identity!r}")
-        elements = list(elements)
-        if len(elements) > patch_manifest.MAX_EVENT_ARITY:
-            raise ValueError("event elements must have arity 0–3")
-        # PD consumes OSC float32. Keep authored values within the repository's
-        # six-significant-figure wire discipline before serialization.
-        elements = [float(f"{float(element):.6g}") for element in elements]
+        elements = patch_manifest.event_values(elements)
         lead_ms = min(max(int(lead_ms), 0), 10000)
         shared_time_ns = (
             0 if lead_ms == 0

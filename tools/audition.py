@@ -599,13 +599,12 @@ class AuditionRig:
                 or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
                        for part in identity_parts)
                 or len(identity.encode("ascii")) > patch_manifest.MAX_PARAM_IDENTITY_BYTES
-                or not 1 <= len(params) <= patch_manifest.MAX_EVENT_ARITY + 1
-                or not isinstance(params[0], str)
-                or any(not isinstance(value, float) for value in params[1:])):
+                or not 1 <= len(params) <= patch_manifest.MAX_EVENT_FIELDS + 1
+                or not isinstance(params[0], str)):
             return
         try:
             deadline = int(params[0])
-            elements = tuple(float(value) for value in params[1:])
+            elements = tuple(patch_manifest.event_values(params[1:]))
         except (TypeError, ValueError):
             return
         matched = [
@@ -629,9 +628,9 @@ class AuditionRig:
             self.fire_event(node, identity, elements)
 
     def fire_event(self, node, identity, elements):
-        normalized = tuple(float(f"{float(value):.6g}") for value in elements)
+        normalized = tuple(patch_manifest.event_values(elements))
         self.send_engine(node, "/e/" + identity, normalized)
-        values = " ".join(f"{value:g}" for value in normalized)
+        values = " ".join(str(value) for value in normalized)
         suffix = f" elements={values}" if values else ""
         print(f"audition: id={node.device_id} event {identity} fired "
               f"fire_mono={time.monotonic_ns()}{suffix}", flush=True)
