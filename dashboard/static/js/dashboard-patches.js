@@ -189,6 +189,8 @@ function openVersionDialog(live, taken) {
   input.select();
 }
 
+const MAX_EVENT_FIELDS = 16;
+
 function manifestSource(editor, patches, patch) {
   const item = patches.find((candidate) => candidate.name === patch) || {};
   const embedded = item.manifest && typeof item.manifest === "object" ? item.manifest : {};
@@ -238,16 +240,22 @@ function manifestParamsForSave(params) {
     return param;
   });
 }
+function manifestFieldsForSave(fields) {
+  return manifestParamsForSave(fields).map((field) => {
+    // A blank range or default means "not declared"; the validator then
+    // applies the param rules to what remains.
+    for (const key of ["min", "max", "default"]) if (field[key] === "") delete field[key];
+    if (field.optional !== true) delete field.optional;
+    return field;
+  });
+}
 function manifestEventsForSave(events) {
   return events.map((declaration) => {
-    const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration.arity) || 0)));
-    const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
-    return {
-      name: String(declaration.name || ""),
-      arity,
-      defaults: Array.from({ length: arity }, (_unused, index) => Number(defaults[index]) || 0),
-      dashboard: declaration.dashboard === true,
-    };
+    const saved = { name: String(declaration.name || "") };
+    if (Array.isArray(declaration.path) && declaration.path.length) saved.path = [...declaration.path];
+    saved.fields = manifestFieldsForSave(declaration.fields || []);
+    saved.dashboard = declaration.dashboard === true;
+    return saved;
   });
 }
 function setManifestParamKind(param, kind) {
@@ -274,24 +282,40 @@ function setManifestParamKind(param, kind) {
     if (typeof param.default !== "string") param.default = "";
   }
 }
-function paramManifestRow(param, index) {
+function manifestKindControls(param) {
   const kind = param.kind || "float";
-  const path = Array.isArray(param.path) ? param.path.join("/") : "";
   const bounds =
     kind === "float" || kind === "int"
-      ? [
-          `
+      ? `
     <label>min<input data-manifest-field="min" type="number" step="any" value="${esc(param.min ?? "")}"></label>
-    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max ?? "")}"></label>`,
-        ].join("")
+    <label>max<input data-manifest-field="max" type="number" step="any" value="${esc(param.max ?? "")}"></label>`
       : "";
   const options =
     kind === "enum"
       ? `<label>options · one per line<textarea data-manifest-field="options" rows="2">${esc((param.options || []).join("\n"))}</textarea></label>`
       : "";
   const defaultType = kind === "text" ? "text" : "number";
-  return [
-    `<div class="manifest-row manifest-param" data-param-index="${index}">
+  return `<label>kind<select data-manifest-field="kind">${
+    ["float", "int", "toggle", "enum", "text"].map((value) => `<option value="${
+    value
+    }" ${
+    kind === value ? "selected" : ""
+    }>${
+    value
+    }</option>`).join("")
+    }</select></label>
+    ${bounds}${options}
+    <label>default<input data-manifest-field="default" type="${
+    defaultType
+    }" ${
+    defaultType === "number" ? 'step="any"' : ""
+    } value="${
+    esc(param.default ?? "")
+    }"></label>`;
+}
+function paramManifestRow(param, index) {
+  const path = Array.isArray(param.path) ? param.path.join("/") : "";
+  return `<div class="manifest-row manifest-param" data-param-index="${index}">
     <button type="button" class="manifest-drag-handle" data-manifest-drag="params" data-manifest-drag-index="${
       index
       }" aria-label="Drag parameter ${
@@ -299,53 +323,42 @@ function paramManifestRow(param, index) {
       }">⋮⋮</button>
     <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. instrument/marimba" autocomplete="off"></label>
     <label>name<input data-manifest-field="name" type="text" value="${esc(param.name || "")}" autocomplete="off"></label>
-    <label>kind<select data-manifest-field="kind">${
-      ["float", "int", "toggle", "enum", "text"].map((value) => `<option value="${
-      value
-      }" ${
-      kind === value ? "selected" : ""
-      }>${
-      value
-      }</option>`).join("")
-      }</select>`,
-    `</label>
-    ${bounds}${options}
-    <label>default<input data-manifest-field="default" type="${
-      defaultType
-      }" ${
-      defaultType === "number" ? 'step="any"' : ""
-      } value="${
-      esc(param.default ?? "")
-      }"></label>
-    <label class="manifest-check">`,
-    `<input data-manifest-field="dashboard" type="checkbox" ${param.dashboard === true ? "checked" : ""}> Remote</label>
+    ${manifestKindControls(param)}
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${param.dashboard === true ? "checked" : ""}> Remote</label>
     <button data-remove-param="${index}" class="danger">Remove</button>
-  </div>`,
-  ].join("");
+  </div>`;
+}
+// An event field is a param declaration without path or Remote, plus
+// "optional": the same kind controls, edited the same way.
+function eventFieldRow(field, eventIndex, index) {
+  return `<div class="manifest-row manifest-field" data-field-index="${index}">
+    <button type="button" class="manifest-drag-handle" data-manifest-drag="fields" data-manifest-drag-event="${
+      eventIndex
+      }" data-manifest-drag-index="${
+      index
+      }" aria-label="Drag field ${
+      esc(field.name || index + 1)
+      }">⋮⋮</button>
+    <label>name<input data-manifest-field="name" type="text" value="${esc(field.name || "")}" autocomplete="off"></label>
+    ${manifestKindControls(field)}
+    <label class="manifest-check"><input data-manifest-field="optional" type="checkbox" ${field.optional === true ? "checked" : ""}> optional</label>
+    <button data-remove-field="${index}" class="danger">Remove</button>
+  </div>`;
 }
 function eventManifestRow(declaration, index) {
-  const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration.arity) || 0)));
-  const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
-  const elements = Array.from(
-    { length: arity },
-    (_unused, element) => `
-    <label>element ${element}<input data-event-default="${element}" type="number" step="any" value="${esc(defaults[element] ?? 0)}"></label>`,
-  ).join("");
-  return [
-    `<div class="manifest-row manifest-event" data-event-index="${index}" data-arity="${arity}">
+  const fields = Array.isArray(declaration.fields) ? declaration.fields : [];
+  return `<div class="manifest-row manifest-event" data-event-index="${index}">
     <button type="button" class="manifest-drag-handle" data-manifest-drag="events" data-manifest-drag-index="${
       index
       }" aria-label="Drag event ${
       esc(declaration.name || index + 1)
       }">⋮⋮</button>
     <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name || "")}" autocomplete="off"></label>
-    <label>arity<input data-manifest-field="arity" type="number" min="0" max="3" step="1" value="${arity}"></label>
-    ${elements}
-    <label class="manifest-check">`,
-    `<input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard === true ? "checked" : ""}> Remote</label>
+    <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard === true ? "checked" : ""}> Remote</label>
+    <button data-add-field="${index}" ${fields.length >= MAX_EVENT_FIELDS ? "disabled" : ""}>Add field</button>
     <button data-remove-event="${index}" class="danger">Remove</button>
-  </div>`,
-  ].join("");
+    <div class="manifest-fields">${fields.map((field, field_index) => eventFieldRow(field, index, field_index)).join("")}</div>
+  </div>`;
 }
 function bindManifestEditor(source) {
   document.querySelectorAll(".manifest-io").forEach((row) => {
@@ -362,63 +375,69 @@ function bindManifestEditor(source) {
       renderManifestEditor(source);
     };
   });
-  document.querySelectorAll(".manifest-param").forEach((row) => {
-    const index = Number(row.dataset.paramIndex);
+  // A param row and an event field row edit the same declaration shape, so
+  // they share one binding; `target` finds the object a row edits.
+  const bindDeclarationRow = (row, target, owns) => {
     row.querySelectorAll("[data-manifest-field]").forEach((input) => {
+      if (!owns(input)) return;
       const update = () => {
+        const declaration = target();
         const field = input.dataset.manifestField;
         if (field === "kind") {
-          setManifestParamKind(manifestDraft.params[index], input.value);
+          setManifestParamKind(declaration, input.value);
           manifestDirty = true;
           renderManifestEditor(source);
           return;
         }
         if (field === "path") {
-          manifestDraft.params[index][field] = input.value === "" ? [] : input.value.split("/");
+          declaration[field] = input.value === "" ? [] : input.value.split("/");
         } else if (field === "options") {
-          manifestDraft.params[index][field] = input.value.split("\n");
+          declaration[field] = input.value.split("\n");
         } else if (input.type === "checkbox") {
-          manifestDraft.params[index][field] = input.checked;
+          declaration[field] = input.checked;
         } else if (input.type === "number") {
-          manifestDraft.params[index][field] = input.value === "" ? "" : Number(input.value);
+          declaration[field] = input.value === "" ? "" : Number(input.value);
         } else {
-          manifestDraft.params[index][field] = input.value;
+          declaration[field] = input.value;
         }
         manifestDirty = true;
       };
       input.oninput = update;
       input.onchange = update;
     });
+  };
+  document.querySelectorAll(".manifest-param").forEach((row) => {
+    const index = Number(row.dataset.paramIndex);
+    bindDeclarationRow(row, () => manifestDraft.params[index], () => true);
   });
   document.querySelectorAll(".manifest-event").forEach((row) => {
     const index = Number(row.dataset.eventIndex);
-    manifestDraft.events[index].defaults = Array.isArray(manifestDraft.events[index].defaults) ? manifestDraft.events[index].defaults : [];
-    row.querySelectorAll("[data-manifest-field]").forEach((input) => {
-      const update = () => {
-        const declaration = manifestDraft.events[index];
-        const field = input.dataset.manifestField;
-        if (field === "arity") {
-          const arity = Math.min(3, Math.max(0, Math.trunc(Number(input.value) || 0)));
-          declaration.arity = arity;
-          declaration.defaults = Array.from({ length: arity }, (_unused, element) => Number(declaration.defaults?.[element]) || 0);
-          manifestDirty = true;
-          renderManifestEditor(source);
-          return;
-        }
-        declaration[field] = input.type === "checkbox" ? input.checked : input.value;
-        manifestDirty = true;
-      };
-      input.oninput = update;
-      input.onchange = update;
+    bindDeclarationRow(row, () => manifestDraft.events[index], (input) => input.closest(".manifest-row") === row);
+    row.querySelectorAll(".manifest-field").forEach((fieldRow) => {
+      const fieldIndex = Number(fieldRow.dataset.fieldIndex);
+      bindDeclarationRow(fieldRow, () => manifestDraft.events[index].fields[fieldIndex], () => true);
     });
-    row.querySelectorAll("[data-event-default]").forEach(
-      (input) =>
-        (input.oninput = () => {
-          manifestDraft.events[index].defaults[Number(input.dataset.eventDefault)] = Number(input.value) || 0;
-          manifestDirty = true;
-        }),
-    );
   });
+  document.querySelectorAll("[data-add-field]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const declaration = manifestDraft.events[Number(button.dataset.addField)];
+        declaration.fields = Array.isArray(declaration.fields) ? declaration.fields : [];
+        if (declaration.fields.length >= MAX_EVENT_FIELDS) return;
+        declaration.fields.push({ name: "", kind: "float", min: 0, max: 1, default: 0, optional: false });
+        manifestDirty = true;
+        renderManifestEditor(source);
+      }),
+  );
+  document.querySelectorAll("[data-remove-field]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const eventIndex = Number(button.closest(".manifest-event").dataset.eventIndex);
+        manifestDraft.events[eventIndex].fields.splice(Number(button.dataset.removeField), 1);
+        manifestDirty = true;
+        renderManifestEditor(source);
+      }),
+  );
   document.querySelectorAll("[data-remove-param]").forEach(
     (button) =>
       (button.onclick = () => {
@@ -449,9 +468,12 @@ function clearManifestDropMarkers() {
     row.classList.remove("manifest-drop-before", "manifest-drop-after");
   });
 }
-function manifestDropAt(kind, clientY) {
-  const container = $(kind === "params" ? "#manifest-params" : "#manifest-events");
-  const selector = kind === "params" ? ".manifest-param" : ".manifest-event";
+function manifestDropAt(kind, clientY, eventIndex) {
+  const container =
+    kind === "fields"
+      ? document.querySelector(`.manifest-event[data-event-index="${eventIndex}"] > .manifest-fields`)
+      : $(kind === "params" ? "#manifest-params" : "#manifest-events");
+  const selector = kind === "params" ? ".manifest-param" : kind === "fields" ? ".manifest-field" : ".manifest-event";
   if (!container) return null;
   const bounds = container.getBoundingClientRect();
   if (clientY < bounds.top || clientY > bounds.bottom) {
@@ -483,7 +505,7 @@ function finishManifestDrag(event, commit, source) {
   $("#manifest-editor")?.classList.remove("manifest-drag-active");
   clearManifestDropMarkers();
   if (commit && drag.active && drag.drop !== null) {
-    const items = manifestDraft[drag.kind];
+    const items = drag.kind === "fields" ? manifestDraft.events[drag.eventIndex].fields : manifestDraft[drag.kind];
     const [item] = items.splice(drag.index, 1);
     items.splice(drag.drop, 0, item);
     if (drag.drop !== drag.index) manifestDirty = true;
@@ -502,6 +524,7 @@ function bindManifestReorder(source) {
       pointerId: event.pointerId,
       kind: handle.dataset.manifestDrag,
       index: Number(handle.dataset.manifestDragIndex),
+      eventIndex: Number(handle.dataset.manifestDragEvent),
       handle,
       row: handle.closest(".manifest-row"),
       startX: event.clientX,
@@ -524,7 +547,7 @@ function bindManifestReorder(source) {
     }
     if (event.clientY < 70) window.scrollBy(0, -14);
     else if (event.clientY > window.innerHeight - 70) window.scrollBy(0, 14);
-    manifestDrag.drop = manifestDropAt(manifestDrag.kind, event.clientY);
+    manifestDrag.drop = manifestDropAt(manifestDrag.kind, event.clientY, manifestDrag.eventIndex);
     event.preventDefault();
   };
   panel.onpointerup = (event) => finishManifestDrag(event, true, source);
@@ -598,7 +621,7 @@ function renderManifestEditor(source) {
     renderManifestEditor(source);
   };
   addEvent.onclick = () => {
-    manifestDraft.events.push({ name: "", arity: 0, defaults: [], dashboard: false });
+    manifestDraft.events.push({ name: "", fields: [], dashboard: false });
     manifestDirty = true;
     renderManifestEditor(source);
   };

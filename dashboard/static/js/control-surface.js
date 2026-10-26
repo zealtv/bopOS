@@ -268,25 +268,37 @@
       return `data-live-param data-live-scope="${scope}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}"`;
     }
 
-    // An event declaration renders its ratified row: fire, 0–3 editable float
-    // elements, then the name. Every event uses the global forward-sync lead;
-    // there is deliberately no per-row synchronization choice.
+    // What an operator has typed into an event's field controls, by row and
+    // field. The heartbeat re-renders the panel, so without this a typed value
+    // would snap back to its default as soon as focus left the control.
+    const eventDrafts = new Map();
+    const eventInvalid = new Set();
+    const eventFieldKey = (row, index) =>
+      `${row.dataset.liveScope}:${row.dataset.liveId ?? "all"}:${row.dataset.paramPath}:${index}`;
+
+    // An event declaration renders its ratified row: fire, one control per
+    // declared field, then the name. Every event uses the global forward-sync
+    // lead; there is deliberately no per-row synchronization choice. A field's
+    // control is the one its kind has everywhere else (EventFields), named
+    // above it; the declared default prefills it.
     function eventRow(scope, id, declaration, disabled) {
-      const arity = Math.min(3, Math.max(0, Number(declaration.arity) || 0));
+      const fields = window.EventFields.fieldsOf(declaration);
       const off = disabled ? " disabled" : "";
-      const defaults = Array.isArray(declaration.defaults) ? declaration.defaults : [];
-      // Exactly `arity` boxes, no held-open slots: the name hugs the last box
-      // (Bob, 2026-07-27), so a one-element event's name sits where its one
-      // box ends rather than where a triplet's third box would have.
-      const boxes = Array.from({length: arity}, (_unused, index) => {
-        const shown = Number.isFinite(Number(defaults[index])) ? Number(defaults[index]) : 0;
-        return `<input class="live-event-box" type="number" step="any" value="${esc(shown)}" aria-label="${esc(`${declaration.name} element ${index}`)}"${off}>`;
+      // Exactly one control per field, no held-open slots: the name hugs the
+      // last control (Bob, 2026-07-27), so a one-field event's name sits where
+      // its one control ends rather than where a longer event's last would.
+      const controls = fields.map((field, index) => {
+        const kind = field.kind === "text" ? " live-event-field-text" : "";
+        const key = `${scope}:${id ?? "all"}:${declaration.identity}:${index}`;
+        return `<label class="live-event-field${kind}"><span class="live-event-field-name">${esc(field.name)}</span>${
+          window.EventFields.controlHtml(field, index, eventDrafts.get(key), {
+            attr: "data-event-field", off, inputClass: "live-event-box", invalid: eventInvalid.has(key)})}</label>`;
       }).join("");
       // Reading order is the sending order (Bob, 2026-07-27): the trigger, the
-      // elements it will send, then the name.
-      return `<div class="live-param live-param-event" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}" data-event-arity="${arity}">
+      // fields it will send, then the name.
+      return `<div class="live-param live-param-event" data-live-scope="${esc(scope)}"${id == null ? "" : ` data-live-id="${esc(id)}"`} data-param-path="${esc(declaration.identity)}" data-event-fields="${esc(JSON.stringify(fields))}">
         <button type="button" class="live-event-send" aria-label="${esc(`fire ${declaration.name}`)}"${off}><span class="live-event-label">fire</span><i class="live-event-sweep" aria-hidden="true"></i></button>
-        ${boxes}<span class="live-param-name">${esc(declaration.name)}</span>
+        ${controls}<span class="live-param-name">${esc(declaration.name)}</span>
       </div>`;
     }
 
@@ -585,12 +597,28 @@
       root.querySelectorAll(".live-param-event").forEach(row => {
         const button = row.querySelector(".live-event-send");
         if (!button) return;
-        row.querySelectorAll(".live-event-box").forEach(input => {
+        const controls = [...row.querySelectorAll("[data-event-field]")];
+        controls.forEach(input => {
           input.onfocus = () => context.setInteracting?.(true);
           input.onblur = () => context.setInteracting?.(false);
+          const keep = () => {
+            eventDrafts.set(eventFieldKey(row, input.dataset.eventField), window.EventFields.read(input));
+            eventInvalid.delete(eventFieldKey(row, input.dataset.eventField));
+            input.removeAttribute("aria-invalid");
+          };
+          if (input.tagName === "BUTTON") input.onclick = () => { window.EventFields.flip(input); keep(); };
+          else input.oninput = input.onchange = keep;
         });
+        const fields = JSON.parse(row.dataset.eventFields || "[]");
         button.onclick = () => {
-          const elements = [...row.querySelectorAll(".live-event-box")].map(input => Number(input.value));
+          // A value the wire would refuse (text outside 1–255 printable ASCII,
+          // a number off its range) is marked and held, not sent.
+          const elements = window.EventFields.collect(fields, controls);
+          controls.forEach(input => {
+            const key = eventFieldKey(row, input.dataset.eventField);
+            if (input.getAttribute("aria-invalid") === "true") eventInvalid.add(key); else eventInvalid.delete(key);
+          });
+          if (!elements) return;
           const scope = row.dataset.liveScope;
           const id = row.dataset.liveId == null ? null : row.dataset.liveId;
           const lead = context.sendEvent?.({scope, id, identity: row.dataset.paramPath, elements});
