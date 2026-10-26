@@ -119,6 +119,29 @@ class RuntimeTests(unittest.TestCase):
         app.osc._store_fade_destination.assert_called_with(
             [app.editor_target.return_value], 'gain', .5)
 
+    def test_real_bridge_records_scalar_and_automation(self):
+        app = self.app()
+        seats = {'0': {'id': 0, 'groups': [3], 'params': {}, 'bound': 'node'}}
+        devices = {'node': {'uid': 'node', 'params': {}}}
+        app.state = SimpleNamespace(data={'groups': GROUPS}, seats=seats,
+                                    devices=devices, save_debounced=Mock(),
+                                    clean_group_id=InstallationState.clean_group_id)
+        app.osc = OSCBridge(app.state, Mock(), 0, 0, '127.0.0.1')
+        app.osc.send = Mock()
+        receiver = OSCInput(app)
+        receiver.handle('/spot1/gain', [.75], 'ip')
+        self.assertEqual(seats['0']['params']['gain'], .75)
+        self.assertEqual(devices['node']['params']['gain'], .75)
+        app.osc.send.assert_called_with('/g3/p/gain', [.75])
+        receiver.handle('/all/p/gain', [.2, '2s'], 'ip')
+        self.assertEqual(app.osc.automation['0']['gain']['kind'], 'fade')
+        self.assertEqual(seats['0']['params']['gain'], .2)
+        app.osc.send.assert_called_with('/all/p/gain', [.2, '2s'])
+        # Parameter arguments still pass through without storing invalid scalars.
+        receiver.handle('/all/p/gain', [b'blob'], 'ip')
+        app.osc.send.assert_called_with('/all/p/gain', [b'blob'])
+        self.assertEqual(seats['0']['params']['gain'], .2)
+
     def test_packet_and_invalid_datagram(self):
         receiver = Mock()
         protocol = InputProtocol(receiver)
