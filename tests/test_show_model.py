@@ -435,6 +435,39 @@ class ShowPlaybackConsistencyTests(unittest.IsolatedAsyncioTestCase):
 
 
 class GroupNameInvariantTests(unittest.TestCase):
+    def test_osc_target_grammar_is_enforced_by_create_and_rename(self):
+        invalid = ["", "Front", " front", "front ", "two words", "café", "x/y",
+                   "x" * 33, "12", "g12", "all", "bop", "os", "io", "sync", "e", "p", None, 12]
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(data_root(str(project_path(temporary))))
+            group, error = state.create_group("spot_1-a")
+            self.assertIsNone(error)
+            for name in invalid:
+                with self.subTest(name=name):
+                    self.assertFalse(state.valid_group_name(name))
+                    self.assertIsNone(state.create_group(name)[0])
+                    self.assertIsNone(state.rename_group(group["id"], name)[0])
+                    self.assertEqual(state.data["groups"], {"0": group})
+            for name in ["g", "g12a", "12a", "_", "-", "a" * 32]:
+                self.assertTrue(state.valid_group_name(name), name)
+
+    def test_conversion_preserves_legal_names_and_reserves_suffixes(self):
+        names = ["Front", "front", "front-2", "all", "bop", "os", "io", "sync", "e", "p",
+                 "123", "g12", "", "Two Words!", "a" * 40, "a" * 39 + "b", "café"]
+        groups = {str(i): {"id": i, "name": name} for i, name in enumerate(names)}
+        adopted, changes = InstallationState.adopt_group_names(groups)
+        converted = [group["name"] for group in adopted.values()]
+        self.assertEqual(converted[:3], ["front-3", "front", "front-2"])
+        self.assertEqual(converted[3:14], ["group-all", "group-bop", "group-os", "group-io",
+                                         "group-sync", "group-e", "group-p", "group-123",
+                                         "group-g12", "group-12", "two_words_"])
+        self.assertEqual(converted[14:], ["a" * 32, "a" * 30 + "-2", "caf_"])
+        self.assertEqual(len(set(converted)), len(names))
+        self.assertTrue(all(InstallationState.valid_group_name(name) for name in converted))
+        self.assertIsNotNone(InstallationState.clean_groups(adopted))
+        self.assertEqual(InstallationState.adopt_group_names(adopted), (adopted, []))
+        self.assertTrue(changes)
+
     @staticmethod
     def state_document(groups, next_group_id=4):
         return {
@@ -459,31 +492,31 @@ class GroupNameInvariantTests(unittest.TestCase):
             state = InstallationState(data_root(str(path)))
             self.assertEqual(
                 [group["name"] for group in state.data["groups"].values()],
-                ["group-0", "Front", "Front-3", "Front-2"],
+                ["group-0", "front", "front-3", "front-2"],
             )
-            self.assertIn("repaired for portable Shows", state.data["notices"][0])
+            self.assertIn("repaired for OSC targets and portable Shows", state.data["notices"][0])
 
             reloaded = InstallationState(data_root(str(path)))
             self.assertEqual(reloaded.data["notices"], [])
             self.assertEqual(
                 [group["name"] for group in reloaded.data["groups"].values()],
-                ["group-0", "Front", "Front-3", "Front-2"],
+                ["group-0", "front", "front-3", "front-2"],
             )
 
     def test_create_and_rename_enforce_non_empty_unique_names(self):
         with tempfile.TemporaryDirectory() as temporary:
             state = InstallationState(data_root(str(project_path(temporary))))
-            front, error = state.create_group("Front")
+            front, error = state.create_group("front")
             self.assertIsNone(error)
             self.assertIsNone(state.create_group(" ")[0])
-            self.assertIn("non-empty", state.create_group(" ")[1])
-            self.assertIn("unique", state.create_group("Front")[1])
-            rear, error = state.create_group("Rear")
+            self.assertIn("1–32", state.create_group(" ")[1])
+            self.assertIn("unique", state.create_group("front")[1])
+            rear, error = state.create_group("rear")
             self.assertIsNone(error)
-            self.assertIn("unique", state.rename_group(rear["id"], "Front")[1])
-            renamed, error = state.rename_group(front["id"], " Front ")
+            self.assertIn("unique", state.rename_group(rear["id"], "front")[1])
+            renamed, error = state.rename_group(front["id"], "front")
             self.assertIsNone(error)
-            self.assertEqual(renamed["name"], "Front")
+            self.assertEqual(renamed["name"], "front")
 
 
 class ShowPersistenceTests(unittest.TestCase):

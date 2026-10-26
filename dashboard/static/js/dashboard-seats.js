@@ -26,6 +26,19 @@ function groupCatalog() {
 function groupById(id) {
   return installation.groups?.[String(id)] || installation.groups?.[id] || null;
 }
+function submitGroupName(name, id = null) {
+  if (name === null) return;
+  const reserved = /^(?:all|bop|os|io|sync|e|p|g?[0-9]+)$/;
+  if (!name.length || name.length > 32 || /[^a-z0-9_-]/.test(name) || reserved.test(name)) {
+    groupMessage = "Group names must use 1–32 lowercase letters, digits, _ or -. Reserved names: all, bop, os, io, sync, e, p, all digits and g<digits>.";
+  } else if (groupCatalog().some((group) => group.name === name && group.id !== id)) {
+    groupMessage = "Group names must be unique within the project.";
+  } else {
+    groupMessage = "";
+    ws.send(id === null ? "create_group" : "rename_group", id === null ? { name } : { id, name });
+  }
+  renderGroups();
+}
 function groupMembers(id) {
   return Object.values(installation.seats || {})
     .filter((seat) => (seat.groups || []).includes(Number(id)))
@@ -178,8 +191,7 @@ function renderGroups() {
     detail
     }`;
   $("#group-create").onclick = () => {
-    const name = prompt("Group name:", "");
-    if (name?.trim()) ws.send("create_group", { name: name.trim() });
+    submitGroupName(prompt("Group name (1–32 lowercase letters, digits, _ or -):", ""));
   };
   content.querySelectorAll("[data-group-focus]").forEach((button) => (button.onclick = () => focusGroup(button.dataset.groupFocus)));
   content.querySelectorAll("[data-group-eye]").forEach((button) => (button.onclick = () => toggleGroupVisible(button.dataset.groupEye)));
@@ -187,8 +199,7 @@ function renderGroups() {
     (button) =>
       (button.onclick = () => {
         const group = groupById(button.dataset.groupRename);
-        const name = group && prompt("Rename group:", group.name);
-        if (name?.trim()) ws.send("rename_group", { id: Number(group.id), name: name.trim() });
+        if (group) submitGroupName(prompt("Rename group (1–32 lowercase letters, digits, _ or -):", group.name), Number(group.id));
       }),
   );
   content.querySelectorAll("[data-group-delete]").forEach(

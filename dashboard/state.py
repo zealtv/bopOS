@@ -30,6 +30,12 @@ FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
 # Same grammar as server.NAME_RE: a patch folder name.
 PATCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 MAX_GROUP_ID = 0x7fffffff
+GROUP_NAME_RE = re.compile(r"[a-z0-9_-]{1,32}")
+GROUP_NAME_RESERVED = frozenset({"all", "bop", "os", "io", "sync", "e", "p"})
+GROUP_NAME_ERROR = (
+    "Group names must use 1–32 lowercase letters, digits, _ or -. "
+    "Reserved names: all, bop, os, io, sync, e, p, all digits and g<digits>."
+)
 
 
 def observed_active_patch(device):
@@ -552,6 +558,23 @@ class InstallationState:
         return sorted(cleaned)
 
     @classmethod
+    def valid_group_name(cls, name):
+        """Whether a name is an unambiguous OSC target segment (no coercion)."""
+        return (isinstance(name, str) and GROUP_NAME_RE.fullmatch(name) is not None
+                and name not in GROUP_NAME_RESERVED
+                and re.fullmatch(r"g?[0-9]+", name) is None)
+
+    @classmethod
+    def convert_group_name(cls, name, group_id):
+        """Convert legacy text; prefix reserved targets with `group-`."""
+        name = re.sub(r"[^a-z0-9_-]", "_", name.strip().lower())[:32]
+        if not name:
+            return f"group-{group_id}"
+        if not cls.valid_group_name(name):
+            name = ("group-" + name)[:32]
+        return name
+
+    @classmethod
     def clean_group(cls, value):
         if not isinstance(value, dict):
             return None
@@ -559,10 +582,7 @@ class InstallationState:
         if group_id is None:
             return None
         name = value.get("name", "")
-        if not isinstance(name, str):
-            return None
-        name = name.strip()[:48]
-        if not name:
+        if not cls.valid_group_name(name):
             return None
         return {"id": group_id, "name": name}
 
@@ -582,21 +602,20 @@ class InstallationState:
 
     @staticmethod
     def _unique_group_name(base, unavailable):
-        """Return a <=48-char deterministic suffix variant not in unavailable."""
+        """Return a <=32-char deterministic suffix variant not in unavailable."""
         for suffix_number in range(2, MAX_GROUP_ID + 2):
             suffix = f"-{suffix_number}"
-            candidate = base[:48 - len(suffix)] + suffix
+            candidate = base[:32 - len(suffix)] + suffix
             if candidate not in unavailable:
                 return candidate
         return None
 
     @classmethod
     def adopt_group_names(cls, value):
-        """Repair only the pre-invariant blank/duplicate group-name cases.
+        """Repair legacy group names into unique, addressable OSC targets.
 
-        Existing first occurrences keep their spelling. Generated names avoid
-        every original non-blank name, so repairing an early duplicate cannot
-        steal a later group's already-unique name.
+        Legal original names take priority over converted names. Suffixes avoid
+        every converted base too, so a repair cannot steal a later base name.
         """
         if not isinstance(value, dict):
             return value, []
@@ -609,13 +628,15 @@ class InstallationState:
             if (group_id is None or str(group_id) != str(key)
                     or not isinstance(name, str)):
                 return value, []
-            ordered.append((group_id, key, raw, name.strip()[:48]))
+            ordered.append((group_id, key, raw, name))
         ordered.sort(key=lambda item: item[0])
-        reserved = {name for _group_id, _key, _raw, name in ordered if name}
+        originals = {name for _, _, _, name in ordered if cls.valid_group_name(name)}
+        reserved = {cls.convert_group_name(name, group_id)
+                    for group_id, _, _, name in ordered}
         used, rebuilt, changes = set(), {}, []
         for group_id, key, raw, original in ordered:
-            name = original or f"group-{group_id}"
-            if not original or name in used:
+            name = cls.convert_group_name(original, group_id)
+            if name in used or (name != original and name in originals):
                 unavailable = reserved | used
                 if name in unavailable:
                     name = cls._unique_group_name(name, unavailable)
@@ -636,7 +657,7 @@ class InstallationState:
             f'{change["from"] if change["from"] else "(blank)"} → {change["to"]}'
             for change in changes)
         return (
-            f'Project "{project_name}" group names were repaired for portable Shows: '
+            f'Project "{project_name}" group names were repaired for OSC targets and portable Shows: '
             f"{renames}."
         )
 
@@ -683,7 +704,7 @@ class InstallationState:
         """Create a never-reused canonical group ID and persist its allocator."""
         cleaned = self.clean_group({"id": 0, "name": name})
         if cleaned is None:
-            return None, "Group names must be non-empty text."
+            return None, GROUP_NAME_ERROR
         if not self.group_name_available(cleaned["name"]):
             return None, "Group names must be unique within the project."
         group_id = self.clean_next_group_id(
@@ -710,7 +731,7 @@ class InstallationState:
         candidate = self.clean_group({"id": group_id, "name": name})
         key = str(group_id)
         if candidate is None:
-            return None, "Group names must be non-empty text."
+            return None, GROUP_NAME_ERROR
         if key not in self.data.get("groups", {}):
             return None, "Group no longer exists."
         if not self.group_name_available(candidate["name"], except_id=group_id):

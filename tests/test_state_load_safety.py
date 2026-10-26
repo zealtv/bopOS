@@ -16,7 +16,7 @@ from state import InstallationState
 
 
 def document():
-    return {"schema": 1, "current_site": "default", "groups": {"0": {"id": 0, "name": "Front"}},
+    return {"schema": 1, "current_site": "default", "groups": {"0": {"id": 0, "name": "front"}},
             "next_group_id": 1, "device_registry": {}, "seats": {
                 "2": {"id": 2, "name": "Seat 2",
                       "groups": [0], "bound": "node-a", "params": {"gain": .4}}}}

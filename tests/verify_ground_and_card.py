@@ -213,7 +213,7 @@ def make_fixture(root):
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "assets": []},
         "facilitator_commands": ["restart-engine", "reboot"],
-        "groups": {"0": {"id": 0, "name": "Front"}},
+        "groups": {"0": {"id": 0, "name": "front"}},
         "seats": {"0": seat(0, "Freda", UID_A, dict(base)),
                   "1": seat(1, "Sparks", UID_B, dict(base, gain=.2))},
         "venue": {"width": 8, "depth": 6, "origin": [0, 0]},
