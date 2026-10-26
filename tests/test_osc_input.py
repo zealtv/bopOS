@@ -87,9 +87,51 @@ class RuntimeTests(unittest.TestCase):
         app.osc._selector_seats.return_value = [{'id': 0, 'params': {}}]
         return app
 
+    def test_state_bursts_coalesce_with_a_trailing_flush(self):
+        for address, args in [('/all/missing', []), ('/all/gain', [.5])]:
+            with self.subTest(address=address):
+                now, scheduled = [0.], []
+                def schedule(delay, callback):
+                    handle = Mock()
+                    scheduled.append((delay, callback, handle))
+                    return handle
+                app = self.app()
+                receiver = OSCInput(app, clock=lambda: now[0], schedule=schedule)
+                published = []
+                app.queue_broadcast.side_effect = lambda *_: published.append(
+                    receiver.recent[-1]['address'] if not args
+                    else app.osc._store_fade_destination.call_args.args[2])
+                for index in range(60):
+                    receiver.handle(address + str(index) if not args else address,
+                                    [index / 100] if args else [], 'ip')
+                self.assertEqual(app.queue_broadcast.call_args_list,
+                                 [unittest.mock.call('state')])
+                self.assertEqual(len(scheduled), 1)
+                self.assertEqual(scheduled[0][0], .1)
+                self.assertEqual(app.osc.send.call_count,
+                                 60 if address == '/all/gain' else 0)
+                now[0] = .1
+                scheduled[0][1]()
+                self.assertEqual(app.queue_broadcast.call_args_list,
+                                 [unittest.mock.call('state')] * 2)
+                self.assertEqual(published[-1], .59 if args else '/all/missing59')
+                self.assertIsNone(receiver._state_flush)
+                # An idle window produces no further publications. Another
+                # burst inside this window shares one newly scheduled flush.
+                for _ in range(60):
+                    receiver.handle(address, args, 'ip')
+                self.assertEqual(app.queue_broadcast.call_count, 2)
+                self.assertEqual(len(scheduled), 2)
+                now[0] = .2
+                scheduled[1][1]()
+                self.assertEqual(app.queue_broadcast.call_count, 3)
+                receiver.handle(address, args, 'ip')
+                receiver.close()
+                scheduled[-1][2].cancel.assert_called_once()
+
     def test_ring_and_forwarding(self):
         app = self.app()
-        receiver = OSCInput(app)
+        receiver = OSCInput(app, schedule=Mock())
         for _ in range(60):
             receiver.handle('/all/missing', [], '1.2.3.4')
         self.assertEqual(len(receiver.snapshot()['recent']), 50)
@@ -113,7 +155,7 @@ class RuntimeTests(unittest.TestCase):
         app.supervisor_mode = 'edit'
         app.state.data['editor']['patch'] = 'edited'
         app.editor_target.return_value = {'params': {}, 'groups': []}
-        receiver = OSCInput(app)
+        receiver = OSCInput(app, schedule=Mock())
         receiver.handle('/all/gain', [.5], 'ip')
         app.live_control_manifest.assert_called_with('edited')
         app.osc._store_fade_destination.assert_called_with(
@@ -124,7 +166,7 @@ class RuntimeTests(unittest.TestCase):
         app.supervisor_mode = 'edit'
         app.state.data['editor']['patch'] = 'edited'
         app.editor_target.return_value = {'params': {}, 'groups': []}
-        receiver = OSCInput(app)
+        receiver = OSCInput(app, schedule=Mock())
         receiver.handle('/12/gain', [.5], 'ip')
         app.osc._store_fade_destination.assert_called_with([], 'gain', .5)
         app.osc.send.assert_called_with('/12/p/gain', [.5])
@@ -138,7 +180,7 @@ class RuntimeTests(unittest.TestCase):
                                     clean_group_id=InstallationState.clean_group_id)
         app.osc = OSCBridge(app.state, Mock(), 0, 0, '127.0.0.1')
         app.osc.send = Mock()
-        receiver = OSCInput(app)
+        receiver = OSCInput(app, schedule=Mock())
         receiver.handle('/spot1/gain', [.75], 'ip')
         self.assertEqual(seats['0']['params']['gain'], .75)
         self.assertEqual(devices['node']['params']['gain'], .75)
@@ -196,7 +238,7 @@ class RuntimeTests(unittest.TestCase):
             state = InstallationState(directory, None)
             app = self.app()
             app.state = state
-            receiver = OSCInput(app)
+            receiver = OSCInput(app, schedule=Mock())
             receiver.ramp = MasterRamp(receiver.emit_master, lambda: now[0], schedule)
             receiver.set_master(.2, 1000)
             self.assertEqual(state.data['master'], 1.)

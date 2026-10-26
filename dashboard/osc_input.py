@@ -159,11 +159,16 @@ class InputProtocol(asyncio.DatagramProtocol):
 
 
 class OSCInput:
-    def __init__(self, dashboard, port=5552):
+    def __init__(self, dashboard, port=5552, clock=time.monotonic, schedule=None):
         self.dashboard, self.port = dashboard, port
         self.transport = None
         self.recent = deque(maxlen=50)
         self.ramp = MasterRamp(self.emit_master)
+        self.clock = clock
+        self.schedule = schedule or (
+            lambda delay, cb: asyncio.get_running_loop().call_later(delay, cb))
+        self._next_state_at = 0
+        self._state_flush = None
 
     async def start(self):
         self.transport, _ = await asyncio.get_running_loop().create_datagram_endpoint(
@@ -171,6 +176,9 @@ class OSCInput:
         self.port = self.transport.get_extra_info('sockname')[1]
 
     def close(self):
+        if self._state_flush is not None:
+            self._state_flush.cancel()
+            self._state_flush = None
         self.ramp.cancel()
         if self.transport:
             self.transport.close()
@@ -181,6 +189,21 @@ class OSCInput:
     def note(self, ip, address, reason, kind):
         self.recent.append({'time': time.time(), 'sender': ip, 'address': address,
                             'reason': reason, 'kind': kind})
+        self.queue_state()
+
+    def queue_state(self):
+        """Publish at most every 100 ms, retaining one trailing flush."""
+        if self._state_flush is not None:
+            return
+        delay = self._next_state_at - self.clock()
+        if delay > 0:
+            self._state_flush = self.schedule(delay, self.flush_state)
+        else:
+            self.flush_state()
+
+    def flush_state(self):
+        self._state_flush = None
+        self._next_state_at = self.clock() + .1
         self.dashboard.queue_broadcast('state')
 
     def emit_master(self, value):
@@ -225,12 +248,12 @@ class OSCInput:
         elif result.kind == 'lead':
             app.state.data['event_lead_ms'] = result.args[0]
             app.state.save_debounced()
-            app.queue_broadcast('state')
+            self.queue_state()
         elif result.kind == 'mute':
             app.state.data['muted'] = bool(result.args[0])
             app.osc.send_mute_all()
             app.queue_broadcast('mute_all', {'value': result.args[0]})
-            app.queue_broadcast('state')
+            self.queue_state()
         else:
             if result.kind == 'points':
                 app.osc.outside_points_until = time.monotonic() + 2
@@ -249,5 +272,5 @@ class OSCInput:
                         app.osc._store_fade_destination(seats, result.identity, value)
                 app.osc.record_param_for(seats, result.identity, result.args)
                 app.state.save_debounced()
-                app.queue_broadcast('state')
+                self.queue_state()
             app.osc.send(result.address, result.args)

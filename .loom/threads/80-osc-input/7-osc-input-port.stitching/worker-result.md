@@ -36,7 +36,7 @@ loom lifecycle; no lifecycle commands were used.
   6660; the full administration grammar remains in the contract.
 - `.glean/findings/external-osc-timing.md`: shipped 5552 guidance; regenerated
   the index with `glean.sh index` (its bytes did not change).
-- `tests/test_osc_input.py`: 11 tests covering translation, all target forms,
+- `tests/test_osc_input.py`: 12 tests covering translation, all target forms,
   defaults, timestamps/zero lead, clamping, numeric tags, rejection/ambiguity,
   commands, diagnostics, datagrams, editor manifest/selector behavior, real
   bridge parameter mirrors/automation, point guarding and deterministic ramp
@@ -110,3 +110,34 @@ PASS: outside UDP -> dashboard stamp, clamp and default -> simfleet on two nodes
 No `.pd` file was edited, no real hardware or audio was exercised, and no patch
 push or real-LAN claim is made. The qtable/Finn Jet/Ciro Toast hardware check
 remains the manager's separate stitch 10. Test subprocesses clean up on exit.
+
+
+## Manager review 1 addressed
+
+- `dashboard/osc_input.py`: all input-triggered full `state` broadcasts now
+  share a 100 ms throttle. The first change publishes immediately; changes
+  during the window schedule one trailing flush that publishes the latest
+  state, including the final change if the stream stops. Rejections, clamps,
+  parameters, lead and mute share this limit. Device sends and lightweight
+  master/mute messages stay unthrottled; save debounce is unchanged.
+- The throttle accepts an injected monotonic clock and scheduler, and shutdown
+  cancels its pending flush.
+- `tests/test_osc_input.py`: the deterministic burst regression covers 60
+  rejections and 60 parameter writes separately. Each produces one immediate
+  state publication plus one trailing publication at 100 ms, with the final
+  address/value visible. Continued bursts share the next pending flush, all
+  60 parameter messages reach device sending immediately, and shutdown cancels
+  the pending callback. Existing synchronous tests inject a scheduler.
+- `git merge main`: already up to date before final verification.
+- `~/.venvs/bopos/bin/python tests/test_osc_input.py`: 12 tests, OK.
+- `./tools/run-tests.sh fast`, outside the sandbox: full output retained in
+  `review-1-fast.log`; result:
+
+```text
+Ran 641 tests in 39.448s
+
+OK
+```
+
+- `git diff --check`: clean. No UI changes; the full browser tier was not rerun,
+  as requested by the review. The review-fix commit also runs the fast hook.
