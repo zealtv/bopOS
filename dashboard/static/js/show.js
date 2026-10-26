@@ -725,15 +725,19 @@
     </div>`;
   }
 
+  // One argument per declared field, each at its declared default and OSC tag.
+  function defaultEventArgs(declaration) {
+    return window.EventFields.fieldsOf(declaration).map(field =>
+      typedArg(window.EventFields.tag(field), window.EventFields.initialValue(field)));
+  }
+
   function renderEventBuilder(message) {
     const manifest = manifestFromStagedPatch();
     const identity = message.address?.startsWith("/e/") ? message.address.slice(3) : manifest.events[0]?.identity || "";
     const declaration = manifest.events.find(item => item.identity === identity) || manifest.events[0];
     const options = manifest.events.map(item => `<option value="${escapeHtml(item.identity)}" ${item.identity === identity ? "selected" : ""}>${escapeHtml(item.name || item.identity)}</option>`).join("");
-    const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
-    const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
-    const elements = Array.from({length: arity}, (_unused, index) =>
-      `<label>element ${index} <input data-event-element="${index}" type="number" step="any" value="${escapeHtml(numberAttr(message.args?.[index]?.value, defaults[index] ?? 0))}"></label>`).join("");
+    const elements = window.EventFields.fieldsOf(declaration).map((field, index) =>
+      `<label>${escapeHtml(field.name)} ${window.EventFields.controlHtml(field, index, message.args?.[index]?.value, {attr: "data-event-element"})}</label>`).join("");
     return `<section class="show-inspector-section" data-payload-builder="event">
       <label>event <select id="show-event-picker">${options || '<option value="">No staged events</option>'}</select></label>
       ${elements}
@@ -1179,12 +1183,10 @@
         address: `/p/${identity}`, args: [typedArg(type, value)], target: targetList(message)});
     } else if (mode === "event") {
       const declaration = manifest.events[0];
-      const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
-      const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
       updateMessage(message.uid, {
         kind: "osc",
         address: `/e/${declaration?.identity || ""}`,
-        args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
+        args: defaultEventArgs(declaration),
         target: targetList(message),
       });
     } else if (mode === "point") {
@@ -1246,6 +1248,11 @@
     }
   });
 
+  // A toggle field is a button, which raises no change of its own.
+  root.addEventListener("click", event => {
+    const control = event.target.closest?.("[data-event-element]");
+    if (control && window.EventFields.flip(control)) control.dispatchEvent(new Event("change", {bubbles: true}));
+  });
   root.addEventListener("change", event => {
     const stepEditor = event.target.closest("[data-show-step-editor]");
     if (stepEditor) {
@@ -1306,17 +1313,19 @@
       }
       if (event.target.id === "show-event-picker") {
         const declaration = manifestFromStagedPatch().events.find(item => item.identity === event.target.value);
-        const arity = Math.min(3, Math.max(0, Math.trunc(Number(declaration?.arity) || 0)));
-        const defaults = Array.isArray(declaration?.defaults) ? declaration.defaults : [];
         updateMessage(message.uid, {
           address: `/e/${event.target.value}`,
-          args: Array.from({length: arity}, (_unused, index) => typedArg("f", defaults[index] ?? 0)),
+          args: defaultEventArgs(declaration),
         });
       }
       if (event.target.matches("[data-event-element]")) {
-        const args = [...messageEditor.querySelectorAll("[data-event-element]")]
-          .map(input => typedArg("f", input.value));
-        updateMessage(message.uid, {args});
+        const identity = message.address.slice(3);
+        const fields = window.EventFields.fieldsOf(manifestFromStagedPatch().events.find(item => item.identity === identity));
+        const controls = [...messageEditor.querySelectorAll("[data-event-element]")];
+        // A value the wire would refuse stays marked and the message keeps its
+        // last good arguments, rather than saving something that cannot fire.
+        const values = window.EventFields.collect(fields, controls);
+        if (values) updateMessage(message.uid, {args: fields.map((field, index) => typedArg(window.EventFields.tag(field), values[index]))});
       }
       if (event.target.matches("[data-point-field]")) {
         const values = {};

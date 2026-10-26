@@ -416,7 +416,7 @@ KIND_SHAPE_JS = """
     stringFieldHeight: Math.round(
       string.querySelector('input[type="text"]').getBoundingClientRect().height),
     rowHeight: Math.round(row("steps").getBoundingClientRect().height),
-    eventArity: event.dataset.eventArity,
+    eventFields: JSON.parse(event.dataset.eventFields).length,
     eventBoxes: boxes.map(box => box.value),
     // The name hugs the last box; only the gap separates them.
     eventNameGap: Math.round(
@@ -930,10 +930,10 @@ def main():
                       enum_sent
                       and enum_sent.get("name") == "mode"
                       and enum_sent.get("value") == 2, repr(enum_sent))
-                check("an event declaration renders exactly arity boxes",
-                      kinds["eventArity"] == "2"
-                      # Exactly arity boxes: no slot is held open for the
-                      # elements a lower-arity event does not have.
+                check("an event declaration renders exactly one box per field",
+                      kinds["eventFields"] == 2
+                      # No slot is held open for the fields a shorter
+                      # event does not have.
                       and kinds["eventBoxes"] == ["64", "127"],
                       repr(kinds))
                 # Superseded by `4-cue-retirement`: this asserted the row was
