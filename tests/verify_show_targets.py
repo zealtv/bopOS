@@ -111,7 +111,7 @@ def make_fixture(root):
         "schema": 1,
         "name": "Portable room",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64},
-        "groups": {"7": {"id": 7, "name": "Front"}},
+        "groups": {"7": {"id": 7, "name": "front"}},
         "next_group_id": 8,
         "seats": {},
         "device_registry": {},
@@ -199,7 +199,7 @@ def main():
                       "does not exist" in load_warning
                       and "does not exist" in author_warning,
                       repr((load_warning, author_warning)))
-                named_chip = page.locator('[data-target-toggle="group:Front"]')
+                named_chip = page.locator('[data-target-toggle="group:front"]')
                 check("group picker stores a portable name selector",
                       named_chip.count() == 1
                       and named_chip.get_attribute("data-target-legacy") == "g7")
@@ -216,16 +216,16 @@ def main():
                     "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'all'")
                 named_chip.click()
                 page.wait_for_function(
-                    "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'Front'")
+                    "() => document.querySelector('#show-root .target-picker-terse')?.innerText === 'front'")
 
                 check("saved Show carries the group name, not the project group id",
-                      wait_for(lambda: saved_messages()[0]["target"] == ["group:Front"]
+                      wait_for(lambda: saved_messages()[0]["target"] == ["group:front"]
                                if saved_messages() else False),
                       repr(saved_messages()))
                 check("picker renders the portable name and current wire id",
-                      "Front" in page.locator(
+                      "front" in page.locator(
                           '#show-root .target-picker-summary '
-                          '[data-target-remove="group:Front"]').inner_text()
+                          '[data-target-remove="group:front"]').inner_text()
                       and "g7" in named_chip.inner_text()
                       and "-> g7" in page.locator(
                           "#show-wire-preview").inner_text(),

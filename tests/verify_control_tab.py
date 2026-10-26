@@ -132,7 +132,7 @@ def make_fixture(root):
         # Remote keeps the per-device commands D8 took off Control, so the
         # fixture has to declare some for that half to be testable at all.
         "facilitator_commands": ["restart-engine", "reboot"],
-        "groups": {"0": {"id": 0, "name": "Front"}},
+        "groups": {"0": {"id": 0, "name": "front"}},
         "seats": {"1": seat(1, "Freda", UID_A, [0]),
                   "2": seat(2, "Sparks", UID_B, [])},
     }
@@ -275,7 +275,7 @@ def main():
                     ".target-picker [data-target-toggle]").all_text_contents()
                 check("the picker offers All, the group and both Seats as chips",
                       [item.strip() for item in chips]
-                      == ["All", "Frontg0", "1", "2"], repr(chips))
+                      == ["All", "frontg0", "1", "2"], repr(chips))
 
                 # --- events sit above the parameters, inside the panel ---
                 # `/cue` is retired (thread 44 child 4) and the top event panel

@@ -160,7 +160,7 @@ def make_fixture(root):
             "name": "alpha", "fingerprint": "a" * 64,
             "staged_at": time.time(),
         },
-        "groups": {"7": {"id": 7, "name": "Front"}},
+        "groups": {"7": {"id": 7, "name": "front"}},
         "seats": {
             "1": seat(1, "Freda", UID_A, [7]),
             "2": seat(2, "Sparks", UID_B, []),

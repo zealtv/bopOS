@@ -106,7 +106,7 @@ def make_fixture(root):
         "schema": 1, "name": "Column scroll rig",
         "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
                         "staged_at": time.time()},
-        "groups": {"0": {"id": 0, "name": "Front"}},
+        "groups": {"0": {"id": 0, "name": "front"}},
         "seats": {"1": seat(1, "Freda", UID_A, [0]),
                   "2": seat(2, "Sparks", UID_B, [])},
     }
