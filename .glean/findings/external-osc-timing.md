@@ -5,7 +5,7 @@ When someone wants Ableton, Max, TouchOSC or another OSC app to send forward-syn
 - **As of 2026-10-11, only the dashboard can stamp a synced event.** Nodes accept `/e/*` from anyone, but `sharedTimeNs` is the dashboard's own `monotonic_ns()` plus the lead; an outside app can't know that clock. A guessed time more than 50 ms late gets dropped; a far-future one waits. Outside apps should send `"0"` (fire on arrival, unsynced). `docs/OSC-REFERENCE.md` documents this.
 - **A relative lead ("fire in 500 ms") doesn't sync.** Nodes can't see when a packet left, only when it arrived, so it collapses into fire-on-arrival plus a delay. Stamp an absolute time at one point *before* fan-out.
 - **Sender-clock timing was considered and set aside.** Belief System had each Pi estimate the sender's clock from the "least late" message. Bob's call: it still needs a clock in the sending app, so it has no real advantage over letting the dashboard keep timing.
-- **Future path, not started:** a dashboard OSC input that takes outside events and stamps `now + event_lead_ms`. A contract amendment, Bob's to ratify; Bob asked for no development on 2026-10-11.
+- **Ratified 2026-10-26, not yet built:** a dashboard OSC input on UDP 5552 that takes outside events and stamps `now + event_lead_ms`, so senders drop the `"0"` sentinel. Bob's 2026-10-11 "no development" ended with that ratification. Design and work: loom `80-osc-input`. Until it ships, the `"0"` advice above still applies.
 - **Belief System didn't use the Happy Brackets synchronizer.** Its large `/objectStart` integer carried Max's `cpuclock`. The 2026-09-25 architecture review §5 says otherwise; the code contradicts it.
 
 ## Context
