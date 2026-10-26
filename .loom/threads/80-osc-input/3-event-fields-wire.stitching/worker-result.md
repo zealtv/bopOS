@@ -13,9 +13,10 @@ incoming change was the sibling worker brief. No loom lifecycle changes.
   `event_scalar`/`event_values` for manifest-independent wire validation.
 - `python/bopos.py`: accepts mixed f/i/s fields within limits, preserves
   scalar types through scheduling, emits their original OSC tags to engines.
-- `dashboard/osc_bridge.py`: validates/rounds event values and preserves their
-  Python scalar types for OSC tags. `dashboard/server.py`: removes the old
-  WebSocket all-float conversion, so typed values can reach that bridge.
+- `dashboard/osc_bridge.py`: validates/rounds event values and tags supplied
+  fields by declared kind using the active target lookup from the dashboard.
+  `dashboard/server.py`: coerces WebSocket values using the same declaration;
+  JSON whole-valued floats retain their declared float tag.
 - `tools/simfleet.py`, `tools/audition.py`: identical value limits and mixed
   field receipt, scheduling, logging and audition engine delivery.
 - `python/osc_contract.py`, `docs/OSC-CONTRACT.md`: v1.22; updated event wire,
@@ -52,8 +53,8 @@ incoming change was the sibling worker brief. No loom lifecycle changes.
   remains supported. No dashboard JS or editor/fire controls were changed.
 - Typed field UI and its browser journeys remain stitch `4-event-fields-editor`.
   Numeric-event browser fixtures now use `fields`; their old numeric-box UI
-  assertions must be adopted with that stitch. The complete browser tier was
-  not run here. The focused Control-tab journey passed.
+  assertions must be adopted with that stitch. The full browser tier was run after review and the main merge; its three
+  expected event-UI failures are detailed below. The focused Control-tab journey passed.
 
 ## Patch distribution and hardware boundary
 
@@ -109,3 +110,58 @@ PASS: real dashboard websocket -> typed UDP -> simfleet receipt; isolated epheme
 ```
 
 The final report commit also runs the required fast pre-commit hook.
+
+
+## Manager review 1 addressed
+
+Fix commit: `bb0d4da` — Use declared event kinds when firing dashboard events.
+Main merge: `9527341` — includes landed `6-group-name-rule`; all shared browser
+fixtures merged cleanly. The final runs below were after this merge.
+
+- Added `manifest.declared_event(manifest, identity)` and
+  `manifest.coerce_event_values(declaration, values)` for reuse by stitch 7.
+- `Dashboard.live_event_declaration(identity)` selects the fleet manifest in
+  Live/Simulation and the edited patch manifest in Patch Edit, via the existing
+  `live_control_manifest` loader. The bridge receives that lookup callback,
+  so Show and direct bridge fires also use declared kinds, and WebSocket
+  validation uses the same coercion before broadcasting scheduled values.
+- Supplied values only: no default filling, no clamping, and too many values
+  for the declaration is an error. Undeclared fallback is numeric OSC `f` and
+  string OSC `s`, retaining the old float-number convention while allowing text.
+- Added durable tests proving float field `1` -> `f 1.0`, int field `2.0` ->
+  `i 2`, numeric text rejection, excess-field rejection, undeclared f/s tags,
+  and fleet-vs-edited-manifest selection. Focused event suite: 16 tests, OK.
+- Changed Python modules compiled cleanly; `git diff --check` passed.
+
+Final post-merge commands and results:
+
+```text
+./tools/run-tests.sh fast
+Ran 629 tests in 39.184s
+
+OK
+
+./tools/run-tests.sh browser
+38 journeys: 35 PASS, 3 FAIL (exit 1)
+```
+
+Complete outputs are retained beside this report as `review-1-fast.log` and
+`review-1-browser.log`. Every failing browser journey and its cause:
+
+- `verify_control_surface_component.py`: the legacy event renderer reads
+  `arity`, creates zero boxes for the migrated `fields` declaration, and the
+  event layout probe then dereferences its missing final box.
+- `verify_event_control_panel.py`: the same legacy renderer creates zero
+  editable boxes for two declared fields; the emitted zero-field event cannot
+  meet the journey's two-value log assertions and its later wait times out.
+- `verify_manifest_param_visibility.py`: the legacy patch editor serializes
+  `arity/defaults`, so event validation refuses the whole manifest save; the
+  event-order and IO-save checks fail together, and reloading cannot find the
+  unsaved IO row. The IO failures are a consequence of this rejected save.
+
+These are exactly the event fire-control/editor migration deferred to stitch 4;
+no unrelated browser journey failed. In particular group names, Control,
+Device controls, Patch tab without event declarations, IO, deployment, Show,
+Remote, spatial, snapshot replay and transport journeys passed. No dashboard
+JS changes were made to hide or bypass those failures. Hardware/Pd remains
+unverified as before.
