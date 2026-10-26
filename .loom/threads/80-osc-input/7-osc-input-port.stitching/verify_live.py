@@ -66,7 +66,7 @@ def main():
                     raise AssertionError((temporary / 'dashboard.log').read_text())
                 processes.append(subprocess.Popen([
                     sys.executable, '-u', str(ROOT / 'tools/simfleet.py'),
-                    '--devices', '1', '--target', '127.0.0.1',
+                    '--devices', '2', '--target', '127.0.0.1',
                     '--cmd-port', str(command), '--report-port', str(report),
                     '--stream-port', str(stream), '--boot-secs', '0',
                     '--hb-interval', '.2'], cwd=ROOT,
@@ -75,13 +75,16 @@ def main():
                 fire(input_port)
                 for _ in range(50):
                     output = (temporary / 'simfleet.log').read_text()
-                    if 'event typed/check fired' in output:
-                        line = next(line for line in output.splitlines() if 'event typed/check fired' in line)
-                        assert 'elements=folder/file 1 1' in line, line
-                        assert 'dev_deadline=0 ' not in line, line
-                        assert ' LATE' not in line, line
-                        print(line)
-                        print('PASS: outside UDP -> dashboard stamp, clamp and default -> simfleet receipt; isolated ephemeral ports')
+                    lines = [line for line in output.splitlines() if 'event typed/check fired' in line]
+                    if len(lines) >= 2:
+                        assert any('sim1 ' in line for line in lines), lines
+                        assert any('sim2 ' in line for line in lines), lines
+                        for line in lines:
+                            assert 'elements=folder/file 1 1' in line, line
+                            assert 'dev_deadline=0 ' not in line, line
+                            assert ' LATE' not in line, line
+                            print(line)
+                        print('PASS: outside UDP -> dashboard stamp, clamp and default -> simfleet on two nodes; isolated ephemeral ports')
                         return
                     time.sleep(.1)
                 raise AssertionError(output)

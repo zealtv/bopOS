@@ -546,7 +546,8 @@ in Patch Edit. Only declared events and parameters are accepted here.
 | `/bop/mute` | `<0|1>` | execution MUTE ALL; dashboard follows |
 | `/bop/lead` | `<ms>` | whole milliseconds, 0–10000; persists and dashboard follows |
 
-Targets are `all`, a nonnegative seat number, `g<id>` of an existing group,
+Targets are `all`, a nonnegative int32 seat number (canonicalized to decimal),
+`g<id>` of an existing group,
 or a group name (resolved to `g<id>`). Group names are unique lowercase
 `[a-z0-9_-]{1,32}`, excluding `all`, `bop`, `os`, `io`, `sync`, `e`, `p`,
 all-digit names and `g` followed by digits. Existing invalid names are repaired

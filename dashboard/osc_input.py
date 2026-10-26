@@ -8,6 +8,7 @@ import time
 
 import live_params
 from python import manifest as schema
+from python.groups import selector_matches
 from python.paramgen import _duration
 from pythonosc.osc_packet import OscPacket
 
@@ -61,8 +62,13 @@ def _translate(address, args, manifest, groups, now_ns, lead_ms):
     if len(parts) < 3 or parts[0] or any(not part for part in parts[1:]):
         raise ValueError('expected /target/[e|p/]identity')
     target, tail = parts[1], parts[2:]
-    if target == 'all' or re.fullmatch(r'[0-9]+', target):
+    if target == 'all':
         selector = target
+    elif re.fullmatch(r'[0-9]+', target):
+        seat_id = int(target)
+        if seat_id > 2 ** 31 - 1:
+            raise ValueError('seat number must fit a nonnegative int32')
+        selector = str(seat_id)
     elif re.fullmatch(r'g[0-9]+', target) and str(int(target[1:])) in groups:
         selector = 'g' + str(int(target[1:]))
     else:
@@ -229,8 +235,12 @@ class OSCInput:
             if result.kind == 'points':
                 app.osc.outside_points_until = time.monotonic() + 2
             elif result.kind == 'param':
-                seats = ([app.editor_target()] if app.supervisor_mode == 'edit'
-                         else app.osc._selector_seats(result.selector))
+                if app.supervisor_mode == 'edit':
+                    editor = app.editor_target()
+                    seats = ([editor] if selector_matches(
+                        result.selector, 0, editor.get('groups', ())) else [])
+                else:
+                    seats = app.osc._selector_seats(result.selector)
                 if len(result.args) == 1:
                     declaration = next(p for p in manifest.get('params', ())
                                        if schema.qualify_param(p) == result.identity)

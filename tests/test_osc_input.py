@@ -38,7 +38,7 @@ class TranslationTests(unittest.TestCase):
         self.assertTrue(reason)
 
     def test_targets_defaults_and_stamp(self):
-        for target, selector in [('all', 'all'), ('12', '12'), ('g3', 'g3'), ('spot1', 'g3')]:
+        for target, selector in [('all', 'all'), ('12', '12'), ('0012', '12'), ('g3', 'g3'), ('spot1', 'g3')]:
             result = self.trans('/' + target + '/hit', [.5])
             self.assertEqual(result.address, '/' + selector + '/e/hit')
             self.assertEqual(result.args, ['623000000', .5, 1, 'folder/file'])
@@ -60,7 +60,7 @@ class TranslationTests(unittest.TestCase):
                               ('/all/same', []), ('/all/os/play', []),
                               ('/all/e/gain', []), ('/all/p/hit', []),
                               ('/all/e/unknown', []), ('/unknown/hit', [1]),
-                              ('/g99/hit', [1]), ('/all//hit', [1])]:
+                              ('/g99/hit', [1]), ('/2147483648/hit', [1]), ('/all//hit', [1])]:
             with self.subTest(address=address, args=args):
                 self.reject(address, args)
         self.trans('/all/e/same')
@@ -112,12 +112,22 @@ class RuntimeTests(unittest.TestCase):
         app = self.app()
         app.supervisor_mode = 'edit'
         app.state.data['editor']['patch'] = 'edited'
-        app.editor_target.return_value = {'params': {}}
+        app.editor_target.return_value = {'params': {}, 'groups': []}
         receiver = OSCInput(app)
         receiver.handle('/all/gain', [.5], 'ip')
         app.live_control_manifest.assert_called_with('edited')
         app.osc._store_fade_destination.assert_called_with(
             [app.editor_target.return_value], 'gain', .5)
+
+    def test_editor_mirror_obeys_the_forwarded_selector(self):
+        app = self.app()
+        app.supervisor_mode = 'edit'
+        app.state.data['editor']['patch'] = 'edited'
+        app.editor_target.return_value = {'params': {}, 'groups': []}
+        receiver = OSCInput(app)
+        receiver.handle('/12/gain', [.5], 'ip')
+        app.osc._store_fade_destination.assert_called_with([], 'gain', .5)
+        app.osc.send.assert_called_with('/12/p/gain', [.5])
 
     def test_real_bridge_records_scalar_and_automation(self):
         app = self.app()
