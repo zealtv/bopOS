@@ -1,4 +1,4 @@
-#N canvas 0 79 1208 974 12;
+#N canvas 0 79 1184 974 12;
 #X obj 1033 129 r bopos-notify;
 #X obj 1033 166 bng 19 250 50 0 empty empty empty 0 -10 0 12 #fcfcfc #000000 #000000;
 #X obj 687 400 dac~, f 26;
@@ -26,7 +26,7 @@
 #X obj 961 646 loadbang;
 #X msg 961 672 connect 127.0.0.1 8880;
 #X obj 665 582 netreceive -u -b 6662;
-#N canvas 308 267 768 660 process-io-messages 1;
+#N canvas 308 267 768 660 process-io-messages 0;
 #X obj 122 49 inlet;
 #X obj 233 457 outlet;
 #X msg 56 150 1;
@@ -115,7 +115,6 @@
 #X obj 338 107 route p e pt notify, f 27;
 #X obj 384 181 list;
 #X obj 384 209 s bopos-event;
-#X obj 37 37;
 #X connect 0 0 1 0;
 #X connect 1 0 4 0;
 #X connect 3 0 5 0;
