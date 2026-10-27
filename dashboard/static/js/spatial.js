@@ -8,6 +8,23 @@
   // so none fall off its edge (81-seats-tab/1-unplaced-tray-wraps).
   const TRAY_X0 = 0.7, TRAY_STEP = 1.7, TRAY_ROW = 0.9;
 
+  // Optional device-name labels on Seats (81-seats-tab/2-seat-device-names).
+  // A per-viewer convenience, off by default so the map reads as before.
+  const DEVICE_NAMES = "bopos.seat-device-names";
+  const LABEL_MAX = 16;
+  let deviceNames = (() => {
+    try { return localStorage.getItem(DEVICE_NAMES) === "1"; }
+    catch (_error) { return false; }
+  })();
+  function setDeviceNames(value) {
+    deviceNames = !!value;
+    try { localStorage.setItem(DEVICE_NAMES, deviceNames ? "1" : "0"); }
+    catch (_error) { /* private mode: the choice just doesn't persist */ }
+  }
+  function deviceName(device, installation) {
+    return device && window.DeviceIdentity ? DeviceIdentity.primary(device, installation) : "";
+  }
+
   function trayLayout(W, count) {
     const perRow = Math.max(1, Math.floor((W - 2 * TRAY_X0) / TRAY_STEP) + 1);
     const rows = Math.max(1, Math.ceil(count / perRow));
@@ -117,11 +134,13 @@
         const group = installation.groups?.[String(id)] || installation.groups?.[id];
         return group ? `${group.name}, g${id}` : `g${id}`;
       });
+      const occupantName = deviceName(d, installation);
+      const occupantNote = occupantName ? ` · ${occupantName}` : "";
       const node = el("g", {class: `node ${occupancy}${Number(seat.id) === Number(selected) ? " selected" : ""}${emphasis}`,
                             "data-uid": d?.uid || "", "data-seat-id": seat.id,
                             tabindex: "0", role: "button",
-                            "aria-label": `Seat ${seat.id}; ${membershipNames.join("; ") || "no groups"}`}, svg);
-      el("title", {}, node).textContent = `Seat ${seat.id} · ${membershipNames.join(", ") || "No groups"}`;
+                            "aria-label": `Seat ${seat.id}${occupantName ? `, ${occupantName}` : ""}; ${membershipNames.join("; ") || "no groups"}`}, svg);
+      el("title", {}, node).textContent = `Seat ${seat.id}${occupantNote} · ${membershipNames.join(", ") || "No groups"}`;
       const positions = (seat.positions || []).filter(Array.isArray);
       if (!positions.length) {
         const row = Math.floor(slot / tray.perRow), column = slot++ % tray.perRow;
@@ -155,6 +174,10 @@
                                      "data-point": index}, g);
         circle.dataset.baseRadius = ELEMENT_R;
         el("text", {x: 0, y: 0.09, class: "element-number"}, g).textContent = seat.id;
+        if (deviceNames && occupantName && index === 0) {
+          el("text", {x: 0, y: ELEMENT_R + 0.3, class: "seat-device-label"}, g).textContent =
+            occupantName.length > LABEL_MAX ? `${occupantName.slice(0, LABEL_MAX - 1)}…` : occupantName;
+        }
       });
     }
 
@@ -793,5 +816,7 @@
     };
   }
 
-  window.Spatial = {render, renderEditor, frame, get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null || rangeDrag !== null || editorPointDrag !== null; }};
+  window.Spatial = {render, renderEditor, frame, deviceName,
+    get deviceNames() { return deviceNames; }, set deviceNames(value) { setDeviceNames(value); },
+    get dragging() { return seatDrag !== null || pointDrag !== null || listenerDrag !== null || headingDrag !== null || rangeDrag !== null || editorPointDrag !== null; }};
 })();

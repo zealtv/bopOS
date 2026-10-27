@@ -462,3 +462,5 @@ details.icon-menu>summary::before{content:none}
 #editor-input-control{display:flex;align-items:center;gap:12px;margin:12px 0;color:var(--dim);font-size:12px}
 #editor-input-control[hidden]{display:none}
 #editor-input-source{min-width:0;max-width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--input);color:var(--text);font:inherit}
+/* Seat device names (81-seats-tab/2-seat-device-names): a haloed label under the dot that never takes the pointer, so dragging and pairing still work. */
+#point-toolbar .seat-names-toggle{display:flex;align-items:center;gap:6px;min-height:var(--row-h);color:var(--dim);font-size:13px}#spatial .seat-device-label{fill:var(--text);stroke:var(--canvas);stroke-width:.07px;paint-order:stroke;font-size:.22px;font-weight:700;text-anchor:middle;pointer-events:none}.seat-device-name{color:var(--text)}

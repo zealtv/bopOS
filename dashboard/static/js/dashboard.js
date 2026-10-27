@@ -245,6 +245,11 @@ function render() {
     }
     render();
   };
+  $("#seat-device-names").checked = Spatial.deviceNames;
+  $("#seat-device-names").onchange = (event) => {
+    Spatial.deviceNames = event.target.checked;
+    render();
+  };
   $("#device-filter").value = deviceFilter;
   $("#device-filter").onchange = (event) => {
     deviceFilter = event.target.value;

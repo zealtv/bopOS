@@ -302,7 +302,9 @@ function seatRow(seat) {
     `<div class="device-row seat-row ${classes}" data-uid="${esc(uid)}" data-seat-id="${seat.id}"`,
     ` data-seat-filter="${esc(String(name).trim().toLowerCase())}" role="button" tabindex="0">`,
     `<i class="dot ${tone}"></i>${heartbeat}<span>`,
-    `<input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(name)}"><small>ID ${seat.id} · ${state}</small>`,
+    `<input data-seat-name aria-label="Seat ${seat.id} name" value="${esc(name)}"><small>ID ${seat.id} · ${state}${
+      Spatial.deviceNames && d ? ` · <span class="seat-device-name">${esc(Spatial.deviceName(d, installation))}</span>` : ""
+    }</small>`,
     `</span>${d ? patchBadge(d.patch_badge) : ""}</div>`,
   ].join("");
 }
