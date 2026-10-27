@@ -29,8 +29,11 @@ UIDS = list(PEERS)
 
 class RosterPeers(PhysicalPeer):
     beat = 0
+    quiet = False
 
     def heartbeat(self):
+        if self.quiet:
+            return
         # Rotate the send order so a heartbeat-driven sort would reshuffle.
         self.beat += 1
         shift = self.beat % len(UIDS)
@@ -112,6 +115,19 @@ def main():
                         time.sleep(0.1)
                     check("heartbeats arriving in a rotating order never move a row",
                           seen == {tuple(by_name)}, repr(seen))
+
+                    dora = '[data-uid="02:53:49:4d:00:13"] .heartbeat-blip.pulse'
+                    page.wait_for_selector("#device-roster " + dora, state="attached")
+                    page.wait_for_selector("#assigned " + dora, state="attached")
+                    check("a heartbeat pulses both the seat row and the roster row", True)
+                    peer.quiet = True
+                    page.wait_for_timeout(900)
+                    page.locator("#device-roster .device-row").nth(2).click()
+                    page.wait_for_timeout(50)
+                    pulsing = page.locator(".heartbeat-blip.pulse").count()
+                    check("selecting a device flashes no heartbeat when none arrived",
+                          pulsing == 0, f"{pulsing} pulsing")
+                    peer.quiet = False
 
                     page.locator("#device-sort").select_option("seat")
                     check("seat order puts bound seats first, by id, then unbound by name",

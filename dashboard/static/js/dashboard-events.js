@@ -42,13 +42,17 @@ ws.on("heartbeat", (data) => {
   if (!data?.uid) return;
   const heartbeatAt = String(data.timestamp ?? Date.now() / 1000);
   heartbeats.set(data.uid, heartbeatAt);
-  const row = Array.from(document.querySelectorAll(".device-row")).find((element) => element.dataset.uid === data.uid);
-  const blip = row?.querySelector(".heartbeat-blip");
-  if (!blip) return;
-  blip.classList.remove("pulse");
-  void blip.offsetWidth;
-  blip.classList.add("pulse");
-  blip.dataset.heartbeatAt = heartbeatAt;
+  heartbeatSeenAt.set(data.uid, performance.now());
+  // A device can have a seat row and a roster row; pulse both.
+  document.querySelectorAll(".device-row").forEach((row) => {
+    const blip = row.dataset.uid === data.uid && row.querySelector(".heartbeat-blip");
+    if (!blip) return;
+    blip.style.animationDelay = "";
+    blip.classList.remove("pulse");
+    void blip.offsetWidth;
+    blip.classList.add("pulse");
+    blip.dataset.heartbeatAt = heartbeatAt;
+  });
 });
 ws.on("params_declaration", mergeDevice);
 ws.on("report", mergeDevice);

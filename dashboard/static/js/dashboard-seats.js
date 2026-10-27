@@ -294,14 +294,10 @@ function seatRow(seat) {
   const d = occupant(seat),
     state = d?.virtual ? "sim" : d?.online ? "live" : "empty";
   const uid = d?.uid || "";
-  const heartbeatAt = heartbeats.get(uid);
   const name = seat.name || `Seat ${seat.id}`;
   const classes = `${Number(seat.id) === Number(selectedSeat) ? "selected" : ""} ${badgeTone(d?.patch_badge)}`;
   const tone = state === "live" ? "online" : state === "sim" ? "sim" : "offline";
-  const heartbeat = uid
-    ? `<i class="heartbeat-blip${heartbeatAt ? " pulse" : ""}" ` +
-      `${heartbeatAt ? `data-heartbeat-at="${esc(heartbeatAt)}"` : ""} aria-hidden="true"></i>`
-    : "";
+  const heartbeat = uid ? heartbeatBlip(uid) : "";
   return [
     `<div class="device-row seat-row ${classes}" data-uid="${esc(uid)}" data-seat-id="${seat.id}"`,
     ` data-seat-filter="${esc(String(name).trim().toLowerCase())}" role="button" tabindex="0">`,

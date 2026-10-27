@@ -11,6 +11,20 @@ let groupMessage = "";
 let muted = false;
 let master = 1.0;
 const heartbeats = new Map();
+// Local receipt times (performance.now) of the last heartbeat per uid. A
+// re-render only shows a pulse that a real heartbeat started in the last
+// HEARTBEAT_PULSE_MS, resumed part-way, so clicking a device does not flash
+// every row.
+const heartbeatSeenAt = new Map();
+const HEARTBEAT_PULSE_MS = 550;
+function heartbeatBlip(uid) {
+  const heartbeatAt = heartbeats.get(uid);
+  const elapsed = performance.now() - (heartbeatSeenAt.get(uid) ?? -Infinity);
+  const pulsing = elapsed < HEARTBEAT_PULSE_MS;
+  return `<i class="heartbeat-blip${pulsing ? " pulse" : ""}"${
+    pulsing ? ` style="animation-delay:-${Math.round(elapsed)}ms"` : ""}${
+    heartbeatAt ? ` data-heartbeat-at="${esc(heartbeatAt)}"` : ""} aria-hidden="true"></i>`;
+}
 const seatBindingDrafts = new Map();
 const logDestinationDrafts = new Map(); // uid -> unsaved log destination choice
 let patchFilter = "";

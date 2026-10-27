@@ -1,7 +1,6 @@
 // Physical device roster, diagnostics, administration and live controls.
 function row(d, seat) {
   const status = d.online ? (Number(d.engine_alive) === 0 ? "crashed" : "online") : "offline";
-  const heartbeatAt = heartbeats.get(d.uid);
   const assignment = d.revoking_assignment ? "clearing assignment" : seat ? `bound · Seat ${seat.id}` : "unbound";
   const telemetry = [d.version, d.rssi != null ? `${d.rssi} dBm` : null].filter(Boolean).join(" · ");
   const classes = `${d.uid === selected ? "selected" : ""} ${badgeTone(d.patch_badge)}`;
@@ -9,7 +8,6 @@ function row(d, seat) {
     classes,
     d,
     status,
-    heartbeatAt,
     telemetry,
     assignment,
   });
@@ -611,10 +609,10 @@ function bindLogControls(d) {
   };
 }
 
-function deviceRosterButton({ classes, d, status, heartbeatAt, telemetry, assignment }) {
+function deviceRosterButton({ classes, d, status, telemetry, assignment }) {
   return [
     `<button class="device-row ${classes}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i>`,
-    `<i class="heartbeat-blip${heartbeatAt ? " pulse" : ""}" ${heartbeatAt ? `data-heartbeat-at="${esc(heartbeatAt)}"` : ""} aria-hidden="true"></i>`,
+    heartbeatBlip(d.uid),
     `<span><strong>${esc(Identity.primary(d, installation))}</strong>`,
     telemetry ? `<small>${esc(telemetry)}</small>` : "",
     `<small class="device-binding-badge">${esc(assignment)}</small>`,
