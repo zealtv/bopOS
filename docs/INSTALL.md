@@ -145,11 +145,15 @@ service, the validated hostname and Wi-Fi helpers, the initial device config, na
 sudoers rules that let the unprivileged node software reboot, power off, or
 apply a hostname or Wi-Fi list, and the USB auto-mount udev rule +
 mount unit (a stick is mounted at the stable path `/media/bopos-usb` so the
-node logging facility can write to it). Everything after this runs as `pi`;
-the mount itself needs no privilege at runtime.
+node logging facility can write to it). It also turns **Wi-Fi power save
+off** and keeps it off across reboots and reconnects (a NetworkManager
+drop-in plus a boot unit; a node with power save on lost its link mid-session
+and never rejoined). Everything after this runs as `pi`; the mount itself
+needs no privilege at runtime.
 
-> Existing fleet Pis that predate either helper or the USB auto-mount
-> need one manual `sudo bash/provision.sh` after updating; the routine
+> Existing fleet Pis that predate either helper, the USB auto-mount or the
+> Wi-Fi power-save setting need one manual `sudo bash/provision.sh` after
+> updating; check with `iw dev wlan0 get power_save` (expect `off`); the routine
 > **Update bopOS** action deliberately cannot install root-owned pieces.
 > `provision.sh` is idempotent — a re-run installs only the missing pieces.
 

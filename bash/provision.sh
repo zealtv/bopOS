@@ -24,6 +24,7 @@ install -o root -g root -m 0644 "$BOPOS_DIR/python/wifi_config.py" /usr/local/li
 install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-wifi" /usr/local/sbin/bopos-set-wifi
 "$SCRIPT_DIR/install-power-control.sh"
 "$SCRIPT_DIR/install-usb-automount.sh"
+"$SCRIPT_DIR/install-wifi-powersave.sh"
 chown -R pi:pi "$BOPOS_DIR"
 
 if [ ! -e "$CONFIG_FILE" ]; then

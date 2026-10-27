@@ -1,0 +1,15 @@
+[Unit]
+Description=bopOS Wi-Fi power save off
+# Belt and braces for 79-wifi-power-save: covers a node whose Wi-Fi is not
+# managed by NetworkManager (whose drop-in, bopos-wifi-powersave.conf, is the
+# main fix). Runs once wlan0 exists; a later reconnect is NetworkManager's job.
+BindsTo=sys-subsystem-net-devices-wlan0.device
+After=sys-subsystem-net-devices-wlan0.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'command -v iw >/dev/null 2>&1 || exit 0; iw dev wlan0 set power_save off'
+
+[Install]
+WantedBy=sys-subsystem-net-devices-wlan0.device
