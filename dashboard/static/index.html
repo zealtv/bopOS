@@ -206,6 +206,17 @@
         <aside class="device-sidebar">
           <div class="section-head"
             ><h2>Physical devices</h2
+            ><div class="device-roster-controls"
+            ><label class="device-filter"
+              >sort
+              <select id="device-sort" aria-label="Sort physical devices"
+                ><option value="name">name</option
+                ><option value="seat">seat</option
+                ><option value="status">online first</option
+                ><option value="signal">signal</option
+                ><option value="ip">IP</option
+                ><option value="patch">patch problems first</option></select
+              ></label
             ><label class="device-filter"
               >show
               <select id="device-filter" aria-label="Filter physical devices"
@@ -215,6 +226,7 @@
                 ><option value="bound">bound</option
                 ><option value="unbound">unbound</option></select
               ></label
+            ></div
             ></div
           >
           <div id="device-roster" class="device-roster-list"></div>

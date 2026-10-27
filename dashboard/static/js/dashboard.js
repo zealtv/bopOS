@@ -18,6 +18,17 @@ let distribution = { assets: [], patches: [] };
 let assetFeedback = "";
 let assetFeedbackPending = null;
 let deviceFilter = "all";
+// Roster order is chosen, never driven by heartbeats: sorting by last_seen made
+// rows swap places every few seconds. Name and uid break ties so equal keys
+// stay put. The choice is a per-viewer convenience.
+const DEVICE_SORT = "bopos.device-sort";
+let deviceSort = (() => {
+  try {
+    return localStorage.getItem(DEVICE_SORT) || "name";
+  } catch (_error) {
+    return "name";
+  }
+})();
 let editorPatchChoice = null;
 let manifestDraft = null;
 let manifestBaseline = null;
@@ -133,6 +144,34 @@ function mergeDevice(device) {
   }
   render();
 }
+const PATCH_PROBLEM_ORDER = ["failed", "timeout", "mismatch", "missing", "stale", "stale_unverified", "switching", "unknown", "current"];
+function sortDevices(devices, seats) {
+  const name = (d) => String(Identity.primary(d, installation) || d.uid);
+  const seatOf = new Map(seats.filter((seat) => seat.bound).map((seat) => [seat.bound, seat.id]));
+  const ipKey = (d) => (d.ip ? d.ip.split(".").map((part) => part.padStart(3, "0")).join(".") : "~");
+  const missingLast = (value) => (value == null ? Infinity : value);
+  const keys = {
+    seat: (a, b) => missingLast(seatOf.get(a.uid)) - missingLast(seatOf.get(b.uid)),
+    status: (a, b) => Number(b.online) - Number(a.online),
+    // Strongest first: -42 dBm before -49 dBm; unreported last.
+    signal: (a, b) => missingLast(a.rssi == null ? null : -a.rssi) - missingLast(b.rssi == null ? null : -b.rssi),
+    ip: (a, b) => ipKey(a).localeCompare(ipKey(b)),
+    patch: (a, b) => {
+      const rank = (d) => {
+        const index = PATCH_PROBLEM_ORDER.indexOf(d.patch_badge || "unknown");
+        return index < 0 ? PATCH_PROBLEM_ORDER.indexOf("unknown") : index;
+      };
+      return rank(a) - rank(b);
+    },
+  };
+  const primary = keys[deviceSort] || (() => 0);
+  return [...devices].sort(
+    (a, b) =>
+      primary(a, b) ||
+      name(a).localeCompare(name(b), undefined, { numeric: true, sensitivity: "base" }) ||
+      String(a.uid).localeCompare(String(b.uid)),
+  );
+}
 function render() {
   $("#project-bar-project").textContent = installation.project || "—";
   $("#project-bar-site").textContent = installation.current_site || "—";
@@ -142,9 +181,7 @@ function render() {
   const devices = Object.values(installation.devices || {});
   const seats = Object.values(installation.seats || {}).sort((a, b) => a.id - b.id);
   const bound = new Set(seats.map((s) => s.bound).filter(Boolean));
-  const physical = devices
-    .filter((d) => !d.virtual)
-    .sort((a, b) => Number(b.online) - Number(a.online) || (Number(b.last_seen) || 0) - (Number(a.last_seen) || 0));
+  const physical = sortDevices(devices.filter((d) => !d.virtual), seats);
   const visible = physical.filter((device) => {
     if (deviceFilter === "online" || deviceFilter === "offline") return !!device.online === (deviceFilter === "online");
     if (deviceFilter === "bound" || deviceFilter === "unbound") return bound.has(device.uid) === (deviceFilter === "bound");
@@ -184,6 +221,16 @@ function render() {
     input.onchange = () => ws.send("update_seat", { id: Number(el.dataset.seatId), name: input.value });
   });
   document.querySelectorAll(".device-row:not(.seat-row)").forEach((el) => (el.onclick = () => select(el.dataset.uid)));
+  $("#device-sort").value = deviceSort;
+  $("#device-sort").onchange = (event) => {
+    deviceSort = event.target.value;
+    try {
+      localStorage.setItem(DEVICE_SORT, deviceSort);
+    } catch (_error) {
+      /* private mode: the order just forgets */
+    }
+    render();
+  };
   $("#device-filter").value = deviceFilter;
   $("#device-filter").onchange = (event) => {
     deviceFilter = event.target.value;
