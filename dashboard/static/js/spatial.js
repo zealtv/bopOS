@@ -4,6 +4,15 @@
 (function () {
   const NS = "http://www.w3.org/2000/svg";
   const TRAY_GAP = 0.3, TRAY_H = 1.2, PAD = 0.6, ELEMENT_R = 0.2, MOVE_MIN = 0.08;
+  // Unplaced Seats sit in rows across the tray, which grows a row at a time
+  // so none fall off its edge (81-seats-tab/1-unplaced-tray-wraps).
+  const TRAY_X0 = 0.7, TRAY_STEP = 1.7, TRAY_ROW = 0.9;
+
+  function trayLayout(W, count) {
+    const perRow = Math.max(1, Math.floor((W - 2 * TRAY_X0) / TRAY_STEP) + 1);
+    const rows = Math.max(1, Math.ceil(count / perRow));
+    return {perRow, height: TRAY_H + (rows - 1) * TRAY_ROW};
+  }
   const LISTENER_RANGE_MIN = 0.5; // audition-falloff/2-range-widget floor
   const LISTENER_RANGE_DEFAULT = 3.0; // matches state.py LISTENER_RANGE_DEFAULT
   // 22-listener-range-ux: heading and range are disjoint gestures. The tip is a
@@ -63,7 +72,9 @@
     const keepListenerFocus = !!document.activeElement?.closest?.("g[data-listener]");
     const room = installation.room || {width: 10, depth: 8};
     const W = Number(room.width) || 10, D = Number(room.depth) || 8;
-    svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${W + 2 * PAD} ${D + TRAY_GAP + TRAY_H + 2 * PAD}`);
+    const seats = Object.values(installation.seats || {}).sort((a,b)=>Number(a.id)-Number(b.id));
+    const tray = trayLayout(W, seats.filter(seat => !(seat.positions || []).some(Array.isArray)).length);
+    svg.setAttribute("viewBox", `${-PAD} ${-PAD} ${W + 2 * PAD} ${D + TRAY_GAP + tray.height + 2 * PAD}`);
     svg.replaceChildren();
     const defs = el("defs", {}, svg);
     const clip = el("clipPath", {id: "spatial-room-clip"}, defs);
@@ -76,7 +87,7 @@
     el("line", {x1: -0.35, y1: 0, x2: 0.35, y2: 0}, originGroup);
     el("line", {x1: 0, y1: -0.35, x2: 0, y2: 0.35}, originGroup);
     el("text", {x: 0.22, y: 0.38}, originGroup).textContent = "0,0";
-    el("rect", {x: 0, y: D + TRAY_GAP, width: W, height: TRAY_H, class: "tray"}, svg);
+    el("rect", {x: 0, y: D + TRAY_GAP, width: W, height: tray.height, class: "tray"}, svg);
     el("text", {x: 0.15, y: D + TRAY_GAP + 0.38, class: "tray-label"}, svg).textContent = "UNPLACED";
 
     // One coloured falloff field per point sits behind constant device dots.
@@ -89,7 +100,6 @@
     }
 
     const devices = installation.devices || {};
-    const seats = Object.values(installation.seats || {}).sort((a,b)=>Number(a.id)-Number(b.id));
     const visibleSlots = (groupView.visibleSlots || groupView.visible || []).slice(0, 4);
     const visibleGroups = visibleSlots.filter(id => id != null).map(Number);
     const focusedGroup = groupView.focused == null ? null : Number(groupView.focused);
@@ -114,7 +124,8 @@
       el("title", {}, node).textContent = `Seat ${seat.id} · ${membershipNames.join(", ") || "No groups"}`;
       const positions = (seat.positions || []).filter(Array.isArray);
       if (!positions.length) {
-        positions.push([0.7 + 1.7 * slot++, D + TRAY_GAP + TRAY_H * 0.62]);
+        const row = Math.floor(slot / tray.perRow), column = slot++ % tray.perRow;
+        positions.push([TRAY_X0 + TRAY_STEP * column, D + TRAY_GAP + TRAY_H * 0.62 + TRAY_ROW * row]);
       }
       if (positions.length > 1) {
         el("line", {x1: positions[0][0], y1: positions[0][1],
