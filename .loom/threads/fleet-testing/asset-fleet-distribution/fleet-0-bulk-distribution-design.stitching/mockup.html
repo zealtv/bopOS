@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="../../../../../dashboard/static/css/style.css">
+<style>
+/* Mockup-only styles for the proposed send panel and All chip. */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--control);color:var(--text);font-size:12px}
+.chip[aria-pressed=true]{border-color:var(--accent);background:var(--selected)}
+.chip[disabled]{opacity:.45}
+.bar{height:8px;border-radius:4px;background:var(--deep);border:1px solid var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent-cyan)}
+.bar.indet>i{width:30%;background:repeating-linear-gradient(90deg,var(--accent-cyan) 0 8px,transparent 8px 14px)}
+.send-panel{display:grid;gap:10px}
+.send-overall{display:grid;gap:6px}
+.send-job{display:grid;grid-template-columns:minmax(140px,220px) 100px 1fr auto;gap:12px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface-bar);font-size:13px}
+.send-job .dim{font-size:12px}
+.fleet-sum{color:var(--dim);font-size:12px}
+@media(max-width:760px){.send-job{grid-template-columns:1fr auto}.send-job .bar,.send-job .meta{grid-column:1/-1}}
+</style></head>
+<body><main class="tab-panel assets-tab">
+<section><div class="section-head"><h3>Target device</h3></div>
+<div class="chips" style="margin-top:8px">
+<button class="chip" aria-pressed="true">All · 6 devices</button>
+<button class="chip">Bria Fox</button><button class="chip">Eden Pearl</button><button class="chip">Cara Moss</button>
+<button class="chip">Abel Fern</button><button class="chip">Dora Vale</button><button class="chip">Bea Lark</button>
+<button class="chip" disabled title="offline">Finn Reed · offline</button>
+</div></section>
+
+<section class="send-panel"><div class="section-head"><div><h3>Sending</h3><p class="dim">One device at a time</p></div>
+<button>Cancel remaining</button></div>
+<div class="send-overall"><div class="fleet-sum">2 of 6 devices finished · 0.73 of 2.6 GB</div><div class="bar"><i style="width:28%"></i></div></div>
+<div class="send-job"><strong>Bria Fox</strong><span class="asset-state asset-state-current">done</span><div class="bar"><i style="width:100%"></i></div><span class="dim meta">kitechoir · 490 MB</span></div>
+<div class="send-job"><strong>Cara Moss</strong><span class="asset-state">skipped</span><div class="bar"><i style="width:0"></i></div><span class="dim meta">already current</span></div>
+<div class="send-job"><strong>Eden Pearl</strong><span class="asset-state asset-state-fetching">fetching</span><div class="bar"><i style="width:43%"></i></div><span class="dim meta">43% · 212 of 490 MB</span></div>
+<div class="send-job"><strong>Abel Fern</strong><span class="asset-state">waiting</span><div class="bar"><i style="width:0"></i></div><span class="dim meta">kitechoir</span></div>
+<div class="send-job"><strong>Dora Vale</strong><span class="asset-state asset-state-timed-out">failed</span><div class="bar"><i style="width:12%"></i></div><span class="dim meta">no word for 120 s · <button>Retry</button></span></div>
+<div class="send-job"><strong>Bea Lark</strong><span class="asset-state">waiting</span><div class="bar"><i style="width:0"></i></div><span class="dim meta">kitechoir</span></div>
+</section>
+
+<section><div class="section-head"><div><h3>Host catalog</h3><p class="dim">2 slots · 6 target devices</p></div></div>
+<div class="asset-catalog" style="margin-top:10px">
+<article class="asset-row"><div class="asset-row-main"><strong>kitechoir</strong><dl class="asset-facts"><dt>Files</dt><dd>212</dd><dt>Size</dt><dd>490.2 MB</dd></dl></div>
+<span class="asset-state asset-state-fetching">sending</span><div class="asset-row-action"><span class="fleet-sum">2 current · 3 stale · 1 absent</span></div></article>
+<article class="asset-row"><div class="asset-row-main"><strong>kc-test</strong><dl class="asset-facts"><dt>Files</dt><dd>31</dd><dt>Size</dt><dd>84.0 MB</dd></dl></div>
+<span class="fleet-sum">4 current · 2 stale</span><div class="asset-row-action"><button>Send to 2</button></div></article>
+</div></section>
+</main></body></html>
