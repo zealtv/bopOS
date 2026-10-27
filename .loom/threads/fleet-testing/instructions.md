@@ -8,7 +8,7 @@ plus one ready data task (the Northern Broadwalk site plan).
 
 | child | what's left | status |
 |---|---|---|
-| `asset-fleet-distribution` | design + prove multi-node asset rollout | parked by Bob |
+| `asset-fleet-distribution` | design + prove multi-node asset rollout | design un-parked 2026-10-27 |
 | `clock-sync` | measure event spread on real installation Wi-Fi | needs rig |
 | `spatial-audio` | audible multi-node sweep; Northern Broadwalk venue | site plan ready; sweep needs rig |
 

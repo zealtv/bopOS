@@ -1,6 +1,6 @@
 # asset-fleet-distribution
 
-**Status:** parked by Bob, 2026-07-15
+**Status:** parked by Bob 2026-07-15; un-parked 2026-10-27 (one-off sends, one device at a time; see `fleet-0`)
 **Goal:** safe, observable rollout of asset packs across a whole fleet. The
 single-device Assets workflow already ships; this is the fleet layer on top.
 
@@ -20,6 +20,6 @@ type.
 
 ## Stitches
 
-- `fleet-0-bulk-distribution-design` — the fleet design, for Bob.
+- `fleet-0-bulk-distribution-design` — the fleet design, for Bob. Un-parked 2026-10-27 with Bob's rulings.
 - `fleet-1-node-staged-slot-swap` — atomic slot updates on the node. Optional
   hardening; independent and claimable first.
