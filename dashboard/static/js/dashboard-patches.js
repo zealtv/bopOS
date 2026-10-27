@@ -347,12 +347,14 @@ function eventFieldRow(field, eventIndex, index) {
 }
 function eventManifestRow(declaration, index) {
   const fields = Array.isArray(declaration.fields) ? declaration.fields : [];
+  const path = Array.isArray(declaration.path) ? declaration.path.join("/") : "";
   return `<div class="manifest-row manifest-event" data-event-index="${index}">
     <button type="button" class="manifest-drag-handle" data-manifest-drag="events" data-manifest-drag-index="${
       index
       }" aria-label="Drag event ${
-      esc(declaration.name || index + 1)
+      esc(paramIdentity(declaration) || index + 1)
       }">⋮⋮</button>
+    <label>path<input data-manifest-field="path" type="text" value="${esc(path)}" placeholder="e.g. point/0" autocomplete="off"></label>
     <label>name<input data-manifest-field="name" type="text" value="${esc(declaration.name || "")}" autocomplete="off"></label>
     <label class="manifest-check"><input data-manifest-field="dashboard" type="checkbox" ${declaration.dashboard === true ? "checked" : ""}> Remote</label>
     <button data-add-field="${index}" ${fields.length >= MAX_EVENT_FIELDS ? "disabled" : ""}>Add field</button>
@@ -621,7 +623,7 @@ function renderManifestEditor(source) {
     renderManifestEditor(source);
   };
   addEvent.onclick = () => {
-    manifestDraft.events.push({ name: "", fields: [], dashboard: false });
+    manifestDraft.events.push({ path: [], name: "", fields: [], dashboard: false });
     manifestDirty = true;
     renderManifestEditor(source);
   };

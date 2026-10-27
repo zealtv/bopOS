@@ -165,12 +165,30 @@ def main():
                       order == ["folder", "density", "mode", "count", "play2end"],
                       repr(order))
 
+                # An event qualifies by path like a param (`point/0/start`).
+                page.click("#manifest-add-event")
+                start_row = page.locator('#manifest-events .manifest-event').nth(2)
+                start_row.locator(
+                    ':scope > label input[data-manifest-field="path"]').fill("point/0")
+                start_row.locator(
+                    ':scope > label input[data-manifest-field="name"]').fill("start")
+                page.locator('#manifest-events [data-add-field="2"]').click()
+                start_row.locator('.manifest-field [data-manifest-field="name"]').fill("file")
+                start_row.locator('.manifest-field [data-manifest-field="kind"]'
+                                  ).select_option("text")
+
                 page.click("#manifest-save")
                 page.wait_for_function(
                     "() => { const text=document.querySelector('#manifest-feedback')"
                     "?.textContent||''; return text && !text.includes('Saving manifest'); }")
                 with open(manifest, encoding="utf-8") as source:
                     saved = json.load(source)
+                check("an event saves its path",
+                      saved["events"][2] == {
+                          "name": "start", "path": ["point", "0"],
+                          "fields": [{"name": "file", "kind": "text", "optional": False}],
+                          "dashboard": False},
+                      repr(saved["events"][2:]))
                 play = next((event for event in saved["events"]
                              if event["name"] == "play"), {})
                 expected = [
@@ -215,6 +233,10 @@ def main():
                       == [("folder", "text", False, ""), ("density", "float", True, "1"),
                           ("mode", "enum", True, "1"), ("count", "int", True, "3"),
                           ("play2end", "toggle", True, "0")], repr(loaded))
+                check("a reloaded editor shows the event path",
+                      page.locator('#manifest-events .manifest-event[data-event-index="2"]'
+                                   ' > label input[data-manifest-field="path"]'
+                                   ).input_value() == "point/0")
 
                 # A required field after an optional one is the validator's
                 # call; the editor shows its words rather than saving.
@@ -259,6 +281,11 @@ def main():
                           "node => [...node.querySelectorAll('.live-event-field-name')]"
                           ".map(label => label.textContent).join(',')")
                       == "folder,density,mode,count,play2end")
+                check("a path event fires from its branch in the Control tab",
+                      page.locator(
+                          '#control-column-host [data-param-branch="point/0"]'
+                          ' .live-param-event[data-live-scope="all"]'
+                          '[data-param-path="point/0/start"]').count() == 1)
                 kinds = row.evaluate(
                     "node => [...node.querySelectorAll('[data-event-field]')]"
                     ".map(control => control.tagName + ':' + control.dataset.fieldKind"
