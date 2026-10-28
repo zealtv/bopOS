@@ -20,6 +20,6 @@ type.
 
 ## Stitches
 
-- `fleet-0-bulk-distribution-design` — the fleet design, for Bob. Un-parked 2026-10-27 with Bob's rulings.
+- `fleet-0-bulk-distribution-design` — tied 2026-10-28: Bob chose option B (queue + dashboard-counted bytes, no wire change). Build: `82-fleet-asset-send`.
 - `fleet-1-node-staged-slot-swap` — atomic slot updates on the node. Optional
   hardening; independent and claimable first.
