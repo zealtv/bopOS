@@ -93,6 +93,8 @@ paths are the precedent; follow their shape file by file.
 Slices 1–6 are built and committed. The helper's network-manager backend reports
 `unavailable` behind a marked seam. Still owed:
 - Slice 0 with a Pi up: choose the network manager and fill in the helper backend.
+  Observed 2026-10-28 on Bria Fox (Pi OS Trixie): NetworkManager is active and
+  manages wlan0 (`79-wifi-power-save/2-pi-power-save-check.tied/verification.md`).
 - The real-Pi switchover rehearsal (verification gates).
 - The editorial fix to OSC-CONTRACT (the `installation.json` → `project.json` mention, now ~line 859).
 

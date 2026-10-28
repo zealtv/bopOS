@@ -85,7 +85,9 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
-1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. The helper
+1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. (Observed
+   2026-10-28 on Bria Fox, Pi OS Trixie: NetworkManager is active and
+   manages wlan0; see `79-wifi-power-save/2-pi-power-save-check.tied`.) The helper
    backend is a marked seam that reports `unavailable` until then. →
    `33b/2-network-config-implementation.waiting`.
 2. **Wi-Fi switchover rehearsal**: both APs up, push the list, disable
@@ -132,6 +134,13 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `/bop/master` fades; `/bop/mute` silences. Software half:
     `80-osc-input/7-osc-input-port` (not built as of 2026-10-26). →
     `80-osc-input/10-qtable-rig-check.waiting`.
+13. **Wi-Fi power save soak (79/2)**: with a provisioned node (Bria Fox,
+    provisioned 2026-10-28), run a few hours with heartbeats watched on the
+    dashboard, ideally with an access-point restart mid-run. Does the node
+    stay reachable or recover unaided, with power save still `off` after the
+    reconnect? The reboot check is recorded in
+    `79-wifi-power-save/2-pi-power-save-check`; whether bopOS should nudge
+    a dead link waits on this (`79/3`).
 
 ## Ruled
 

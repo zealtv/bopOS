@@ -11,7 +11,8 @@ a node; Claude can't SSH in, because nodes take password authentication only.
 3. `iw dev wlan0 get power_save` → expect `off`. Reboot, then check again.
    Toggle the connection (`nmcli con down/up …` or an access-point restart),
    then check again.
-4. Soak for a few hours with heartbeats watched on the dashboard, ideally
+4. (Moved to `76-bob-review` hardware check 13 by Bob, 2026-10-28; tie
+   this stitch on steps 1–3.) Soak for a few hours with heartbeats watched on the dashboard, ideally
    with an access-point restart mid-run. Record whether the node stays
    reachable or recovers unaided.
 
