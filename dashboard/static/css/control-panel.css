@@ -1529,6 +1529,29 @@
 .live-card .dot.ok {
   background:var(--green);
 }
+/* Remote: the Seat's dot identifies its device (83). The dot stays 7px; the
+   transparent button around it is the finger-sized target. Negative margins
+   keep the head's height unchanged. */
+.live-card .dot-identify {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:28px;
+  height:28px;
+  margin:-8px -8px -8px -10px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  cursor:pointer;
+}
+.live-card .dot.identify-pulse {
+  animation:live-card-identify-pulse .6s ease-out 2;
+}
+@keyframes live-card-identify-pulse {
+  from { box-shadow:0 0 0 0 var(--accent-cyan); }
+  to { box-shadow:0 0 0 9px transparent; }
+}
 /* The card's overflow (D8, `08/4/3-chrome-demotions`). `Send all` used to be a
    permanent button in the head, and on Control a `Device setup` disclosure sat
    at the foot as well: six chrome controls per card, times three cards in a

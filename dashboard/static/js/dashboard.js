@@ -25,6 +25,23 @@ function heartbeatBlip(uid) {
     pulsing ? ` style="animation-delay:-${Math.round(elapsed)}ms"` : ""}${
     heartbeatAt ? ` data-heartbeat-at="${esc(heartbeatAt)}"` : ""} aria-hidden="true"></i>`;
 }
+// Clicking a roster status dot identifies the device (83). The pulse is
+// timed from the click, like heartbeatBlip, so a re-render mid-pulse keeps it.
+const identifySentAt = new Map();
+const IDENTIFY_PULSE_MS = 1200;
+function identifyDot(d, status) {
+  const canIdentify = d.online && !d.virtual;
+  const elapsed = performance.now() - (identifySentAt.get(d.uid) ?? -Infinity);
+  const pulsing = elapsed < IDENTIFY_PULSE_MS;
+  return `<i class="dot ${status}${canIdentify ? " identify-dot" : ""}${pulsing ? " identify-pulse" : ""}"${
+    pulsing ? ` style="animation-delay:-${Math.round(elapsed)}ms"` : ""}${
+    canIdentify ? ` data-identify-uid="${esc(d.uid)}" title="Identify"` : ""}></i>`;
+}
+function sendIdentify(uid) {
+  identifySentAt.set(uid, performance.now());
+  ws.send("identify", { uid });
+  render();
+}
 const seatBindingDrafts = new Map();
 const logDestinationDrafts = new Map(); // uid -> unsaved log destination choice
 let patchFilter = "";
@@ -234,6 +251,15 @@ function render() {
     const input = el.querySelector("[data-seat-name]");
     input.onchange = () => ws.send("update_seat", { id: Number(el.dataset.seatId), name: input.value });
   });
+  // The dot sits inside the row's button, so it stops the click before the
+  // row selects; keyboard users have Identify in the device's Actions.
+  document.querySelectorAll("#device-roster [data-identify-uid]").forEach(
+    (dot) =>
+      (dot.onclick = (event) => {
+        event.stopPropagation();
+        sendIdentify(dot.dataset.identifyUid);
+      }),
+  );
   document.querySelectorAll(".device-row:not(.seat-row)").forEach((el) => (el.onclick = () => select(el.dataset.uid)));
   $("#device-sort").value = deviceSort;
   $("#device-sort").onchange = (event) => {

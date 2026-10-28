@@ -38,6 +38,7 @@
     // The desktop can hand off device lifecycle to its Devices tab; Remote
     // instead enables the per-card commands because it has no such tab.
     openDevice,
+    identify,
   }) {
     if (!host) throw new Error("ControlColumn requires a host");
     host.classList.add("control-column");
@@ -46,6 +47,11 @@
     const deriveAllTargets = capabilities.deriveAllTargets ?? false;
     const showDeviceCommands = capabilities.deviceCommands ?? false;
     const showDeviceHandoff = capabilities.deviceHandoff ?? false;
+    // Remote: a Seat card names its device, and its status dot identifies it
+    // (83-identify-from-status-dot). Control keeps the plain card.
+    const identifyDevices = capabilities.identifyDevices ?? false;
+    const identifySentAt = new Map();
+    const IDENTIFY_PULSE_MS = 1200;
     const groupSlot = capabilities.groupSlot || (() => -1);
     host.classList.add("target-card");
     if (deriveAllTargets) host.classList.add("control-column-derived");
@@ -316,6 +322,18 @@
       return `<details class="device-commands" data-command-key="${esc(key)}" ${openCommandTargets.has(key) ? "open" : ""}><summary>Device commands</summary><div>${commands}</div></details>`;
     }
 
+    function seatDot(device, live, deviceName) {
+      if (!identifyDevices || !identify || !device || device.virtual) {
+        return `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>`;
+      }
+      // Timed from the click, so a heartbeat re-render mid-pulse keeps it.
+      const elapsed = performance.now() - (identifySentAt.get(device.uid) ?? -Infinity);
+      const pulsing = elapsed < IDENTIFY_PULSE_MS;
+      const dot = `<i class="dot ${live ? "ok" : ""}${pulsing ? " identify-pulse" : ""}"${
+        pulsing ? ` style="animation-delay:-${Math.round(elapsed)}ms"` : ""} aria-hidden="true"></i>`;
+      return `<button type="button" class="dot-identify" data-identify-uid="${esc(device.uid)}" title="Identify ${esc(deviceName)}" aria-label="Identify ${esc(deviceName)}">${dot}</button>`;
+    }
+
     function liveCard(scope, item, members, declarations, schemaAvailable, patch) {
       const targetId = scope === "all" ? null : Number(item.id);
       const empty = members.length === 0;
@@ -324,11 +342,13 @@
       const name = scope === "all"
         ? "All Seats"
         : (item.name || `${scope === "group" ? "Group" : "Seat"} ${item.id}`);
+      const deviceName = identifyDevices && device && window.DeviceIdentity
+        ? window.DeviceIdentity.primary(device, state()) : "";
       const meta = scope === "all"
         ? `${members.length} Seats`
         : scope === "group"
           ? `g${item.id} · ${members.length} ${members.length === 1 ? "Seat" : "Seats"}`
-          : `Seat ${item.id} · ${device ? (device.online ? "online" : "offline") : (item.bound ? "offline" : "unbound")}`;
+          : `Seat ${item.id} · ${deviceName ? `${deviceName} · ` : ""}${device ? (device.online ? "online" : "offline") : (item.bound ? "offline" : "unbound")}`;
       const controls = declarations.length
         ? `<div class="promoted-controls">${surface.tree(scope, targetId, members, declarations, empty)}</div>`
         : "";
@@ -339,7 +359,7 @@
       const identity = deriveAllTargets ? identityClasses(scope, targetId) : "";
       const identityCss = deriveAllTargets ? identityStyle(scope, targetId) : "";
       return `<article class="live-card ${scope}-card${identity}${emptyGroup ? " empty-group" : ""}${scope === "seat" && !live ? " offline" : ""}"${identityCss} data-live-scope="${scope}"${targetId == null ? "" : ` data-live-id="${targetId}"`}${emptyGroup ? ' aria-disabled="true"' : ""}>
-        <div class="live-card-head">${scope === "seat" ? `<i class="dot ${live ? "ok" : ""}" aria-hidden="true"></i>` : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
+        <div class="live-card-head">${scope === "seat" ? seatDot(device, live, deviceName) : ""}<span class="name"><strong>${esc(name)}</strong><small>${esc(meta)}</small></span>${cardOverflow(scope, targetId, device, schemaAvailable)}</div>
         ${controls}${targetCommands(scope, targetId)}
       </article>`;
     }
@@ -458,6 +478,13 @@
         details.ontoggle = () => {
           if (details.open) openOverflows.add(details.dataset.overflowKey);
           else openOverflows.delete(details.dataset.overflowKey);
+        };
+      });
+      cards.querySelectorAll("[data-identify-uid]").forEach(button => {
+        button.onclick = () => {
+          identifySentAt.set(button.dataset.identifyUid, performance.now());
+          identify?.(button.dataset.identifyUid);
+          render();
         };
       });
       cards.querySelectorAll("[data-open-device]").forEach(button => {

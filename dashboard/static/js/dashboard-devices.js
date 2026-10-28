@@ -611,7 +611,7 @@ function bindLogControls(d) {
 
 function deviceRosterButton({ classes, d, status, telemetry, assignment }) {
   return [
-    `<button class="device-row ${classes}" data-uid="${esc(d.uid)}"><i class="dot ${status}"></i>`,
+    `<button class="device-row ${classes}" data-uid="${esc(d.uid)}">${identifyDot(d, status)}`,
     heartbeatBlip(d.uid),
     `<span><strong>${esc(Identity.primary(d, installation))}</strong>`,
     telemetry ? `<small>${esc(telemetry)}</small>` : "",

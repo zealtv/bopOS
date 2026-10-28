@@ -34,6 +34,7 @@ const column = window.ControlColumn.create({
     deriveAllTargets: true,
     deviceCommands: true,
     deviceHandoff: false,
+    identifyDevices: true,
     groupSlot: groupId => window.GroupSlots.forGroup(
       groupId, Object.values(installation.groups || {})),
   },
@@ -63,6 +64,7 @@ const column = window.ControlColumn.create({
   },
   replay: payload => ws.send("replay_live_params", payload),
   sendCommand: payload => ws.send("action", payload),
+  identify: uid => ws.send("identify", {uid}),
 });
 
 ws.on("connection", connected => {

@@ -47,12 +47,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     "Close panel". Values show at Pd precision (six significant figures).
     Say if anything reads wrong.
 
-16. **Editor input label (59/6)**: built and merged; parked until you OK the
-    label. In Patch Edit, a new picker under "Manifest & editor" reads
-    **"Input source"**: "—" (none), "simulated", or a device such as
-    "Ciro Toast · live". Screenshots: `screenshots/editor-input-59-6-*.png`.
-    OK as is?
-
 17. **Node process ownership (67/19)**: proposal in
     `67-repair-pass/19-node-process-ownership.waiting/proposal.md` (summary at
     the top). systemd owns the daemon, IO bridge and engine as three units
@@ -162,3 +156,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 11. Clock-sync traffic (71/1) — Bob, 2026-10-04: **approve stage A** (unicast offsets), **defer stage B** → building A in `71-network-traffic/1-clock-sync-traffic`.
 12. Monitor transport (71/2) — Bob, 2026-10-04 via Tengu: **OK all**; "prefer simple and elegant solutions where possible; better to remove than add" (also in glean `fix-and-simplify-first`). New labels come back with screenshots.
 13. Editor input on hardware (59/6, was hardware check 8) — **tested OK** (Bob, 2026-10-28) → `59-i2c-inventory/6-live-sensor-in-patch-edit` tied.
+14. Editor input label (59/6, was open item 16) — **"Input source" is fine** (Bob, 2026-10-28) → `59-i2c-inventory/6-live-sensor-in-patch-edit.tied/bob-check.md`.
