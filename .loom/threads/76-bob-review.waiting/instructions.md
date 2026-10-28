@@ -114,10 +114,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
    Monitor; values track the sensor, OLED text writes land, the pop-out
    window keeps streaming, and Performance disables the controls. Chromium
    only so far; Safari/Firefox and touch are untested.
-8. **Editor input (59/6)**: with Pd running in Patch Edit, pick a real
-   device; the patch sees its sensor values on 6662 as it would on the Pi.
-   Pick simulated; slider and pad moves reach the patch, and patch OLED
-   writes show in the preview.
 9. **USB helper (67/17)**: reprovision a Pi with no stick inserted; the
    helper is root-owned in `/usr/local/sbin`; one stick mounts, a second is
    ignored, removing the second leaves the first mounted. Checklist in
@@ -165,3 +161,4 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 10. Header wraps to two rows at 1440px with the Performance toggle: **keep it** (Bob, 2026-10-04, after seeing the screenshots on Tengu; `screenshots/header-performance-*-1440.png`) → `77-performance-mode`.
 11. Clock-sync traffic (71/1) — Bob, 2026-10-04: **approve stage A** (unicast offsets), **defer stage B** → building A in `71-network-traffic/1-clock-sync-traffic`.
 12. Monitor transport (71/2) — Bob, 2026-10-04 via Tengu: **OK all**; "prefer simple and elegant solutions where possible; better to remove than add" (also in glean `fix-and-simplify-first`). New labels come back with screenshots.
+13. Editor input on hardware (59/6, was hardware check 8) — **tested OK** (Bob, 2026-10-28) → `59-i2c-inventory/6-live-sensor-in-patch-edit` tied.
