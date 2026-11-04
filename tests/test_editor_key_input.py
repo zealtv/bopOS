@@ -13,6 +13,7 @@ for path in (REPO, REPO / 'dashboard'):
 from python import io_protocol  # noqa: E402
 from editor_input import EditorInput  # noqa: E402
 from pythonosc.osc_message import OscMessage  # noqa: E402
+from pyOSC3 import OSCBundle, OSCMessage  # noqa: E402
 
 sys.path.insert(0, str(REPO / 'python' / 'io'))
 import sys_input  # noqa: E402
@@ -106,6 +107,46 @@ class EditorDoorTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         self.send(None, 'key', 'a', 1)
                 self.assertEqual(self.sender.sent, [])
+
+
+
+class LiveDeviceInputTests(unittest.TestCase):
+    """A device's keys arrive in its leased stream bundle (v1.25)."""
+    def setUp(self):
+        self.state = types.SimpleNamespace(performance=False, data={'editor': {'generation': 3}})
+        self.editor = EditorInput(types.SimpleNamespace(supervisor_mode='edit', state=self.state))
+        self.editor.source = 'uid-a'
+        self.editor.sender = self.sender = BundleSender()
+
+    def forward(self, *messages):
+        bundle = OSCBundle()
+        for address, values in messages:
+            message = OSCMessage(address)
+            for value in values:
+                message.append(value)
+            bundle.append(message)
+        self.editor.forward(bundle.getBinary(), {})
+
+    def test_bundles_pass_unchanged_and_held_keys_release_with_the_source(self):
+        self.forward(('/io/key', ['q', 1]), ('/io/mouse', ['left', 1]), ('/io/mouse', ['xy', .5, .5]))
+        self.forward(('/io/key', ['w', 1]), ('/io/key', ['w', 0]), ('/io/mouse', ['wheel', 1]))
+        self.assertEqual(len(self.sender.bundles), 2)
+        self.assertEqual(set(self.editor.pressed), {('/io/key', 'q'), ('/io/mouse', 'left')})
+        self.editor.release_input()
+        self.assertEqual(sorted(self.sender.sent), [('/io/key', ['q', 0]), ('/io/mouse', ['left', 0])])
+        self.assertEqual(self.editor.pressed, {})
+
+
+class BundleSender(Sender):
+    def __init__(self):
+        super().__init__()
+        self.bundles = []
+
+    def sendto(self, data, address):
+        if data.startswith(b'#bundle'):
+            self.bundles.append(data)
+        else:
+            super().sendto(data, address)
 
 
 if __name__ == '__main__':

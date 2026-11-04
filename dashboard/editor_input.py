@@ -6,6 +6,7 @@ import socket
 from pyOSC3 import OSCBundle, OSCMessage
 from pythonosc.osc_packet import OscPacket, ParseError
 from python import io_catalog, io_protocol
+from python.io_stream import INPUT_ADDRESSES, decode_bundle
 
 
 class EditorInput(asyncio.DatagramProtocol):
@@ -99,6 +100,14 @@ class EditorInput(asyncio.DatagramProtocol):
     def forward(self, bundle, _values):
         if self.allowed and self.source not in (None, 'simulated'):
             self.sender.sendto(bundle, ('127.0.0.1', 6662))
+            # The device's keys and buttons (v1.25): note what is held, so a
+            # lost source can't leave it down in the audition engine.
+            for row in decode_bundle(bundle):
+                if row[0] in INPUT_ADDRESSES and len(row) == 4 and row[2] not in ('wheel', 'hwheel'):
+                    if row[3]:
+                        self.pressed[row[0], row[2]] = self.source
+                    else:
+                        self.pressed.pop((row[0], row[2]), None)
 
     def set_value(self, data, owner):
         if not self.allowed or self.source != 'simulated':

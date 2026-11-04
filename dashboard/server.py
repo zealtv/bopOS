@@ -338,6 +338,9 @@ class Dashboard(WSHandlers):
                     device["online"] = False
                     # A transfer cannot survive the node it was running on.
                     self.osc.strand_device_fetches(uid)
+                    # Keys held on a vanished device must not stay down in Patch Edit.
+                    if self.editor_input.source == uid:
+                        self.editor_input.release_input()
                     await self.broadcast("device_offline", {"uid": uid})
 
     async def websocket(self, ws):

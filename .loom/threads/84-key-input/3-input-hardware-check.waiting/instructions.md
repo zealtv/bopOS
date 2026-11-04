@@ -23,3 +23,7 @@ on 2026-11-04 (`84-key-input`). Needs a node updated to that framework.
    reaches the patch beside the real device.
 
 Record what ran (glean `hardware-claims`) in `verification.md` here.
+8. With Patch Edit's input set to the node (needs `5-device-input-forwarding`
+   on both the node and the dashboard): pressing a pad prints in the editor's
+   Pd. Moving the mouse prints `xy` about 10 times a second, not faster.
+   Switching the input away from the node while holding a pad sends a release.

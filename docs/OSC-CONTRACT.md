@@ -1,6 +1,6 @@
 # bopOS OSC Contract
 
-**Version 1.24** — in progress; base ratified 2026-07-07; latest revision 2026-11-04. The
+**Version 1.25** — in progress; base ratified 2026-07-07; latest revision 2026-11-04. The
 complete amendment record, with provenance for every revision, is in
 [§15 Revision history](#15-revision-history).
 
@@ -1244,8 +1244,12 @@ reserved module name alongside the other management verbs.
 The node holds the latest object for `/os/report.io`. Scanning stays in the
 bridge and skips live peripheral addresses under the shared IO lock.
 
-**Keyboard and pointer input (v1.24).** Bridge → engine, localhost 6662 only;
-never to 7771, the development stream, the IO object or the LAN:
+**Keyboard and pointer input (v1.24, v1.25).** Bridge → engine, localhost 6662,
+always. While a development stream is leased (above), the bridge also copies
+each message into it as a one-message bundle (`xy` and `move` held to one
+summed or latest report per poll tick on that copy only), so Patch Edit's
+device input reaches the audition engine. Never in the IO object or on the LAN
+outside a lease; Performance closes the lease:
 
 ```
 /io/key <name:s> <1|0:i>          key down/up; autorepeat is not sent
@@ -1265,7 +1269,11 @@ device report, unthrottled. A device lost mid-press sends a release for
 everything it held. `key` and `mouse` are reserved module names. In Patch
 Edit with simulated input, the dashboard's editor sends the same grammar to
 the audition engine's 6662 and releases its own presses when its window,
-owner or session goes.
+owner or session goes. With a device selected instead, Patch Edit forwards
+that device's stream bundles unchanged and releases what the device held when
+the source, session or selecting connection goes or the device goes offline.
+Stream consumers other than Patch Edit ignore input messages: they are not
+module values.
 
 **IO object**, one shape for `/os/report.io`, `io-scan` replies and dashboard
 state (ratified proposal §8a):
@@ -1398,4 +1406,5 @@ reasoning.
 | 1.21 | 2026-10-04 | **in progress.** Ratified IO/Performance design: ports 5551/7771, IO control and development streams, manifest modules, remembered Performance mode. Shipped: dual local control replies, `io-scan`/`io-write`, unsolicited `/os/io-error`, the IO object and peripheral error vocabulary (§4, §6, §11); `io-modules` dropped. Global `/all/os/performance <0\|1>`, confirmed by boolean `/os/report.performance`, adds device-enforced development locks, host convergence, never-locked exit, RAM-only logging and `log.effective: ram`, independent of execution target and project with no timeout. Ratified refusal word `performance` applies to `/os/rev` and Wi-Fi phases and IO write/stream receipts, never module faults; queued writes recheck the gate and read-only scans remain allowed. Manifest `io_modules`, engine-start creation, idempotent matching creates, per-device missing/errored presence and host-readable driver descriptions ship (§8, §11). Leased IO transport ships (§4, §6): `io-stream` has ten-second node/bridge leases, `{active,error}` receipts and immediate Performance close; original bundles copy to 7771 and travel as `/io/stream <uid:string> <bundle:OSC blob>` on live unicast 5551. Dashboard consumers share one device, renew only while consumed, and release on Performance/shutdown; simfleet streams fake driver-shaped values. Per-module Re-init now ships (§6, §11): `io-reinit <name>` returns `/os/io-reinit <uid> <ok\|err> {name,error}`; local `/io/reinit` / `/io/reinitialized` repair only the active-manifest declaration under the IO lock, sharing the write FIFO and existing timeouts/reasons. Repair remains allowed in Performance, and the Device-tab button is disabled offline/pending/undeclared; simfleet has matching behavior. Live driver-described Modules panels, Device-tab Show in Monitor, ordinary dock/panel windows, and host-side Performance refusal of operator writes now ship through the existing Monitor broker and IO verbs; Patch Edit input now reuses the shared stream for byte-preserving forwarding to localhost 6662 or continuously polled simulated inputs. The same panels reverse their controls, receive existing patch output commands on localhost 8880, preview OLED output, reset per session, and release on unpick/editor exit/browser loss/Performance; no new wire grammar or port is added. | `59-i2c-inventory/0a-io-design-review.tied/proposal.md` §2, §8, §8a, §8b, §8d and `rulings.md`; stitches `1-scan-transport`, `3-peripheral-lifecycle`, `77-performance-mode`; `8-stream-port.tied/proposal-stream-wire.md`, ratified 2026-10-04; `2-device-tab-inventory.stitching/reinit-verification.md`; `9-module-panels.stitching/instructions.md`; `6-live-sensor-in-patch-edit.stitching/instructions.md` (§4–§5 ratified proposal) |
 | 1.22 | 2026-10-26 | Typed event fields (§3.2, §8): up to 16 named float/int/toggle/enum/text fields, trailing optional defaults, preserved OSC tags, text and integer limits. Hard break: arity/defaults declarations rejected; push migrated patches with the framework update. Update every node before relying on typed fields: older nodes silently drop non-float events (and events over their three-field limit). No mixed-fleet warning UI. | Bob, ratified `80-osc-input/1-typed-event-fields` |
 | 1.23 | 2026-10-26 | Dashboard outside-app input on UDP 5552 (§4.3): declared-only manifest translation, group-name targets, default filling, typed numeric coercion and clamping, dashboard event stamps, parameter mirrors, outside-point precedence, master fades and persisted lead. No device-wire grammar change. | Bob, ratified `80-osc-input/2-dashboard-osc-input.tied/proposal.md` §8 |
+| 1.25 | 2026-11-04 | Keyboard and pointer input rides the leased development stream (§11): the bridge copies `/io/key` and `/io/mouse` into it as one-message bundles, with `xy`/`move` throttled to the poll rate on that copy only; the node's bundle check accepts them; dashboard module consumers skip them; Patch Edit forwards them to the audition engine and releases held input. Engine delivery on 6662 unchanged. Bob ratified it for this case only. | Bob, in session 2026-11-04: "the contract change is okay in this specific instance"; "throttle the mouse movement for only when it's forwarding"; `84-key-input/5-device-input-forwarding` |
 | 1.24 | 2026-11-04 | Keyboard and pointer input on the IO plane (§2, §11): the bridge always reads USB/Bluetooth keyboards and mice, outside the manifest, and sends `/io/key <name> <1\|0>` and `/io/mouse` buttons, `xy` 0–1, `move`, `wheel`/`hwheel` to the engine on localhost 6662 as events. HID moves from engine to framework; `key` and `mouse` become reserved module names. Patch Edit's simulated input sends the same grammar. Localhost only; no LAN wire, port or manifest change. | Bob, in session 2026-11-04; `84-key-input/proposal.md` §1–§3 |

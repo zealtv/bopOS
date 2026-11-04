@@ -9,7 +9,7 @@ import asyncio
 import logging
 
 from pythonosc.osc_message import OscMessage
-from python.io_stream import decode_bundle
+from python.io_stream import INPUT_ADDRESSES, decode_bundle
 
 log = logging.getLogger('bopos.io-stream')
 RENEW_SECONDS = 3.0
@@ -70,7 +70,9 @@ class IOStreams(asyncio.DatagramProtocol):
             if device is None or device.get('ip') != addr[0]:
                 return
             bundle = message.params[1]
-            values = {row[0][1:]: row[2:] for row in decode_bundle(bundle)}
+            # Forwarded keys and pointers are not module values.
+            values = {row[0][1:]: row[2:] for row in decode_bundle(bundle)
+                      if row[0] not in INPUT_ADDRESSES}
         except Exception:
             log.debug('invalid IO stream datagram', exc_info=True)
             return

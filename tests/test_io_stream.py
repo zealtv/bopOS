@@ -32,6 +32,21 @@ def bundle():
     return result.getBinary()
 
 
+def keys(*messages):
+    result = OSCBundle()
+    for address, values in messages:
+        message = OSCMessage(address)
+        for value in values:
+            message.append(value)
+        result.append(message)
+    return result.getBinary()
+
+
+def sent_rows(client):
+    return [[row[0], *row[2:]] for call in client.send.call_args_list
+            for row in decodeOSC(call.args[0].getBinary())[2:]]
+
+
 class Timer:
     def __init__(self, delay, callback):
         self.delay, self.callback = delay, callback
@@ -105,6 +120,12 @@ class NodeStreamTests(unittest.TestCase):
         self.stream.forward(bundle())
         self.assertEqual(OscMessage(self.values[0][0]).params, ['node-a', bundle()])
 
+    def test_forwarded_keys_and_pointers_pass_the_bundle_check(self):
+        self.request([1])
+        packet = keys(('/io/key', ['q', 1]), ('/io/mouse', ['xy', .25, .75]))
+        self.stream.forward(packet)
+        self.assertEqual(OscMessage(self.values[0][0]).params, ['node-a', packet])
+
     def test_node_dispatch_and_entering_performance_close_immediately(self):
         with tempfile.TemporaryDirectory() as root:
             state = node(root)
@@ -153,6 +174,42 @@ class BridgeStreamTests(unittest.TestCase):
         self.assertFalse(manager.stream_lease.active)
 
 
+    def test_keys_copy_only_while_leased_and_motion_waits_for_the_tick(self):
+        with patch.object(bridge, 'OSCClient', side_effect=lambda: Mock()):
+            manager = bridge.IOManager()
+        now = [100.0]
+        manager.stream_lease = io_stream.Lease(lambda: now[0])
+        manager.forward_input('/io/key', ['q', 1])
+        manager.forward_input('/io/mouse', ['move', 3, 4])
+        manager.flush_motion()
+        manager.control_client.send.assert_not_called()
+        manager.handle_io(['stream'], [1])
+        manager.forward_input('/io/key', ['q', 1])
+        for values in (['move', 3, 4], ['xy', .5, .5], ['move', 1, 1], ['xy', .5, .6]):
+            manager.forward_input('/io/mouse', values)
+        self.assertEqual(sent_rows(manager.control_client), [['/io/key', 'q', 1]])
+        manager.flush_motion()
+        manager.forward_input('/io/mouse', ['move', 2, 0])
+        manager.forward_input('/io/mouse', ['left', 1])
+        manager.flush_motion()
+        self.assertEqual(sent_rows(manager.control_client)[1:], [
+            ['/io/mouse', 'move', 4, 5], ['/io/mouse', 'xy', .5, approx(.6)],
+            ['/io/mouse', 'move', 2, 0], ['/io/mouse', 'left', 1]])
+        manager.forward_input('/io/mouse', ['xy', .1, .1])
+        now[0] += 11
+        manager.flush_motion()
+        self.assertEqual(manager.control_client.send.call_count, 3)
+
+
+def approx(value):
+    class Approx:
+        def __eq__(self, other):
+            return abs(other - value) < 1e-6
+        def __repr__(self):
+            return f'~{value}'
+    return Approx()
+
+
 class ConsumerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.state = SimpleNamespace(performance=False, data={}, devices={
@@ -182,6 +239,13 @@ class ConsumerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.command.call_count, count)
             self.streams.subscribe('two', 'panel', first)
             self.assertEqual(self.streams.uid, 'two')
+
+    async def test_forwarded_keys_reach_consumers_but_not_as_module_values(self):
+        callback = Mock()
+        self.streams.subscribe('one', 'editor', callback)
+        packet = keys(('/io/key', ['q', 1]), ('/adc', [1.5]))
+        self.streams.datagram_received(io_stream.stream_packet('one', packet), ('192.0.2.1', 123))
+        callback.assert_called_once_with(packet, {'adc': [1.5]})
 
     async def test_wrong_source_uid_and_malformed_packets_do_not_reach_consumer(self):
         callback = Mock()

@@ -7,6 +7,8 @@ from pyOSC3 import OSCMessage, OSCServer, decodeOSC
 
 LEASE_SECONDS = 10.0
 STREAM_PORT = 5551
+# Keyboard and pointer input may ride the leased stream too (contract v1.25).
+INPUT_ADDRESSES = ('/io/key', '/io/mouse')
 
 
 class Lease:
@@ -39,7 +41,8 @@ class Lease:
 
 
 def decode_bundle(packet):
-    """Accept only a poll bundle of flat module messages, never control replies."""
+    """Accept a poll bundle of flat module messages, or forwarded keys and
+    pointers, never control replies."""
     if not isinstance(packet, bytes) or not packet.startswith(b'#bundle\x00'):
         raise ValueError('expected an OSC bundle')
     try:
@@ -49,6 +52,8 @@ def decode_bundle(packet):
     if len(decoded) < 2 or decoded[0] != '#bundle':
         raise ValueError('invalid OSC bundle')
     for message in decoded[2:]:
+        if message and message[0] in INPUT_ADDRESSES:
+            continue
         if (len(message) < 2 or not isinstance(message[0], str)
                 or not message[0].startswith('/')
                 or len(message[0].split('/')) != 2

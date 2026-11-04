@@ -64,6 +64,9 @@ class IOManager:
         self.poll_rate = DEFAULT_POLL_RATE
         self.running = True
         self.stream_lease = io_stream.Lease()
+        # Pointer motion waiting for the next poll tick while it is forwarded.
+        self.input_lock = threading.Lock()
+        self.pending_motion = {}
         self.io = io_protocol.empty_io(1 if usable_bus() else None)
         
         # OSC client for sending to PD
@@ -263,6 +266,49 @@ class IOManager:
             except Exception as error:
                 print(f"Error sending IO stream: {error}")
     
+    def forward_input(self, address, values):
+        """Copy keys and pointers into a leased development stream (v1.25).
+
+        Buttons and keys go at once. xy and move wait for the next poll tick
+        (move summed, xy latest), so a moving mouse can't flood the LAN; the
+        engine's own copy stays unthrottled.
+        """
+        if not self.stream_lease.active:
+            return
+        kind = values[0]
+        with self.input_lock:
+            if kind in ('xy', 'move'):
+                if kind == 'move' and 'move' in self.pending_motion:
+                    _, dx, dy = self.pending_motion['move']
+                    values = ['move', dx + values[1], dy + values[2]]
+                self.pending_motion[kind] = list(values)
+                return
+            # Motion queued before a click must still arrive before it.
+            messages = self._take_motion() + [(address, list(values))]
+        self._stream_input(messages)
+
+    def flush_motion(self):
+        with self.input_lock:
+            messages = self._take_motion()
+        if messages and self.stream_lease.active:
+            self._stream_input(messages)
+
+    def _take_motion(self):
+        pending, self.pending_motion = self.pending_motion, {}
+        return [('/io/mouse', pending[kind]) for kind in ('move', 'xy') if kind in pending]
+
+    def _stream_input(self, messages):
+        bundle = OSCBundle()
+        for address, values in messages:
+            msg = OSCMessage(address)
+            for value in values:
+                msg.append(value)
+            bundle.append(msg)
+        try:
+            self.control_client.send(bundle)
+        except Exception as error:
+            print(f"Error sending IO stream: {error}")
+
     def _send(self, address, *values):
         """Every control reply goes to both local consumers, independently."""
         msg = OSCMessage(address)
@@ -534,6 +580,7 @@ class IOManager:
                 input_client.send(msg)
             except Exception as error:
                 print(f"Error sending {address}: {error}")
+            self.forward_input(address, values)
 
         input_reader = InputReader(send_input)
         input_thread = threading.Thread(target=input_reader.run, daemon=True)
@@ -555,6 +602,7 @@ class IOManager:
                 # spin, because the I2C reads are themselves the rate limit.
                 started = time.time()
                 self.poll_and_send()
+                self.flush_motion()
                 time.sleep(max(0.0, (1.0 / self.poll_rate) - (time.time() - started)))
                 
         except KeyboardInterrupt:

@@ -94,7 +94,9 @@ The `pi` user needs the `input` group (`provision.sh` adds it).
 `key` and `mouse` are reserved peripheral names. Fake them without hardware
 with `tools/iosim.py --key space`, `--click left`, `--xy 0.25,0.75`, or in
 Patch Edit with input set to *simulated*: the Modules tab's **key · mouse**
-panel sends the same messages to the audition engine.
+panel sends the same messages to the audition engine. With a real device as
+Patch Edit's input, its keys and pointer travel in the leased development
+stream too (contract v1.25): presses at once, `xy`/`move` once per poll tick.
 
 ## File Structure
 
