@@ -1486,7 +1486,7 @@ class Dashboard(WSHandlers):
         except ValueError as error:
             raise ValueError(
                 "Cannot determine a device-reachable patch URL. Reopen the dashboard "
-                "using its LAN address or start it with --public-url http://<LAN-IP>:8080."
+                f"using its LAN address or start it with --public-url http://<LAN-IP>:{self.args.port}."
             ) from error
         if target_ip.is_loopback:
             return f"http://127.0.0.1:{self.args.port}"
@@ -1503,7 +1503,7 @@ class Dashboard(WSHandlers):
         except OSError as error:
             raise ValueError(
                 f"Cannot find a LAN route to {target}. Start the dashboard with "
-                "--public-url http://<LAN-IP>:8080."
+                f"--public-url http://<LAN-IP>:{self.args.port}."
             ) from error
         authority = f"[{local}]" if ":" in local else local
         return f"http://{authority}:{self.args.port}"
@@ -1851,7 +1851,9 @@ def create_app(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="bopOS web dashboard")
-    parser.add_argument("--port", type=int, default=8080)
+    # 5580 sits beside the OSC ports. Not 8080: macOS web content filtering
+    # intercepted local WebSocket traffic on 8080 (67/30, 2026-11-04).
+    parser.add_argument("--port", type=int, default=5580)
     parser.add_argument("--listen-port", type=int, default=5550)
     parser.add_argument("--input-port", type=int, default=5552)
     parser.add_argument("--stream-port", type=int, default=5551)

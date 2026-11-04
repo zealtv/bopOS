@@ -300,6 +300,14 @@ class RunScriptUrlBannerTests(unittest.TestCase):
         self.assertIn("lan_addresses()", script)
         self.assertIn("Do not open http://0.0.0.0:$PORT/", script)
 
+    def test_run_script_and_server_share_the_dedicated_default_port(self):
+        # 8080 was intercepted locally on a Mac with web content filtering (67/30).
+        script = (REPO / "run.sh").read_text()
+        with mock.patch.object(sys, "argv", ["server.py"]):
+            from server import parse_args
+            self.assertEqual(parse_args().port, 5580)
+        self.assertIn("\nPORT=5580\n", script)
+
 
 class MonitorTransportLogTests(unittest.TestCase):
     def test_system_panel_has_bounded_transport_error_log(self):

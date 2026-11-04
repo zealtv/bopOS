@@ -43,7 +43,7 @@ Terminal 2 — five fake nodes speaking the real protocol:
 ~/.venvs/bopos/bin/python tools/simfleet.py --devices 5
 ```
 
-Open <http://localhost:8080/>. Within a couple of seconds the header shows
+Open <http://localhost:5580/>. Within a couple of seconds the header shows
 **5 / 5 online** — the simulated nodes were discovered from their heartbeats,
 exactly the way real Pis are.
 

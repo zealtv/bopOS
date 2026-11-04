@@ -32,7 +32,7 @@ fi
 # The address the operator opens is the address nodes are told to fetch patches
 # from, so print one a node can actually reach. --port is honoured; 0.0.0.0 is
 # never printed (a node resolves it as itself — incident 2026-08-17).
-PORT=8080
+PORT=5580
 prev=""
 for arg in "$@"; do
     case "$arg" in

@@ -36,12 +36,12 @@ Run a simulated fleet to play against (terminal 2):
 
 Then open:
 
-- **<http://localhost:8080/>** — Show, Dashboard, Seats, Devices, Patches,
+- **<http://localhost:5580/>** — Show, Dashboard, Seats, Devices, Patches,
   and Assets tabs. The landed controls cover device inspection, spatial
   authoring, patch editing, host-to-node distribution, discovery/assignment,
   synced events, sites, single-device asset delivery, and
   show authoring/playback (see "The Show tab" below).
-- **<http://localhost:8080/facilitator>** — standalone Dashboard view: device cards
+- **<http://localhost:5580/facilitator>** — standalone Dashboard view: device cards
   with the patch's promoted (`dashboard: true`) params as labelled controls,
   master, and Silence All. On an iPad, "Add to Home
   Screen" launches it fullscreen.
@@ -164,7 +164,7 @@ Sim spread is a single-machine floor; the honest number is the hardware run.
 
 ## Flags
 
-`--port` HTTP port (8080) · `--listen-port` OSC in (5550) · `--send-port` OSC
+`--port` HTTP port (5580) · `--listen-port` OSC in (5550) · `--send-port` OSC
 out (6660) · `--osc-target` unicast/broadcast target (255.255.255.255) ·
 `--data-dir` host root containing projects, device registry and current-project · `--assets-dir` host asset folders served
 at `/assets` · `--patches-dir` host patch folders served at `/patches` ·
