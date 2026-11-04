@@ -11,6 +11,29 @@
     return exponent < -4 || exponent >= 6 ? rounded.toExponential() : String(rounded);
   }
 
+  // Browser key codes to the kernel names the bridge sends (84-key-input).
+  // Number-row keys keep the key_ prefix; codes not listed are not sent.
+  const KEY_NAMES = {Space: "space", Enter: "enter", Escape: "esc", Backspace: "backspace",
+    ShiftLeft: "leftshift", ShiftRight: "rightshift", ControlLeft: "leftctrl", ControlRight: "rightctrl",
+    AltLeft: "leftalt", AltRight: "rightalt", MetaLeft: "leftmeta", MetaRight: "rightmeta",
+    Minus: "minus", Equal: "equal", BracketLeft: "leftbrace", BracketRight: "rightbrace",
+    Semicolon: "semicolon", Quote: "apostrophe", Backquote: "grave", Backslash: "backslash",
+    Comma: "comma", Period: "dot", Slash: "slash", CapsLock: "capslock", Home: "home", End: "end",
+    PageUp: "pageup", PageDown: "pagedown", Insert: "insert", Delete: "delete",
+    NumpadEnter: "kpenter", NumpadAdd: "kpplus", NumpadSubtract: "kpminus",
+    NumpadMultiply: "kpasterisk", NumpadDivide: "kpslash", NumpadDecimal: "kpdot"};
+  function keyName(code) {
+    let match;
+    if ((match = /^Key([A-Z])$/.exec(code))) return match[1].toLowerCase();
+    if ((match = /^Digit(\d)$/.exec(code))) return `key_${match[1]}`;
+    if ((match = /^Numpad(\d)$/.exec(code))) return `kp${match[1]}`;
+    if ((match = /^F(\d|1[0-2])$/.exec(code))) return `f${match[1]}`;
+    if ((match = /^Arrow(Up|Down|Left|Right)$/.exec(code))) return match[1].toLowerCase();
+    return KEY_NAMES[code] || null;
+  }
+  // A Makey Makey's default keys, front then back.
+  const MAKEY_KEYS = ["up", "down", "left", "right", "space", "w", "a", "s", "d", "f", "g"];
+
   function mount(root, open, captureChanged) {
     // Choices belong to this window/session. All panels use the dock's one
     // capture selection, hence one broker consumer and no additional socket.
@@ -250,6 +273,129 @@
       }
     }
 
+    // Simulated keys and pointer: events, not polled values, so they skip the
+    // driver-description panels and go out one message per press or move.
+    let inputPanel = null;
+
+    function sendInput(address, args) {
+      if (!inputPanel || !connected || installation.performance) return;
+      ws.send("send_editor_input", {generation: installation.editor.generation, address, args});
+      inputPanel.element.querySelector("[data-input-sent]").textContent =
+        `/io/${address} ${args.map(displayValue).join(" ")}`;
+    }
+
+    function pressInput(address, label, down) {
+      if (!inputPanel) return;
+      const id = `${address} ${label}`;
+      if (down === inputPanel.held.has(id)) return;
+      if (down) inputPanel.held.add(id); else inputPanel.held.delete(id);
+      for (const pad of inputPanel.element.querySelectorAll(`[data-input-pad="${CSS.escape(id)}"]`)) {
+        pad.setAttribute("aria-pressed", String(down));
+      }
+      sendInput(address, [label, down ? 1 : 0]);
+    }
+
+    function releaseInputs() {
+      if (!inputPanel) return;
+      for (const id of [...inputPanel.held]) pressInput(...id.split(" "), false);
+    }
+
+    function makeInputPanel() {
+      const element = document.createElement("section");
+      element.className = "module-panel input-panel";
+      element.dataset.inputPanel = "";
+      const pad = (address, label, text = label) => `<button type="button" data-input-pad="${address} ${label}"
+        aria-pressed="false">${escape(text)}</button>`;
+      element.innerHTML = `
+        <div class="module-panel-header"><div><strong>key · mouse</strong>
+          <small data-module-source>simulated</small></div></div>
+        <div class="input-panel-keys" role="group" aria-label="Keys">${MAKEY_KEYS.map(label => pad("key", label)).join("")}</div>
+        <label class="input-panel-type">Type keys<input type="text" readonly data-input-type
+          placeholder="Focus here and type" autocomplete="off"></label>
+        <div class="input-panel-mouse">
+          <div class="input-panel-xy" data-input-xy tabindex="0" role="application"><span data-input-dot></span></div>
+          <div class="input-panel-buttons" role="group" aria-label="Mouse">
+            ${pad("mouse", "left", "left click")}${pad("mouse", "right", "right click")}
+            <button type="button" data-input-wheel="1">wheel ↑</button>
+            <button type="button" data-input-wheel="-1">wheel ↓</button></div></div>
+        <code class="module-panel-patch" data-input-sent>—</code>`;
+      const panel = {element, held: new Set(), x: .5, y: .5};
+      for (const button of element.querySelectorAll("[data-input-pad]")) {
+        const [address, label] = button.dataset.inputPad.split(" ");
+        const down = () => pressInput(address, label, true), up = () => pressInput(address, label, false);
+        button.onpointerdown = event => { event.preventDefault(); button.setPointerCapture(event.pointerId); down(); };
+        button.onpointerup = button.onpointercancel = button.onlostpointercapture = up;
+        button.onkeydown = event => { if ([" ", "Enter"].includes(event.key) && !event.repeat) { event.preventDefault(); down(); } };
+        button.onkeyup = event => { if ([" ", "Enter"].includes(event.key)) { event.preventDefault(); up(); } };
+        button.onblur = up;
+      }
+      for (const button of element.querySelectorAll("[data-input-wheel]")) {
+        button.onclick = () => sendInput("mouse", ["wheel", Number(button.dataset.inputWheel)]);
+      }
+      const typing = element.querySelector("[data-input-type]");
+      typing.onkeydown = event => {
+        const label = keyName(event.code);
+        // Tab stays a way out of the field.
+        if (!label || event.code === "Tab") return;
+        event.preventDefault();
+        if (!event.repeat) pressInput("key", label, true);
+      };
+      typing.onkeyup = event => {
+        const label = keyName(event.code);
+        if (!label || event.code === "Tab") return;
+        event.preventDefault();
+        pressInput("key", label, false);
+      };
+      typing.onblur = releaseInputs;
+      const surface = element.querySelector("[data-input-xy]");
+      const place = () => {
+        const dot = surface.querySelector("[data-input-dot]");
+        dot.style.left = `${panel.x * 100}%`;
+        dot.style.top = `${panel.y * 100}%`;
+        surface.setAttribute("aria-label",
+          `Pointer position x ${panel.x.toFixed(2)}, y ${panel.y.toFixed(2)}; drag, or use arrow keys`);
+      };
+      const moveTo = (x, y) => {
+        panel.x = Math.max(0, Math.min(1, x));
+        panel.y = Math.max(0, Math.min(1, y));
+        place();
+        sendInput("mouse", ["xy", panel.x, panel.y]);
+      };
+      const fromPointer = event => {
+        const box = surface.getBoundingClientRect();
+        moveTo((event.clientX - box.left) / box.width, (event.clientY - box.top) / box.height);
+      };
+      surface.onpointerdown = event => { event.preventDefault(); surface.setPointerCapture(event.pointerId); surface.focus(); fromPointer(event); };
+      surface.onpointermove = event => { if (surface.hasPointerCapture(event.pointerId)) fromPointer(event); };
+      surface.onkeydown = event => {
+        const step = event.shiftKey ? .1 : .02;
+        const delta = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]}[event.key];
+        if (!delta) return;
+        event.preventDefault();
+        moveTo(panel.x + delta[0], panel.y + delta[1]);
+      };
+      place();
+      list.prepend(element);
+      return panel;
+    }
+
+    function syncInputPanel(wanted) {
+      if (wanted && !inputPanel) inputPanel = makeInputPanel();
+      if (!wanted && inputPanel) {
+        releaseInputs();
+        inputPanel.element.remove();
+        inputPanel = null;
+      }
+      if (inputPanel) {
+        const disabled = !connected || installation.performance;
+        for (const control of inputPanel.element.querySelectorAll("button, input, [data-input-xy]")) {
+          if (control.matches("[data-input-xy]")) control.setAttribute("aria-disabled", String(disabled));
+          else control.disabled = disabled;
+        }
+        inputPanel.element.classList.toggle("is-disabled", disabled);
+      }
+    }
+
     function syncEditor() {
       const editor = installation.editor || {};
       const source = editor.input?.source || "";
@@ -269,8 +415,12 @@
         picker.value = source;
         picker.disabled = !connected || installation.performance;
       }
+      syncInputPanel(!isPopup && editor.active && source === "simulated");
       if (session === editorSession) return;
       editorSession = session;
+      // A new session starts with a fresh panel, like the simulated modules.
+      syncInputPanel(false);
+      syncInputPanel(!isPopup && editor.active && source === "simulated");
       for (const [id, panel] of panels) {
         if (!panel.simulated && !panel.editorOwned) continue;
         panel.popup?.close();
@@ -309,6 +459,7 @@
       ws.send("set_editor_input", {source: picker.value || null});
     };
     window.addEventListener("blur", () => {
+      releaseInputs();
       for (const panel of panels.values()) for (const [index, rest] of panel.held) {
         drive(panel, index, rest);
         panel.element.querySelector(`[data-module-pad="${index}"]`).setAttribute("aria-pressed", "false");

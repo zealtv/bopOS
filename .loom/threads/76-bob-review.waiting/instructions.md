@@ -132,6 +132,12 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `79-wifi-power-save/2-pi-power-save-check`; whether bopOS should nudge
     a dead link waits on this (`79/3`).
 
+14. **Key and mouse input (84/3)**: a Makey Makey on Finn Jet or Ciro Toast;
+    keys and clicks reach the patch as `/io/key`, `/io/mouse`, the console
+    stops echoing, unplug/replug recovers, `pi` is in `input`. Also OK the
+    simulated panel's wording from its screenshots (`84-key-input/2-input-sim-panel/`).
+    Checklist in `84-key-input/3-input-hardware-check.waiting/instructions.md`.
+
 ## Ruled
 
 1. Passphrase warning wording — **yes**, as it reads in the app (Bob, 2026-10-04,

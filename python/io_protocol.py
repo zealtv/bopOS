@@ -43,6 +43,34 @@ def validate_write(value):
     return copy.deepcopy(value)
 
 
+# Keyboard and pointer input (v1.24, 84-key-input): what the bridge sends the
+# engine from a real device, and all a simulated one may send.
+INPUT_BUTTONS = frozenset({'left', 'right', 'middle', 'side', 'extra', 'touch'})
+
+
+def validate_input(address, args):
+    """Return (OSC address, args) for one /io/key or /io/mouse message."""
+    args = list(args) if isinstance(args, list) else None
+    def ints(values, low, high):
+        return all(type(v) is int and low <= v <= high for v in values)
+    def unit(values):
+        return all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in values)
+    if args and address == 'key' and len(args) == 2:
+        if (isinstance(args[0], str) and re.fullmatch(r'[a-z0-9_]{1,32}', args[0])
+                and ints(args[1:], 0, 1)):
+            return '/io/key', args
+    elif args and address == 'mouse':
+        kind, rest = args[0], args[1:]
+        if ((kind in INPUT_BUTTONS and len(rest) == 1 and ints(rest, 0, 1))
+                or (kind == 'xy' and len(rest) == 2 and unit(rest))
+                or (kind == 'move' and len(rest) == 2 and ints(rest, -32768, 32767))
+                or (kind in ('wheel', 'hwheel') and len(rest) == 1 and ints(rest, -32, 32))):
+            if kind == 'xy':
+                rest = [float(v) for v in rest]
+            return '/io/mouse', [kind, *rest]
+    raise ValueError('invalid-arguments')
+
+
 def validate_io(value):
     if (not isinstance(value, dict)
             or set(value) != {'bus', 'scanned', 'addresses', 'modules'}

@@ -32,3 +32,15 @@ body.monitor-window> :not(#monitor-dock){display:none!important}
 body.monitor-window #monitor-dock{height:100dvh;border:0;box-shadow:none}
 body.monitor-window .monitor-resize,body.monitor-window [data-monitor-collapse],body.monitor-window [data-monitor-popout]{display:none}
 body.monitor-window-panel .monitor-pane-bar,body.monitor-window-panel .monitor-header{display:none}
+.input-panel{grid-column:1/-1}
+.input-panel.is-disabled{opacity:.6}
+.input-panel-keys,.input-panel-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.input-panel-keys button,.input-panel-buttons button{min-width:44px}
+.input-panel [data-input-pad][aria-pressed="true"]{background:var(--accent);color:var(--bg)}
+.input-panel-type{display:grid;gap:4px;margin:10px 0;font-size:11px;color:var(--dim)}
+.input-panel-type input{min-width:0;font:inherit;padding:6px;background:var(--input);color:var(--text);border:1px solid var(--line);border-radius:var(--radius-control)}
+.input-panel-mouse{display:flex;flex-wrap:wrap;gap:10px;align-items:start}
+.input-panel-xy{position:relative;flex:1 1 220px;max-width:min(320px,100%);aspect-ratio:16/9;background:var(--input);border:1px solid var(--line);border-radius:var(--radius-control);touch-action:none;cursor:crosshair}
+.input-panel-xy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.input-panel-xy span{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--accent);pointer-events:none}
+.input-panel-buttons{flex:1 1 140px;align-content:start}

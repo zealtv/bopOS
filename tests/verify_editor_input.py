@@ -85,6 +85,19 @@ def polls(sock, duration=.45):
     return rows
 
 
+def inputs(sock, duration=.3):
+    """Bare /io/key and /io/mouse messages, skipping the simulated poll bundles."""
+    rows = []
+    end = time.monotonic()+duration
+    while time.monotonic() < end:
+        if select.select([sock], [], [], max(0, end-time.monotonic()))[0]:
+            data = sock.recvfrom(65535)[0]
+            if not data.startswith(b'#bundle\0'):
+                message = OscMessage(data)
+                rows.append((message.address, message.params))
+    return rows
+
+
 def main():
     screenshots = Path(sys.argv[1]) if len(sys.argv) > 1 else None
     with tempfile.TemporaryDirectory(prefix='bopos-editor-input-') as temporary:
@@ -225,6 +238,40 @@ def main():
                     released = polls(engine, .3)
                     assert any(row[0][3] == 0 for row in held), held
                     assert any(row[0][3] > 3.29 for row in released), released
+                    # Keys and pointer: events straight to the engine, the bridge's shape.
+                    keys = page.locator('[data-input-panel]')
+                    assert keys.locator('[data-module-source]').inner_text() == 'simulated'
+                    drain_socket(engine)
+                    keys.locator('[data-input-pad="key space"]').focus()
+                    page.keyboard.down('Space')
+                    page.keyboard.up('Space')
+                    keys.locator('[data-input-type]').focus()
+                    page.keyboard.down('KeyW')
+                    page.keyboard.down('Digit1')
+                    page.keyboard.up('Digit1')
+                    page.keyboard.up('KeyW')
+                    keys.locator('[data-input-pad="mouse left"]').dispatch_event('pointerdown', dict(pointerId=1))
+                    keys.locator('[data-input-pad="mouse left"]').dispatch_event('pointerup', dict(pointerId=1))
+                    keys.locator('[data-input-xy]').evaluate('el => el.scrollIntoView({block: "center"})')
+                    box = keys.locator('[data-input-xy]').bounding_box()
+                    page.mouse.click(box['x']+box['width']*.25, box['y']+box['height']*.75)
+                    keys.locator('[data-input-wheel="-1"]').click()
+                    sent = inputs(engine, .5)
+                    expected = [('/io/key', ['space', 1]), ('/io/key', ['space', 0]),
+                                ('/io/key', ['w', 1]), ('/io/key', ['key_1', 1]), ('/io/key', ['key_1', 0]),
+                                ('/io/key', ['w', 0]), ('/io/mouse', ['left', 1]), ('/io/mouse', ['left', 0])]
+                    assert sent[:len(expected)] == expected, sent
+                    xy = [row for row in sent if row[1][0] == 'xy']
+                    assert xy and abs(xy[0][1][1]-.25) < .02 and abs(xy[0][1][2]-.75) < .02, sent
+                    assert sent[-1] == ('/io/mouse', ['wheel', -1]), sent
+                    assert keys.locator('[data-input-sent]').inner_text() == '/io/mouse wheel -1'
+                    # A held key is released when the window loses focus.
+                    keys.locator('[data-input-type]').focus()
+                    page.keyboard.down('KeyA')
+                    page.evaluate('window.dispatchEvent(new Event("blur"))')
+                    assert inputs(engine) == [('/io/key', ['a', 1]), ('/io/key', ['a', 0])]
+                    page.keyboard.up('KeyA')
+                    assert inputs(engine, .2) == []
                     # Real patch-to-bridge commands drive the same component backwards.
                     engine.sendto(packet('/io/oled', 'text', 'hello patch'), ('127.0.0.1', 8880))
                     engine.sendto(packet('/io/oled', 'line', 2, 'second row'), ('127.0.0.1', 8880))
@@ -258,9 +305,14 @@ def main():
                                 page.screenshot(path=str(screenshots/('editor-input-%s-%s.png' % (width, theme))))
                     # Owner loss releases feed; a new connection does not resurrect it.
                     page.set_viewport_size(dict(width=1440, height=1000))
+                    drain_socket(engine)
+                    page.evaluate("ws.send('send_editor_input',{generation:installation.editor.generation,address:'key',args:['g',1]})")
+                    assert inputs(engine) == [('/io/key', ['g', 1])]
                     old = page.evaluate('ws.generation')
                     page.evaluate('ws.socket.close()')
                     page.wait_for_function('old => ws.generation > old && installation.editor.input.source === null', arg=old)
+                    assert inputs(engine, .25) == [('/io/key', ['g', 0])]
+                    assert page.locator('[data-input-panel]').count() == 0
                     drain_socket(engine)
                     assert polls(engine, .25) == []
                     picker.select_option('simulated')
@@ -284,9 +336,12 @@ def main():
                     page.evaluate("ws.send('set_editor_input',{source:'simulated'})")
                     page.wait_for_timeout(200)
                     assert page.evaluate('installation.editor.input.source') is None
+                    page.evaluate("ws.send('send_editor_input',{generation:installation.editor.generation,address:'key',args:['g',1]})")
+                    assert inputs(engine, .25) == []
+                    assert page.locator('[data-input-panel]').count() == 0
                     assert errors == [], errors
                     browser.close()
-                print('PASS late and removed live modules, inert drive before a fresh sample after reconnect, original-bundle forwarding, shared stream/refusal, hidden visual feed, unpick, continuous simulated rest, per-channel opposite rails, OLED commands, pop-out control, six-digit display, four screenshots, disconnect/session reset and Performance')
+                print('PASS late and removed live modules, simulated key/mouse events with blur and owner-loss release, inert drive before a fresh sample after reconnect, original-bundle forwarding, shared stream/refusal, hidden visual feed, unpick, continuous simulated rest, per-channel opposite rails, OLED commands, pop-out control, six-digit display, four screenshots, disconnect/session reset and Performance')
             except Exception:
                 print((root/'server.log').read_text()[-5000:])
                 try:

@@ -18,10 +18,20 @@ headless node as `/io/key <key> <1|0>`.
 with no desktop the kernel hands keystrokes to the tty1 login prompt. The
 bridge reads `/dev/input` (evdev) directly and grabs the device.
 
-## Open for Bob
+## Ratified, 2026-11-04 (Bob, in session, in chat)
 
-- Contract text: §11 currently says the engine owns HID. The amendment
-  (draft in `proposal.md`) moves key input to the framework. Wire and
-  contract wording are Bob's to ratify (glean `decision-gates`).
-- Key naming (`proposal.md` §2).
-- Hardware check: a real Makey Makey on a rig device, keys arriving in Pd.
+- Contract amendment moving keyboard and mouse into the framework: "sounds
+  good" → v1.24 (`1-input-contract`).
+- Key names as proposed (`key_1` etc.): "sounds good".
+- Mouse motion unthrottled "at this stage".
+- Simulator: **option A**, a Patch Edit panel (`2-input-sim-panel`).
+- Hardware test: Bob's, "shortly" (`3-input-hardware-check`).
+
+The 2000-count virtual pointer span stays the agent's estimate; Bob didn't
+rule on it.
+
+## Stitches
+
+1. `1-input-contract`: §2, §11 and §15 of the contract, version 1.24.
+2. `2-input-sim-panel`: the "key · mouse" simulated panel in Patch Edit.
+3. `3-input-hardware-check`: a Makey Makey on the rig (Bob).

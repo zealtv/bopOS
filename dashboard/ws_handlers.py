@@ -97,6 +97,14 @@ class WSHandlers:
         except ValueError as error:
             await self.ws_error(ws, str(error))
 
+    @ws_handler('send_editor_input',
+                supervisor="dispatch")
+    async def _ws_send_editor_input(self, kind, data, ws):
+        try:
+            self.editor_input.send_input(data, ws)
+        except ValueError as error:
+            await self.ws_error(ws, str(error))
+
     @ws_handler('set_performance',
                 supervisor="dispatch", manifest=True)
     async def _ws_set_performance(self, kind, data, ws):

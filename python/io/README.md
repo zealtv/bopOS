@@ -92,7 +92,9 @@ range. Unplugging releases anything held. In Pd:
 `[r bopos-io] → [route io] → [route key mouse] → [route space w …]`.
 The `pi` user needs the `input` group (`provision.sh` adds it).
 `key` and `mouse` are reserved peripheral names. Fake them without hardware
-with `tools/iosim.py --key space`, `--click left`, `--xy 0.25,0.75`.
+with `tools/iosim.py --key space`, `--click left`, `--xy 0.25,0.75`, or in
+Patch Edit with input set to *simulated*: the Modules tab's **key · mouse**
+panel sends the same messages to the audition engine.
 
 ## File Structure
 

@@ -20,6 +20,7 @@ class EditorInput(asyncio.DatagramProtocol):
         self.outputs = {}
         self.types = {}
         self.held = {}
+        self.pressed = {}   # (address, label) -> owner of a simulated key or button
         self.sender = None
 
     @property
@@ -66,6 +67,7 @@ class EditorInput(asyncio.DatagramProtocol):
             self.dashboard.osc.subscribe_io(source, self, self.forward)
 
     def clear(self):
+        self.release_input()
         if self.source not in (None, 'simulated'):
             self.dashboard.osc.unsubscribe_io(self.source, self)
         if self.timer:
@@ -118,7 +120,38 @@ class EditorInput(asyncio.DatagramProtocol):
         else:
             self.held.pop(key, None)
 
+    def send_input(self, data, owner):
+        """One simulated /io/key or /io/mouse event, sent at once like the bridge does."""
+        if not self.allowed or self.source != 'simulated':
+            raise ValueError('Performance' if self.dashboard.state.performance else 'invalid-arguments')
+        if data.get('generation') != self.dashboard.state.data['editor']['generation']:
+            raise ValueError('invalid-arguments')
+        address, args = io_protocol.validate_input(data.get('address'), data.get('args'))
+        if args[0] not in ('xy', 'move', 'wheel', 'hwheel'):
+            if args[-1]:
+                self.pressed[address, args[0]] = owner
+            else:
+                self.pressed.pop((address, args[0]), None)
+        self._send_input(address, args)
+
+    def _send_input(self, address, args):
+        message = OSCMessage(address)
+        for value in args:
+            message.append(value)
+        try:
+            self.sender.sendto(message.getBinary(), ('127.0.0.1', 6662))
+        except (AttributeError, OSError):
+            pass
+
+    def release_input(self, owner=None):
+        # A lost window or session must not leave a simulated key down.
+        for (address, label), client in list(self.pressed.items()):
+            if owner is None or client is owner:
+                del self.pressed[address, label]
+                self._send_input(address, [label, 0])
+
     def release(self, owner):
+        self.release_input(owner)
         for (name, index), (client, rest) in list(self.held.items()):
             if client is owner:
                 if name in self.values and index < len(self.values[name]):
