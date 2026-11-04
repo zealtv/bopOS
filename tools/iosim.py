@@ -27,6 +27,13 @@ Usage
   # drive it by hand: type channel numbers, Enter to fire, q to quit
   iosim.py --name adc --rest 3.3,3.3,3.3,3.3 --interactive
 
+  # fake keyboard and mouse: the same /io/key and /io/mouse the bridge sends
+  # from a real USB device (84-key-input); each sends once and exits
+  iosim.py --key space            # down, --hold seconds, up
+  iosim.py --click left
+  iosim.py --xy 0.25,0.75         # pointer position, 0-1, origin top-left
+  iosim.py --move 40,-10 --wheel 1
+
   # watch what a bridge is really sending (only when PD is NOT holding 6662)
   iosim.py --listen
 
@@ -57,6 +64,37 @@ def send(sock, host, port, name, values):
         msg.append(float(v))
     bundle.append(msg)
     sock.sendto(bundle.getBinary(), (host, port))
+
+
+def send_input(sock, host, port, address, values):
+    """A bare message, as io/main.py sends key and pointer input."""
+    msg = OSCMessage(address)
+    for v in values:
+        msg.append(v)
+    sock.sendto(msg.getBinary(), (host, port))
+
+
+def run_input(args):
+    """Keys and buttons are edges, not polled values: down, hold, up, done."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    target = (sock, args.host, args.port)
+    for address, name in (("/io/key", args.key), ("/io/mouse", args.click)):
+        if name:
+            send_input(*target, address, [name, 1])
+            time.sleep(args.hold)
+            send_input(*target, address, [name, 0])
+            print("iosim: %s %s pressed and released" % (address, name))
+    if args.move:
+        dx, dy = (int(v) for v in args.move.split(","))
+        send_input(*target, "/io/mouse", ["move", dx, dy])
+        print("iosim: /io/mouse move %d %d" % (dx, dy))
+    if args.xy:
+        x, y = (min(1.0, max(0.0, float(v))) for v in args.xy.split(","))
+        send_input(*target, "/io/mouse", ["xy", x, y])
+        print("iosim: /io/mouse xy %g %g" % (x, y))
+    if args.wheel:
+        send_input(*target, "/io/mouse", ["wheel", args.wheel])
+        print("iosim: /io/mouse wheel %d" % args.wheel)
 
 
 def run_send(args):
@@ -196,10 +234,17 @@ def main():
                    help="press channels by hand from stdin")
     p.add_argument("--listen", action="store_true",
                    help="receive and print instead of sending")
+    p.add_argument("--key", help="press and release one key, e.g. space, w, key_1")
+    p.add_argument("--click", help="press and release one mouse button, e.g. left")
+    p.add_argument("--xy", help="set the pointer to X,Y (0-1 each)")
+    p.add_argument("--move", help="send one relative move DX,DY in counts")
+    p.add_argument("--wheel", type=int, help="send wheel steps")
     args = p.parse_args()
 
     if args.listen:
         run_listen(args)
+    elif args.key or args.click or args.xy or args.move or args.wheel:
+        run_input(args)
     else:
         run_send(args)
 

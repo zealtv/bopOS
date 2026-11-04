@@ -16,6 +16,7 @@ from pyOSC3 import OSCClient, OSCMessage, OSCBundle, OSCServer
 
 from sys_wireless import read_wireless
 from sys_i2c import have_bus, usable_bus, scan_inventory
+from sys_input import InputReader
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 import io_protocol
 import io_stream
@@ -518,6 +519,25 @@ class IOManager:
         server_thread.daemon = True
         server_thread.start()
         self._registry()
+
+        # Keys and pointers are always on and outside the manifest (84-key-input).
+        # They go straight to the engine on their own client, never through the
+        # poll loop, so a press isn't delayed by up to a poll period.
+        input_client = OSCClient()
+        input_client.connect(("127.0.0.1", PD_PORT))
+
+        def send_input(address, *values):
+            msg = OSCMessage(address)
+            for value in values:
+                msg.append(value)
+            try:
+                input_client.send(msg)
+            except Exception as error:
+                print(f"Error sending {address}: {error}")
+
+        input_reader = InputReader(send_input)
+        input_thread = threading.Thread(target=input_reader.run, daemon=True)
+        input_thread.start()
         
         # Handle SIGTERM to ensure cleanup runs on external termination
         def signal_handler(signum, frame):
@@ -541,6 +561,7 @@ class IOManager:
             print("\n\nShutting down...")
             self.running = False
             server.close()
+            input_reader.running = False
             
             # Cleanup all peripherals
             server_thread.join()

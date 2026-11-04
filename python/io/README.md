@@ -68,6 +68,32 @@ tube's angle from level whichever way it has rolled.
 [touch threshold 15 8(  ← Set touch thresholds
 ```
 
+### Keys and pointers (always on)
+
+The bridge also reads every USB or Bluetooth keyboard and mouse — a Makey
+Makey is both — straight from `/dev/input`, grabbing each so the tty1 console
+stops seeing it (Pd runs `-nogui`, so `[key]` hears nothing). Nothing is
+declared or created; plug a device in and it reports within two seconds:
+
+```
+/io/key <name> <1|0>         key down/up; autorepeat ignored
+/io/mouse <button> <1|0>     left right middle side extra touch
+/io/mouse xy <x> <y>         pointer, 0-1 each, origin top-left
+/io/mouse move <dx> <dy>     raw relative counts in one report
+/io/mouse wheel <steps>      (hwheel for horizontal)
+```
+
+Key names are the kernel's (`KEY_SPACE` → `space`, `KEY_W` → `w`, arrows
+`up down left right`); number-row keys keep the prefix (`key_1`) because a bare
+`1` arrives in Pd as a symbol `[route 1]` cannot match. Unknown codes arrive as
+`code_<n>`. Relative mice move one shared virtual pointer that starts centred
+and spans 2000 counts per axis; touchscreens and tablets set it from their own
+range. Unplugging releases anything held. In Pd:
+`[r bopos-io] → [route io] → [route key mouse] → [route space w …]`.
+The `pi` user needs the `input` group (`provision.sh` adds it).
+`key` and `mouse` are reserved peripheral names. Fake them without hardware
+with `tools/iosim.py --key space`, `--click left`, `--xy 0.25,0.75`.
+
 ## File Structure
 
 ```
@@ -76,6 +102,7 @@ io_ads1015.py          # ADS1015 ADC module
 io_lis3dh.py         # LIS3DH accelerometer
 io_mpr121.py        # MPR121 touch sensor
 io_template.py     # Template for new peripherals
+sys_input.py       # Always-on keys and pointers (/io/key, /io/mouse)
 ```
 
 ## How It Works

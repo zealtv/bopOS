@@ -26,6 +26,9 @@ install -o root -g root -m 0755 "$BOPOS_DIR/systemd/bopos-set-wifi" /usr/local/s
 "$SCRIPT_DIR/install-usb-automount.sh"
 "$SCRIPT_DIR/install-wifi-powersave.sh"
 chown -R pi:pi "$BOPOS_DIR"
+# The IO bridge reads USB keyboards and mice from /dev/input (84-key-input).
+# Raspberry Pi OS normally puts its first user in input already; make sure.
+usermod -aG input pi
 
 if [ ! -e "$CONFIG_FILE" ]; then
     install -o pi -g pi -m 0644 "$CONFIG_DEFAULTS" "$CONFIG_FILE"
