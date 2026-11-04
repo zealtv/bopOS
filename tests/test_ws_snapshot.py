@@ -31,7 +31,7 @@ def connect_burst():
     source = SERVER.read_text()
     start = source.index("async def websocket(self, ws):")
     # The burst ends where the connection starts listening.
-    end = source.index("while True:", start)
+    end = source.index("while not ws.closed:", start)
     return [match.group(1) for match in
             re.finditer(r'send_json\(\{"type": "([a-z_]+)"', source[start:end])]
 

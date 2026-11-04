@@ -138,6 +138,12 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     simulated panel's wording from its screenshots (`84-key-input/2-input-sim-panel/`).
     Checklist in `84-key-input/3-input-hardware-check.waiting/instructions.md`.
 
+15. **Dashboard reconnect loop on the other Mac (67/29)**: update that Mac,
+    open the dashboard, and if it keeps reconnecting, paste the new
+    `Closed the dashboard connection to …: <reason>` line. The traceback fix
+    and the logging landed 2026-11-04 (`67-repair-pass/28-ws-self-close`).
+    → `67-repair-pass/29-ws-close-reason-check.waiting`.
+
 ## Ruled
 
 1. Passphrase warning wording — **yes**, as it reads in the app (Bob, 2026-10-04,

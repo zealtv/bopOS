@@ -7,10 +7,14 @@ queues, counters and writer. No task is created for a tap or a visual update.
 import asyncio
 from collections import Counter, OrderedDict, deque
 import json
+import logging
 import math
 import re
 import time
 
+from starlette.websockets import WebSocketDisconnect
+
+log = logging.getLogger('bopos.dashboard')
 TICK = .1
 BATCH_BYTES = 32 * 1024
 BATCH_ROWS = 100
@@ -111,17 +115,30 @@ class Client:
             return
         payload = encode(message)
         size = len(payload.encode())
-        snapshot = message['type'] in SNAPSHOTS
-        if (len(self.core) >= CORE_ROWS or self.core_bytes + size > TOTAL_CORE_BYTES
-                or (snapshot and size > SNAPSHOT_BYTES)
-                or (not snapshot and self.core_regular_bytes + size > CORE_BYTES)):
-            self.closed = True
+        kind = message['type']
+        snapshot = kind in SNAPSHOTS
+        if len(self.core) >= CORE_ROWS:
+            self.close_because(f'{CORE_ROWS} messages already queued (adding {kind})')
+        elif self.core_bytes + size > TOTAL_CORE_BYTES:
+            self.close_because(f'{kind} ({size} bytes) would queue over {TOTAL_CORE_BYTES} bytes')
+        elif snapshot and size > SNAPSHOT_BYTES:
+            self.close_because(f'{kind} snapshot is {size} bytes, over {SNAPSHOT_BYTES}')
+        elif not snapshot and self.core_regular_bytes + size > CORE_BYTES:
+            self.close_because(f'{kind} ({size} bytes) would queue over {CORE_BYTES} bytes')
         else:
             self.core.append((payload, size, snapshot))
             self.core_bytes += size
             if not snapshot:
                 self.core_regular_bytes += size
         self.wake.set()
+
+    def close_because(self, reason):
+        """This side gives up on the browser; say why, once."""
+        if not self.closed:
+            client = getattr(self.socket, 'client', None)
+            where = f'{client[0]}:{client[1]}' if client else 'a browser'
+            log.warning('Closed the dashboard connection to %s: %s', where, reason)
+        self.closed = True
 
     async def write(self):
         try:
@@ -137,8 +154,12 @@ class Client:
                     else:
                         payload, self.telemetry = self.telemetry, None
                     await asyncio.wait_for(self.socket.send_text(payload), SEND_TIMEOUT)
-        except (Exception, asyncio.CancelledError):
-            pass
+        except asyncio.TimeoutError:
+            self.close_because(f'a send took over {SEND_TIMEOUT} s')
+        except (WebSocketDisconnect, asyncio.CancelledError):
+            pass   # the browser left, or the connection is being disposed
+        except Exception as error:
+            self.close_because(f'send failed: {error!r}')
         finally:
             self.closed = True
             self.broker.release(self)

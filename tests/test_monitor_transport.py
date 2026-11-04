@@ -215,6 +215,30 @@ class MonitorTransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(other.closed)
         self.assertLessEqual(len(other.core), transport.CORE_ROWS)
 
+    async def test_self_close_logs_why_and_a_departed_browser_does_not(self):
+        client, socket = await self.client()
+        socket.client = ('192.0.2.7', 5000)
+        with self.assertLogs('bopos.dashboard', 'WARNING') as logs:
+            await client.send_json({'type': 'distribution', 'data': 'x' * transport.SNAPSHOT_BYTES})
+            await self.drain()
+        self.assertTrue(socket.closed)
+        self.assertIn('192.0.2.7:5000: distribution snapshot is', logs.output[0])
+        with patch.object(transport, 'SEND_TIMEOUT', .02):
+            slow, _ = await self.client(True)
+            with self.assertLogs('bopos.dashboard', 'WARNING') as logs:
+                await slow.send_json({'type': 'command_result', 'data': 1})
+                await asyncio.sleep(.06)
+        self.assertIn('a send took over 0.02 s', logs.output[0])
+        gone, gone_socket = await self.client()
+        async def departed(payload):
+            raise transport.WebSocketDisconnect(1006)
+        gone_socket.send_text = departed
+        with self.assertNoLogs('bopos.dashboard', 'WARNING'):
+            await gone.send_json({'type': 'command_result', 'data': 1})
+            await self.drain()
+            await self.broker.close()
+        self.assertTrue(gone.closed)
+
     async def test_map_opt_in_coalescing_and_clock_summary(self):
         client, _ = await self.client()
         self.broker.publish('point_frame', {'points': {'0': [1, 2]}})

@@ -1,0 +1,63 @@
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 147, in app
+    await wrap_app_handling_exceptions(app, session)(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 144, in app
+    await func(session)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 509, in app
+    await dependant.call(**solved_result.values)
+  File "/Users/rachellewindon/repos/bopOS/dashboard/server.py", line 1813, in websocket_endpoint
+    await dashboard.websocket(ws)
+  File "/Users/rachellewindon/repos/bopOS/dashboard/server.py", line 361, in websocket
+    message = await socket.receive_json()
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/websockets.py", line 134, in receive_json
+    raise RuntimeError('WebSocket is not connected. Need to call "accept" first.')
+RuntimeError: WebSocket is not connected. Need to call "accept" first.
+INFO:     127.0.0.1:59938 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     connection closed
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/uvicorn/protocols/websockets/websockets_impl.py", line 244, in run_asgi
+    result = await self.app(self.scope, self.asgi_receive, self.asgi_send)  # type: ignore[func-returns-value]
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/applications.py", line 1138, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/middleware/errors.py", line 151, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/routing.py", line 364, in handle
+    await self.app(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 147, in app
+    await wrap_app_handling_exceptions(app, session)(scope, receive, send)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 144, in app
+    await func(session)
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/fastapi/routing.py", line 509, in app
+    await dependant.call(**solved_result.values)
+  File "/Users/rachellewindon/repos/bopOS/dashboard/server.py", line 1813, in websocket_endpoint
+    await dashboard.websocket(ws)
+  File "/Users/rachellewindon/repos/bopOS/dashboard/server.py", line 361, in websocket
+    message = await socket.receive_json()
+  File "/Users/rachellewindon/.venvs/bopos/lib/python3.9/site-packages/starlette/websockets.py", line 134, in receive_json
+    raise RuntimeError('WebSocket is not connected. Need to call "accept" first.')
+RuntimeError: WebSocket is not connected. Need to call "accept" first.

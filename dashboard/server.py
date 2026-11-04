@@ -357,7 +357,10 @@ class Dashboard(WSHandlers):
             if self.state.seat_for_uid(device_uid) and device.get("online"):
                 self.osc.request(device_uid, "patches")
         try:
-            while True:
+            # The transport may close the socket itself (overflow, slow
+            # browser); starlette then refuses another receive with a
+            # RuntimeError rather than WebSocketDisconnect.
+            while not ws.closed:
                 message = await socket.receive_json()
                 await self.handle_ws(message, ws)
         except WebSocketDisconnect:
