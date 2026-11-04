@@ -33,6 +33,11 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
       changes its consumer from `[route distortion]` to
       `[route track1] → [route fx] → [route distortion]`.
 
+- [ ] **Key and mouse examples.** Show `/io/key` and `/io/mouse` capture in
+      `patches/.templates/bopos-template.pd` and `patches/demo-pd/main.pd`.
+      Spellings and how to verify are in
+      `84-key-input/4-pd-reference-patches.waiting` (added 2026-11-04).
+
 ## How agents add to this
 
 When a change needs a Pd edit, add a checklist item here (or a child stitch

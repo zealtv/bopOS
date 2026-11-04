@@ -35,3 +35,5 @@ rule on it.
 1. `1-input-contract`: §2, §11 and §15 of the contract, version 1.24.
 2. `2-input-sim-panel`: the "key · mouse" simulated panel in Patch Edit.
 3. `3-input-hardware-check`: a Makey Makey on the rig (Bob).
+4. `4-pd-reference-patches`: key and mouse examples in the template and
+   demo-pd (Bob's Pd edit; asked for 2026-11-04).
