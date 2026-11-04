@@ -17,3 +17,18 @@ connections, then decide whether to shrink a message or raise a limit.
 
 If no warning appears and the dashboard behaves, the errors may have come
 from that Mac's older checkout. Record that and tie this stitch.
+
+## Observed 2026-11-04 (agent, over Bob's ssh session)
+
+- That Mac (`rachellewindon@192.168.0.101`, Rachels-MacBook-Pro-3) was at
+  `e5985af` with a clean tree and no dashboard running. Pulled to `995ce11`
+  and started `nohup ./run.sh > ~/bopos-dashboard.log 2>&1 &` (pid 5500),
+  serving http://192.168.0.101:8080/.
+- A browser-style client from Bob's Mac received `state` (9640 bytes),
+  `distribution` (1199), `show`, `show_warnings`, `show_playback`, about 20
+  `patches` messages (~2.8 KB each) and `telemetry`. It stayed connected
+  through 4 s idle. The log showed no warning.
+- So in this state, every snapshot is far below 4 MB: the oversized-snapshot
+  guess in `28` doesn't hold here. Watch the log
+  (`grep -v '^INFO' ~/bopos-dashboard.log`) while the errors' conditions are
+  recreated, such as a real browser, nodes online, or the Theo River update.
