@@ -28,6 +28,22 @@ bop.stream or bop.sampler, or pull out specific assets or folders."*
   builds `<name>.wav` with `makefilename` instead.
 - The results feed `readsf~` via `open <path>`.
 
+## Other patches (read 2026-11-05; Bob suggested fire-button)
+
+- **fire-button** (`patches/fire-button/main.pd`): `[loadbang]` → a
+  hard-coded `pack ../../../assets/fire-button` message into
+  `bop.stream2~`'s `pack` attribute (saved in the object, `#A saved pack …`).
+  That relative path assumes the dashboard checkout's layout. Its manifest
+  declares `"slots": []`, so the slot it plays from isn't declared. It routes
+  `[route patch assets]` from context but doesn't use the result for the path.
+- **bop.stream2~** (`pd/bop`): `makefilename %s/*.wav` → `file glob`, a
+  "custom path" inlet, and the same stale `%s/samplepacks/$1/*/` template as
+  `bop.stream~` / `bop.sampler~`. So the loaders already glob a folder; the
+  question is who supplies the folder.
+- **bonks-pd**: `[r bopos-assets-path]` under an "assets" header. Nothing in
+  `pd/` or `patches/` sends `bopos-assets-path`, so it looks like a leftover
+  from a retired mechanism. Its manifest also declares `"slots": []`.
+
 So the emerging needs are: resolve *my slot* by name; list a folder (files,
 subfolders, or a glob pattern); pick by name, index, or device id mod count;
 join a full path; and refire when context arrives or the slot changes.
@@ -56,8 +72,9 @@ join a full path; and refire when context arrives or the slot changes.
 
 Prototype each idiom in headless Pd 0.55 with a scratch harness (pattern in
 `80-osc-input/5-pd-event-fields.waiting/headless-test/`) and a fake asset
-tree, so the proposal's spellings are verified. Ask Bob whether other
-patches (fire-button, bonks) have needs worth folding in before finalising.
+tree, so the proposal's spellings are verified. Include worked replacements
+for fire-button's hard-coded `pack` path as well as KC's subpatches, and say
+whether patches that read assets must declare their slots.
 
 ## Done when
 

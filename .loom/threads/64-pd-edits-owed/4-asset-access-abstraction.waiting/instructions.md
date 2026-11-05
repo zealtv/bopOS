@@ -9,7 +9,9 @@ patches hand-roll asset paths today.
 - Build the abstraction(s) in `pd/` with a `-help.pd`, and link it from the
   `bopos~` help patch (`2-live-pd-reference`).
 - Replace `kc-test`'s `get-tilt-file` / `get-trigger-file` /
-  `get-point-file` subpatches and its hard-coded asset list.
+  `get-point-file` subpatches and its hard-coded asset list, fire-button's
+  hard-coded `pack ../../../assets/fire-button`, and bonks-pd's dead
+  `[r bopos-assets-path]` (nothing sends it).
 - **`samplepacks` path templates** (folded in from `64`'s checklist,
   2026-11-05; first recorded by the assets cache repair, `lore:2026-09-25-pd-edits-for-bob-2026-08`).
   The engine no longer creates the `bop/samplepacks` link, but
