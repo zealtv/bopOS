@@ -242,6 +242,10 @@ Node → engine (localhost 6661), at the local deadline:
 - Nodes schedule every well-formed fire without consulting the manifest.
   Dashboard surfaces badge undeclared identities as they do for `/p/*`;
   declaration is documentation and authoring metadata, not a delivery gate.
+- Authoring note (Bob, 2026-11-05): a Pd engine receives identity segments and
+  text fields as the same kind of atom, so `/e/trig "play"` and `/e/trig/play`
+  arrive identical. A patch should not declare a nested identity that collides
+  with a shorter identity's text field.
 
 ### 3.3 Parameter automation grammar (`/p/*` plane)
 

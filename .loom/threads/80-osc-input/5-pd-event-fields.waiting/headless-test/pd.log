@@ -1,0 +1,30 @@
+EVENT: symbol trig
+ATOM: s trig
+EVENT: list trig 0.5 7 play
+ATOM: s play
+ATOM: f 7
+ATOM: f 0.5
+ATOM: s trig
+EVENT: list trig play
+ATOM: s play
+ATOM: s trig
+EVENT: list trig play
+ATOM: s play
+ATOM: s trig
+EVENT: list kite trig 42
+ATOM: s 42
+ATOM: s trig
+ATOM: s kite
+EVENT: list trig 1.67772e+07
+ATOM: f 1.67772e+07
+ATOM: s trig
+EVENT: list scene 3 1
+ATOM: f 1
+ATOM: s 3
+ATOM: s scene
+EVENT: list trig a\;b x\,y \$1 {q}
+ATOM: s {q}
+ATOM: s \$1
+ATOM: s x\,y
+ATOM: s a\;b
+ATOM: s trig

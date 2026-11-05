@@ -12,29 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-13. **Shared node protocol (69/3)**: `69-complexity/3-shared-node-protocol.waiting/proposal.md`.
-    One small shared module for validation, UID verb dispatch and replies,
-    plus parity tests against the contract. Keep both OSC libraries for now;
-    defer the horizon engine redesign. Found drift: audition is missing six
-    verbs; assignment validation differs; enabled 0.5 is accepted as 0. The
-    worst defect, malformed sync killing the node's listener, is already
-    fixed. Approve the narrow extraction?
-
-17. **Node process ownership (67/19)**: proposal in
-    `67-repair-pass/19-node-process-ownership.waiting/proposal.md` (summary at
-    the top). systemd owns the daemon, IO bridge and engine as three units
-    under a `bopos.target`; crashes restart on their own; PID files, stop
-    scripts and `pkill` go. Your calls: three new exact sudoers lines for
-    `systemctl start|stop|restart bopos-engine.service`, the journal split,
-    a one-time `provision.sh` + reboot per Pi with a temporary `start.sh` shim
-    (or a flag day), and engine `Restart=no`. Approve?
-
-20. **Pd receives typed event fields (80/5)** — *added 2026-10-26; ready since
-    `80-osc-input/3-event-fields-wire` tied.* Check that `pd/bopos~.pd`'s `/e/`
-    path passes text (symbol) and int fields through to the patch unchanged;
-    edit it if not (`64-pd-edits-owed` if an agent writes the edit up). →
-    `80-osc-input/5-pd-event-fields.waiting`.
-
 ## Hardware checks (Bob's hands; software halves are done)
 
 2. **Wi-Fi switchover rehearsal**: both APs up, push the list, disable
@@ -137,3 +114,6 @@ specific hardware, and record which device and framework revision.
 21. Monitor transport labels (71/2, was open item 14) — **OK** (Bob, 2026-11-05) → `71-network-traffic` tied.
 22. Module panels (59/9, was open item 15) — **acknowledged** (Bob, 2026-11-05).
 23. Update patch and push targets (58/1, 58/3, was open item 18) — **OK** (Bob, 2026-11-05) → both tied.
+24. Shared node protocol (69/3, was open item 13) — **approve the narrow extraction** (Bob, 2026-11-05) → `69-complexity/3-shared-node-protocol/ruling.md`, resumed.
+25. Node process ownership (67/19, was open item 17) — **approve, amended** (Bob, 2026-11-05): no shim (provision-level guard on Update bopOS instead), one `bopos` command for people, internal entry points kept separate → `67-repair-pass/19-node-process-ownership/ruling.md`, resumed.
+26. Pd typed event fields (80/5, was open item 20) — headless Pd 0.55 test (2026-11-05): pass-through fine; **accept** the nested-identity/text-field ambiguity (authoring note in contract §3.2); `bopos~.pd` event `[list]` hides events from bare `[route]` → edit written into `64-pd-edits-owed` (Bob, 2026-11-05). Rig check stays as hardware item 11.
