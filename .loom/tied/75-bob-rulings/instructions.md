@@ -39,20 +39,8 @@ Tie this when Open and Hardware checks are empty.
 8. Engine `/id` — **int, as long as Pd is happy** →
    `67-repair-pass/10-engine-id-int` (Pd check first; lands in 68's 1.19).
 
-## Hardware checks (Bob's hands; software halves are done)
+## Hardware checks
 
-Device-agnostic (Bob, 2026-10-03): Finn Jet and Ciro Toast are out of date and
-will be updated first. Use any current bopOS device unless a check needs
-specific hardware, and record which device and framework revision.
-
-- **Wrong-address peripheral** → error, not zeros. Needs a device with an
-  LIS3DH. `67-repair-pass/3-io-bridge-hardening.waiting`.
-- **Invalid manifest**: write one with the retired `type` grammar, confirm the
-  device stays visible, push a good patch, confirm it recovers. Any device.
-  `58-patch-push-workflow/4-invalid-manifest-lockout.waiting`.
-- **Device disable / mute all**: disable from the Device page, then mute all;
-  is it actually silent? Most telling on a card with no hardware mixer (e.g.
-  HiFiBerry). `67-repair-pass/2-device-enabled-honesty.waiting` and
-  `7-mute-all-honesty`.
-- **Package versions**: run the read-only comparison command in
-  `docs/INSTALL.md` on a device; compare against `constraints.txt`.
+Moved to `76-bob-review` (hardware checks 16–19) on 2026-11-05, so Bob's
+outstanding hands-on checks sit in one list. This stitch was tied then: Open
+was already empty.

@@ -1,0 +1,32 @@
+# Mac → Noor Dusk (<node-ip>) ping state changes, 1 s interval, Mac wired to hEX ether2
+## bounce 2 (single, 15:51)
+15:51:20 noor up
+15:51:37 noor DOWN
+15:52:43 noor up
+15:56:13 noor DOWN
+15:56:50 end, last state DOWN
+
+## 10-bounce loop (15:56–16:27)
+15:56:18 start
+15:56:19 noor DOWN
+15:57:17 noor up
+15:59:12 noor DOWN
+16:00:31 noor up
+16:02:13 noor DOWN
+16:03:19 noor up
+16:05:13 noor DOWN
+16:06:19 noor up
+16:08:13 noor DOWN
+16:09:31 noor up
+16:11:14 noor DOWN
+16:12:32 noor up
+16:14:14 noor DOWN
+16:15:34 noor up
+16:17:14 noor DOWN
+16:18:32 noor up
+16:20:14 noor DOWN
+16:21:32 noor up
+16:23:15 noor DOWN
+16:24:33 noor up
+16:27:18 end, last state up
+

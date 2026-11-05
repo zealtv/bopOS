@@ -96,7 +96,37 @@ Slices 1–6 are built and committed. The helper's network-manager backend repor
   Observed 2026-10-28 on Bria Fox (Pi OS Trixie): NetworkManager is active and
   manages wlan0 (`79-wifi-power-save/2-pi-power-save-check.tied/verification.md`).
 - The real-Pi switchover rehearsal (verification gates).
+- Possible wrong-key lockout found 2026-11-05: `../3-wrong-key-lockout.waiting`.
+  Its outcome may change how the backend sets retries on managed profiles.
 - The editorial fix to OSC-CONTRACT (the `installation.json` → `project.json` mention, now ~line 859).
 
 **Ruled 2026-10-04 (Bob, via Tengu):** the passphrase warning wording as built is
 approved ("⚠ This sends N passphrase(s)…", with proper plurals, N = distinct networks).
+
+## Slice 0 platform facts (noor-dusk, 2026-11-05)
+
+From the kite-choir-brains soak (`lore:2026-11-05-ap-restart-soak-noor-dusk`;
+summary in glean `networkmanager-wifi`). Pi 3 A+, Trixie, NM 1.52.1, bopOS
+`74a9717`. With Bria Fox (2026-10-28), that makes two Pis where NM manages wlan0.
+
+- **Adopt by SSID, not profile name.** The Imager-provisioned network shows up
+  as a netplan-generated NM profile, `netplan-wlan0-<ssid>` (here
+  `netplan-wlan0-<workshop-ssid>`). `nmcli con modify` on it persisted across a
+  16:38 reboot; `/etc/netplan/` holds `90-NM-<uuid>.yaml`, consistent with NM
+  writing back to netplan.
+- **"List order is priority" governs only the choice at (re)connect.** In
+  bounce 1, noor-dusk dropped from `<dev-ssid>` (priority 10) to `<workshop-ssid>`
+  (priority 0) and stayed there 5+ min after <dev-ssid> came back. So a disabled
+  network must be saved with autoconnect **off**, never just given a low
+  priority, or it can capture devices. Say so in the panel's warnings and in
+  the docs. Kite Choir's field rule: Pis carry only show-LAN profiles (brains
+  `glean:field-pis-save-only-show-lan-networks`).
+
+## Switchover, 2026-11-05 (Bob's report; not the gate)
+
+Bob, in chat: *"we also tested a wifi switchover"*. As the brains session
+recorded it, noor-dusk was moved onto `<dev-ssid>` by hand with `nmcli`, because
+`bopos-set-wifi`'s backend is still the stub, and the AP bounces showed NM
+failing over to another saved network on its own. That exercises the OS side
+of a switchover, not the dashboard push, so the rehearsal gate above stays
+open until the backend is filled in.

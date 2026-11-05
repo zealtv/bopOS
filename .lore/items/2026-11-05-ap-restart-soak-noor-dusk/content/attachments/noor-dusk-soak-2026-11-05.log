@@ -1,0 +1,1568 @@
+nohup: ignoring input
+15:38:32 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:38:34 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:38:36 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:38 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:40 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:42 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:44 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:46 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:48 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:50 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:52 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:38:54 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:38:57 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:38:59 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:01 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:39:03 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:39:05 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:07 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:09 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:11 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:13 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:15 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:17 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:19 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:39:21 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:23 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:25 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:27 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:29 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:31 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:33 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:39:35 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:37 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:39:39 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:41 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:44 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:46 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:48 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:50 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:52 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:54 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:56 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:39:58 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:00 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:02 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:04 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:06 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:40:08 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:10 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:12 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:15 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:17 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:19 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:21 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:23 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:25 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:27 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:29 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:31 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:33 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:35 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:37 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:39 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:41 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:43 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:45 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:48 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:50 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:52 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:54 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:56 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:40:58 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:00 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:02 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:04 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:06 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:08 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:10 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:12 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:14 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:16 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:18 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:20 	SSID: <dev-ssid> 	signal: -44 dBm  gw-ok
+15:41:22 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:24 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:26 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:28 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:31 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:33 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:35 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:41:37  GW-DOWN
+15:41:40  GW-DOWN
+15:41:42  GW-DOWN
+15:41:45  GW-DOWN
+15:41:47  GW-DOWN
+15:41:50  GW-DOWN
+15:41:52  GW-DOWN
+15:41:55 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:41:58 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:01 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:04 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:07 	SSID: <workshop-ssid> 	signal: -40 dBm  GW-DOWN
+15:42:10 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:13 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:16 	SSID: <workshop-ssid> 	signal: -41 dBm  GW-DOWN
+15:42:19 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:22 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:25 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:28 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:31 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:35 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:38 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:42:41 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:44 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:42:47 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:50 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:53 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:56 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:42:59 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:02 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:05 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:08 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:11 	SSID: <workshop-ssid> 	signal: -42 dBm  GW-DOWN
+15:43:14 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:17 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:20 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:23 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:26 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:43:29 	SSID: <workshop-ssid> 	signal: -42 dBm  GW-DOWN
+15:43:32 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:35 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:38 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:41 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:44 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:48 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:51 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:54 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:43:57 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:00 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:03 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:44:06 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:44:09 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:12 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:44:15 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:18 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:21 	SSID: <workshop-ssid> 	signal: -40 dBm  GW-DOWN
+15:44:24 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:27 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:30 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:33 	SSID: <workshop-ssid> 	signal: -40 dBm  GW-DOWN
+15:44:36 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:39 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:42 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:45 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:48 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:51 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:44:54 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:44:57 	SSID: <workshop-ssid> 	signal: -40 dBm  GW-DOWN
+15:45:01 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:04 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:07 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:10 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:13 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:16 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:19 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:22 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:25 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:28 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:31 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:34 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:37 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:40 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:43 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:46 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:49 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:45:52 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:45:55 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:45:58 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:01 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:04 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:07 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:10 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:14 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:17 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:46:20 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:23 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:26 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:29 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:32 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:35 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:38 	SSID: <workshop-ssid> 	signal: -41 dBm  GW-DOWN
+15:46:41 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:44 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:46:47 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:50 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:53 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:56 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:46:59 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:02 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:05 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:08 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:11 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:14 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:47:17 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:20 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:23 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:26 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:30 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:33 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:47:36 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:39 	SSID: <workshop-ssid> 	signal: -43 dBm  GW-DOWN
+15:47:42 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:47:45 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:48 	SSID: <workshop-ssid> 	signal: -35 dBm  GW-DOWN
+15:47:51 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:47:54 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:47:57 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:00 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:48:03 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:48:06 	SSID: <workshop-ssid> 	signal: -40 dBm  GW-DOWN
+15:48:09 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:48:12 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:15 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:18 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:21 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:24 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:48:27 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:30 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:33 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:36 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:39 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:42 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:46 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:49 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:48:52 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:55 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:48:58 	SSID: <workshop-ssid> 	signal: -38 dBm  GW-DOWN
+15:49:01 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:49:04 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:49:07 	SSID: <workshop-ssid> 	signal: -37 dBm  GW-DOWN
+15:49:10 	SSID: <workshop-ssid> 	signal: -36 dBm  GW-DOWN
+15:49:13 	SSID: <workshop-ssid> 	signal: -35 dBm  GW-DOWN
+15:49:16  GW-DOWN
+15:49:18  GW-DOWN
+15:49:20  GW-DOWN
+15:49:22 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:24 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:26 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:28 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:30 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:32 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:34 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:36 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:38 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:40 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:42 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:44 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:46 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:48 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:50 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:49:53 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:55 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:57 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:49:59 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:01 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:03 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:05 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:07 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:09 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:11 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:13 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:15 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:17 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:19 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:21 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:23 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:25 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:27 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:29 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:31 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:34 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:36 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:38 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:40 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:42 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:44 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:46 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:48 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:50 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:50:52 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:54 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:56 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:50:58 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:00 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:02 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:04 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:06 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:08 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:10 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:12 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:14 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:16 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:18 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:21 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:51:23 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:25 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:27 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:29 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:31 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:33 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:35 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:51:37 	SSID: <dev-ssid> 	signal: -46 dBm  GW-DOWN
+15:51:40 	SSID: <dev-ssid> 	signal: -46 dBm  GW-DOWN
+15:51:43  GW-DOWN
+15:51:46  GW-DOWN
+15:51:48  GW-DOWN
+15:51:51  GW-DOWN
+15:51:53  GW-DOWN
+15:51:56  GW-DOWN
+15:51:58  GW-DOWN
+15:52:00  GW-DOWN
+15:52:02  GW-DOWN
+15:52:04  GW-DOWN
+15:52:06  GW-DOWN
+15:52:08  GW-DOWN
+15:52:10  GW-DOWN
+15:52:12  GW-DOWN
+15:52:14  GW-DOWN
+15:52:17  GW-DOWN
+15:52:19  GW-DOWN
+15:52:21  GW-DOWN
+15:52:23  GW-DOWN
+15:52:25  GW-DOWN
+15:52:27  GW-DOWN
+15:52:29  GW-DOWN
+15:52:31  GW-DOWN
+15:52:33  GW-DOWN
+15:52:35  GW-DOWN
+15:52:37  GW-DOWN
+15:52:39  GW-DOWN
+15:52:41 	SSID: <dev-ssid> 	signal: -45 dBm  GW-DOWN
+15:52:43 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:52:45 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:52:47 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:49 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:51 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:53 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:55 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:57 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:52:59 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:01 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:03 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:05 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:07 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:09 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:12 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:14 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:16 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:18 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:20 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:22 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:24 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:26 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:28 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:30 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:32 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:34 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:36 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:38 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:40 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:42 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:44 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:46 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:48 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:50 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:52 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:54 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:56 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:53:58 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:01 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:03 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:05 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:07 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:09 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:11 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:13 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:15 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:17 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:19 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:21 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:23 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:25 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:27 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:29 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:31 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:54:33 	SSID: <dev-ssid> 	signal: -49 dBm  gw-ok
+15:54:35 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:37 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:39 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:41 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:44 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:46 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:48 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:50 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:52 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:54:54 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:54:56 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:54:58 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:00 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:02 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:04 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:06 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:08 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:10 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:12 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:14 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:16 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:18 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:20 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:22 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:24 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:27 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:29 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:31 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:33 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:35 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:37 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:39 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:41 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:43 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:55:45 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:47 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:49 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:51 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:53 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:55 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:57 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:55:59 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:56:01 	SSID: <dev-ssid> 	signal: -45 dBm  gw-ok
+15:56:03 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:56:05 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:56:07 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:56:10 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:56:12 	SSID: <dev-ssid> 	signal: -46 dBm  GW-DOWN
+15:56:15 	SSID: <dev-ssid> 	signal: -46 dBm  GW-DOWN
+15:56:18  GW-DOWN
+15:56:21  GW-DOWN
+15:56:23  GW-DOWN
+15:56:26  GW-DOWN
+15:56:28  GW-DOWN
+15:56:31  GW-DOWN
+15:56:33  GW-DOWN
+15:56:35  GW-DOWN
+15:56:37  GW-DOWN
+15:56:39  GW-DOWN
+15:56:41  GW-DOWN
+15:56:43  GW-DOWN
+15:56:45  GW-DOWN
+15:56:47  GW-DOWN
+15:56:49  GW-DOWN
+15:56:51  GW-DOWN
+15:56:53  GW-DOWN
+15:56:55  GW-DOWN
+15:56:57  GW-DOWN
+15:56:59  GW-DOWN
+15:57:01  GW-DOWN
+15:57:03  GW-DOWN
+15:57:05  GW-DOWN
+15:57:07  GW-DOWN
+15:57:10  GW-DOWN
+15:57:12  GW-DOWN
+15:57:14  GW-DOWN
+15:57:16  GW-DOWN
+15:57:18 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:57:20 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:57:22 	SSID: <dev-ssid> 	signal: -49 dBm  gw-ok
+15:57:24 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+15:57:26 	SSID: <dev-ssid> 	signal: -54 dBm  gw-ok
+15:57:28 	SSID: <dev-ssid> 	signal: -50 dBm  gw-ok
+15:57:30 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+15:57:32 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:57:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:57:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:58:58 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+15:59:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+15:59:12  GW-DOWN
+15:59:15  GW-DOWN
+15:59:17  GW-DOWN
+15:59:20  GW-DOWN
+15:59:23  GW-DOWN
+15:59:26  GW-DOWN
+15:59:28  GW-DOWN
+15:59:30  GW-DOWN
+15:59:32  GW-DOWN
+15:59:34  GW-DOWN
+15:59:36  GW-DOWN
+15:59:38  GW-DOWN
+15:59:40  GW-DOWN
+15:59:42  GW-DOWN
+15:59:44  GW-DOWN
+15:59:46  GW-DOWN
+15:59:48  GW-DOWN
+15:59:50  GW-DOWN
+15:59:52  GW-DOWN
+15:59:54  GW-DOWN
+15:59:56  GW-DOWN
+15:59:58  GW-DOWN
+16:00:00  GW-DOWN
+16:00:02  GW-DOWN
+16:00:04  GW-DOWN
+16:00:06  GW-DOWN
+16:00:08  GW-DOWN
+16:00:10  GW-DOWN
+16:00:12  GW-DOWN
+16:00:14  GW-DOWN
+16:00:16  GW-DOWN
+16:00:18  GW-DOWN
+16:00:20  GW-DOWN
+16:00:23  GW-DOWN
+16:00:25  GW-DOWN
+16:00:27  GW-DOWN
+16:00:29  GW-DOWN
+16:00:31 	SSID: <dev-ssid> 	signal: -47 dBm  GW-DOWN
+16:00:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:00:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:01:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:02:13 	SSID: <dev-ssid> 	signal: -47 dBm  GW-DOWN
+16:02:16 	SSID: <dev-ssid> 	signal: -47 dBm  GW-DOWN
+16:02:19  GW-DOWN
+16:02:22  GW-DOWN
+16:02:24  GW-DOWN
+16:02:27  GW-DOWN
+16:02:29  GW-DOWN
+16:02:32  GW-DOWN
+16:02:34  GW-DOWN
+16:02:36  GW-DOWN
+16:02:38  GW-DOWN
+16:02:40  GW-DOWN
+16:02:42  GW-DOWN
+16:02:44  GW-DOWN
+16:02:46  GW-DOWN
+16:02:48  GW-DOWN
+16:02:50  GW-DOWN
+16:02:52  GW-DOWN
+16:02:55  GW-DOWN
+16:02:57  GW-DOWN
+16:02:59  GW-DOWN
+16:03:01  GW-DOWN
+16:03:03  GW-DOWN
+16:03:05  GW-DOWN
+16:03:07  GW-DOWN
+16:03:09  GW-DOWN
+16:03:11  GW-DOWN
+16:03:13  GW-DOWN
+16:03:15  GW-DOWN
+16:03:17  GW-DOWN
+16:03:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:21 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:03:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:03:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:04:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:05:11 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:05:13 	SSID: <dev-ssid> 	signal: -48 dBm  GW-DOWN
+16:05:16 	SSID: <dev-ssid> 	signal: -48 dBm  GW-DOWN
+16:05:19  GW-DOWN
+16:05:23  GW-DOWN
+16:05:25  GW-DOWN
+16:05:28  GW-DOWN
+16:05:30  GW-DOWN
+16:05:33  GW-DOWN
+16:05:35  GW-DOWN
+16:05:37  GW-DOWN
+16:05:39  GW-DOWN
+16:05:41  GW-DOWN
+16:05:43  GW-DOWN
+16:05:45  GW-DOWN
+16:05:47  GW-DOWN
+16:05:49  GW-DOWN
+16:05:51  GW-DOWN
+16:05:53  GW-DOWN
+16:05:55  GW-DOWN
+16:05:57  GW-DOWN
+16:05:59  GW-DOWN
+16:06:01  GW-DOWN
+16:06:03  GW-DOWN
+16:06:05  GW-DOWN
+16:06:07  GW-DOWN
+16:06:09  GW-DOWN
+16:06:11  GW-DOWN
+16:06:13  GW-DOWN
+16:06:15  GW-DOWN
+16:06:17  GW-DOWN
+16:06:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:52 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:06:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:06:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:07:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:08:12  GW-DOWN
+16:08:15  GW-DOWN
+16:08:17  GW-DOWN
+16:08:20  GW-DOWN
+16:08:22  GW-DOWN
+16:08:25  GW-DOWN
+16:08:27  GW-DOWN
+16:08:29  GW-DOWN
+16:08:31  GW-DOWN
+16:08:33  GW-DOWN
+16:08:35  GW-DOWN
+16:08:37  GW-DOWN
+16:08:39  GW-DOWN
+16:08:41  GW-DOWN
+16:08:43  GW-DOWN
+16:08:45  GW-DOWN
+16:08:48  GW-DOWN
+16:08:50  GW-DOWN
+16:08:52  GW-DOWN
+16:08:54  GW-DOWN
+16:08:56  GW-DOWN
+16:08:58  GW-DOWN
+16:09:00  GW-DOWN
+16:09:02  GW-DOWN
+16:09:04  GW-DOWN
+16:09:06  GW-DOWN
+16:09:08  GW-DOWN
+16:09:10  GW-DOWN
+16:09:12  GW-DOWN
+16:09:14  GW-DOWN
+16:09:16  GW-DOWN
+16:09:18  GW-DOWN
+16:09:20  GW-DOWN
+16:09:22  GW-DOWN
+16:09:24  GW-DOWN
+16:09:26  GW-DOWN
+16:09:28  GW-DOWN
+16:09:30  GW-DOWN
+16:09:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:09:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:36 	SSID: <dev-ssid> 	signal: -51 dBm  gw-ok
+16:10:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:10:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:11:12  GW-DOWN
+16:11:15  GW-DOWN
+16:11:18  GW-DOWN
+16:11:21  GW-DOWN
+16:11:23  GW-DOWN
+16:11:26  GW-DOWN
+16:11:28  GW-DOWN
+16:11:30  GW-DOWN
+16:11:32  GW-DOWN
+16:11:34  GW-DOWN
+16:11:36  GW-DOWN
+16:11:38  GW-DOWN
+16:11:40  GW-DOWN
+16:11:42  GW-DOWN
+16:11:44  GW-DOWN
+16:11:46  GW-DOWN
+16:11:48  GW-DOWN
+16:11:50  GW-DOWN
+16:11:52  GW-DOWN
+16:11:54  GW-DOWN
+16:11:56  GW-DOWN
+16:11:58  GW-DOWN
+16:12:00  GW-DOWN
+16:12:02  GW-DOWN
+16:12:04  GW-DOWN
+16:12:06  GW-DOWN
+16:12:08  GW-DOWN
+16:12:10  GW-DOWN
+16:12:12  GW-DOWN
+16:12:14  GW-DOWN
+16:12:16  GW-DOWN
+16:12:18  GW-DOWN
+16:12:20  GW-DOWN
+16:12:22  GW-DOWN
+16:12:25  GW-DOWN
+16:12:27  GW-DOWN
+16:12:29  GW-DOWN
+16:12:31  GW-DOWN
+16:12:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:12:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:13:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:14:13  GW-DOWN
+16:14:16  GW-DOWN
+16:14:18  GW-DOWN
+16:14:21  GW-DOWN
+16:14:23  GW-DOWN
+16:14:26  GW-DOWN
+16:14:28  GW-DOWN
+16:14:30  GW-DOWN
+16:14:32  GW-DOWN
+16:14:34  GW-DOWN
+16:14:36  GW-DOWN
+16:14:38  GW-DOWN
+16:14:40  GW-DOWN
+16:14:42  GW-DOWN
+16:14:44  GW-DOWN
+16:14:46  GW-DOWN
+16:14:48  GW-DOWN
+16:14:50  GW-DOWN
+16:14:52  GW-DOWN
+16:14:54  GW-DOWN
+16:14:56  GW-DOWN
+16:14:59  GW-DOWN
+16:15:01  GW-DOWN
+16:15:03  GW-DOWN
+16:15:05  GW-DOWN
+16:15:07  GW-DOWN
+16:15:09  GW-DOWN
+16:15:11  GW-DOWN
+16:15:13  GW-DOWN
+16:15:15  GW-DOWN
+16:15:17  GW-DOWN
+16:15:19  GW-DOWN
+16:15:21  GW-DOWN
+16:15:23  GW-DOWN
+16:15:25  GW-DOWN
+16:15:27  GW-DOWN
+16:15:29  GW-DOWN
+16:15:31  GW-DOWN
+16:15:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:15:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:32 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:16:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:16:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:17:11 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:17:13  GW-DOWN
+16:17:16  GW-DOWN
+16:17:18  GW-DOWN
+16:17:21  GW-DOWN
+16:17:23  GW-DOWN
+16:17:26  GW-DOWN
+16:17:29  GW-DOWN
+16:17:31  GW-DOWN
+16:17:33  GW-DOWN
+16:17:35  GW-DOWN
+16:17:37  GW-DOWN
+16:17:39  GW-DOWN
+16:17:41  GW-DOWN
+16:17:43  GW-DOWN
+16:17:45  GW-DOWN
+16:17:47  GW-DOWN
+16:17:49  GW-DOWN
+16:17:51  GW-DOWN
+16:17:53  GW-DOWN
+16:17:55  GW-DOWN
+16:17:57  GW-DOWN
+16:17:59  GW-DOWN
+16:18:01  GW-DOWN
+16:18:03  GW-DOWN
+16:18:05  GW-DOWN
+16:18:07  GW-DOWN
+16:18:09  GW-DOWN
+16:18:11  GW-DOWN
+16:18:13  GW-DOWN
+16:18:15  GW-DOWN
+16:18:17  GW-DOWN
+16:18:19  GW-DOWN
+16:18:21  GW-DOWN
+16:18:23  GW-DOWN
+16:18:25  GW-DOWN
+16:18:27  GW-DOWN
+16:18:29  GW-DOWN
+16:18:31  GW-DOWN
+16:18:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:18:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:04 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:19:06 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:19:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:18 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:19:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:37 	SSID: <dev-ssid> 	signal: -50 dBm  gw-ok
+16:19:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:47 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:19:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:19:55 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:19:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:20:14  GW-DOWN
+16:20:17  GW-DOWN
+16:20:19  GW-DOWN
+16:20:22  GW-DOWN
+16:20:24  GW-DOWN
+16:20:27  GW-DOWN
+16:20:29  GW-DOWN
+16:20:31  GW-DOWN
+16:20:33  GW-DOWN
+16:20:35  GW-DOWN
+16:20:37  GW-DOWN
+16:20:39  GW-DOWN
+16:20:41  GW-DOWN
+16:20:43  GW-DOWN
+16:20:45  GW-DOWN
+16:20:48  GW-DOWN
+16:20:50  GW-DOWN
+16:20:52  GW-DOWN
+16:20:54  GW-DOWN
+16:20:56  GW-DOWN
+16:20:58  GW-DOWN
+16:21:00  GW-DOWN
+16:21:02  GW-DOWN
+16:21:04  GW-DOWN
+16:21:06  GW-DOWN
+16:21:08  GW-DOWN
+16:21:10  GW-DOWN
+16:21:12  GW-DOWN
+16:21:14  GW-DOWN
+16:21:16  GW-DOWN
+16:21:18  GW-DOWN
+16:21:20  GW-DOWN
+16:21:22  GW-DOWN
+16:21:24  GW-DOWN
+16:21:26  GW-DOWN
+16:21:28  GW-DOWN
+16:21:30  GW-DOWN
+16:21:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:21:59 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:22:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:21 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:22:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:27 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:22:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:50 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:22:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:22:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:23:15  GW-DOWN
+16:23:18  GW-DOWN
+16:23:20  GW-DOWN
+16:23:23  GW-DOWN
+16:23:25  GW-DOWN
+16:23:28  GW-DOWN
+16:23:30  GW-DOWN
+16:23:32  GW-DOWN
+16:23:34  GW-DOWN
+16:23:36  GW-DOWN
+16:23:38  GW-DOWN
+16:23:40  GW-DOWN
+16:23:42  GW-DOWN
+16:23:44  GW-DOWN
+16:23:46  GW-DOWN
+16:23:48  GW-DOWN
+16:23:50  GW-DOWN
+16:23:52  GW-DOWN
+16:23:54  GW-DOWN
+16:23:56  GW-DOWN
+16:23:58  GW-DOWN
+16:24:00  GW-DOWN
+16:24:02  GW-DOWN
+16:24:04  GW-DOWN
+16:24:06  GW-DOWN
+16:24:08  GW-DOWN
+16:24:10  GW-DOWN
+16:24:12  GW-DOWN
+16:24:15  GW-DOWN
+16:24:17  GW-DOWN
+16:24:19  GW-DOWN
+16:24:21  GW-DOWN
+16:24:23  GW-DOWN
+16:24:25  GW-DOWN
+16:24:27  GW-DOWN
+16:24:29  GW-DOWN
+16:24:31  GW-DOWN
+16:24:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:24:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:25:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:11 	SSID: <dev-ssid> 	signal: -50 dBm  gw-ok
+16:26:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:26:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:37 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+16:27:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:27:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:28:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:09 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:29:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:30:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:10 	SSID: <dev-ssid> 	signal: -46 dBm  gw-ok
+16:31:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:31:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:09 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:32:11 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:13 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:15 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:17 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:19 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:21 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:23 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:54 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:56 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:32:58 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:00 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:02 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:04 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:06 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:08 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:10 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:25 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:27 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:29 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:31 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:33 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:35 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:37 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:39 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:41 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:43 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:45 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:47 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:49 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:51 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:53 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:33:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:03 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:05 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:07 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:10 	SSID: <dev-ssid> 	signal: -48 dBm  gw-ok
+16:34:12 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:14 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:16 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:18 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:20 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:22 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:24 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:26 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:28 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:30 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:32 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:34 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:36 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:38 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:40 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:42 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:44 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:46 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:48 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:50 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:52 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:55 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:57 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:34:59 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok
+16:35:01 	SSID: <dev-ssid> 	signal: -47 dBm  gw-ok

@@ -65,28 +65,20 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `screenshots/update-patch-58-1440.png`, `screenshots/push-targets-58-1440.png`.
     OK as is?
 
-19. **OSC tab mockup (80/8)** — *not ready yet; added 2026-10-26.* Once the
-    OSC input (`80-osc-input/7-osc-input-port`) is built, `8-osc-tab-mockup`
-    produces a mockup from the running app and parks here: the tab's layout
-    and wording, per `80-osc-input/2-dashboard-osc-input.tied/proposal.md` §5.
-    Approve before `9-osc-tab` builds it.
-
-20. **Pd receives typed event fields (80/5)** — *added 2026-10-26; waits on
-    `80-osc-input/3-event-fields-wire`.* Check that `pd/bopos~.pd`'s `/e/`
+20. **Pd receives typed event fields (80/5)** — *added 2026-10-26; ready since
+    `80-osc-input/3-event-fields-wire` tied.* Check that `pd/bopos~.pd`'s `/e/`
     path passes text (symbol) and int fields through to the patch unchanged;
     edit it if not (`64-pd-edits-owed` if an agent writes the edit up). →
     `80-osc-input/5-pd-event-fields.waiting`.
 
 ## Hardware checks (Bob's hands; software halves are done)
 
-1. **Wi-Fi slice 0**: with a Pi up, choose the network manager. (Observed
-   2026-10-28 on Bria Fox, Pi OS Trixie: NetworkManager is active and
-   manages wlan0; see `79-wifi-power-save/2-pi-power-save-check.tied`.) The helper
-   backend is a marked seam that reports `unavailable` until then. →
-   `33b/2-network-config-implementation.waiting`.
 2. **Wi-Fi switchover rehearsal**: both APs up, push the list, disable
    *testing*, devices reappear on the hidden show network; disable show 1, and
-   the fallback takes over. → same stitch.
+   the fallback takes over. → `33b/2-network-config-implementation.waiting`.
+   The 2026-11-05 switchover moved noor-dusk by hand with `nmcli`; this one
+   needs the helper backend filled in first (an agent can do that now that
+   slice 0's facts are in).
 3. **IO control path (59/1)**: on a Pi, bridge replies reach `bopos.py` on
    7771; `io-scan` shows real addresses with kernel-claimed (`UU`, the DAC)
    marked; a scan doesn't disturb live peripherals; real driver writes and
@@ -118,31 +110,37 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `67-repair-pass/18-engine-launch-failures.tied/pi-check.md`.
 11. **Typed events in Pd (80/5)**: on the rig, a scheduled event with a text
     field arrives in Pd intact. Software half: `80-osc-input/3-event-fields-wire`
-    (not built as of 2026-10-26). → `80-osc-input/5-pd-event-fields.waiting`.
+    (tied). → `80-osc-input/5-pd-event-fields.waiting`.
 12. **qtable through bopOS (80/10)**: qtable → dashboard UDP 5552 → Finn Jet /
     Ciro Toast. Kite Choir `trig/play` events with text fields land in sync;
     `/bop/master` fades; `/bop/mute` silences. Software half:
-    `80-osc-input/7-osc-input-port` (not built as of 2026-10-26). →
+    `80-osc-input/7-osc-input-port` (tied). →
     `80-osc-input/10-qtable-rig-check.waiting`.
-13. **Wi-Fi power save soak (79/2)**: with a provisioned node (Bria Fox,
-    provisioned 2026-10-28), run a few hours with heartbeats watched on the
-    dashboard, ideally with an access-point restart mid-run. Does the node
-    stay reachable or recover unaided, with power save still `off` after the
-    reconnect? The reboot check is recorded in
-    `79-wifi-power-save/2-pi-power-save-check`; whether bopOS should nudge
-    a dead link waits on this (`79/3`).
+14. **Key and mouse input (84/3)**: what's left after the 2026-11-05 session
+    with Rachel (keys in a patch, the sim, forwarding from Theo River all
+    reported working): the console stops echoing (step 4), unplug/replug
+    recovers (5), mouse motion and its span (6). Also OK the simulated
+    panel's wording from its screenshots (`84-key-input/2-input-sim-panel/`).
+    Record in `84-key-input/3-input-hardware-check.waiting/verification.md`.
 
-14. **Key and mouse input (84/3)**: a Makey Makey on Finn Jet or Ciro Toast;
-    keys and clicks reach the patch as `/io/key`, `/io/mouse`, the console
-    stops echoing, unplug/replug recovers, `pi` is in `input`. Also OK the
-    simulated panel's wording from its screenshots (`84-key-input/2-input-sim-panel/`).
-    Checklist in `84-key-input/3-input-hardware-check.waiting/instructions.md`.
+Moved here from `75-bob-rulings` on 2026-11-05, when that stitch was tied;
+Bob's 2026-10-03 note still holds: any current device unless a check needs
+specific hardware, and record which device and framework revision.
 
-15. **Dashboard reconnect loop on the other Mac (67/29)**: update that Mac,
-    open the dashboard, and if it keeps reconnecting, paste the new
-    `Closed the dashboard connection to …: <reason>` line. The traceback fix
-    and the logging landed 2026-11-04 (`67-repair-pass/28-ws-self-close`).
-    → `67-repair-pass/29-ws-close-reason-check.waiting`.
+16. **Wrong-address peripheral**: an error, not zeros. Needs a device with an
+    LIS3DH. → `67-repair-pass/3-io-bridge-hardening.waiting`.
+17. **Invalid manifest**: write one with the retired `type` grammar, confirm
+    the device stays visible, push a good patch, confirm it recovers. Any
+    device. → `58-patch-push-workflow/4-invalid-manifest-lockout.waiting`.
+18. **Device disable / mute all**: disable from the Device page, then mute
+    all; is it actually silent? Most telling on a card with no hardware mixer
+    (e.g. HiFiBerry). → `67-repair-pass/2-device-enabled-honesty.waiting`
+    and `7-mute-all-honesty`.
+19. **Package versions**: run the read-only comparison command in
+    `docs/INSTALL.md` on a device; compare against `constraints.txt`.
+20. **Wrong-key lockout (33b/3)**: does a node that meets its SSID with the
+    wrong passphrase stay off Wi-Fi until power-cycled? Repro outside
+    Performance mode. → `33b-device-network-config/3-wrong-key-lockout.waiting`.
 
 ## Ruled
 
@@ -169,3 +167,7 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 12. Monitor transport (71/2) — Bob, 2026-10-04 via Tengu: **OK all**; "prefer simple and elegant solutions where possible; better to remove than add" (also in glean `fix-and-simplify-first`). New labels come back with screenshots.
 13. Editor input on hardware (59/6, was hardware check 8) — **tested OK** (Bob, 2026-10-28) → `59-i2c-inventory/6-live-sensor-in-patch-edit` tied.
 14. Editor input label (59/6, was open item 16) — **"Input source" is fine** (Bob, 2026-10-28) → `59-i2c-inventory/6-live-sensor-in-patch-edit.tied/bob-check.md`.
+15. OSC tab mockup (80/8, was open item 19) — Bob pre-approved it; the mockup and `9-osc-tab` are both tied. Removed 2026-11-05.
+16. Wi-Fi slice 0 (33b/2, was hardware check 1) — answered by observation: NetworkManager manages wlan0 on Bria Fox (2026-10-28) and noor-dusk (2026-11-05); the NM platform facts are in `33b/2` and glean `networkmanager-wifi`.
+17. Wi-Fi power save soak (79, was hardware check 13) — **done**: 11/11 unaided rejoins on noor-dusk after 60 s AP restarts, power save still `off` (2026-11-05). Bob: *"i think we can close 79-wifi-powersave."* → `79-wifi-power-save` tied, `79/3` dropped.
+18. Dashboard reconnect loop on Rachel's Mac (67/29, was hardware check 15) — **fixed by the port change** to 5580 (Bob, 2026-11-05) → `67-repair-pass/29-ws-close-reason-check` tied.

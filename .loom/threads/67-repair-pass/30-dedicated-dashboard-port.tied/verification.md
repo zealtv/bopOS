@@ -11,3 +11,6 @@
   (7 messages). The same client on :8080 failed with 1002 earlier that day.
 - Bob confirmed in chat that the dashboard works in her browser on 8081
   ("8081 works"). Her browser on 5580 not yet confirmed.
+- 2026-11-05: Bob reports, in chat, that the change fixed the reconnect loop
+  on Rachel's Mac (`29-ws-close-reason-check`). Read that as the browser
+  check on 5580; which browser wasn't said.

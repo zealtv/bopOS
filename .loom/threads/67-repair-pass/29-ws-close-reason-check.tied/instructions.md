@@ -32,3 +32,12 @@ from that Mac's older checkout. Record that and tie this stitch.
   guess in `28` doesn't hold here. Watch the log
   (`grep -v '^INFO' ~/bopos-dashboard.log`) while the errors' conditions are
   recreated, such as a real browser, nodes online, or the Theo River update.
+
+## Outcome (2026-11-05)
+
+Bob, in chat: *"we also fixed the reconnect loop on rachels machine by
+changing bopOS's port."* The loop wasn't a snapshot or limit problem:
+WebSockets on :8080 on her Mac failed with 1002 "invalid opcode", most
+likely because macOS web filtering intercepted that port (unconfirmed;
+her settings weren't changed). `30-dedicated-dashboard-port` moved the
+default to 5580. No limit in `monitor_transport.py` changes.
