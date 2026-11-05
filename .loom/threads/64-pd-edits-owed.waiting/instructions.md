@@ -23,6 +23,8 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
       `pd/bop/bop.sampler~.pd` still use `%s/samplepacks/$1/*/` and
       `%s/samplepacks/bop_samplepack/*/`. Change to `%s/$1/*/` and
       `%s/bop_samplepack/*/` (they live in the `pd/bop` submodule).
+      As of 2026-11-05, `pd/bop/bop.stream2~.pd` and `help-bop.sampler~.pd`
+      also still mention `samplepacks`.
 - [ ] **demo-pd asset context.** `patches/demo-pd/main.pd` doesn't route the
       launch-delivered `assets` root yet: `[r bopos-context]` →
       `[route seed run-id patch assets id]`, publish the root, show building
