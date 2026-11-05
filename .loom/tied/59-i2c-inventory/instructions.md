@@ -68,3 +68,12 @@ Expect `0a` to merge, split or retire `1`–`6`.
 
 `session-2026-08-05-ciro-toast.md` (transcript), `ads.py`, `watch.py` (the
 scripts that answered the questions).
+
+## Closed 2026-11-05
+
+Tied at Bob's question ("can 59 be tied?") once every child was resolved:
+`1`–`3` and `6`–`9` tied, `4` and `5` dropped. Editor input was tested on
+hardware 2026-10-28. Still open in `76-bob-review`, as separate hardware
+claims (glean `hardware-claims`): the IO control path (`1`), IO streaming
+(`8`), module panels on a real ADC/OLED (`9`), plus the module-panel wording
+FYI.

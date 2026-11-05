@@ -96,8 +96,9 @@ Slices 1–6 are built and committed. The helper's network-manager backend repor
   Observed 2026-10-28 on Bria Fox (Pi OS Trixie): NetworkManager is active and
   manages wlan0 (`79-wifi-power-save/2-pi-power-save-check.tied/verification.md`).
 - The real-Pi switchover rehearsal (verification gates).
-- Possible wrong-key lockout found 2026-11-05: `../3-wrong-key-lockout.waiting`.
-  Its outcome may change how the backend sets retries on managed profiles.
+- (A possible wrong-key lockout found 2026-11-05 was dropped the same day: Bob
+  accepts a power cycle in that case, `../3-wrong-key-lockout.dropped`. The backend
+  needs no special retry settings for it.)
 - The editorial fix to OSC-CONTRACT (the `installation.json` → `project.json` mention, now ~line 859).
 
 **Ruled 2026-10-04 (Bob, via Tengu):** the passphrase warning wording as built is

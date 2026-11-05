@@ -138,9 +138,6 @@ specific hardware, and record which device and framework revision.
     and `7-mute-all-honesty`.
 19. **Package versions**: run the read-only comparison command in
     `docs/INSTALL.md` on a device; compare against `constraints.txt`.
-20. **Wrong-key lockout (33b/3)**: does a node that meets its SSID with the
-    wrong passphrase stay off Wi-Fi until power-cycled? Repro outside
-    Performance mode. → `33b-device-network-config/3-wrong-key-lockout.waiting`.
 
 ## Ruled
 
@@ -171,3 +168,4 @@ specific hardware, and record which device and framework revision.
 16. Wi-Fi slice 0 (33b/2, was hardware check 1) — answered by observation: NetworkManager manages wlan0 on Bria Fox (2026-10-28) and noor-dusk (2026-11-05); the NM platform facts are in `33b/2` and glean `networkmanager-wifi`.
 17. Wi-Fi power save soak (79, was hardware check 13) — **done**: 11/11 unaided rejoins on noor-dusk after 60 s AP restarts, power save still `off` (2026-11-05). Bob: *"i think we can close 79-wifi-powersave."* → `79-wifi-power-save` tied, `79/3` dropped.
 18. Dashboard reconnect loop on Rachel's Mac (67/29, was hardware check 15) — **fixed by the port change** to 5580 (Bob, 2026-11-05) → `67-repair-pass/29-ws-close-reason-check` tied.
+19. Wrong-key lockout (33b/3, was hardware check 20) — **dropped**: an edge case where a power cycle is fine (Bob, 2026-11-05).
