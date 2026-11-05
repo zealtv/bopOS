@@ -1,6 +1,6 @@
 # 2-live-pd-reference
 
-**Status:** Bob's (glean `never-edit-pd`) · approach awaiting Bob's OK
+**Status:** Bob's (glean `never-edit-pd`) · approach OK'd 2026-11-05 · needs `1`
 **Goal:** one live, current Pd reference for every bopOS feature, edited in
 one place, so new and old patches never depend on a stale copied example.
 
@@ -12,7 +12,7 @@ template as a reference and it's going stale."*
 Build from `1-pd-feature-inventory`'s `inventory.md`. Its staleness test
 keeps this current afterwards.
 
-## Proposed approach (agent, 2026-11-05; Bob to confirm)
+## Approach (proposed 2026-11-05; Bob OK'd the same day)
 
 **A help patch, `pd/bopos~-help.pd`, plus a thin template.**
 
@@ -25,8 +25,9 @@ keeps this current afterwards.
   by default; admin messages (reboot, shutdown) shown but not connected, or
   behind a deliberate gate.
 - The template shrinks to the skeleton a patch needs (`declare`s,
-  `[bopos~]`, the `catch~`/outs, one `throw~` example) and a comment:
-  "right-click bopos~ → Help for every feature".
+  `[bopos~]`, the `catch~`/outs, one `throw~` example) and a comment
+  pointing at `bopos~`: right-click → Help for how to work with bopOS in Pd
+  (Bob, 2026-11-05).
 
 **Why not a shared abstraction instanced in every patch** (the literal
 "subpatch" reading):

@@ -1,9 +1,10 @@
 # 64-pd-edits-owed
 
 **Status:** queued (Bob, 2026-11-05) — Pd edits are his; agents never edit `.pd`.
-The agent half is `1-pd-feature-inventory`.
-**Goal:** land the Pure Data edits the framework still owes, so nothing lives
-only in a notes file.
+The agent halves are `1-pd-feature-inventory` and `3-asset-access-design`.
+**Goal:** the Pd side of bopOS: land the Pure Data edits the framework still
+owes, and give patch authors a current reference and easy tools (Bob,
+2026-11-05: *"this is kind of feeling like … a PD thread"*).
 
 Checked against `pd/` and `patches/` on 2026-09-25. Full specs, exact
 spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
@@ -16,22 +17,18 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
 - `2-live-pd-reference`: Bob's. A live reference patch, edited in one place,
   plus a thin template. Absorbs the template `update-patch` removal and the
   keys and mouse examples (from `84-key-input/4-pd-reference-patches`,
-  dropped as folded in).
+  dropped as folded in). Approach OK'd by Bob 2026-11-05: help patch; the
+  template carries a comment pointing at it ("right-click bopos~ → Help for
+  how to work with bopOS in Pd").
+- `3-asset-access-design`: agent. Propose a Pd asset utility (find a slot,
+  list and pick files, build paths for loaders) from Kite Choir's needs.
+- `4-asset-access-abstraction`: Bob's, needs `3`. Build and adopt it. Absorbs
+  the `samplepacks` path templates and the demo-pd asset example.
+
+Order: the event `[list]` edit below first; `2` needs `1`; `4` needs `3`.
 
 ## Owed (single edits)
 
-- [ ] **`samplepacks` path templates.** The engine no longer creates the
-      `bop/samplepacks` link, but `pd/bop/bop.stream~.pd` and
-      `pd/bop/bop.sampler~.pd` still use `%s/samplepacks/$1/*/` and
-      `%s/samplepacks/bop_samplepack/*/`. Change to `%s/$1/*/` and
-      `%s/bop_samplepack/*/` (they live in the `pd/bop` submodule).
-      As of 2026-11-05, `pd/bop/bop.stream2~.pd` and `help-bop.sampler~.pd`
-      also still mention `samplepacks`.
-- [ ] **demo-pd asset context.** `patches/demo-pd/main.pd` doesn't route the
-      launch-delivered `assets` root yet: `[r bopos-context]` →
-      `[route seed run-id patch assets id]`, publish the root, show building
-      `<assets-root>/<slot>/<file>`. Only when the demo has a real teaching
-      asset; no fake paths.
 - [ ] **Nested parameter routes — on first use.** `pd/bopos~.pd` already
       preserves nested paths. The first patch that declares a nested param
       changes its consumer from `[route distortion]` to
