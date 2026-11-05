@@ -27,3 +27,7 @@ fault-only button.
 - Pushing restarts the engine → confirm.
 - Test in a whole-fleet journey (`verify_device_patch_targeting.py` is deleted by `66/1`); hardware push on the rig is
   a separate claim.
+
+## Approved (2026-11-05)
+
+Bob, in chat: "i'm happy to ok the things i haven't ok'd" (76 items 14 and 18): the wording as built and screenshotted is approved.

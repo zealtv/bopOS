@@ -27,4 +27,5 @@ date of the session weren't stated.
 - Step 8: forwarding from Theo River into Patch Edit works. Whether the `xy`
   rate (~10/s) and the release-on-switch were checked wasn't said.
 - Still not reported: steps 4 (console echo), 5 (unplug/replug), 6 (mouse
-  motion and the 2000-count span), and an OK on the sim panel's wording.
+  motion and the 2000-count span).
+- The sim panel's wording: OK'd by Bob on 2026-11-05.

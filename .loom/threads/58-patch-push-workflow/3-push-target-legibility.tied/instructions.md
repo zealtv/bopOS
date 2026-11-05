@@ -23,3 +23,7 @@ it — confirm that, then this is about the whole-fleet push saying who won't
 get it. Whatever survives must show ineligible devices with a reason (`offline`,
 `unassigned`, `simulated`) and never change a push's target without saying so.
 Tests assert on the reason text, not option counts.
+
+## Approved (2026-11-05)
+
+Bob, in chat: "i'm happy to ok the things i haven't ok'd" (76 items 14 and 18): the wording as built and screenshotted is approved.

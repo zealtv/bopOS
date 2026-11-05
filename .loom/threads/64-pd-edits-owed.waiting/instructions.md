@@ -36,8 +36,11 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
       `[route track1] → [route fx] → [route distortion]`.
 
 - [ ] **Key and mouse examples.** Show `/io/key` and `/io/mouse` capture in
-      `patches/.templates/bopos-template.pd` and `patches/demo-pd/main.pd`.
-      Spellings and how to verify are in
+      `patches/.templates/bopos-template.pd`. **Required** (Bob, 2026-11-05):
+      *"i want to make sure io keys is referenced in the pd template that feeds
+      a new patch"*. The Patches tab's New patch copies that file verbatim
+      (`dashboard/server.py` `PATCH_TEMPLATE`). `patches/demo-pd/main.pd` is
+      optional. Spellings and how to verify are in
       `84-key-input/4-pd-reference-patches.waiting` (added 2026-11-04).
 
 ## How agents add to this

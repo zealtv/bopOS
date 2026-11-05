@@ -12,14 +12,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 
 ## Open
 
-8. **FYI: my calls on the project menu (66/7)**. Names keep spaces as typed,
-   because the folder name is the name ("Kite Choir", as in the mockups):
-   letters, digits, spaces, `.` `_` `-`, starting with a letter or digit. New
-   error lines follow the existing pattern: "That project could not be
-   opened." / "The project could not be created." / "The project could not be
-   renamed." / "The site could not be created." Switching project is refused
-   outside Live. Say if any of these should change.
-
 13. **Shared node protocol (69/3)**: `69-complexity/3-shared-node-protocol.waiting/proposal.md`.
     One small shared module for validation, UID verb dispatch and replies,
     plus parity tests against the contract. Keep both OSC libraries for now;
@@ -27,25 +19,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     verbs; assignment validation differs; enabled 0.5 is accepted as 0. The
     worst defect, malformed sync killing the node's listener, is already
     fixed. Approve the narrow extraction?
-
-14. **Monitor transport labels (71/2)**: built and merged; parked until you OK
-    the new wording. Screenshots: `screenshots/monitor-71-2-*.png`. Labels:
-    "Capture filters", "Address starts with", "Exclude addresses", "Device
-    UIDs", "All devices", "Include raw lines: Sync / Heartbeats / Points";
-    "Sync, heartbeats, points excluded." / "All traffic classes included.";
-    "Rates/s: sync N, heartbeats N, points N. N filtered · N unattributed";
-    "⚠ N matching messages dropped · N previews shortened"; history notes
-    ("Capture started; hidden or paused traffic was not retained.", "Capture
-    paused; no history is collected.", "Capture filters changed; …",
-    "Connection opened; …", "Connection lost; traffic during the gap is
-    unknown."); System "N / N with 3+ samples". Full list in
-    `71-network-traffic/2-monitor-transport.waiting/build-verification.md`.
-
-15. **FYI: Module panels (59/9)**: built, merged and tied. Screenshots:
-    `screenshots/modules-59-9-*.png`. The wording comes from the spec ("Modules",
-    "Show in Monitor", "Pop-out"), plus one hover tip of mine on the panel ✕:
-    "Close panel". Values show at Pd precision (six significant figures).
-    Say if anything reads wrong.
 
 17. **Node process ownership (67/19)**: proposal in
     `67-repair-pass/19-node-process-ownership.waiting/proposal.md` (summary at
@@ -55,15 +28,6 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
     `systemctl start|stop|restart bopos-engine.service`, the journal split,
     a one-time `provision.sh` + reboot per Pi with a temporary `start.sh` shim
     (or a flag day), and engine `Restart=no`. Approve?
-
-18. **Update patch and push targets (58/1, 58/3)**: built and merged; parked
-    until you OK the new wording. The Device page always shows **"Update
-    patch"**, disabled with a reason (offline / unassigned / simulated / No
-    fleet patch set). It confirms with **"Update patch on <device>? This may
-    restart its audio engine."** The Patches tab lists **"Push targets"**, each
-    marked **"Will receive patch"** or with its reason. Screenshots:
-    `screenshots/update-patch-58-1440.png`, `screenshots/push-targets-58-1440.png`.
-    OK as is?
 
 20. **Pd receives typed event fields (80/5)** — *added 2026-10-26; ready since
     `80-osc-input/3-event-fields-wire` tied.* Check that `pd/bopos~.pd`'s `/e/`
@@ -119,8 +83,8 @@ move it to Ruled here. Tie this when Open and Hardware checks are empty.
 14. **Key and mouse input (84/3)**: what's left after the 2026-11-05 session
     with Rachel (keys in a patch, the sim, forwarding from Theo River all
     reported working): the console stops echoing (step 4), unplug/replug
-    recovers (5), mouse motion and its span (6). Also OK the simulated
-    panel's wording from its screenshots (`84-key-input/2-input-sim-panel/`).
+    recovers (5), mouse motion and its span (6). (The sim panel's
+    wording was OK'd 2026-11-05.)
     Record in `84-key-input/3-input-hardware-check.waiting/verification.md`.
 
 Moved here from `75-bob-rulings` on 2026-11-05, when that stitch was tied;
@@ -169,3 +133,7 @@ specific hardware, and record which device and framework revision.
 17. Wi-Fi power save soak (79, was hardware check 13) — **done**: 11/11 unaided rejoins on noor-dusk after 60 s AP restarts, power save still `off` (2026-11-05). Bob: *"i think we can close 79-wifi-powersave."* → `79-wifi-power-save` tied, `79/3` dropped.
 18. Dashboard reconnect loop on Rachel's Mac (67/29, was hardware check 15) — **fixed by the port change** to 5580 (Bob, 2026-11-05) → `67-repair-pass/29-ws-close-reason-check` tied.
 19. Wrong-key lockout (33b/3, was hardware check 20) — **dropped**: an edge case where a power cycle is fine (Bob, 2026-11-05).
+20. Project menu calls (66/7, was open item 8) — **acknowledged** (Bob, 2026-11-05).
+21. Monitor transport labels (71/2, was open item 14) — **OK** (Bob, 2026-11-05) → `71-network-traffic` tied.
+22. Module panels (59/9, was open item 15) — **acknowledged** (Bob, 2026-11-05).
+23. Update patch and push targets (58/1, 58/3, was open item 18) — **OK** (Bob, 2026-11-05) → both tied.

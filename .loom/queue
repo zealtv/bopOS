@@ -3,6 +3,5 @@
 3-io-bridge-hardening
 4-invalid-manifest-lockout
 2-device-enabled-honesty
-2-monitor-transport
 3-shared-node-protocol
 19-node-process-ownership

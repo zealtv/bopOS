@@ -38,3 +38,7 @@ Build the proposal as ratified (see its Ruling): subscriptions, server filtering
 100 ms batches, bounded per-client writers, the `ws.js` unhandled-event fix, and the
 eight visible changes. Simplest version that works; remove what becomes redundant.
 New labels go to Bob with screenshots before tying.
+
+## Approved (2026-11-05)
+
+Bob, in chat: "i'm happy to ok the things i haven't ok'd" (76 items 14 and 18): the wording as built and screenshotted is approved.

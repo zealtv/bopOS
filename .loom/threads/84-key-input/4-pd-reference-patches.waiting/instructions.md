@@ -7,6 +7,12 @@ so a composer can copy a working example.
 
 ## Where it goes
 
+**The template is the must** (Bob, 2026-11-05): *"i want to make sure io keys
+is referenced in the pd template that feeds a new patch"*. The Patches tab's
+New patch copies `patches/.templates/bopos-template.pd` verbatim
+(`dashboard/server.py` `PATCH_TEMPLATE`), so every new patch starts with the
+example. The demo patch is a nice-to-have.
+
 - `patches/.templates/bopos-template.pd`: a **keys and mouse** section next
   to the existing `i2c io` section (canvas header at about y 779,
   `[r bopos-io]` at about 41 886).
