@@ -1,6 +1,7 @@
 # 64-pd-edits-owed
 
-**Status:** waiting on Bob — Pd edits are his; agents never edit `.pd`.
+**Status:** queued (Bob, 2026-11-05) — Pd edits are his; agents never edit `.pd`.
+The agent half is `1-pd-feature-inventory`.
 **Goal:** land the Pure Data edits the framework still owes, so nothing lives
 only in a notes file.
 
@@ -8,16 +9,17 @@ Checked against `pd/` and `patches/` on 2026-09-25. Full specs, exact
 spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
 (`content/pd-edits-for-bob.md`). Everything else in that record has landed.
 
-## Owed
+## Children (2026-11-05)
 
-- [ ] **Template retired patch-update action.** Remove the `update-patch`
-      message box in `patches/.templates/bopos-template.pd` (around line 71)
-      and its connection to `s to-bopos-admin`; retain the framework update,
-      shutdown and reboot examples. Contract v1.19 retired `/admin update-patch`
-      in `68-remove-git-patch-route`, so newly authored patches must not offer
-      an action the node now ignores. Verify in Pd that the remaining admin
-      examples stay connected, and that a new patch copied from the template
-      contains no `update-patch` message. Agents have not edited the template.
+- `1-pd-feature-inventory`: agent. Every feature a patch can use, with exact
+  spellings, plus a staleness test and COMPOSING pointer.
+- `2-live-pd-reference`: Bob's. A live reference patch, edited in one place,
+  plus a thin template. Absorbs the template `update-patch` removal and the
+  keys and mouse examples (from `84-key-input/4-pd-reference-patches`,
+  dropped as folded in).
+
+## Owed (single edits)
+
 - [ ] **`samplepacks` path templates.** The engine no longer creates the
       `bop/samplepacks` link, but `pd/bop/bop.stream~.pd` and
       `pd/bop/bop.sampler~.pd` still use `%s/samplepacks/$1/*/` and
@@ -34,14 +36,6 @@ spellings and verification steps: `lore:2026-09-25-pd-edits-for-bob-2026-08`
       preserves nested paths. The first patch that declares a nested param
       changes its consumer from `[route distortion]` to
       `[route track1] → [route fx] → [route distortion]`.
-
-- [ ] **Key and mouse examples.** Show `/io/key` and `/io/mouse` capture in
-      `patches/.templates/bopos-template.pd`. **Required** (Bob, 2026-11-05):
-      *"i want to make sure io keys is referenced in the pd template that feeds
-      a new patch"*. The Patches tab's New patch copies that file verbatim
-      (`dashboard/server.py` `PATCH_TEMPLATE`). `patches/demo-pd/main.pd` is
-      optional. Spellings and how to verify are in
-      `84-key-input/4-pd-reference-patches.waiting` (added 2026-11-04).
 
 - [ ] **Event bus `[list]` hides events from `[route]`.** In `pd/bopos~.pd`,
       delete `#X obj 384 181 list;` (between `route p e pt notify`'s `e`
