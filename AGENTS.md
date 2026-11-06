@@ -41,3 +41,9 @@ README before working with one.
 One arrival may earn several routes — evidence in lore, a constraint in glean,
 a stitch on the loom. Those are different consequences of one thing, not
 competing copies of it.
+
+## Memory lives in Glean
+
+Glean is this repository's only memory. Don't keep project knowledge in a runtime's private memory store (for example Claude Code's per-project `~/.claude/projects/.../memory/`), a `memory/` directory or a handoff note: they drift from the repository and travel with one tool on one machine. When you learn something worth carrying into the next session, it becomes a finding in `.glean/findings/`. Claude Code's auto memory is switched off here in `.claude/settings.json` (`autoMemoryEnabled: false`).
+
+`CLAUDE.md` is a symlink to this file, so every agent runtime reads the same notes.

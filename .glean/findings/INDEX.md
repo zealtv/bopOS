@@ -1,5 +1,6 @@
 <!-- auto-generated; run glean.sh index to refresh -->
 
+- [[astra-is-the-top-tier-codex-model]] — Astra means the top-tier Codex model, worth its own budget — When Bob asks whether a stitch "would benefit from Astra", he's asking whether it earns top-tier reasoning tokens rather than a cheaper continuous Codex run.
 - [[commit-style]] — Commit messages in bopOS — When committing here, write a plain-prose subject line (match `git log`) and a body explaining why.
 - [[cross-repo]] — kite-choir-brains coordinates the artwork — When work is spool- or Kite-Choir-specific, check kite-choir-brains' own loom first — coordinate, don't duplicate.
 - [[dashboard-vocabulary]] — Dashboard names and UI rules — When writing dashboard UI or prose, use the shipped names and the ratified design rules.
