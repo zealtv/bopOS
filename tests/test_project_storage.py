@@ -1,0 +1,229 @@
+"""Project and host registry persistence, plus the one-off migration."""
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+import fixture_git
+from unittest import mock
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "dashboard"))
+sys.path.insert(0, str(REPO / "tools"))
+from state import InstallationState
+from migrate_project import migrate, migrate_show
+
+
+SHOW = {"schema": 1, "name": "test", "items": [
+    {"kind": "step", "uid": "0000000a", "alias": "Opening", "duration_s": 4,
+     "play_count": 1, "then_actions": [], "messages": []}]}
+
+
+class ProjectStorageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_new_project_round_trip_and_host_registry_survives_other_project(self):
+        state = InstallationState(self.root)
+        state.data.update(name="Workshop", master=.7, event_lead_ms=250,
+                          facilitator_commands=["reboot"])
+        state.ensure_device_alias("node-a")
+        state.save()
+        doc = json.loads(Path(state.path).read_text())
+        self.assertNotIn("device_registry", doc)
+        self.assertEqual(doc["current_show"], "Show")
+        self.assertEqual(state.show_path,
+                         str(self.root / "projects" / "default" / "shows" / "Show.json"))
+        self.assertEqual((self.root / "current-project").read_text(), "default\n")
+        reloaded = InstallationState(self.root)
+        self.assertEqual(reloaded.durable(), state.durable())
+        self.assertEqual(reloaded.device_registry, state.device_registry)
+        other = self.root / "projects" / "other" / "project.json"
+        other.parent.mkdir()
+        other.write_text(json.dumps({"schema": 1, "current_site": "default", "seats": {}}))
+        (other.parent / "sites").mkdir()
+        (other.parent / "sites/default.json").write_text(json.dumps(state.site_document()))
+        (self.root / "current-project").write_text("other\n")
+        opened = InstallationState(self.root)
+        self.assertEqual(opened.project, "other")
+        self.assertEqual(opened.device_registry, state.device_registry)
+        self.assertEqual(json.loads(Path(state.path).read_text()), doc)
+
+    def test_invalid_selection_and_registry_preserve_all_sources(self):
+        state = InstallationState(self.root)
+        state.save()
+        marker = self.root / "current-project"
+        marker.write_text("../outside\n")
+        before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        broken = InstallationState(self.root)
+        with self.assertRaises(OSError):
+            broken.save()
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+        marker.write_text("default\n")
+        registry = self.root / "devices.json"
+        registry.write_text("broken JSON")
+        broken = InstallationState(self.root)
+        with self.assertRaises(OSError):
+            broken.save()
+        self.assertEqual(registry.read_text(), "broken JSON")
+
+    def test_missing_selection_opens_default_even_with_other_projects(self):
+        state = InstallationState(self.root)
+        state.save()
+        marker = self.root / "current-project"
+        marker.unlink()
+        other = self.root / "projects" / "other" / "project.json"
+        other.parent.mkdir()
+        other.write_text(json.dumps({"schema": 1, "current_site": "default", "seats": {}}))
+        original = other.read_bytes()
+        opened = InstallationState(self.root)
+        self.assertFalse(opened._load_invalid)
+        self.assertEqual(opened.project, "default")
+        self.assertEqual(opened.data["current_site"], "default")
+        opened.save()
+        self.assertEqual(marker.read_text(), "default\n")
+        self.assertEqual(other.read_bytes(), original)
+
+    def test_existing_unreadable_selection_blocks_saves(self):
+        state = InstallationState(self.root)
+        state.save()
+        marker = self.root / "current-project"
+        with mock.patch("builtins.open", side_effect=PermissionError("unreadable")):
+            opened = InstallationState(self.root)
+        self.assertTrue(opened._load_invalid)
+        with self.assertRaises(OSError):
+            opened.save()
+        self.assertEqual(marker.read_text(), "default\n")
+
+    def test_migration_preserves_source_and_refuses_existing_destinations(self):
+        source = self.root / "installation.json"
+        original = json.dumps({"schema": 1, "name": "Example Choir", "seats": {
+            "0": {"id": 0, "name": "Voice", "bound": "node-a",
+                  "positions": [[1, 2]], "params": {"gain": .4}}},
+            "fleet_patch": {"name": "tune-v1", "previous": {"name": "old"}},
+            "params_patch": "old", "current_show": "opening",
+            "device_registry": {"node-a": {
+                "alias": "Finn Jet", "source": "custom", "generator": 2,
+                "device_enabled": False, "desired_patch": {"name": "old"}}}})
+        source.write_text(original)
+        output = self.root / "host"
+        paths = migrate(source, output)
+        state = InstallationState(output)
+        self.assertEqual(source.read_text(), original)
+        self.assertEqual(state.project, "Example Choir")
+        self.assertEqual(state.public()["project"], "Example Choir")
+        self.assertNotIn("project", state.durable())
+        self.assertNotIn("project_name", state.durable())
+        self.assertEqual(state.positions_for(0), [[1, 2]])
+        self.assertEqual(state.seats["0"]["params"], {"gain": .4})
+        self.assertFalse(state.device_registry["node-a"]["device_enabled"])
+        self.assertNotIn("desired_patch", state.device_registry["node-a"])
+        self.assertNotIn("params_patch", state.durable())
+        self.assertNotIn("previous", state.data["fleet_patch"])
+        # `current_show` names no file beside the source: nothing to carry,
+        # and the project opens its default empty show.
+        self.assertEqual(state.durable()["current_show"], "Show")
+        self.assertFalse(Path(state.show_path).parent.exists())
+        before = [p.read_bytes() for p in paths]
+        with self.assertRaises(FileExistsError):
+            migrate(source, output)
+        self.assertEqual([p.read_bytes() for p in paths], before)
+        self.assertEqual(source.read_text(), original)
+
+    def test_migration_carries_the_current_show_into_its_shows(self):
+        source = self.root / "old" / "installation.json"
+        (source.parent / "shows").mkdir(parents=True)
+        source.write_text(json.dumps({"schema": 1, "name": "Example Choir",
+                                      "seats": {"2": {"id": 2, "positions": [[1, 2]]}},
+                                      "current_show": "test"}))
+        venues = source.parent / "installations"
+        venues.mkdir()
+        venue = venues / "Venue.json"
+        venue.write_text(json.dumps({"schema": 1, "seats": {
+            "2": {"id": 2, "positions": [[7, 8]]}}}))
+        venue_bytes = venue.read_bytes()
+        show = source.parent / "shows" / "test.json"
+        show.write_text(json.dumps(SHOW, indent=4))
+        paths = migrate(source, self.root / "host")
+        state = InstallationState(self.root / "host")
+        self.assertEqual(str(paths[-1]), state.show_path)
+        self.assertEqual(state.data["current_show"], "test")
+        self.assertEqual(Path(state.show_path).read_bytes(), show.read_bytes())
+        self.assertFalse(Path(state.path).with_name("project.json.pre-shows").exists())
+        self.assertEqual(state.positions_for(2), [[1, 2]])
+        state.select_site("Venue")
+        self.assertEqual(state.positions_for(2), [[7, 8]])
+        self.assertEqual(Path(state.show_path).read_bytes(), show.read_bytes())
+        self.assertEqual(venue.read_bytes(), venue_bytes)
+
+    def test_invalid_show_rolls_back_combined_project_and_site_migration(self):
+        source = self.root / "installation.json"
+        source.write_text(json.dumps({"schema": 1, "seats": {}}))
+        original = source.read_bytes()
+        show = self.root / "broken.json"
+        show.write_text("broken JSON")
+        output = self.root / "host"
+        with self.assertRaises(ValueError):
+            migrate(source, output, show_file=show)
+        self.assertFalse((output / "projects/default").exists())
+        self.assertFalse((output / "devices.json").exists())
+        self.assertFalse((output / "current-project").exists())
+        self.assertEqual(source.read_bytes(), original)
+        self.assertEqual(show.read_text(), "broken JSON")
+
+    def test_show_migration_into_existing_project_is_byte_exact_and_refuses_overwrite(self):
+        InstallationState(self.root).save()
+        show = self.root / "shows" / "test.json"
+        show.parent.mkdir()
+        show.write_text(json.dumps(SHOW, indent=4) + "\n")
+        original = show.read_bytes()
+        project = self.root / "projects" / "default" / "project.json"
+        before = project.read_bytes()
+        destination = migrate_show(show, self.root)
+        self.assertEqual(destination, self.root / "projects" / "default" / "shows" / "test.json")
+        self.assertEqual(destination.read_bytes(), original)
+        self.assertEqual(show.read_bytes(), original)
+        self.assertEqual(project.with_name("project.json.pre-shows").read_bytes(), before)
+        self.assertEqual(InstallationState(self.root).show_path, str(destination))
+        destination.write_text("edited since")
+        with self.assertRaises(FileExistsError):
+            migrate_show(show, self.root)
+        self.assertEqual(destination.read_text(), "edited since")
+
+    def test_show_migration_refuses_invalid_show_or_missing_project(self):
+        show = self.root / "test.json"
+        show.write_text(json.dumps(SHOW))
+        with self.assertRaises(FileNotFoundError):
+            migrate_show(show, self.root, "default")
+        InstallationState(self.root).save()
+        for body in ("broken JSON", '{"schema": 99, "items": []}'):
+            with self.subTest(body=body):
+                show.write_text(body)
+                with self.assertRaises(ValueError):
+                    migrate_show(show, self.root)
+                self.assertFalse((self.root / "projects" / "default" / "shows").exists())
+
+
+    def test_invalid_migration_creates_no_destination(self):
+        source = self.root / "installation.json"
+        source.write_text('{"schema":99,"seats":{}}')
+        destination = self.root / "host"
+        with self.assertRaises(ValueError):
+            migrate(source, destination)
+        self.assertFalse(destination.exists())
+
+    def test_runtime_paths_are_gitignored(self):
+        for path in ("dashboard/projects/demo/project.json",
+                     "dashboard/projects/demo/show.json",
+                     "dashboard/projects/demo/shows/Opening Night.json", "dashboard/devices.json",
+                     "dashboard/current-project"):
+            with self.subTest(path=path):
+                self.assertEqual(subprocess.run(
+                    ["git", "check-ignore", "-q", path], cwd=REPO, env=fixture_git.environment()).returncode, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

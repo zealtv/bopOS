@@ -1,0 +1,19 @@
+[Unit]
+Description=bopOS IO bridge
+PartOf=bopos.target
+After=bopos.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/bopOS
+Environment=HOME=/home/pi
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/default/locale
+Slice=system.slice
+KillMode=control-group
+ExecStart=/home/pi/bopOS/bash/run/service.sh io
+Restart=always
+RestartSec=5s

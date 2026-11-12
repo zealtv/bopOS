@@ -1,0 +1,50 @@
+# Which top-level entries of the development tree a release exports.
+#
+# One entry per line: "public <name>" goes into the public release commit,
+# "private <name>" never does. tools/release.sh refuses to prepare or export a
+# tree with a top-level entry on neither list, so a new directory stays out of
+# a release until someone classifies it here. tests/test_public_tree.py reads
+# the private list from this file, and tests/test_release_tool.py checks that
+# every tracked top-level entry is classified.
+#
+# The export reads this file as committed at the release tag.
+
+public .github
+public .gitignore
+public .gitmodules
+public CHANGELOG.md
+public README.md
+public THIRD_PARTY_NOTICES.md
+public VERSION
+public assets
+public bash
+public bopos.config.example
+public bopos.devices
+public constraints.txt
+public dashboard
+public docs
+public install-dashboard.sh
+public install-device.sh
+public patches
+public pd
+public python
+public requirements-dev.txt
+public run.sh
+public systemd
+public tests
+public tools
+
+# Development-only: work tracking, memory, records, arrivals, schedules,
+# agent and editor settings, agent notes.
+private .glean
+private .loom
+private .lore
+private .nest
+private .groundhog
+private .claude
+private .codex
+private .obsidian
+private .worktrees
+private AGENTS.md
+private CLAUDE.md
+private inbox

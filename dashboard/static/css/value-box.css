@@ -1,0 +1,74 @@
+/* One numeric-entry primitive across every bopOS surface. Number inputs are
+   native click-to-type controls; PrecisionField decorates its output/readout
+   and temporary editor with the same class. */
+.value-box.value-box,
+input[type="number"].value-box,
+input[type="number"] {
+  box-sizing:border-box;
+  width:58px;
+  min-width:58px;
+  height:var(--row-h);
+  min-height:var(--row-h);
+  padding:0 5px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+  text-align:left;
+  /* No spinners, anywhere. A value box is click-and-type; native inc/dec
+     arrows eat a third of a 58px box and appeared in some surfaces and not
+     others. Suppression belongs on the component so it travels with the face —
+     the generator drawer used to carry this rule locally (control-panel.css),
+     which is how the divergence Bob reported on 2026-07-30 arose. Keyboard
+     ↑/↓ still steps: `textfield` removes the buttons, not the behavior. */
+  appearance:textfield;
+  -moz-appearance:textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance:none;
+  margin:0;
+}
+.value-box.value-box[data-integer],
+input[type="number"].value-box[data-integer],
+input[type="number"][data-integer] {
+  text-align:right;
+}
+output.value-box {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  overflow:hidden;
+}
+output.value-box[data-integer] {
+  justify-content:flex-end;
+}
+.value-box:disabled,
+input[type="number"]:disabled {
+  opacity:.5;
+}
+
+/* PrecisionField's readout affordance (05f). These used to live in style.css
+   with the click-to-type hint, plus a cyan focus ring, plus per-surface copies
+   in facilitator.css and control-panel.css — four definitions of one face at
+   three widths. The component owns it now.
+
+   Focus is PURPLE. The shipping ring was `--accent-cyan`, but the ratified
+   palette reserves cyan for modulation (design-language §2 and §5, and `05b`'s
+   widening of cyan to "something is driving this"). A static readout is not
+   modulated. `control-panel.css` had already corrected this inside the panel
+   only; app-wide is the correct scope. */
+output.value-box.precise-output {
+  cursor:text;
+}
+output.value-box.precise-output:hover {
+  outline:1px solid var(--line);
+  outline-offset:1px;
+}
+output.value-box.precise-output:focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}

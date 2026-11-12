@@ -1,0 +1,28 @@
+# Node-level bopOS hardware and framework defaults.
+# install-device.sh copies this to bopos.config once and preserves later edits.
+
+# ALSA card and mixer control verified for the reference IQaudIO DigiAMP+.
+SOUNDCARD=DigiAMP
+MIXER_CONTROL=Digital
+JACK_SAMPLE_RATE=44100
+JACK_PERIOD_SIZE=512
+JACK_NPERIODS=2
+
+# Framework identity/reporting defaults.
+HB_TARGET=255.255.255.255
+HB_RSSI=1
+UPDATE_MODEL=persistent
+AUDIO_CHANNELS=2
+
+# Node log destination (Device tab): internal (SD card ~/bopos-logs/) or usb
+# (auto-mounted stick). usb falls back to internal when no stick is present.
+LOG_DESTINATION=internal
+
+# Byte cap for the service stdout logs in run/ (bopos.log, io.log). These are
+# the raw diagnostics of bopos.py and the io bridge, not the /log node log
+# above. The sink keeps the head of a run and stops growing at the cap, so a
+# peripheral erroring every poll cycle cannot fill the card during an
+# unattended soak. Default 134217728 (128 MiB): a peripheral pulled off the bus
+# writes 5.7 MiB/hour (measured), so that is ~22 hours of unbroken errors, and
+# a healthy bus writes nothing at all.
+#IO_LOG_MAX_BYTES=134217728

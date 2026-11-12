@@ -1,0 +1,6 @@
+# macOS/Linux with the MCP2221A USB-to-I2C adapter.
+-c ../constraints.txt
+-r requirements.txt
+# Run with BLINKA_MCP2221=1; piicodev supplies PiicoDev_SSD1306.
+adafruit-blinka
+hidapi

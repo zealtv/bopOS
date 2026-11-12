@@ -1,0 +1,518 @@
+#!/usr/bin/env python3
+from project_fixture import project_path, data_root
+"""Living tests for the v1.14 targetable event plane."""
+
+import asyncio
+import json
+import sys
+import tempfile
+import threading
+import time
+import types
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.dont_write_bytecode = True
+
+REPO = Path(__file__).resolve().parents[1]
+for path in (REPO / "python", REPO / "dashboard", REPO / "tools"):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+import pyOSC3  # noqa: E402
+
+
+class FakeServer:
+    def __init__(self, _target):
+        self.handlers = {}
+
+    def addMsgHandler(self, address, callback):
+        self.handlers[address] = callback
+
+    def close(self):
+        pass
+
+
+class FakeClient:
+    def connect(self, _target):
+        pass
+
+    def send(self, _message):
+        pass
+
+
+pyOSC3.OSCServer = FakeServer
+pyOSC3.OSCClient = FakeClient
+ORIGINAL_ARGV = sys.argv
+sys.argv = ["bopos.py", "unknown"]
+
+import bopos  # noqa: E402
+import audition
+import manifest
+import simfleet  # noqa: E402
+from osc_bridge import OSCBridge  # noqa: E402
+from server import Dashboard  # noqa: E402
+from show_engine import ShowEngine  # noqa: E402
+from state import InstallationState  # noqa: E402
+from sync_node import EventScheduler, SyncState  # noqa: E402
+
+sys.argv = ORIGINAL_ARGV
+
+
+class Sender:
+    def __init__(self):
+        self.frames = []
+
+    def sendto(self, packet, destination):
+        self.frames.append(
+            (pyOSC3.decodeOSC(packet), destination))
+
+    def close(self):
+        pass
+
+
+class EventPlaneTests(unittest.TestCase):
+    def test_show_messages_route_events_to_each_target(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock(), event_lead_ms=lambda: 25)
+        engine._send_message({
+            "address": "/e/notes/on",
+            "args": [{"type": "f", "value": 60.0},
+                     {"type": "f", "value": 0.75}],
+            "target": ["all", "g2"],
+        })
+        self.assertEqual(
+            bridge.fire_event.call_args_list,
+            [
+                mock.call("all", "notes/on", [60.0, 0.75], lead_ms=25),
+                mock.call("g2", "notes/on", [60.0, 0.75], lead_ms=25),
+            ],
+        )
+
+    def test_websocket_event_commands_use_the_exact_event_contract(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(
+            data={"supervisor": {"mode": "off"}, "event_lead_ms": 500},
+            save_debounced=mock.Mock(),
+        )
+        dashboard.osc = mock.Mock()
+        dashboard.osc.fire_event.side_effect = [(1234, 25), (0, 0)]
+        broadcasts = []
+
+        async def broadcast(kind, data=None):
+            broadcasts.append((kind, data))
+
+        async def public_state():
+            return {"event_lead_ms": dashboard.state.data["event_lead_ms"]}
+
+        dashboard.broadcast = broadcast
+        dashboard.public_state = public_state
+
+        async def exercise():
+            await dashboard.handle_ws({
+                "type": "set_event_lead", "data": {"ms": 12000}})
+            await dashboard.handle_ws({
+                "type": "fire_event",
+                "data": {
+                    "selector": "g2", "identity": "notes/on",
+                    "elements": [60, 0.75], "lead_ms": 25,
+                },
+            })
+            dashboard.state.data["supervisor"]["mode"] = "edit"
+            await dashboard.handle_ws({
+                "type": "fire_editor_event",
+                # The browser sends no selector: the editor drives the local
+                # audition engine, and the server supplies seat 0 itself.
+                "data": {"identity": "snap", "elements": [], "lead_ms": 999},
+            })
+
+        asyncio.run(exercise())
+
+        self.assertEqual(dashboard.state.data["event_lead_ms"], 10000)
+        self.assertEqual(
+            dashboard.osc.fire_event.call_args_list,
+            [
+                mock.call("g2", "notes/on", [60.0, 0.75], 25),
+                mock.call("0", "snap", [], 0),
+            ],
+        )
+        self.assertIn(("event_scheduled", {
+            "selector": "g2", "identity": "notes/on",
+            "elements": [60.0, 0.75], "shared_time_ns": "1234",
+            "lead_ms": 25,
+        }), broadcasts)
+        self.assertIn(("editor_event_fired", {
+            "identity": "snap", "shared_time_ns": "0",
+        }), broadcasts)
+
+    def test_websocket_event_validation_sends_the_usual_error_frame(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(
+            data={"supervisor": {"mode": "off"}})
+        dashboard.osc = mock.Mock()
+
+        class WebSocket:
+            def __init__(self):
+                self.frames = []
+
+            async def send_json(self, frame):
+                self.frames.append(frame)
+
+        ws = WebSocket()
+        asyncio.run(dashboard.handle_ws({
+            "type": "fire_event",
+            "data": {
+                "selector": "all", "identity": "bad identity",
+                "elements": [1.0, 2.0, 3.0, 4.0], "lead_ms": 25,
+            },
+        }, ws))
+        self.assertEqual(ws.frames[0]["type"], "error")
+        dashboard.osc.fire_event.assert_not_called()
+
+    def test_scheduler_fires_identity_and_elements_at_deadline(self):
+        fired = []
+        ready = threading.Event()
+        sync = SyncState(slew_ns=0)
+        sync.push(0)
+
+        def fire(identity, elements):
+            fired.append((identity, elements, time.monotonic_ns()))
+            ready.set()
+
+        scheduler = EventScheduler(sync, fire, log=lambda _entry: None)
+        scheduler.start()
+        try:
+            deadline = time.monotonic_ns() + 30_000_000
+            scheduler.schedule(deadline, "notes/on", [60.0, 0.75])
+            self.assertTrue(ready.wait(0.5))
+        finally:
+            scheduler.stop()
+
+        self.assertEqual(fired[0][:2], ("notes/on", [60.0, 0.75]))
+        self.assertGreaterEqual(fired[0][2], deadline)
+
+    def test_bridge_round_trips_arity_zero_through_three(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(
+            state, lambda *_args: None, 5550, 6660, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        try:
+            with mock.patch("osc_bridge.time.monotonic_ns",
+                            return_value=1_000_000_000):
+                for arity in range(4):
+                    elements = [index + 0.25 for index in range(arity)]
+                    shared, lead = bridge.fire_event(
+                        "g2", "notes/on", elements, 25)
+                    self.assertEqual((shared, lead), (1_025_000_000, 25))
+        finally:
+            bridge.close()
+
+        self.assertEqual(len(sender.frames), 4)
+        for arity, (decoded, destination) in enumerate(sender.frames):
+            self.assertEqual(decoded[0], "/g2/e/notes/on")
+            self.assertEqual(decoded[2], "1025000000")
+            self.assertEqual(len(decoded[3:]), arity)
+            for actual, expected in zip(
+                    decoded[3:], [index + 0.25 for index in range(arity)]):
+                self.assertAlmostEqual(actual, expected, places=6)
+            self.assertEqual(destination, ("192.0.2.255", 6660))
+
+    def test_zero_sentinel_fires_immediately_for_all_group_and_seat(self):
+        state = types.SimpleNamespace(id=4, groups=(2,))
+        fired = []
+        with mock.patch.object(
+                bopos, "fire_event_to_engine",
+                side_effect=lambda identity, elements: fired.append(
+                    (identity, elements))):
+            for selector, arity in zip(("all", "g2", "4"), (0, 1, 3)):
+                message = pyOSC3.OSCMessage(
+                    f"/{selector}/e/drums/hit")
+                message.append("0", "s")
+                for index in range(arity):
+                    message.append(index + 0.5, "f")
+                self.assertTrue(bopos.handle_lan_datagram(
+                    message.getBinary(), ("192.0.2.1", 4000),
+                    types.SimpleNamespace(sendto=lambda *_args: None), state))
+
+        self.assertEqual([len(elements) for _identity, elements in fired],
+                         [0, 1, 3])
+        self.assertTrue(all(identity == "drums/hit"
+                            for identity, _elements in fired))
+
+    def test_normal_event_schedules_and_retired_plane_is_unhandled(self):
+        state = types.SimpleNamespace(id=4, groups=())
+        event = pyOSC3.OSCMessage("/4/e/go")
+        event.append("1234567890", "s")
+        event.append(0.5, "f")
+        retired = pyOSC3.OSCMessage("/cue")
+        retired.append("legacy-go", "s")
+        retired.append("1234567890", "s")
+        reply = types.SimpleNamespace(sendto=lambda *_args: None)
+
+        with mock.patch.object(
+                bopos.event_scheduler, "schedule") as schedule_event:
+            self.assertTrue(bopos.handle_lan_datagram(
+                event.getBinary(), ("192.0.2.1", 4000), reply, state))
+            self.assertFalse(bopos.handle_lan_datagram(
+                retired.getBinary(), ("192.0.2.1", 4000), reply, state))
+
+        schedule_event.assert_called_once_with(1234567890, "go", [0.5])
+
+    def test_engine_fire_is_selector_free_time_free_and_arity_zero_to_three(self):
+        frames = []
+        with mock.patch.object(
+                bopos, "send_to_engine",
+                side_effect=lambda message: frames.append(
+                    pyOSC3.decodeOSC(message.getBinary()))):
+            for arity in range(4):
+                bopos.fire_event_to_engine(
+                    "notes/on",
+                    [0.123456789 + index for index in range(arity)])
+
+        self.assertEqual(len(frames), 4)
+        for arity, decoded in enumerate(frames):
+            self.assertEqual(decoded[0], "/e/notes/on")
+            self.assertEqual(len(decoded[2:]), arity)
+        self.assertAlmostEqual(frames[-1][2], 0.123457, places=6)
+
+    def test_bridge_zero_lead_sends_exact_string_sentinel(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(
+            state, lambda *_args: None, 5550, 6660, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        try:
+            self.assertEqual(
+                bridge.fire_event("all", "go", [], 0), (0, 0))
+        finally:
+            bridge.close()
+
+        decoded, _destination = sender.frames[0]
+        self.assertEqual(decoded[0], "/all/e/go")
+        self.assertEqual(decoded[2:], ["0"])
+
+    def test_simfleet_selectors_sentinel_and_normal_deadline(self):
+        device = types.SimpleNamespace(
+            unresponsive=False, state="running", device_id=4, groups=(2,),
+            sync_offset_ns=500, sync_skew_ns=0, hostname="node-4")
+        fleet = object.__new__(simfleet.SimFleet)
+        fleet.args = types.SimpleNamespace(drop=0.0)
+        fleet.devices = [device]
+        fleet.protocol = simfleet.ContractProtocol()
+        logs, scheduled = [], []
+        fleet.log = lambda target, message: logs.append((target, message))
+        fleet.schedule = (
+            lambda delay, callback, *values:
+            scheduled.append((delay, callback, values)))
+
+        for selector in ("all", "g2", "4"):
+            fleet.handle_event(
+                [selector, "e", "nested", "go"], ["0", 0.5])
+
+        self.assertEqual(len(logs), 3)
+        self.assertTrue(all("event nested/go fired" in message
+                            for _device, message in logs))
+        logs.clear()
+
+        shared = time.monotonic_ns() + 50_000_000
+        fleet.handle_event(
+            ["4", "e", "nested", "go"], [str(shared), 0.5, 1.0])
+        self.assertEqual(logs, [])
+        self.assertEqual(len(scheduled), 1)
+        delay, callback, values = scheduled[0]
+        self.assertGreater(delay, 0)
+        self.assertEqual(values[3], shared + device.sync_offset_ns)
+        callback(*values)
+        self.assertIn("event nested/go fired", logs[0][1])
+
+    def test_typed_bridge_node_and_engine_keep_tags(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(state, lambda *_args: None, 0, 0, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        values = ["folder/file", 2**24, -2**24, 0.123456789] + [0]*12
+        bridge.event_declaration = lambda _identity: {"fields": [
+            {"kind": "text"}, {"kind": "int"}, {"kind": "int"},
+            {"kind": "float"}] + [{"kind": "int"}]*12}
+        try:
+            bridge.fire_event("all", "play", values, 0)
+        finally:
+            bridge.close()
+        frame = sender.frames[0][0]
+        self.assertEqual(frame[1], ",ssii" + "f" + "i"*12)
+        packet = OSCBridge._datagram(frame[0], frame[2:])
+        reply = types.SimpleNamespace(sendto=lambda *_args: None)
+        node = types.SimpleNamespace(id=4, groups=())
+        with mock.patch.object(bopos, "send_to_engine") as send:
+            self.assertTrue(bopos.handle_lan_datagram(packet, ("127.0.0.1", 1), reply, node))
+        engine = pyOSC3.decodeOSC(send.call_args.args[0].getBinary())
+        self.assertEqual(engine[0], "/e/play")
+        self.assertEqual(engine[1], "," + frame[1][2:])
+        self.assertEqual(engine[2:5], values[:3])
+        self.assertAlmostEqual(engine[5], .123457, places=6)
+
+    def test_dashboard_declared_kinds_determine_wire_tags(self):
+        state = types.SimpleNamespace(data={"supervisor": {"mode": "off"}})
+        bridge = OSCBridge(state, lambda *_args: None, 0, 0, "192.0.2.255")
+        sender = Sender()
+        bridge.sender = sender
+        declaration = {"name": "play", "fields": [
+            {"kind": "float"}, {"kind": "int"}, {"kind": "text"}]}
+        bridge.event_declaration = lambda identity: manifest.declared_event(
+            {"events": [declaration]}, identity)
+        try:
+            bridge.fire_event("all", "play", [1, 2.0, "folder"], 0)
+            self.assertEqual(sender.frames[-1][0][1:], [",sfis", "0", 1.0, 2, "folder"])
+            for values in ([1, 2, 3], [1, 2, "folder", 4]):
+                with self.assertRaises(ValueError):
+                    bridge.fire_event("all", "play", values, 0)
+            bridge.fire_event("all", "unknown", [2, "folder"], 0)
+            self.assertEqual(sender.frames[-1][0][1], ",sfs")
+        finally:
+            bridge.close()
+
+    def test_dashboard_event_lookup_uses_fleet_or_edited_patch(self):
+        dashboard = Dashboard.__new__(Dashboard)
+        dashboard.state = types.SimpleNamespace(data={
+            "supervisor": {"mode": "simulate"}, "editor": {"patch": "edited"}})
+        fleet = {"name": "play", "fields": [{"kind": "float"}]}
+        edited = {"name": "play", "fields": [{"kind": "int"}]}
+        dashboard.live_control_manifest = mock.Mock(side_effect=lambda name=None: {
+            "events": [edited if name == "edited" else fleet]})
+        data = {"selector": "all", "identity": "play", "elements": [1]}
+        event, error = dashboard.validate_event_command(data)
+        self.assertIsNone(error)
+        self.assertIs(type(event[2][0]), float)
+        dashboard.state.data["supervisor"]["mode"] = "edit"
+        event, error = dashboard.validate_event_command(dict(data, elements=[2.0]))
+        self.assertIsNone(error)
+        self.assertIs(type(event[2][0]), int)
+        self.assertEqual(event[2], [2])
+
+    def test_wire_limits_rejected_by_node_simfleet_and_audition(self):
+        invalid = [[""], ["two words"], ["é"], ["a"*256], ["\x7f"],
+                   [2**24+1], [-2**24-1], [float("nan")],
+                   [float("inf")], [0]*17]
+        node = types.SimpleNamespace(id=4, groups=())
+        fleet = object.__new__(simfleet.SimFleet)
+        fleet.devices = [types.SimpleNamespace(unresponsive=False, state="running",
+                                              device_id=4, groups=())]
+        fleet.args = types.SimpleNamespace(drop=0)
+        fleet.protocol = simfleet.ContractProtocol()
+        fleet.fire_event = mock.Mock()
+        relay = object.__new__(audition.AuditionRig)
+        relay.nodes = [types.SimpleNamespace(device_id=4, groups=())]
+        relay.fire_event = mock.Mock()
+        for values in invalid:
+            with self.subTest(values=values):
+                packet = OSCBridge._datagram("/all/e/play", ["0", *values])
+                with mock.patch.object(bopos, "fire_event_to_engine") as fire:
+                    bopos.handle_lan_datagram(packet, ("127.0.0.1", 1), None, node)
+                    fire.assert_not_called()
+                fleet.handle_event(["all", "e", "play"], ["0", *values])
+                relay.schedule_event(["all", "e", "play"], ["0", *values])
+        fleet.fire_event.assert_not_called()
+        relay.fire_event.assert_not_called()
+        with self.assertRaises(ValueError):
+            manifest.event_values([True])
+
+    def test_audition_and_simfleet_typed_scheduled_receipt(self):
+        node = types.SimpleNamespace(device_id=4, groups=())
+        relay = object.__new__(audition.AuditionRig)
+        relay.nodes = [node]
+        relay.pending_events = []
+        import itertools
+        relay.event_sequence = itertools.count()
+        relay.send_engine = mock.Mock()
+        values = ["a"*255, 2**24, -2**24, .25]
+        relay.schedule_event(["all", "e", "play"], [str(time.monotonic_ns()-1), *values])
+        relay.dispatch_due_events()
+        relay.send_engine.assert_called_once_with(node, "/e/play", tuple(values))
+        fleet = object.__new__(simfleet.SimFleet)
+        node.unresponsive, node.state = False, "running"
+        node.sync_offset_ns = node.sync_skew_ns = 0
+        fleet.devices, fleet.args = [node], types.SimpleNamespace(drop=0)
+        fleet.protocol = simfleet.ContractProtocol()
+        fleet.schedule = mock.Mock()
+        fleet.handle_event(["all", "e", "play"], [str(time.monotonic_ns()), *values])
+        self.assertEqual(fleet.schedule.call_args.args[4], values)
+
+    def test_event_lead_does_not_load_the_retired_key(self):
+        with tempfile.TemporaryDirectory(prefix="bopos-event-lead-") as root:
+            path = project_path(root)
+            path.write_text(json.dumps({
+                "schema": 1,
+                "seats": {},
+                "groups": {},
+                "cue_lead_ms": 0,
+            }))
+            state = InstallationState(data_root(str(path)))
+
+        self.assertEqual(state.data["event_lead_ms"], 500)
+        self.assertEqual(state.durable()["event_lead_ms"], 500)
+        self.assertNotIn("cue_lead_ms", state.durable())
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class LanListenerRobustnessTests(unittest.TestCase):
+    """One malformed datagram must never stop the node hearing the dashboard."""
+
+    def test_sync_ping_with_a_non_integer_sequence_is_ignored(self):
+        sent = []
+        reply = types.SimpleNamespace(sendto=lambda *args: sent.append(args))
+        state = types.SimpleNamespace(id=4, groups=(), uid="02:00:00:00:00:04")
+        bad = pyOSC3.OSCMessage("/sync/ping")
+        bad.append("bad", "s")
+        bad.append("123", "s")
+        self.assertFalse(bopos.handle_lan_datagram(
+            bad.getBinary(), ("192.0.2.1", 4000), reply, state))
+        self.assertEqual(sent, [])
+
+        good = pyOSC3.OSCMessage("/sync/ping")
+        good.append(7, "i")
+        good.append("123", "s")
+        self.assertTrue(bopos.handle_lan_datagram(
+            good.getBinary(), ("192.0.2.1", 4000), reply, state))
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][1], ("192.0.2.1", 5550))
+
+    def test_listener_keeps_running_after_a_handler_error(self):
+        class Stop(BaseException):
+            pass
+
+        datagrams = [b"first", b"second"]
+
+        class FakeSocket:
+            def setsockopt(self, *_args):
+                pass
+
+            def bind(self, *_args):
+                pass
+
+            def close(self):
+                pass
+
+            def recvfrom(self, _size):
+                if datagrams:
+                    return datagrams.pop(0), ("192.0.2.9", 4000)
+                raise Stop()
+
+        handled = []
+
+        def handler(datagram, *_args):
+            handled.append(datagram)
+            if datagram == b"first":
+                raise ValueError("malformed")
+            return True
+
+        with mock.patch.object(bopos.socket, "socket", return_value=FakeSocket()), \
+                mock.patch.object(bopos, "handle_lan_datagram", side_effect=handler), \
+                mock.patch("builtins.print"):
+            with self.assertRaises(Stop):
+                bopos.lan_listener_loop(types.SimpleNamespace(id=4, groups=()))
+        self.assertEqual(handled, [b"first", b"second"])

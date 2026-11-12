@@ -1,0 +1,22 @@
+#!/bin/bash
+# The human entry point, installed by provision.sh.
+set -euo pipefail
+BOPOS_DIR=/home/pi/bopOS
+case "${1:-}" in
+    status)
+        systemctl --no-pager --full status bopos.service bopos-io.service bopos-engine.service || true
+        PYTHON_BIN=python3
+        [ ! -x "$HOME/venv/bin/python" ] || PYTHON_BIN="$HOME/venv/bin/python"
+        "$PYTHON_BIN" "$BOPOS_DIR/python/node_status.py"
+        ;;
+    version)
+        PYTHON_BIN=python3
+        [ ! -x "$HOME/venv/bin/python" ] || PYTHON_BIN="$HOME/venv/bin/python"
+        echo "bopOS $("$PYTHON_BIN" "$BOPOS_DIR/python/version_identity.py")"
+        ;;
+    start|stop|restart) sudo /usr/bin/systemctl "$1" bopos.target ;;
+    update) exec bash "$BOPOS_DIR/bash/update.sh" ;;
+    logs) exec journalctl -u 'bopos*' -b -f ;;
+    '') printf 'bopos status | version\nbopos start | stop | restart\nbopos update\nbopos logs\n' ;;
+    *) echo "Unknown command: $1" >&2; exit 2 ;;
+esac

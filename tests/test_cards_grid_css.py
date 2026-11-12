@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Browser-free contract for the shared downward cards layout."""
+
+import os
+import unittest
+
+REPO = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def read(relative):
+    with open(os.path.join(REPO, relative), encoding="utf-8") as source:
+        return source.read()
+
+
+class CardsGridCssTests(unittest.TestCase):
+    def test_both_hosts_use_equal_responsive_tracks(self):
+        track = "repeat(auto-fit,minmax(min(340px,100%),1fr))"
+        for stylesheet in ("dashboard/static/css/style.css",
+                           "dashboard/static/css/facilitator.css"):
+            css = "".join(read(stylesheet).split())
+            self.assertIn("display:grid", css)
+            self.assertIn(track, css)
+            self.assertIn("width:min(100%,var(--target-grid-max,100%))", css)
+
+    def test_target_card_component_owns_the_shared_ceiling(self):
+        css = "".join(read(
+            "dashboard/static/css/card-identity.css").split())
+        self.assertIn(".target-card.target-card{min-width:0;"
+                      "max-width:min(560px,100%)", css)
+
+    def test_both_hosts_cap_the_grid_from_card_count(self):
+        control = read("dashboard/static/js/control-host.js")
+        self.assertIn('const CARD_MAX_WIDTH = 560', control)
+        self.assertIn('const CARD_GAP = 12', control)
+        self.assertIn('"--target-grid-max"', control)
+        self.assertIn('cards.length * CARD_MAX_WIDTH', control)
+
+        remote = read("dashboard/static/js/control-column.js")
+        self.assertIn('const CARD_MAX_WIDTH = 560', remote)
+        self.assertIn('const CARD_GAP = 12', remote)
+        self.assertIn('"--target-grid-max"', remote)
+        self.assertIn('rendered.length * CARD_MAX_WIDTH', remote)
+
+    def test_remote_cards_region_is_an_explicit_grid_context(self):
+        css = "".join(read("dashboard/static/css/facilitator.css").split())
+        self.assertIn(
+            "#control-column-host.control-column.control-column-derived"
+            "{display:block;width:auto;max-width:none;"
+            "border:0;border-radius:0;padding:0;background:transparent;"
+            "box-shadow:none}",
+            css,
+        )
+        self.assertIn(
+            "#control-column-host.control-column-derived>"
+            ".control-column-cards{display:grid;width:min(100%,"
+            "var(--target-grid-max,100%));grid-template-columns:repeat(",
+            css,
+        )
+        self.assertNotIn(
+            "#control-column-host>.control-column.control-column-derived",
+            css,
+        )
+
+    def test_component_cards_region_is_not_a_nested_scrollport(self):
+        css = read("dashboard/static/css/control-column.css")
+        block = css.split("\n.control-column-cards {", 1)[1].split("}", 1)[0]
+        self.assertIn("overflow: visible", block)
+        self.assertNotIn("overflow-y: auto", block)
+        self.assertNotIn("max-height", css.split(".control-column {", 1)[1]
+                         .split("}", 1)[0])
+
+    def test_remote_derivation_has_no_picker(self):
+        source = read("dashboard/static/js/facilitator.js")
+        self.assertIn("targetPicker: false", source)
+        self.assertIn("deriveAllTargets: true", source)
+
+    def test_control_keeps_authored_picker(self):
+        source = read("dashboard/static/js/control-host.js")
+        self.assertIn("targetPicker: true", source)
+        self.assertIn("deriveAllTargets: false", source)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,12 @@
+.settings-tab{max-width:1100px}
+.settings-tab h3{margin:0}
+.settings-tab .section-head p{margin:4px 0 0}
+.settings-facts{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
+.settings-fact{display:grid;grid-template-columns:minmax(160px,220px) minmax(0,1fr);gap:4px 18px;align-items:baseline;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-bar)}
+.settings-fact dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
+.settings-fact strong{font-size:15px;font-variant-numeric:tabular-nums}
+.settings-fact code{font-size:15px}
+.settings-fact small{font-size:12px}
+@media(max-width:760px){
+  .settings-fact{grid-template-columns:1fr}
+}

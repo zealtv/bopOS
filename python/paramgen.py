@@ -1,0 +1,494 @@
+"""Parser and node-side generators for numeric patch parameters."""
+
+import math
+import random
+import re
+import struct
+import threading
+import time
+
+
+TICK_NS = 30_000_000
+# A scheduler quantum, not an input/output limit: unfinished work stays queued.
+_WORK_BATCH = 256
+_DURATION = re.compile(r"(?:\d+(?:\.\d*)?|\.\d+)(ms|s|m|h)\Z")
+_OPTION = re.compile(r"(c|curve|p|phase):(.*)\Z")
+_SHAPES = {"sine", "tri", "saw", "square", "sh", "drift"}
+
+
+class ParamGrammarError(ValueError):
+    pass
+
+
+class ParamSpec:
+    def __init__(self, kind, **values):
+        self.kind = kind
+        self.__dict__.update(values)
+
+    def __repr__(self):
+        values = {key: value for key, value in self.__dict__.items() if key != "kind"}
+        return "ParamSpec({!r}, {})".format(self.kind, values)
+
+
+def wire_number(value, wire_type):
+    """Whether a number fits its emitted OSC scalar (integer output floors)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        scalar = math.floor(value) if wire_type == 'i' else float(value)
+        packed = struct.pack('!' + wire_type, scalar)
+        return math.isfinite(struct.unpack('!' + wire_type, packed)[0])
+    except (OverflowError, ValueError, struct.error):
+        return False
+
+
+def _number(value, label="value", param_type=None):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ParamGrammarError(f"{label} must be numeric")
+    try:
+        result = float(value)
+    except OverflowError:
+        raise ParamGrammarError(f"{label} must be finite")
+    if not math.isfinite(result):
+        raise ParamGrammarError(f"{label} must be finite")
+    if param_type is not None and not wire_number(result, param_type):
+        raise ParamGrammarError(f"{label} must be numeric")
+    return result
+
+
+def _duration(value, label="duration"):
+    if isinstance(value, bool):
+        raise ParamGrammarError(f"{label} must be a duration")
+    if isinstance(value, (int, float)):
+        result = _number(value, label)
+    elif isinstance(value, str):
+        match = _DURATION.fullmatch(value)
+        if match is None:
+            raise ParamGrammarError(f"bad {label} {value!r}")
+        result = float(value[:-len(match.group(1))])
+        result *= {"ms": 1.0, "s": 1000.0, "m": 60000.0,
+                   "h": 3600000.0}[match.group(1)]
+    else:
+        raise ParamGrammarError(f"{label} must be a duration")
+    if not math.isfinite(result):
+        raise ParamGrammarError(f"{label} must be finite")
+    if result < 0:
+        raise ParamGrammarError(f"{label} must not be negative")
+    return result
+
+
+def _duration_ns(milliseconds):
+    numerator, denominator = milliseconds.as_integer_ratio()
+    return numerator * 1_000_000 // denominator
+
+
+def _options(values):
+    positional = list(values)
+    options = {"curve": 0.0, "phase": 0.0, "free": False}
+    seen = set()
+    while positional and isinstance(positional[-1], str):
+        token = positional[-1]
+        match = _OPTION.fullmatch(token)
+        if token in ("f", "free"):
+            name, value = "free", True
+        elif match is not None:
+            name = "curve" if match.group(1) in ("c", "curve") else "phase"
+            try:
+                value = float(match.group(2))
+            except ValueError:
+                raise ParamGrammarError(f"bad option {token!r}")
+            if not math.isfinite(value):
+                raise ParamGrammarError(f"bad option {token!r}")
+            if name == "phase" and not 0.0 <= value <= 1.0:
+                raise ParamGrammarError("phase must be between 0 and 1")
+        else:
+            break
+        if name in seen:
+            raise ParamGrammarError(f"duplicate {name} option")
+        seen.add(name)
+        options[name] = value
+        positional.pop()
+    return positional, options, seen
+
+
+def _fade(values, loop, curve, param_type):
+    count = len(values)
+    if count == 1:
+        return ParamSpec("set", value=_number(values[0], param_type=param_type))
+    if count == 2:
+        segments = [(_number(values[0], param_type=param_type), _duration(values[1]))]
+        return ParamSpec("fade", segments=segments, start=None, curve=curve)
+    if count == 3:
+        start = _number(values[0], param_type=param_type)
+        segments = [(_number(values[1], param_type=param_type), _duration(values[2]))]
+        return ParamSpec("loop" if loop else "fade", segments=segments, start=start, curve=curve)
+    if count >= 4 and count % 2 == 0:
+        segments = [(_number(values[index], param_type=param_type), _duration(values[index + 1]))
+                    for index in range(0, count, 2)]
+        return ParamSpec("loop" if loop else "fade", segments=segments,
+                         start=None, curve=curve)
+    if count >= 5:
+        raise ParamGrammarError("fade segment list must contain destination/duration pairs")
+    raise ParamGrammarError("bad fade arity")
+
+
+def parse_message(args, param_type):
+    """Parse OSC-decoded arguments into a :class:`ParamSpec`."""
+    if param_type not in ("f", "i"):
+        raise ParamGrammarError("automation requires a numeric declaration")
+    if not args:
+        raise ParamGrammarError("parameter message has no arguments")
+    values, options, seen = _options(args)
+    if not values:
+        raise ParamGrammarError("parameter message contains only options")
+    head = values[0]
+    if head == "stop":
+        if len(values) != 1 or seen:
+            raise ParamGrammarError("stop takes no arguments or options")
+        return ParamSpec("stop")
+    if head == "lfo":
+        if len(values) != 5:
+            raise ParamGrammarError("lfo requires shape, min, max, and period")
+        shape = values[1]
+        if shape not in _SHAPES:
+            raise ParamGrammarError(f"unknown lfo shape {shape!r}")
+        period = _duration(values[4], "period")
+        if period <= 0:
+            raise ParamGrammarError("lfo period must be greater than zero")
+        return ParamSpec("lfo", shape=shape, minimum=_number(values[2], "minimum", param_type),
+                         maximum=_number(values[3], "maximum", param_type), period=period,
+                         curve=options["curve"], phase=options["phase"],
+                         free=options["free"])
+    if "phase" in seen or "free" in seen:
+        raise ParamGrammarError("phase/free options are lfo-only")
+    loop = head == "loop"
+    if loop:
+        values = values[1:]
+        if not values:
+            raise ParamGrammarError("loop requires a fade form")
+    elif isinstance(head, str):
+        raise ParamGrammarError(f"unknown keyword or option {head!r}")
+    result = _fade(values, loop and len(values) >= 3, options["curve"], param_type)
+    if result.kind == "set" and "curve" in seen:
+        raise ParamGrammarError("curve option requires a fade, loop, or lfo")
+    return result
+
+
+def _shape(frac, curve):
+    frac = min(1.0, max(0.0, frac))
+    if frac == 0.0:
+        return 0.0
+    try:
+        exponent = 2.0 ** curve
+    except OverflowError:
+        return 0.0 if frac < 1.0 else 1.0
+    return frac ** exponent
+
+
+class GeneratorEngine:
+    """One lazily scheduled generator slot per canonical parameter identity."""
+
+    def __init__(self, emit, sync_state, now_ns=time.monotonic_ns):
+        self._emit = emit
+        self._sync = sync_state
+        self._now = now_ns
+        self._slots = {}
+        self._condition = threading.Condition()
+        self._thread = None
+        self._running = True
+
+    def close(self):
+        with self._condition:
+            self._running = False
+            self._condition.notify_all()
+            thread = self._thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+        self._thread = None
+
+    def _start_locked(self):
+        if self._thread is None and self._running:
+            self._thread = threading.Thread(target=self._loop, name="param-generator",
+                                            daemon=True)
+            self._thread.start()
+
+    def apply(self, identity, spec, declaration):
+        emissions = []
+        with self._condition:
+            now = self._now()
+            current = self._current_locked(identity, now)
+            if current is None:
+                default = declaration.get("default", 0.0)
+                current = float(default) if isinstance(default, (int, float)) else 0.0
+            kind = declaration.get("kind")
+            param_type = "f" if kind == "float" else (
+                "i" if kind in ("int", "toggle", "enum") else None)
+            if param_type not in ("f", "i"):
+                raise ValueError("generator declaration must be numeric")
+            if spec.kind == "stop":
+                slot = {"kind": "constant", "value": current, "type": param_type}
+                emissions.append([int(math.floor(current))] if param_type == "i" else [current])
+            elif spec.kind == "set":
+                value = math.floor(spec.value) if param_type == "i" else spec.value
+                slot = {"kind": "constant", "value": value, "type": param_type}
+                emissions.append([int(value)] if param_type == "i" else [value])
+            elif spec.kind in ("fade", "loop"):
+                start = spec.start if spec.start is not None else current
+                slot = self._make_fade(spec, param_type, start, now)
+                emissions.extend(self._begin_fade(slot, now))
+            else:
+                slot = self._make_lfo(identity, spec, param_type, now)
+                emissions.extend(self._begin_lfo(slot, now))
+            self._slots[identity] = slot
+            if slot["kind"] != "constant":
+                self._start_locked()
+            self._condition.notify_all()
+            # Keep replacement and its first output ordered against scheduler
+            # output: otherwise an old slot can speak after "last wins".
+            for args in emissions:
+                self._emit(identity, args)
+        return True
+
+    def current_value(self, identity):
+        with self._condition:
+            return self._current_locked(identity, self._now())
+
+    def _make_fade(self, spec, param_type, start, now):
+        segments = []
+        cursor = float(start)
+        elapsed = 0
+        for target, duration_ms in spec.segments:
+            duration_ns = _duration_ns(duration_ms)
+            segments.append((cursor, float(target), duration_ns, elapsed))
+            cursor = float(target)
+            elapsed += duration_ns
+        slot = {"kind": spec.kind, "type": param_type, "segments": segments,
+                "curve": spec.curve, "start_ns": now, "total_ns": elapsed,
+                "last_int": math.floor(start), "next_due": now,
+                "explicit": spec.start is not None, "pending": None}
+        slot['steps'] = self._fade_steps(slot)
+        return slot
+
+    def _fade_steps(self, slot):
+        cycle_start = slot['start_ns']
+        while True:
+            for start, target, duration, offset in slot['segments']:
+                count = max(1, (duration + TICK_NS - 1) // TICK_NS)
+                for index in range(1, count + 1):
+                    value = (target if index == count else
+                             start + (target - start) * _shape(index / count, slot['curve']))
+                    due = cycle_start + offset + duration * index // count
+                    yield from self._value_steps(slot, due, value)
+            if slot['kind'] != 'loop' or slot['total_ns'] == 0:
+                return
+            cycle_start += slot['total_ns']
+            start = slot['segments'][0][0]
+            # A loop snaps; it does not traverse the return ramp.
+            if slot['type'] == 'i':
+                snapped = math.floor(start)
+                args = [snapped] if snapped != slot['last_int'] else None
+                slot['last_int'] = snapped
+            else:
+                args = [start]
+            yield cycle_start, args
+
+    def _value_steps(self, slot, due, value):
+        if slot['type'] == 'i':
+            current = math.floor(value)
+            for args in self._crossings(slot['last_int'], current):
+                yield due, args
+            slot['last_int'] = current
+            # Count even stationary boundaries against the work quantum.
+            yield due, None
+        else:
+            yield due, [value]
+
+    def _begin_fade(self, slot, now):
+        result = []
+        if slot['explicit']:
+            result.append([slot['last_int'] if slot['type'] == 'i' else slot['segments'][0][0]])
+        duration = slot['segments'][0][2]
+        count = max(1, (duration + TICK_NS - 1) // TICK_NS)
+        slot['next_due'] = now + duration // count
+        return result
+
+    def _make_lfo(self, identity, spec, param_type, now):
+        return {"kind": "lfo", "type": param_type, "identity": identity,
+                "shape": spec.shape, "minimum": spec.minimum, "maximum": spec.maximum,
+                "period_ns": max(1, _duration_ns(spec.period)), "curve": spec.curve,
+                "phase": random.random() if spec.free else spec.phase,
+                "free": spec.free, "start_ns": now, "next_due": now,
+                "last_int": None}
+
+    def _begin_lfo(self, slot, now):
+        if slot["type"] == "i":
+            value = math.floor(self._lfo_value(slot, now))
+            slot["last_int"] = value
+            slot['last_periods'] = self._lfo_periods(slot, now)
+            slot['steps'] = None
+            slot['pending'] = None
+            slot["next_due"] = now + TICK_NS
+            return [[int(value)]]
+        slot["next_due"] = now + TICK_NS
+        return [[self._lfo_value(slot, now)]]
+
+    def _leader_now(self, slot, now):
+        if slot["free"]:
+            return now - slot["start_ns"]
+        if self._sync is not None and self._sync.synced():
+            return now - self._sync.offset()
+        return now
+
+    def _random_value(self, slot, cycle):
+        seed = "{}|{}|{}|{}|{}|{}".format(
+            slot["identity"], slot["shape"], slot["minimum"], slot["maximum"],
+            slot["period_ns"], cycle)
+        return random.Random(seed).uniform(slot["minimum"], slot["maximum"])
+
+    def _lfo_periods(self, slot, now):
+        return self._leader_now(slot, now) / slot['period_ns'] + slot['phase']
+
+    def _lfo_value(self, slot, now):
+        periods = self._lfo_periods(slot, now)
+        cycle = math.floor(periods)
+        phase = periods - cycle
+        return self._lfo_phase_value(slot, cycle, phase)
+
+    def _lfo_phase_value(self, slot, cycle, phase):
+        low, high = slot["minimum"], slot["maximum"]
+        span = high - low
+        shape = slot["shape"]
+        if shape == "sine":
+            return low + span * (0.5 - 0.5 * math.cos(phase * 2.0 * math.pi))
+        if shape == "tri":
+            ramp = phase * 2.0 if phase < 0.5 else (1.0 - phase) * 2.0
+            return low + span * _shape(ramp, slot["curve"])
+        if shape == "saw":
+            return low + span * _shape(phase, slot["curve"])
+        if shape == "square":
+            return high if phase < 0.5 else low
+        first = self._random_value(slot, cycle)
+        if shape == "sh":
+            return first
+        second = self._random_value(slot, cycle + 1)
+        return first + (second - first) * _shape(phase, slot["curve"])
+
+    def _fade_value(self, slot, now):
+        elapsed = max(0, now - slot["start_ns"])
+        total = slot["total_ns"]
+        if slot["kind"] == "loop" and total > 0:
+            elapsed %= total
+        elif elapsed >= total:
+            return slot["segments"][-1][1]
+        for start, target, duration, offset in slot["segments"]:
+            if elapsed <= offset + duration:
+                frac = 1.0 if duration == 0 else (elapsed - offset) / duration
+                return start + (target - start) * _shape(frac, slot["curve"])
+        return slot["segments"][-1][1]
+
+    def _current_locked(self, identity, now):
+        slot = self._slots.get(identity)
+        if slot is None:
+            return None
+        if slot["kind"] == "constant":
+            return slot["value"]
+        if slot["kind"] in ("fade", "loop"):
+            return self._fade_value(slot, now)
+        return self._lfo_value(slot, now)
+
+    @staticmethod
+    def _crossings(last, current):
+        direction = 1 if current > last else -1
+        for value in range(last + direction, current + direction, direction):
+            yield [value]
+
+    def _drain_steps(self, slot, now):
+        result = []
+        for _ in range(_WORK_BATCH):
+            if slot['pending'] is None:
+                try:
+                    slot['pending'] = next(slot['steps'])
+                except StopIteration:
+                    slot['steps'] = None
+                    return result
+            due, args = slot['pending']
+            if due > now:
+                slot['next_due'] = due
+                return result
+            slot['pending'] = None
+            if args is not None:
+                result.append(args)
+        slot['next_due'] = now
+        return result
+
+    def _advance_fade(self, slot, now):
+        result = self._drain_steps(slot, now)
+        if slot['steps'] is None:
+            final = slot["segments"][-1][1]
+            param_type = slot["type"]
+            slot.clear()
+            slot.update({"kind": "constant", "type": param_type,
+                         "value": math.floor(final) if param_type == "i" else final})
+        return result
+
+    def _lfo_steps(self, slot, now):
+        start = slot['last_periods']
+        end = self._lfo_periods(slot, now)
+        direction = 1 if end >= start else -1
+        divisions = 2 if slot['shape'] in ('sine', 'tri', 'square') else 1
+        boundary = (math.floor(start * divisions) + 1 if direction == 1 else
+                    math.floor(start * divisions))
+        while (boundary / divisions <= end if direction == 1 else
+               boundary / divisions >= end):
+            periods = boundary / divisions
+            cycle = math.floor(periods)
+            phase = periods - cycle
+            # Visit both sides of discontinuities, and extrema of smooth shapes.
+            left_cycle, left_phase = (cycle - 1, 1.0) if phase == 0 else (cycle, phase)
+            left = self._lfo_phase_value(slot, left_cycle, left_phase)
+            right = self._lfo_phase_value(slot, cycle, phase)
+            if slot['shape'] == 'square':
+                left = slot['maximum'] if phase == .5 else slot['minimum']
+            values = (left, right) if direction == 1 else (
+                (right,) if periods == end else (right, left))
+            for value in values:
+                yield from self._value_steps(slot, now, value)
+            boundary += direction
+        yield from self._value_steps(slot, now, self._lfo_value(slot, now))
+        slot['last_periods'] = end
+
+    def _advance_lfo(self, slot, now):
+        if slot["type"] == "i":
+            if slot['steps'] is None:
+                slot['steps'] = self._lfo_steps(slot, now)
+            result = self._drain_steps(slot, now)
+            if slot['steps'] is not None:
+                return result
+        else:
+            result = [[self._lfo_value(slot, now)]]
+        slot["next_due"] = now + TICK_NS
+        return result
+
+    def _loop(self):
+        while True:
+            emissions = []
+            with self._condition:
+                if not self._running:
+                    return
+                now = self._now()
+                nearest = None
+                for identity, slot in list(self._slots.items()):
+                    due = slot.get("next_due")
+                    if due is not None and now >= due:
+                        values = (self._advance_lfo(slot, now) if slot["kind"] == "lfo"
+                                  else self._advance_fade(slot, now))
+                        emissions.extend((identity, args) for args in values)
+                        due = slot.get("next_due")
+                    if due is not None:
+                        nearest = due if nearest is None else min(nearest, due)
+                timeout = None if nearest is None else max(0.0, (nearest - self._now()) / 1e9)
+                if not emissions:
+                    self._condition.wait(timeout=timeout)
+                    continue
+                for identity, args in emissions:
+                    self._emit(identity, args)

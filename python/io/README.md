@@ -1,0 +1,287 @@
+# BopOS I2C to OSC Bridge
+
+Simple Python bridge for interfacing I2C sensors with Pure Data via OSC.
+
+## Architecture
+
+**Super Simple Design:**
+- Python polls all sensors at a defined rate (default 10 Hz)
+- Sends a single OSC bundle containing data from all peripherals
+- PD sends OSC commands to Python to control peripherals
+- Peripherals can be created dynamically via OSC
+
+
+### Declare peripherals in the patch manifest
+
+Add `io_modules` to `bopos.patch.json`:
+
+```json
+{"io_modules":[{"name":"tilt","type":"lis3dh","address":"0x19","optional":true}]}
+```
+
+bopos.py sends creates when the engine becomes ready. The bridge owns each
+declared name and reports running, missing or errored per device. Optional
+absence is normal. Matching patch loadbang creates are successful no-ops;
+conflicting creates return create-failed and preserve the live chip. Changed
+or removed declarations clean up their old instances at reconciliation.
+Undeclared names retain the legacy dynamic behavior below.
+
+Each supported driver contains a literal `DESCRIPTION` with ordered input
+channels, units and ranges, and output commands/arguments. `io_catalog.py`
+reads these on the dashboard host without importing chip dependencies.
+Input units match the values delivered to the patch: ADC volts, LIS3DH tilt
+degrees then acceleration in m/s², MPR121 filtered counts and switch flags. Outputs are last write wins.
+
+### From Pure Data, create peripherals dynamically
+
+Message boxes into `[s to-bopos-io]`:
+```
+[create adc1 ads1015 0x48(  ← Create ADC at address 0x48
+[create tilt lis3dh 0x19(   ← Create tilt sensor
+[create touch mpr121 0x5A(  ← Create touch sensor
+```
+
+### Receive data bundle in PD
+
+All sensor data arrives in a single OSC bundle at the poll rate:
+```
+/adc1 3.3 1.2 0.0 0.5
+/tilt 0.1 -0.5 0.9 0.2 -9.8 0.1
+/touch 512 234 789 ... (12 values)
+```
+
+`lis3dh` sends its three tilt angles in degrees (`x y z`, the PiicoDev
+library's `angle` formulas) followed by the same sample's acceleration in m/s²
+(`accel_x accel_y accel_z`). A patch that unpacks only the first three values
+is unaffected. Acceleration gives a roll-independent tilt: for a sensor whose
+Y axis runs along a tube, `atan2(accel_y, sqrt(accel_x² + accel_z²))` is the
+tube's angle from level whichever way it has rolled.
+
+### Control poll rate
+```
+[poll 20(  ← Poll at 20 Hz
+[poll 5(   ← Poll at 5 Hz
+```
+
+### Send commands to peripherals
+```
+[touch threshold 15 8(  ← Set touch thresholds
+```
+
+### Keys and pointers (always on)
+
+The bridge also reads every USB or Bluetooth keyboard and mouse — a Makey
+Makey is both — straight from `/dev/input`, grabbing each so the tty1 console
+stops seeing it (Pd runs `-nogui`, so `[key]` hears nothing). Nothing is
+declared or created; plug a device in and it reports within two seconds:
+
+```
+/io/key <name> <1|0>         key down/up; autorepeat ignored
+/io/mouse <button> <1|0>     left right middle side extra touch
+/io/mouse xy <x> <y>         pointer, 0-1 each, origin top-left
+/io/mouse move <dx> <dy>     raw relative counts in one report
+/io/mouse wheel <steps>      (hwheel for horizontal)
+```
+
+Key names are the kernel's (`KEY_SPACE` → `space`, `KEY_W` → `w`, arrows
+`up down left right`); number-row keys keep the prefix (`key_1`) because a bare
+`1` arrives in Pd as a symbol `[route 1]` cannot match. Unknown codes arrive as
+`code_<n>`. Relative mice move one shared virtual pointer that starts centred
+and spans 2000 counts per axis; touchscreens and tablets set it from their own
+range. Unplugging releases anything held. In Pd:
+`[r bopos-io] → [route io] → [route key mouse] → [route space w …]`.
+The `pi` user needs the `input` group (`provision.sh` adds it).
+`key` and `mouse` are reserved peripheral names. Fake them without hardware
+with `tools/iosim.py --key space`, `--click left`, `--xy 0.25,0.75`, or in
+Patch Edit with input set to *simulated*: the Modules tab's **key · mouse**
+panel sends the same messages to the audition engine. With a real device as
+Patch Edit's input, its keys and pointer travel in the leased development
+stream too (contract v1.25): presses at once, `xy`/`move` once per poll tick.
+
+## File Structure
+
+```
+main.py                    # Main OSC bridge 
+io_ads1015.py          # ADS1015 ADC module
+io_lis3dh.py         # LIS3DH accelerometer
+io_mpr121.py        # MPR121 touch sensor
+io_template.py     # Template for new peripherals
+sys_input.py       # Always-on keys and pointers (/io/key, /io/mouse)
+```
+
+## How It Works
+
+### Main Loop (main.py)
+```python
+while running:
+    poll_and_send()  # Read all peripherals, send OSC bundle
+    sleep(1.0 / poll_rate)
+```
+
+### Peripheral Interface
+Every peripheral has these simple methods:
+
+```python
+class MyPeripheral:
+    def setup(self):
+        # Initialize hardware
+        
+    def read_data(self):
+        # Return list, dict, or value
+        return [value1, value2, value3]
+    
+    def write_data(self, **kwargs):
+        # Handle commands from PD
+        command = kwargs.get('command')
+        args = kwargs.get('args')
+        # Shutdown cleanup
+```
+
+## OSC Commands
+
+Two namespaces by first path segment: `/io/*` = the bridge (management verbs
+and peripherals alike), `/system/*` = device facts.
+
+**A peripheral is addressed as `/io/<name>`, with the command as the first
+value** — `/io/lights fill 0 255 0`, not `/io/lights/fill 0 255 0`. Exactly
+one segment is address; everything after it is a value. Putting the command
+in the address cannot work for a generic sender: `bopos~.pd`'s io path
+receives a flat list of atoms and has no way to know how many leading ones
+are address and how many are values, and splitting a fixed number would only
+be right by coincidence.
+
+Because peripherals share the namespace with the management verbs, the names
+`create`, `poll`, `report`, `scan` and `bridge` are reserved and rejected at creation.
+
+### Bridge management (`/io/*`)
+```
+/io/create <name> <type> <address>   Create a peripheral
+/io/poll <rate>                      Set poll rate in Hz
+/io/report                           Log active peripherals
+/io/scan [bus]                       Reply /io/scan <addr>... (present I2C addrs)
+```
+
+### Device facts (`/system/*`) — request/reply, manually polled
+```
+/system/rssi      -> /system/rssi <dbm> <quality>   (quality 0 = no link)
+/system/id        -> /system/id <hostname>
+/system/ip        -> /system/ip <ip>
+/system/uptime    -> /system/uptime <seconds>
+/system/rev       -> /system/rev <git-sha>
+/system/patch     -> /system/patch <active-patch>
+/system/info      -> emits all of the above (one message each)
+```
+
+### Peripheral commands
+```
+/io/<peripheral> <command> [args...]   Send command to peripheral
+```
+
+Control replies go to the engine on localhost 6662 and `bopos.py` on
+localhost 7771. Values remain on 6662 only (streaming is a later increment).
+`/io/report` emits `/io/registry <io-json>` as well as logging the registry;
+`/io/scan` retains its integer-address reply and adds `/io/scanned <io-json>`.
+The complete object and the `io-scan`/`io-write` exact-device admin verbs are
+specified in [the OSC contract](../../docs/OSC-CONTRACT.md#11-io-plane-io).
+`/io/written <name> <command>` acknowledges a successful driver write.
+`/io/error <name> <reason>` uses `no-bus`, `create-failed`,
+`invalid-arguments`, `unknown-command`, or `write-failed`; `bridge` names
+errors without a module target. These errors also reach the dashboard on 5550.
+
+From a patch, `[s to-bopos-io]` takes the same thing as a flat message —
+`lights fill 0 255 0` — and `bopos~.pd` turns the first atom into the
+address segment.
+
+## Available Peripheral Types
+
+| Type | Module | Class | Description |
+|------|--------|-------|-------------|
+| `ads1015` | io_ads1015 | IO_ADS1015 | 4-channel 12-bit ADC |
+| `ads1115` | io_ads1115 | IO_ADS1115 | 4-channel 16-bit ADC |
+| `lis3dh` | io_lis3dh | IO_LIS3DH | 3-axis accelerometer |
+| `mpr121` | io_mpr121 | IO_MPR121 | 12-channel capacitive touch |
+| `rgb` | io_rgb | IO_RGB | PiicoDev 3x RGB LED (output) |
+| `ssd1306` | io_ssd1306 | IO_SSD1306 | 128x64 OLED display (output) |
+| `switch` | io_switch | IO_Switch | PiicoDev momentary button |
+
+### `rgb` commands
+
+Created with `[create lights rgb 0x08(`. Three LEDs, indexed 0-2. Shown as
+patch messages; on the wire each is `/io/lights` with the rest as values.
+
+```
+[lights pixel <n> <r> <g> <b>(     One LED, 0-255 per channel
+[lights fill <r> <g> <b>(          All three the same colour
+[lights all <r g b r g b r g b>(   All three in one I2C write (no tearing)
+[lights hsv <n> <hue> [sat] [val>( HSV 0-1; n = -1 fills all three
+[lights clear(                     Blank
+[lights bright <0-255>(            Global brightness
+[lights power <0|1>(               Onboard green power LED
+```
+
+## Creating New Peripherals
+
+1. Copy `io_template.py` to `io_yourdevice.py`
+2. Fill in `setup()`, `read_data()`, and `write_data()`
+3. Add to `PERIPHERAL_TYPES` in `main.py`:
+```python
+PERIPHERAL_TYPES = {
+    'ads1015': ('io_ads1015', 'IO_ADS1015'),
+    'yourdevice': ('io_yourdevice', 'IO_YOURDEVICE'),
+}
+```
+4. Create from PD: `[create dev1 yourdevice 0x48(` to `[s to-bopos-io]`
+
+
+## Diagnostics
+
+Everything this bridge prints -- the startup banner, `✓ Created <name>
+(<type> @ <addr>)`, a peripheral's own ready line, and `Error reading <name>`
+per failed poll -- goes to `run/io.log` on the node, timestamped, beside the
+service logs. `bash/run/service.sh` runs the bridge with `-u` through
+`python/logpipe.py`, so a line lands in the file as it is printed rather than
+whenever a buffer happens to flush. The previous boot is kept as
+`run/io.log.prev`; crash restarts append to the current boot.
+
+The file is capped (128 MiB by default, `IO_LOG_MAX_BYTES` in `bopos.config`)
+and the cap keeps the *head* of a run: on a marginal I2C bus every poll cycle
+produces error lines, and in an unattended soak the onset and clustering of
+those errors are the diagnosis, not the last few minutes. Measured rates: a
+healthy bus writes nothing, a peripheral off the bus writes 5.7 MiB/hour.
+
+This is not the `/log` node log (`python/nodelog.py`, `~/bopos-logs/`), which
+is a structured append-only facility with its own destination config.
+
+## Peripheral lifecycle (design decision)
+
+Peripherals are **created and managed over OSC by the active patch** (`/io/create …`),
+**not** from a device-level config file. The bridge starts with **no peripherals** — the
+patch declares the ones it needs (the auto-create lines in `main()` stay commented as
+examples only).
+
+This is deliberate:
+
+- **Different patches may handle hardware differently** — so it's fine, and expected, for a
+  patch to (re)instantiate peripherals its own way on load. The hardware complement is a
+  property of the *patch*, not baked into the device.
+- **Keeps the device fully remote-controllable** — anything reachable over OSC can create,
+  reconfigure, or query peripherals at runtime; nothing is locked in at boot.
+
+A patch typically issues its `/io/create` calls on `loadbang`. Peripherals persist until
+replaced or until the bridge restarts (for example, on a device reboot or framework
+update). An engine-only patch switch leaves the bridge running.
+
+
+## Dependencies
+
+Dependencies are listed in `requirements.txt`. Install them during device
+provisioning with `install-device.sh`; routine framework convergence does not
+install Python dependencies.
+
+## Design Principles
+
+✅ **Simple** - One polling loop, one OSC bundle
+✅ **Readable** - Minimal code, clear structure  
+✅ **Dynamic** - Create peripherals at runtime
+✅ **Consistent** - All peripherals use same interface
+✅ **Modular** - Easy to add new devices

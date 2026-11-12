@@ -1,0 +1,7 @@
+-c constraints.txt
+# All software test tiers and the documented lint tool.
+-r dashboard/requirements.txt
+pyOSC3
+playwright
+Pillow
+pyflakes

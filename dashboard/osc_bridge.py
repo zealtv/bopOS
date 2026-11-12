@@ -1,0 +1,2236 @@
+import asyncio
+import ipaddress
+import json
+import logging
+import math
+import os
+import random
+import re
+import socket
+import statistics
+import sys
+import time
+from collections import deque
+
+from pythonosc.osc_message import OscMessage
+from pythonosc.osc_message_builder import OscMessageBuilder
+
+import points
+from state import reconcile_patch_switch_observation
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python import manifest as patch_manifest
+from python import wifi_config
+from python import io_protocol
+from python.paramgen import ParamGrammarError, parse_message
+# Imported after the repo root joins sys.path: live_params reaches into
+# python.paramgen at module scope.
+import live_params
+from io_streams import IOStreams
+
+
+LEGACY_DECLARATIONS = [
+    {"name": "gain", "kind": "float", "min": 0, "max": 1, "default": 0.75},
+    {"name": "gain2", "kind": "float", "min": 0, "max": 1, "default": 0.3},
+    {"name": "backing", "kind": "float", "min": 0, "max": 1, "default": 0.8},
+    {"name": "echo", "kind": "toggle", "default": 0},
+]
+log = logging.getLogger("bopos.osc")
+
+# Clock-sync leader (contract sec 3.1). The dashboard is the leader (resolved
+# 2026-07-05): it broadcasts /sync/ping, estimates each device's offset from the
+# echoing /sync/pong, and pushes /<id>/sync/offset. Offset math lives leader-side
+# (only the leader sees the round trip); the node applies it (sync-2). Values are
+# nanoseconds; offset === deviceClock - leaderClock.
+SYNC_PING_INTERVAL = 0.5           # mean seconds between pings
+SYNC_PING_JITTER = 0.1             # +/- randomization, avoids lockstep pong bursts
+SYNC_WINDOW = 16                   # rolling samples kept per device
+SYNC_RTT_CEILING_NS = 200_000_000  # discard a pong slower than this outright
+SYNC_LOWRTT_BAND = 1.5             # estimate from samples within 1.5x window-min RTT
+SYNC_MIN_SAMPLES = 3               # let the estimate settle before pushing
+ASSIGN_REPLAY_MIN_SECONDS = 2.0    # bound a broken node's wrong-id ack loop
+FETCH_TIMEOUT_SECONDS = 1800       # large media can be slow; UDP loss must still recover
+# A node bounds each file at 30s x 3 attempts and reports every phase change,
+# so silence far past that means the transfer is not coming back. Ruling one
+# out only demotes it to a tombstone, never forgets it, so the bound can be
+# generous without risking misattribution.
+FETCH_STALL_SECONDS = 120
+REQUEST_TIMEOUT_SECONDS = 5.0
+# Longer than the node's 3-second local bridge receipt deadline. This is
+# dashboard-only pending state; it does not add a wire reason or receipt.
+IO_REQUEST_TIMEOUT_SECONDS = 4.0
+UNASSIGN_TIMEOUT_SECONDS = 5.0
+AUDITION_PARAM_REPLAY_SECONDS = (1.5, 4.0)
+GROUP_RETRY_SECONDS = (0.5, 1.0, 2.0)
+GROUP_RETRY_EXPIRE_SECONDS = 2.0
+ASSET_REQUERY_SECONDS = (0.5, 1.0, 2.0, 4.0)
+TRANSPORT_ERROR_THROTTLE_SECONDS = 5.0
+
+
+def source_for_peer(peer):
+    """Return the host source address that reaches a physical LAN peer.
+
+    Prefer a directly attached interface so a tunnel advertising the same
+    subnet cannot win ordinary route lookup. Routed venues retain the ordinary
+    lookup fallback.
+    """
+    direct_error = None
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_DONTROUTE, 1)
+            probe.connect((str(peer), 9))
+            return probe.getsockname()[0]
+        except OSError as error:
+            direct_error = error
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect((str(peer), 9))
+            return probe.getsockname()[0]
+        except OSError:
+            raise direct_error
+
+
+class OSCProtocol(asyncio.DatagramProtocol):
+    def __init__(self, bridge):
+        self.bridge = bridge
+
+    def datagram_received(self, data, addr):
+        try:
+            message = OscMessage(data)
+            self.bridge.handle(message.address, list(message.params), addr[0])
+        except Exception:
+            log.debug("invalid OSC datagram", exc_info=True)
+
+
+class OSCBridge:
+    def __init__(self, state, broadcast, listen_port, send_port, target,
+                 live_param_replay=None, stream_port=5551):
+        self.event_declaration = lambda identity: None
+        self.state = state
+        self.broadcast = broadcast
+        self.listen_port = listen_port
+        # Execution traffic follows Live / Simulation / Patch Edit. Physical
+        # administration never follows that switch: it always targets the
+        # configured installation LAN on the existing framework port.
+        self.physical_destination = (target, send_port)
+        self.destination = self.physical_destination
+        self.transport = None
+        self.stream_port = stream_port
+        self.stream_transport = None
+        self.io_streams = IOStreams(state, self.uid_command)
+        self.sender = None
+        self.lan_sender = None
+        self.lan_source = None
+        self._lan_peer = None
+        self._transport_errors = {}
+        self.pending = {"params": deque(), "report": deque(), "patches": deque(),
+                        "assets": deque()}
+        # v1.3 distribution replies carry slot + phase/status but no uid. Real
+        # nodes are normally attributable by source IP; the ordered records are
+        # the fallback for simfleet, whose devices share one loopback address.
+        self.fetch_pending = {}
+        self.pending_timeouts = {}
+        self.probe_pending = {}
+        self._performance_replayed = {}
+        self._sync = {}        # uid -> {"offsets": deque, "rtts": deque}
+        self._sync_seq = 0
+        self._sync_routes = {}  # uid -> current endpoint generation and clock observation
+        self._sync_reset_at = {}  # reject echoes sent before a generation change
+        self._sync_generation_at = 0  # execution-mode/relay boundary, even without routes
+        self._ping_task = None
+        self._points_task = None
+        self.outside_points_until = 0
+        self._points_started = time.monotonic()  # motion clock zero
+        self._assign_replayed = {}  # uid -> monotonic time of last full replay
+        self._live_param_replayed = {}  # uid -> last converged appearance replay
+        self._live_param_pending = set()  # uid -> appeared, awaiting matching id
+        self.live_param_replay = live_param_replay or (lambda _seat: None)
+        self._unassign_replayed = {}  # stale unbound uid -> last repair send
+        self._unassign_waiters = {}  # uid -> future; suppresses authoritative replay
+        self._audition_param_replays = set()
+        self._group_pending = {}  # uid -> latest full-state membership attempt
+        # uid -> bounded retry generation for inventories whose background
+        # fingerprint warming has not completed yet.
+        self._asset_requeries = {}
+        self._audio_apply_timeouts = {}
+        self._log_apply_timeouts = {}
+        self._io_timeouts = {}
+        self._wifi_apply_timeouts = {}
+        self._wifi_secret_sent = {}
+        self.wifi_applied = lambda uid, ssids: None
+        # Last generator the dashboard sent, deliberately runtime-only.  The
+        # durable state serializer has an explicit allowlist and omits this.
+        self.automation = {}
+        self.state.data["automation"] = self.automation
+
+    async def start(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except OSError:
+                pass
+        sock.bind(("", self.listen_port))
+        sock.setblocking(False)
+        loop = asyncio.get_running_loop()
+        self.transport, _ = await loop.create_datagram_endpoint(lambda: OSCProtocol(self), sock=sock)
+        self.sender = self._new_sender()
+        try:
+            self.stream_transport, _ = await loop.create_datagram_endpoint(
+                lambda: self.io_streams, local_addr=('0.0.0.0', self.stream_port),
+                family=socket.AF_INET)
+        except Exception:
+            self.close()
+            raise
+        self._ping_task = asyncio.create_task(self.sync_ping_loop())
+        self._points_task = asyncio.create_task(self.points_loop())
+
+    def close(self):
+        self.io_streams.close()
+        if self.stream_transport:
+            self.stream_transport.close()
+        if self._ping_task:
+            self._ping_task.cancel()
+        if self._points_task:
+            self._points_task.cancel()
+        if self.transport:
+            self.transport.close()
+        if self.sender:
+            self.sender.close()
+        if self.lan_sender and self.lan_sender is not self.sender:
+            self.lan_sender.close()
+        self.sender = None
+        self.lan_sender = None
+        for records in self.fetch_pending.values():
+            for record in records:
+                record.get("timeout") and record["timeout"].cancel()
+        for timeout in self.pending_timeouts.values():
+            timeout.cancel()
+        for record in self.probe_pending.values():
+            record["timeout"].cancel()
+        self.probe_pending.clear()
+        for timeout in self._audio_apply_timeouts.values():
+            timeout.cancel()
+        self._audio_apply_timeouts.clear()
+        for timeout in self._log_apply_timeouts.values():
+            timeout.cancel()
+        self._log_apply_timeouts.clear()
+        for timeout in self._io_timeouts.values():
+            timeout.cancel()
+        self._io_timeouts.clear()
+        for timeout in self._wifi_apply_timeouts.values():
+            timeout.cancel()
+        self._wifi_apply_timeouts.clear()
+        self._wifi_secret_sent.clear()
+        for waiter in self._unassign_waiters.values():
+            if not waiter.done():
+                waiter.cancel()
+        self._unassign_waiters.clear()
+        for record in self._group_pending.values():
+            record.get("timeout") and record["timeout"].cancel()
+        self._group_pending.clear()
+        for record in self._asset_requeries.values():
+            record.get("timeout") and record["timeout"].cancel()
+        self._asset_requeries.clear()
+        for replay in self._audition_param_replays:
+            replay.cancel()
+        self._audition_param_replays.clear()
+
+    def schedule_audition_param_replay(self, uid):
+        """Replay dashboard-owned controls after a managed patch can receive.
+
+        Process-alive heartbeats precede Pd patch graph readiness on macOS.
+        The immediate declaration exchange remains the fast path; two bounded
+        retries converge both ordinary and slower-loading patches without a
+        permanent control stream.
+        """
+        loop = asyncio.get_running_loop()
+        expected_device = self.state.devices.get(uid)
+        for delay in AUDITION_PARAM_REPLAY_SECONDS:
+            holder = {}
+
+            def replay(device_uid=uid, device_generation=expected_device,
+                       replay_holder=holder):
+                self._audition_param_replays.discard(replay_holder["handle"])
+                device = self.state.devices.get(device_uid)
+                mode = self.state.data.get("supervisor", {}).get("mode", "off")
+                if device is device_generation \
+                        and device.get("virtual") and device.get("online") \
+                        and mode in {"simulate", "edit"}:
+                    self.request(device_uid, "params")
+
+            handle = loop.call_later(delay, replay)
+            holder["handle"] = handle
+            self._audition_param_replays.add(handle)
+
+    async def sync_ping_loop(self):
+        # leader broadcasts /sync/ping ~2 Hz, jittered so N nodes don't pong in
+        # lockstep (HB does 500+-100 ms). leaderTime is echoed back in the pong,
+        # so the leader stays stateless. Always on: tight-sync assumes the
+        # dashboard is running (contract sec 3.1).
+        try:
+            while True:
+                self._refresh_sync_routes()
+                self._sync_seq = (self._sync_seq + 1) & 0x7fffffff
+                self.send("/sync/ping", [self._sync_seq, str(time.monotonic_ns())])
+                await asyncio.sleep(SYNC_PING_INTERVAL
+                                    + random.uniform(-SYNC_PING_JITTER, SYNC_PING_JITTER))
+        except asyncio.CancelledError:
+            pass
+
+    @staticmethod
+    def _console_args(args):
+        # WS console tap payloads must be JSON-safe; OSC args are normally
+        # str/int/float already, anything exotic degrades to its repr.
+        return [arg if isinstance(arg, (str, int, float, bool)) else str(arg)
+                for arg in args]
+
+    @staticmethod
+    def _safe_wifi_args(address, args):
+        args = list(args)
+        if address == "/all/os/to" and len(args) >= 2 and args[1] == "wifi-config":
+            return args[:2] + ["[redacted]"]
+        if address == "/os/wifi-config" and len(args) >= 4:
+            try:
+                args[3] = json.dumps(wifi_config.redacted(json.loads(args[3])))
+            except (ValueError, TypeError):
+                args[3] = '{"managed":false}'
+            return args[:4] + ["[redacted]" for _ in args[4:]]
+        if address == "/os/report" and args:
+            try:
+                report = json.loads(args[0])
+                if isinstance(report, dict) and "wifi" in report:
+                    report["wifi"] = wifi_config.redacted(report["wifi"])
+                    args[0] = json.dumps(report)
+            except (ValueError, TypeError):
+                args[0] = "[redacted]"
+        return args
+
+    @staticmethod
+    def _new_sender(source=None):
+        sender = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sender.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if source is not None:
+            sender.bind((source, 0))
+        return sender
+
+    @staticmethod
+    def _is_loopback_destination(destination):
+        host = str(destination[0])
+        if host.lower() == "localhost":
+            return True
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _source_for_peer(peer):
+        return source_for_peer(peer)
+
+    def _bind_lan_sender(self, source):
+        replacement = self._new_sender(source)
+        previous = self.lan_sender
+        self.lan_sender = replacement
+        self.lan_source = source
+        if previous is not None and previous is not self.sender:
+            previous.close()
+
+    def observe_lan_peer(self, peer):
+        """Select the host source address that routes toward a physical node."""
+        peer = str(peer)
+        if peer == self._lan_peer and self.lan_sender is not None:
+            return
+        try:
+            if ipaddress.ip_address(peer).is_loopback:
+                return
+            source = self._source_for_peer(peer)
+        except (OSError, ValueError):
+            log.debug("could not discover OSC source route toward %s", peer,
+                      exc_info=True)
+            return
+        self._lan_peer = peer
+        if source != self.lan_source or self.lan_sender is None:
+            try:
+                self._bind_lan_sender(source)
+            except OSError:
+                log.warning("could not bind OSC sender to %s", source,
+                            exc_info=True)
+            else:
+                log.info("OSC LAN sender bound to %s for peer %s",
+                         source, peer)
+
+    def _sender_for(self, destination):
+        if self._is_loopback_destination(destination):
+            if self.sender is None:
+                self.sender = self._new_sender()
+            return self.sender
+        if self.lan_sender is not None:
+            return self.lan_sender
+        if self.sender is None:
+            self.sender = self._new_sender()
+        return self.sender
+
+    def _refresh_lan_sender(self):
+        if self._lan_peer is None:
+            return
+        try:
+            source = self._source_for_peer(self._lan_peer)
+        except OSError:
+            return
+        if source != self.lan_source:
+            try:
+                self._bind_lan_sender(source)
+            except OSError:
+                log.debug("could not rebind OSC sender to %s", source,
+                          exc_info=True)
+            else:
+                log.info("OSC LAN sender rebound to %s for peer %s",
+                         source, self._lan_peer)
+
+    def _report_transport_error(self, address, destination, error):
+        error_number = error.errno
+        key = (destination, error_number)
+        now = time.monotonic()
+        if now - self._transport_errors.get(key, float("-inf")) \
+                < TRANSPORT_ERROR_THROTTLE_SECONDS:
+            return
+        self._transport_errors[key] = now
+        payload = {
+            "ts": time.time(),
+            "address": address,
+            "destination": destination[0],
+            "port": destination[1],
+            "errno": error_number,
+            "message": str(error),
+        }
+        log.warning("OSC send failed for %s to %s:%s: %s",
+                    address, destination[0], destination[1], error)
+        try:
+            self.broadcast("osc_transport_error", payload)
+        except RuntimeError:
+            pass
+
+    def _send_to(self, address, args, destination, route):
+        try:
+            self._sender_for(destination).sendto(
+                self._datagram(address, args), destination)
+        except OSError as error:
+            if not self._is_loopback_destination(destination):
+                self._refresh_lan_sender()
+            self._report_transport_error(address, destination, error)
+            return False
+        # The dashboard's subscription broker filters before formatting args.
+        # Standalone bridge consumers retain their existing callback seam.
+        try:
+            if getattr(self, 'tap', None):
+                self.tap('out', address, args, destination[0], route)
+            else:
+                self.broadcast("osc_out", {"ts": time.time(), "address": address,
+                                       "args": self._console_args(self._safe_wifi_args(address, args)),
+                                       "target": destination[0], "route": route})
+        except RuntimeError:
+            pass
+        return True
+
+    def send(self, address, args=()):
+        """Send to the active execution target."""
+        self._send_to(address, args, self.destination, "execution")
+
+    def send_physical(self, address, args=()):
+        """Send to the physical installation regardless of execution mode."""
+        self._send_to(address, args, self.physical_destination, "physical")
+
+    def send_for_uid(self, uid, address, args=()):
+        device = self.state.devices.get(str(uid))
+        if device is not None and device.get("virtual"):
+            self.send(address, args)
+        else:
+            self.send_physical(address, args)
+
+    def set_target(self, host):
+        # Even the same loopback host can now belong to a new audition engine.
+        self._sync_generation_at = time.monotonic_ns()
+        for uid in tuple(self._sync_routes):
+            self._invalidate_sync(uid)
+        self.destination = (str(host), self.destination[1])
+
+    @staticmethod
+    def _datagram(address, args=()):
+        builder = OscMessageBuilder(address=address)
+        for value in args:
+            if isinstance(value, float):
+                value = float(format(value, ".6g"))
+            builder.add_arg(value)
+        return builder.build().dgram
+
+    def send_audition_listener(self):
+        """Send the private listener frame only to the local audition relay."""
+        listener = self.state.data.get("listener")
+        if not self.state.data.get("simulation", {}).get("active"):
+            return
+        if not listener or self.sender is None:
+            return
+        # The listener's own range (audition-falloff/2-range-widget) drives
+        # the audition falloff; fall back to the default range for
+        # missing/invalid range (older persisted state, pre-widget clients).
+        try:
+            range_m = float(listener.get("range"))
+        except (TypeError, ValueError):
+            range_m = None
+        if range_m is None or not math.isfinite(range_m) or range_m <= 0:
+            range_m = self.state.default_range()
+        if not math.isfinite(range_m) or range_m <= 0:
+            return
+        packet = self._datagram("/audition/listener", [
+            float(listener["x"]), float(listener["y"]),
+            float(listener["heading"]), range_m,
+        ])
+        self.sender.sendto(packet, ("127.0.0.1", self.destination[1]))
+
+    def send_editor_element(self, element):
+        self.send("/audition/editor-element", [int(element)])
+
+    def record_param(self, selector, name, value, sent_at=None,
+                     persist=True, broadcast=True):
+        """Update dashboard mirrors without sending; persistence is optional."""
+        return self.record_param_for(
+            self._selector_seats(selector), name, value,
+            sent_at=sent_at, persist=persist, broadcast=broadcast)
+
+    def record_param_for(self, seats, name, value, sent_at=None,
+                         persist=True, broadcast=True):
+        """Record mirrors for targets a caller has already resolved.
+
+        The patch editor's audition target is not a Seat and cannot be
+        recovered from a selector, so callers supply concrete targets.
+        """
+        # Show automation passes the full §3.2 argument list; plain writes
+        # stay a single scalar.
+        args = value if isinstance(value, list) else [value]
+        try:
+            spec = parse_message(args, "f")
+        except ParamGrammarError:
+            spec = None
+        changed = False
+        if spec is not None and spec.kind in {"fade", "loop", "lfo"}:
+            entry = {"args": list(args), "kind": spec.kind,
+                     "shape": getattr(spec, "shape", None),
+                     "free": bool(getattr(spec, "free", False)),
+                     "sent_at": time.time() if sent_at is None else float(sent_at)}
+            if spec.kind == "lfo" and not spec.free:
+                # Non-free node generators use leader monotonic time. Give the
+                # browser the same phase sample so resending an idempotent LFO
+                # (for example a looping show step) cannot restart only its
+                # visual marker at phase zero.
+                monotonic_ms = time.monotonic_ns() / 1_000_000
+                entry["phase_at_send_ms"] = (
+                    monotonic_ms + spec.phase * spec.period
+                ) % spec.period
+            for seat in seats:
+                seat_entry = dict(entry)
+                if spec.kind == "fade":
+                    # Match GeneratorEngine.apply's implicit-origin rule: a
+                    # replacement fade starts at the live value of the slot it
+                    # displaces. Durable params already hold a running fade's
+                    # destination and predate a periodic generator, so consult
+                    # the automation mirror before falling back to that scalar.
+                    key = live_params.automation_key(seat)
+                    prior_entry = self.automation.get(key, {}).get(name)
+                    prior = live_params.estimate_automation(
+                        name, {"kind": "float"}, prior_entry,
+                        seat_entry["sent_at"])
+                    if prior is None:
+                        prior = seat.get("params", {}).get(name)
+                    seat_entry["from"] = spec.start if spec.start is not None else prior
+                self.automation.setdefault(
+                    live_params.automation_key(seat), {})[name] = seat_entry
+                changed = True
+            if spec.kind == "fade":
+                self._store_fade_destination(
+                    seats, name, spec.segments[-1][0],
+                    persist=persist, broadcast=broadcast)
+        else:
+            for seat in seats:
+                key = live_params.automation_key(seat)
+                per_seat = self.automation.get(key, {})
+                if per_seat.pop(name, None) is not None:
+                    changed = True
+                if not per_seat:
+                    self.automation.pop(key, None)
+        return changed
+
+    def set_param(self, selector, name, value):
+        return self.set_param_for(
+            self._selector_seats(selector), selector, name, value)
+
+    def set_param_for(self, seats, selector, name, value):
+        """Send a parameter after recording already-resolved targets.
+
+        The patch editor uses OSC selector 0 but is not Seat 0, so selector
+        lookup cannot recover its isolated automation mirror. Ordinary live
+        targets delegate here with the same seats the selector resolves.
+        """
+        changed = self.record_param_for(seats, name, value)
+        args = value if isinstance(value, list) else [value]
+        self.send(f"/{selector}/p/{name}", args)
+        if changed:
+            self.broadcast("state")
+
+    def _selector_seats(self, selector):
+        value = str(selector)
+        if value == "all":
+            return list(self.state.seats.values())
+        if value.startswith("g"):
+            group_id = self.state.clean_group_id(value[1:])
+            if str(group_id) not in self.state.data.get("groups", {}):
+                return []
+            return [seat for seat in self.state.seats.values()
+                    if group_id in seat.get("groups", [])]
+        seat_id = self.state.clean_seat_id(value)
+        seat = self.state.seats.get(str(seat_id))
+        return [seat] if seat is not None else []
+
+    def _store_fade_destination(self, seats, identity, destination,
+                                persist=True, broadcast=True):
+        touched = set()
+        for seat in seats:
+            seat.setdefault("params", {})[identity] = destination
+            # The editor's audition target owns no Device mirror: it is one
+            # engine on selector 0, not a Seat any Device is bound to.
+            for device in ([] if seat.get("editor")
+                           else self.state.devices.values()):
+                if (device.get("uid") == seat.get("bound")
+                        or (device.get("virtual")
+                            and str(device.get("seat_id")) == str(seat["id"]))):
+                    device.setdefault("params", {})[identity] = destination
+                    touched.add(device["uid"])
+        if persist:
+            self.state.save_debounced()
+        if broadcast:
+            for uid in touched:
+                self.broadcast("device_update", self.state.devices[uid])
+
+    def set_group_param(self, group_id, name, value):
+        """Update all durable member mirrors, then emit one group datagram."""
+        group_id = self.state.clean_group_id(group_id)
+        if group_id is None or str(group_id) not in self.state.data.get("groups", {}):
+            return None
+        members = self.state.set_group_param(group_id, name, value)
+        self.state.save_debounced()
+        self.set_param(f"g{group_id}", name, value)
+        member_ids = {seat["id"] for seat in members}
+        for device in self.state.devices.values():
+            seat = self.state.seat_for_uid(device["uid"])
+            if seat is not None and seat["id"] in member_ids:
+                self.broadcast("device_update", device)
+        return members
+
+    def send_master(self, selector="all"):
+        # provided term (contract sec 4.1): idempotent full-state; the engine
+        # multiplies it into its own output stage, so the wire carries raw
+        # mixes only — no dashboard-side composition (seam ruling R1)
+        self.send(f"/{selector}/os/master",
+                  [float(self.state.data.get("master", 1.0))])
+
+    def send_mute_all(self):
+        """Send the execution-owned MUTE ALL state to the active target."""
+        self.send("/all/os/mute", [
+            int(bool(self.state.data.get("muted", False)))])
+
+    def fire_event(self, selector, identity, elements, lead_ms=500):
+        """Schedule a targetable event, or fire on arrival when lead is zero."""
+        identity = str(identity)
+        identity_parts = identity.split("/")
+        try:
+            identity_bytes = identity.encode("ascii")
+        except UnicodeEncodeError as error:
+            raise ValueError(f"bad event identity {identity!r}") from error
+        if (not 1 <= len(identity_parts) <= patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity_bytes) > patch_manifest.MAX_PARAM_IDENTITY_BYTES):
+            raise ValueError(f"bad event identity {identity!r}")
+        elements = patch_manifest.coerce_event_values(
+            self.event_declaration(identity), elements)
+        lead_ms = min(max(int(lead_ms), 0), 10000)
+        shared_time_ns = (
+            0 if lead_ms == 0
+            else time.monotonic_ns() + lead_ms * 1_000_000)
+        self.send(
+            f"/{selector}/e/{identity}",
+            [str(shared_time_ns), *elements])
+        return shared_time_ns, lead_ms
+
+    def _points_elapsed(self):
+        return time.monotonic() - self._points_started
+
+    def send_points_frame(self):
+        if time.monotonic() < getattr(self, "outside_points_until", 0):
+            return
+        # one atomic full-state frame (contract sec 4.1). /pt is selector-less,
+        # so the catch-up "unicast" to a reappearing device is a re-broadcast
+        # every other node applies idempotently.
+        self.send("/pt", points.frame_args(self.state.data.get("points") or {},
+                                           self._points_elapsed()))
+
+    def upsert_point(self, point):
+        # sparse authoring edit: one point on the wire, the rest hold
+        if point.get("motion"):
+            point["motion"]["started"] = self._points_elapsed()
+        self.state.data.setdefault("points", {})[point["id"]] = point
+        self.send("/pt", points.sparse_args(point, self._points_elapsed()))
+
+    def send_editor_point(self, point):
+        # Editor scratch uses the same /pt seam without joining the durable or
+        # installation-wide point model. The edit supervisor owns the relay.
+        self.send("/pt", points.sparse_args(point, 0.0))
+
+    def clear_editor_point(self, point_id):
+        self.send("/pt/clear", [int(point_id)])
+
+    def clear_point(self, point_id):
+        if (self.state.data.get("points") or {}).pop(point_id, None) is not None:
+            self.send("/pt/clear", [int(point_id)])
+
+    async def points_loop(self):
+        # ~25 Hz only while a point moves; a static set is one frame (sent by
+        # the mutators above) then silence — silence = hold (contract sec 4.1)
+        previous_elapsed = None
+        try:
+            while True:
+                await asyncio.sleep(1.0 / points.RATE_HZ)
+                if time.monotonic() < getattr(self, "outside_points_until", 0):
+                    continue
+                current = self.state.data.get("points") or {}
+                elapsed = self._points_elapsed()
+                # Include the tick crossing a path's end, so its endpoint is
+                # delivered once before silence takes over.
+                if any(points.is_dynamic(point, elapsed)
+                       or points.is_dynamic(point, previous_elapsed)
+                       for point in current.values()):
+                    self.send_points_frame()
+                    evaluated = {str(point_id): list(points.current_xy(point, elapsed))
+                                 for point_id, point in current.items()}
+                    self.broadcast("point_frame", {"points": evaluated})
+                previous_elapsed = elapsed
+        except asyncio.CancelledError:
+            pass
+
+    def action(self, selector, verb):
+        self.send_physical(f"/{selector}/os/{verb}")
+
+    def uid_command(self, uid, verb, args=()):
+        if verb == "unassign":
+            self._invalidate_sync(uid)
+        self.send_for_uid(
+            uid, "/all/os/to", [str(uid), str(verb), *args])
+
+    def uid_action(self, uid, verb):
+        self.uid_command(uid, verb)
+
+    def set_device_enabled(self, uid, value):
+        """Send one exact-UID persistent physical-box enabled state."""
+        self.uid_command(uid, "enabled", [int(bool(value))])
+
+    def set_device_hostname(self, uid, hostname):
+        """Send one exact-UID alias-derived hostname target."""
+        self.uid_command(uid, "hostname", [str(hostname)])
+
+    def io_scan(self, uid):
+        self._arm_io_timeout(uid, 'scan')
+        self.uid_command(uid, 'io-scan')
+
+    def subscribe_io(self, uid, consumer, callback):
+        """Share the sole device stream; callback receives bundle and module values."""
+        self.io_streams.subscribe(uid, consumer, callback)
+
+    def unsubscribe_io(self, uid, consumer):
+        self.io_streams.unsubscribe(uid, consumer)
+
+    def io_write(self, uid, payload):
+        payload = io_protocol.validate_write(payload)
+        self._arm_io_timeout(uid, 'write')
+        self.uid_command(uid, 'io-write', [json.dumps(payload)])
+
+    def io_reinit(self, uid, name):
+        if not io_protocol.valid_name(name):
+            raise ValueError('invalid-arguments')
+        self._arm_io_timeout(uid, 'reinit:' + name)
+        self.uid_command(uid, 'io-reinit', [name])
+
+    def _arm_io_timeout(self, uid, kind):
+        self._clear_io_timeout(uid, kind)
+        self._io_timeouts[(uid, kind)] = asyncio.get_running_loop().call_later(
+            IO_REQUEST_TIMEOUT_SECONDS, self._expire_io, uid, kind)
+
+    def _clear_io_timeout(self, uid, kind):
+        timeout = self._io_timeouts.pop((uid, kind), None)
+        if timeout is not None:
+            timeout.cancel()
+
+    def _expire_io(self, uid, kind):
+        self._clear_io_timeout(uid, kind)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        if kind == 'scan':
+            device['io_scan_pending'] = False
+        result = (device.setdefault('io_reinit', {}).setdefault(kind[7:], {})
+                  if kind.startswith('reinit:') else device.setdefault('io_' + kind, {}))
+        result.update(
+            status='err', phase='timeout', at=time.time())
+        self.broadcast('device_update', device)
+        self.request(uid, 'report')
+
+    def set_audio_config(self, uid, config):
+        """Apply complete audio settings to one exact physical Device."""
+        previous = self._audio_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._audio_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_audio_apply, uid)
+        self.uid_command(
+            uid, "audio-config",
+            [json.dumps(config, separators=(",", ":"), sort_keys=True)])
+
+    def _expire_audio_apply(self, uid):
+        self._audio_apply_timeouts.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        audio = (device.get("report") or {}).get("audio")
+        if isinstance(audio, dict):
+            audio["status"] = "error"
+            audio["error"] = "Audio apply timed out; refreshing observed state."
+        device["audio_apply"] = {
+            "status": "err", "phase": "timeout", "at": time.time(),
+        }
+        self.broadcast("device_update", device)
+        self.request(uid, "report")
+
+    def set_wifi_config(self, uid, config):
+        previous = self._wifi_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._wifi_secret_sent[uid] = {row["ssid"] for row in config["networks"] if row["psk"] is not None}
+        self._wifi_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_wifi_apply, uid)
+        self.uid_command(uid, "wifi-config", [json.dumps(config, separators=(",", ":"))])
+
+    def _expire_wifi_apply(self, uid):
+        self._wifi_apply_timeouts.pop(uid, None)
+        self._wifi_secret_sent.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is not None:
+            device["wifi_apply"] = {"status": "err", "phase": "timeout"}
+            self.broadcast("device_update", device)
+            self.request(uid, "report")
+
+    def set_log_config(self, uid, destination):
+        """Persist one bounded log destination on an exact physical Device.
+
+        No engine restart on the node, so this returns quickly; a timeout still
+        guards an offline/lost request so the pending receipt does not hang."""
+        previous = self._log_apply_timeouts.pop(uid, None)
+        if previous:
+            previous.cancel()
+        self._log_apply_timeouts[uid] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_log_apply, uid)
+        self.uid_command(
+            uid, "log-config",
+            [json.dumps({"destination": str(destination)},
+                        separators=(",", ":"), sort_keys=True)])
+
+    def _expire_log_apply(self, uid):
+        self._log_apply_timeouts.pop(uid, None)
+        device = self.state.devices.get(uid)
+        if device is None:
+            return
+        device["log_apply"] = {
+            "status": "err", "phase": "timeout", "at": time.time(),
+        }
+        self.broadcast("device_update", device)
+        self.request(uid, "report")
+
+    async def unassign(self, uid, timeout=UNASSIGN_TIMEOUT_SECONDS):
+        """Request id=-1 and hold assignment replay until its heartbeat ack."""
+        device = self.state.devices.get(uid)
+        if not device or device.get("virtual"):
+            return False
+        existing = self._unassign_waiters.get(uid)
+        if existing is not None:
+            return bool(await asyncio.shield(existing))
+        waiter = asyncio.get_running_loop().create_future()
+        self._unassign_waiters[uid] = waiter
+        device["revoking_assignment"] = True
+        self.broadcast("device_update", device)
+        self.uid_command(uid, "unassign")
+        try:
+            return bool(await asyncio.wait_for(waiter, timeout))
+        except asyncio.TimeoutError:
+            return False
+        finally:
+            if self._unassign_waiters.get(uid) is waiter:
+                self._unassign_waiters.pop(uid, None)
+
+    def fetch(self, uid, uri, slot, fingerprint):
+        device = self.state.devices.get(uid)
+        if not device or int(device.get("id", -1)) < 0:
+            return
+        records = self.fetch_pending.setdefault(slot, deque())
+        stranded = [record for record in records
+                    if record["uid"] == uid and not self._fetch_live(record)]
+        if any(record["uid"] == uid and record not in stranded
+               for record in records):
+            return False  # one generation per device/slot; never mislabel coalesced bytes
+        # A generation the node can no longer be running must not hold the slot
+        # shut. Demoting it keeps it as an attribution barrier while letting the
+        # operator's retry through.
+        for record in stranded:
+            self._tombstone_fetch(slot, record)
+        record = {"uid": uid, "uri": uri, "fingerprint": fingerprint,
+                  "phase": "sent"}
+        records.append(record)
+        return self._send_fetch_generation(slot, record)
+
+    def _send_fetch_generation(self, slot, record):
+        """Send or re-send one generation while preserving its identity.
+
+        Re-sending the same record is how an ambiguous first terminal after a
+        tombstone becomes harmless: every later reply can only name these same
+        bytes, so the generation may then be certified safely.
+        """
+        device = self.state.devices.get(record["uid"])
+        if not device or int(device.get("id", -1)) < 0:
+            return False
+        previous = record.get("timeout")
+        if previous:
+            previous.cancel()
+        record["phase"] = "sent"
+        record["updated_at"] = time.monotonic()
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            FETCH_TIMEOUT_SECONDS, self._expire_fetch, slot, record)
+        device.setdefault("fetch", {})[slot] = "sent"
+        self.send_physical(
+            f"/{int(device['id'])}/os/fetch", [record["uri"], slot])
+        self.broadcast("device_update", device)
+        return True
+
+    def fetch_matches(self, uid, slot, fingerprint):
+        """Whether an existing generation is already fetching these bytes.
+
+        A superseding fleet operation may observe an identical in-flight
+        generation, but must never relabel or attach to different bytes.
+        """
+        return any(record["uid"] == uid and self._fetch_live(record)
+                   and record["fingerprint"] == fingerprint
+                   for record in self.fetch_pending.get(slot, ()))
+
+    def request(self, uid, member):
+        device = self.state.devices.get(uid)
+        if not device:
+            return False
+        if uid in self.pending[member]:
+            return False
+        self.pending[member].append(uid)
+        self.pending_timeouts[(member, uid)] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_request, member, uid)
+        if member == "report":
+            self.uid_command(uid, "report")
+        elif int(device.get("id", -1)) >= 0:
+            self.send_for_uid(
+                uid, f"/{int(device['id'])}/os/{member}")
+        else:
+            self._finish_request(member, uid)
+            try:
+                self.pending[member].remove(uid)
+            except ValueError:
+                pass
+            return False
+        return True
+
+    def request_assets(self, uid, reset=True):
+        """Query one inventory, optionally starting a fresh retry generation."""
+        if reset:
+            previous = self._asset_requeries.pop(uid, None)
+            if previous:
+                previous.get("timeout") and previous["timeout"].cancel()
+        return self.request(uid, "assets")
+
+    def probe(self, uid, name):
+        """Request one retained patch-authored value from an assigned Device."""
+        device = self.state.devices.get(str(uid))
+        if device is None or not device.get("online"):
+            return False, "That Device is offline or unavailable."
+        try:
+            device_id = int(device.get("id", -1))
+        except (TypeError, ValueError):
+            device_id = -1
+        if device_id < 0:
+            return False, "Patch reports require an assigned Device."
+        if re.fullmatch(r"[A-Za-z0-9_-]+", str(name or "")) is None:
+            return False, "Report name may contain letters, numbers, _ and -."
+        key = (device_id, str(name))
+        previous = self.probe_pending.pop(key, None)
+        if previous:
+            previous["timeout"].cancel()
+        record = {"uid": str(uid), "id": device_id, "name": str(name)}
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            REQUEST_TIMEOUT_SECONDS, self._expire_probe, key)
+        self.probe_pending[key] = record
+        self.send_physical(f"/{device_id}/os/probe", [str(name)])
+        return True, None
+
+    def _expire_probe(self, key):
+        record = self.probe_pending.pop(key, None)
+        if record is None:
+            return
+        self.broadcast("probe_result", {
+            "ok": False, "uid": record["uid"], "id": record["id"],
+            "name": record["name"], "values": [], "ts": time.time(),
+            "error": "No retained value replied before timeout.",
+        })
+
+    @staticmethod
+    def _typed_probe_values(values):
+        typed = []
+        for value in values:
+            if isinstance(value, bool):
+                typed.append({"type": "i", "value": int(value)})
+            elif isinstance(value, int):
+                typed.append({"type": "i", "value": value})
+            elif isinstance(value, float):
+                typed.append({"type": "f", "value": value})
+            elif isinstance(value, str):
+                typed.append({"type": "s", "value": value})
+            else:
+                typed.append({"type": "s", "value": str(value)})
+        return typed
+
+    def _cancel_asset_requery(self, uid):
+        record = self._asset_requeries.pop(uid, None)
+        if record:
+            record.get("timeout") and record["timeout"].cancel()
+
+    def _schedule_asset_requery(self, uid):
+        device = self.state.devices.get(uid)
+        if device is None or not device.get("online"):
+            self._cancel_asset_requery(uid)
+            return
+        listing = device.get("assets")
+        unresolved = isinstance(listing, list) and any(
+            item.get("fingerprint") is None for item in listing)
+        if not unresolved:
+            self._cancel_asset_requery(uid)
+            return
+        record = self._asset_requeries.setdefault(
+            uid, {"attempts": 0, "timeout": None})
+        if record.get("timeout") is not None:
+            return
+        if record["attempts"] >= len(ASSET_REQUERY_SECONDS):
+            return
+        delay = ASSET_REQUERY_SECONDS[record["attempts"]]
+        record["timeout"] = asyncio.get_running_loop().call_later(
+            delay, self._requery_assets, uid, record)
+
+    def _requery_assets(self, uid, record):
+        if self._asset_requeries.get(uid) is not record:
+            return
+        record["timeout"] = None
+        if self.request(uid, "assets"):
+            record["attempts"] += 1
+        # If a request is already in flight, its reply or expiry resumes the
+        # bounded sequence; do not spin another timer alongside it.
+
+    def os_command(self, selector, member, args=(), route="physical"):
+        address = f"/{selector}/os/{member}"
+        if route == "execution":
+            self.send(address, args)
+        elif route == "physical":
+            self.send_physical(address, args)
+        else:
+            raise ValueError(f"invalid OSC route {route!r}")
+
+    def set_performance(self, active):
+        if active:
+            self.io_streams.close()
+        self._performance_replayed.clear()
+        self.send_physical("/all/os/performance", [int(bool(active))])
+        if self.destination != self.physical_destination:
+            self.send("/all/os/performance", [int(bool(active))])
+
+    def converge_performance(self, device):
+        desired = bool(getattr(self.state, "performance", False))
+        observed = (device.get("report") or {}).get("performance")
+        uid = device["uid"]
+        if isinstance(observed, bool) and observed == desired:
+            self._performance_replayed.pop(uid, None)
+            return
+        now = time.monotonic()
+        if now - self._performance_replayed.get(uid, float("-inf")) < 3.0:
+            return
+        self._performance_replayed[uid] = now
+        self.send_for_uid(uid, "/all/os/performance", [int(desired)])
+
+    def assign(self, uid, device_id, name, elements=()):
+        # idempotent full-state; only the node whose uid matches applies it,
+        # and it persists the lot for standalone operation (contract sec 5).
+        # Element positions ride along: one x y pair per element, pair order
+        # = element index (true N — the fixed pos1/pos2 spelling is retired).
+        self._invalidate_sync(uid)
+        args = [str(uid), int(device_id), str(name)]
+        for position in elements or ():
+            args += [float(position[0]), float(position[1])]
+        device = self.state.devices.get(uid)
+        self.send_for_uid(uid, "/all/os/assign", args)
+        seat = self.state.seat_for_uid(uid)
+        if device is not None and seat is not None and int(seat["id"]) == int(device_id):
+            # Assignment and membership are separate UDP transactions. Never
+            # send them back-to-back: reordering could install the new Seat's
+            # groups while the node still routes under its old Seat. A later
+            # matching-id heartbeat is the convergence gate.
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "awaiting_assignment",
+                                    "desired": list(seat.get("groups", []))}
+
+    @staticmethod
+    def _wire_group_ids(values):
+        if not isinstance(values, (list, tuple)):
+            return None
+        if any(isinstance(value, bool) or not isinstance(value, int) for value in values):
+            return None
+        if any(value < 0 or value > 0x7fffffff for value in values):
+            return None
+        if len(set(values)) != len(values):
+            return None
+        return tuple(sorted(values))
+
+    def send_groups(self, uid, groups=None):
+        """Start a bounded full-state membership convergence attempt."""
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        if (device is None or seat is None or not device.get("online")
+                or self.sender is None):
+            if device is not None:
+                device["group_sync"] = {"status": "offline", "desired":
+                                        list(seat.get("groups", [])) if seat else []}
+            return False
+        if (device.get("group_sync") or {}).get("status") == "awaiting_assignment":
+            # Membership may change while assignment convergence is in flight.
+            # Keep the latest desired state visible, but do not put it on UDP
+            # until a later heartbeat proves the node routes as this Seat.
+            device["group_sync"] = {"status": "awaiting_assignment",
+                                    "desired": list(seat.get("groups", []))}
+            self.broadcast("device_update", device)
+            return False
+        desired = self._wire_group_ids(
+            list(seat.get("groups", [])) if groups is None else list(groups))
+        if desired is None:
+            return False
+        previous = self._group_pending.pop(uid, None)
+        if previous:
+            previous.get("timeout") and previous["timeout"].cancel()
+        record = {"desired": desired, "attempts": 1, "retry_index": 0,
+                  "timeout": None}
+        self._group_pending[uid] = record
+        self.send_for_uid(uid, "/all/os/groups", [str(uid), *desired])
+        device["group_sync"] = {"status": "pending", "desired": list(desired),
+                                "attempts": 1}
+        self.broadcast("device_update", device)
+        self._schedule_group_retry(uid, record)
+        return True
+
+    def _schedule_group_retry(self, uid, record):
+        loop = asyncio.get_running_loop()
+        index = record["retry_index"]
+        delay = (GROUP_RETRY_SECONDS[index]
+                 if index < len(GROUP_RETRY_SECONDS) else GROUP_RETRY_EXPIRE_SECONDS)
+        record["timeout"] = loop.call_later(delay, self._retry_groups, uid, record)
+
+    def _retry_groups(self, uid, record):
+        if self._group_pending.get(uid) is not record:
+            return
+        index = record["retry_index"]
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        current = tuple(seat.get("groups", [])) if seat else None
+        if (device is None or seat is None or not device.get("online")
+                or current != record["desired"]):
+            self._group_pending.pop(uid, None)
+            if device is not None:
+                device["group_sync"] = {"status": "offline" if not device.get("online")
+                                        else "superseded",
+                                        "desired": list(current or ())}
+                self.broadcast("device_update", device)
+            if device is not None and seat is not None and device.get("online"):
+                self.send_groups(uid)
+            return
+        if index >= len(GROUP_RETRY_SECONDS):
+            self._group_pending.pop(uid, None)
+            device["group_sync"] = {"status": "timeout",
+                                    "desired": list(record["desired"]),
+                                    "attempts": record["attempts"]}
+            self.broadcast("device_update", device)
+            return
+        self.send_for_uid(
+            uid, "/all/os/groups", [str(uid), *record["desired"]])
+        record["attempts"] += 1
+        record["retry_index"] += 1
+        device["group_sync"] = {"status": "pending",
+                                "desired": list(record["desired"]),
+                                "attempts": record["attempts"]}
+        self.broadcast("device_update", device)
+        self._schedule_group_retry(uid, record)
+
+    def _finish_groups(self, uid, observed, source):
+        device = self.state.devices.get(uid)
+        seat = self.state.seat_for_uid(uid)
+        if device is None or seat is None:
+            return
+        desired = tuple(seat.get("groups", []))
+        if not device.get("online"):
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "offline", "desired": list(desired)}
+            self.broadcast("device_update", device)
+            return
+        if observed == desired:
+            record = self._group_pending.pop(uid, None)
+            if record:
+                record.get("timeout") and record["timeout"].cancel()
+            device["group_sync"] = {"status": "current", "desired": list(desired),
+                                    "source": source}
+            self.broadcast("device_update", device)
+        elif device.get("online"):
+            # A stale receipt/report is useful evidence, but it must not reset
+            # an already bounded attempt for the same latest desired state.
+            # Let that attempt's existing retry schedule continue to timeout.
+            record = self._group_pending.get(uid)
+            if record is None or record.get("desired") != desired:
+                self.send_groups(uid)
+
+    def _device_for_reply(self, kind, ip, payload=None):
+        if kind == "report" and isinstance(payload, dict) and payload.get("uid") in self.state.devices:
+            uid = payload["uid"]
+            try:
+                self.pending[kind].remove(uid)
+            except ValueError:
+                pass
+            self._finish_request(kind, uid)
+            return self.state.devices[uid]
+        matches = [device for device in self.state.devices.values() if device.get("ip") == ip]
+        if len(matches) == 1:
+            uid = matches[0]["uid"]
+            try:
+                self.pending[kind].remove(uid)
+            except ValueError:
+                pass
+            self._finish_request(kind, uid)
+            return matches[0]
+        if self.pending[kind]:
+            uid = self.pending[kind].popleft()
+            self._finish_request(kind, uid)
+            return self.state.devices.get(uid)
+        return None
+
+    def _finish_request(self, member, uid):
+        timeout = self.pending_timeouts.pop((member, uid), None)
+        if timeout:
+            timeout.cancel()
+
+    def _expire_request(self, member, uid):
+        self.pending_timeouts.pop((member, uid), None)
+        try:
+            self.pending[member].remove(uid)
+        except ValueError:
+            pass
+        if member == "assets":
+            self._schedule_asset_requery(uid)
+
+    # Method names keep dispatch tied to the bridge's current handlers.
+    _INBOUND_HANDLERS = {
+        "/os/probe": "_handle_probe",
+        "/audition/ready": "_handle_audition_ready",
+        "/hb": "_handle_heartbeat",
+        "/os/groups": "_handle_groups",
+        "/os/enabled": "_handle_enabled",
+        "/os/hostname": "_handle_hostname",
+        "/os/io-scan": "_handle_io_scan",
+        "/os/io-write": "_handle_io_write",
+        "/os/io-error": "_handle_io_error",
+        "/os/io-stream": "_handle_io_stream",
+        "/os/io-reinit": "_handle_io_reinit",
+        "/os/audio-config": "_handle_audio_config",
+        "/os/wifi-config": "_handle_wifi_config",
+        "/os/log-config": "_handle_log_config",
+        "/os/params": "_handle_params",
+        "/os/report": "_handle_report",
+        "/os/patches": "_handle_patches",
+        "/os/assets": "_handle_assets",
+        "/os/fetch-progress": "_handle_fetch_progress",
+        "/os/fetched": "_handle_fetched",
+        "/os/rev": "_handle_rev",
+        "/sync/pong": "handle_pong",
+    }
+
+    def handle(self, address, args, ip):
+        args = self._safe_wifi_args(address, args)
+        # This tap never gates ordinary OSC handling or administration replies.
+        try:
+            if getattr(self, 'tap', None):
+                self.tap('in', address, args, ip)
+            else:
+                self.broadcast("osc_in", {"ts": time.time(), "address": address,
+                                      "args": self._console_args(args),
+                                      "source": ip})
+        except RuntimeError:
+            pass
+        handler = self._INBOUND_HANDLERS.get(address)
+        if handler is not None:
+            getattr(self, handler)(args, ip)
+        elif address in ("/os/pong", "/os/load"):
+            log.debug("ignored %s %r", address, args)
+
+    def _handle_probe(self, args, ip):
+        if len(args) < 2:
+            return
+        try:
+            device_id = int(args[0])
+        except (TypeError, ValueError):
+            return
+        name = str(args[1])
+        key = (device_id, name)
+        record = self.probe_pending.pop(key, None)
+        if record is not None:
+            record["timeout"].cancel()
+            uid = record["uid"]
+        else:
+            device = next(
+                (candidate for candidate in self.state.devices.values()
+                 if int(candidate.get("id", -1)) == device_id),
+                None)
+            uid = device.get("uid") if device else None
+        self.broadcast("probe_result", {
+            "ok": True, "uid": uid, "id": device_id, "name": name,
+            "values": self._typed_probe_values(args[2:]), "ts": time.time(),
+        })
+
+    def _handle_audition_ready(self, args, ip):
+        try:
+            local = ipaddress.ip_address(ip).is_loopback
+        except ValueError:
+            local = False
+        if not local:
+            return
+        # A relay restart can be faster than the normal offline threshold.
+        # Its private ready frame requests the complete dashboard-owned
+        # assignments and listener without weakening heartbeat rate limits.
+        mode = str(args[1]) if len(args) > 1 else "simulate"
+        self.send_master()
+        self.send_mute_all()
+        if mode == "simulate":
+            for seat in self.state.seats.values():
+                uid = seat.get("bound")
+                if uid and uid.startswith("audition-") and uid in self.state.devices:
+                    self.assign(uid, seat["id"], seat["name"], self.state.positions_for(seat["id"]))
+            self.send_audition_listener()
+
+    def _handle_heartbeat(self, args, ip):
+        if len(args) < 4:
+            return
+        self.observe_lan_peer(ip)
+        uid = str(args[0])
+        supervisor_mode = self.state.data.get("supervisor", {}).get("mode", "off")
+        audition_uid = re.fullmatch(r"audition-\d{4}", uid) is not None
+        try:
+            local = ipaddress.ip_address(ip).is_loopback
+        except ValueError:
+            local = False
+        # Managed audition identities exist only on the private loopback
+        # relay and only while its supervisor owns that relay.  A delayed
+        # heartbeat must not resurrect a phantom installation device.
+        if audition_uid and (supervisor_mode == "off" or not local):
+            return
+        first_seen = uid not in self.state.devices
+        device = self.state.ensure(uid)
+        alias_created = self._prepare_heartbeat_device(device, supervisor_mode, audition_uid)
+        old = {key: device.get(key) for key in (
+            "id", "ip", "version", "engine_alive", "rssi", "online",
+            "revoking_assignment")}
+        advertised_id = int(args[1])
+        seat = self.state.seat_for_uid(uid)
+        if device.get("virtual") and device.get("seat_id") is not None:
+            seat = self.state.seats.get(str(device["seat_id"]))
+        now = time.monotonic()
+        revoking, unassign_waiter = self._reconcile_heartbeat_unassignment(
+            device, seat, advertised_id, now)
+        configured = seat is not None and not revoking
+        configured_id = int(seat["id"]) if configured else (-1 if revoking else advertised_id)
+        mismatch = configured and advertised_id != configured_id
+        last_replay = self._assign_replayed.get(uid, float("-inf"))
+        execution_owned = (
+            (bool(device.get("virtual"))
+             and supervisor_mode in {"simulate", "edit"})
+            or (not device.get("virtual") and supervisor_mode == "off"))
+        reassign = configured and (not old["online"] or
+                                   (mismatch and now - last_replay >=
+                                    ASSIGN_REPLAY_MIN_SECONDS))
+        if configured and not old["online"] and execution_owned:
+            self._live_param_pending.add(uid)
+        if configured and not mismatch:
+            self._assign_replayed.pop(uid, None)
+        self._observe_heartbeat(device, args, ip, configured_id, old, first_seen)
+        self._replay_heartbeat_assignment(
+            device, seat, advertised_id, revoking, unassign_waiter, reassign, now)
+        if configured and not reassign and advertised_id == configured_id:
+            self._converge_heartbeat_groups(device, seat, execution_owned, now)
+        if (not device.get("virtual")
+                and (first_seen or not old["online"])):
+            self.set_device_enabled(
+                uid, self.state.device_enabled_for(uid))
+        self._publish_heartbeat(device, old, alias_created)
+        if first_seen or not old["online"]:
+            self._request_heartbeat_state(device, configured, first_seen)
+
+    def _prepare_heartbeat_device(self, device, supervisor_mode, audition_uid):
+        uid = device["uid"]
+        if supervisor_mode == "simulate" and audition_uid:
+            index = int(uid.rsplit("-", 1)[1]) - 1
+            seats = sorted(self.state.seats.values(), key=lambda item: item["id"])
+            device["virtual"] = True
+            device["seat_id"] = seats[index]["id"] if 0 <= index < len(seats) else None
+        elif supervisor_mode == "edit" and audition_uid:
+            device["virtual"] = True
+            device["editor"] = True
+            device["seat_id"] = None
+        alias_created = False
+        if not device.get("virtual"):
+            try:
+                _alias, alias_created = self.state.ensure_device_alias(uid)
+            except ValueError as error:
+                log.error("could not allocate device alias for %s: %s", uid, error)
+            else:
+                if alias_created:
+                    self.state.save_debounced()
+        return alias_created
+
+    def _reconcile_heartbeat_unassignment(self, device, seat, advertised_id, now):
+        uid = device["uid"]
+        unassign_waiter = self._unassign_waiters.get(uid)
+        revoking = unassign_waiter is not None
+        stale_unbound = (seat is None and not device.get("virtual")
+                         and advertised_id != -1)
+        pending_offline_revoke = (bool(device.get("revoking_assignment"))
+                                  and unassign_waiter is None)
+        if ((stale_unbound or pending_offline_revoke)
+                and advertised_id != -1 and unassign_waiter is None):
+            last_unassign = self._unassign_replayed.get(uid, float("-inf"))
+            if now - last_unassign >= ASSIGN_REPLAY_MIN_SECONDS:
+                self.uid_command(uid, "unassign")
+                self._unassign_replayed[uid] = now
+            device["revoking_assignment"] = True
+            revoking = True
+        elif advertised_id == -1:
+            device["revoking_assignment"] = False
+            self._unassign_replayed.pop(uid, None)
+        elif (seat is not None and unassign_waiter is None
+                and not pending_offline_revoke):
+            # A timed-out transaction leaves durable binding authoritative.
+            device["revoking_assignment"] = False
+        return revoking, unassign_waiter
+
+    def _observe_heartbeat(self, device, args, ip, configured_id, old, first_seen):
+        uid = device["uid"]
+        device.update(id=configured_id, version=str(args[2]), engine_alive=int(args[3]),
+                      rssi=args[4] if len(args) > 4 else None, ip=ip, online=True,
+                      last_seen=time.time())
+        if first_seen or not old["online"] or old["ip"] != ip:
+            self._invalidate_sync(uid)
+        if first_seen or not old["online"]:
+            # A reboot invalidates the previous observed mode.
+            if isinstance(device.get("report"), dict):
+                device["report"].pop("performance", None)
+        self.converge_performance(device)
+
+    def _replay_heartbeat_assignment(self, device, seat, advertised_id, revoking,
+                                   unassign_waiter, reassign, now):
+        uid = device["uid"]
+        configured_id = device["id"]
+        if (revoking and advertised_id == -1 and unassign_waiter is not None
+                and not unassign_waiter.done()):
+            unassign_waiter.set_result(True)
+        if reassign:
+            # Dashboard durable assignment is authoritative. Replaying its
+            # full state on appearance also restores ephemeral audition
+            # nodes' ordered positions after the relay restarts. The ack
+            # heartbeat advertises configured_id while already online, so
+            # it cannot form a resend loop.
+            self.assign(uid, configured_id, seat["name"], self.state.positions_for(seat["id"]))
+            self._assign_replayed[uid] = now
+
+    def _converge_heartbeat_groups(self, device, seat, execution_owned, now):
+        uid = device["uid"]
+        desired_groups = tuple(seat.get("groups", []))
+        pending_groups = self._group_pending.get(uid)
+        sync = device.get("group_sync") or {}
+        current = (sync.get("status") == "current"
+                   and tuple(sync.get("desired", ())) == desired_groups)
+        pending = (pending_groups is not None
+                   and pending_groups.get("desired") == desired_groups)
+        if not current and not pending:
+            if sync.get("status") == "awaiting_assignment":
+                device["group_sync"] = {
+                    "status": "assignment_confirmed",
+                    "desired": list(desired_groups)}
+            self.send_groups(uid)
+        if execution_owned and uid in self._live_param_pending:
+            last_params = self._live_param_replayed.get(uid, float("-inf"))
+            if now - last_params >= ASSIGN_REPLAY_MIN_SECONDS:
+                self.live_param_replay(seat)
+                self._live_param_replayed[uid] = now
+                self._live_param_pending.discard(uid)
+
+    def _publish_heartbeat(self, device, old, alias_created):
+        uid = device["uid"]
+        self.broadcast("heartbeat", {"uid": uid, "timestamp": device["last_seen"]})
+        new = {key: device.get(key) for key in old}
+        if old != new:
+            self.broadcast("device_update", device)
+        if alias_created:
+            # A device_update projects the resolved alias but cannot add
+            # the new durable registry record to an already-open browser.
+            # Converge that host-global identity state immediately so
+            # Rename/Reset semantics do not depend on discovery preceding
+            # the WebSocket connection.
+            self.broadcast("state")
+
+    def _request_heartbeat_state(self, device, configured, first_seen):
+        uid = device["uid"]
+        self.state.save_debounced()
+        # Asset inventory is useful for assigned and unassigned
+        # devices alike. A missing reply deliberately leaves None.
+        self.request_assets(uid)
+        if first_seen:
+            self.request(uid, "report")
+        if device.get("editor"):
+            # The one edit instance is the mini-map's sole element.
+            # Its (0, 0) coordinate renders at the centre of that map.
+            self.assign(uid, 0, "Patch editor", ((0.0, 0.0),))
+            editor = self.state.data.get("editor", {})
+            self.send_editor_element(editor.get("point_element", 0))
+            for point in editor.get("points", {}).values():
+                self.send_editor_point(point)
+        if configured or device.get("editor"):
+            self.request(uid, "params")
+            self.request(uid, "patches")
+            if first_seen and device.get("virtual"):
+                self.schedule_audition_param_replay(uid)
+
+    def _handle_groups(self, args, ip):
+        if not args:
+            return
+        uid = str(args[0])
+        observed = self._wire_group_ids(list(args[1:]))
+        if uid not in self.state.devices or observed is None:
+            return
+        self._finish_groups(uid, observed, "receipt")
+
+    def _handle_enabled(self, args, ip):
+        if len(args) < 3:
+            return
+        uid = str(args[0])
+        device = self.state.devices.get(uid)
+        if device is None or device.get("virtual"):
+            return
+        try:
+            observed = int(args[1])
+            effective = int(args[2])
+        except (TypeError, ValueError):
+            return
+        if (isinstance(args[1], bool) or isinstance(args[2], bool)
+                or observed not in (0, 1) or effective not in (0, 1)):
+            return
+        device["enabled_observed"] = bool(observed)
+        device["output_enabled"] = bool(effective)
+        device["enabled_pending_at"] = None
+        self.broadcast("device_update", device)
+
+    def _handle_hostname(self, args, ip):
+        if len(args) < 3:
+            return
+        uid, hostname, status = str(args[0]), str(args[1]), str(args[2])
+        device = self.state.devices.get(uid)
+        if (device is None or device.get("virtual")
+                or status not in ("ok", "err")
+                or device.get("hostname_target") not in (None, hostname)):
+            return
+        device["hostname_target"] = hostname
+        device["hostname_status"] = status
+        if status == "ok":
+            device["hostname"] = hostname
+        self.broadcast("device_update", device)
+
+    def _io_reply_device(self, args):
+        if not args:
+            return None
+        device = self.state.devices.get(str(args[0]))
+        if device is None or device.get('virtual'):
+            return None
+        if not isinstance(device.get('report'), dict):
+            device['report'] = {}
+        return device
+
+    def _handle_io_scan(self, args, ip):
+        device = self._io_reply_device(args)
+        if device is None or len(args) != 2:
+            return
+        try:
+            observed = io_protocol.validate_io(json.loads(args[1]))
+        except (ValueError, TypeError):
+            return
+        device['report']['io'] = observed
+        self._clear_io_timeout(device['uid'], 'scan')
+        device['io_scan_pending'] = False
+        device['io_scan'] = {'status': 'ok', 'at': time.time()}
+        self.broadcast('report', device)
+
+    def _handle_io_write(self, args, ip):
+        device = self._io_reply_device(args)
+        if device is None or len(args) != 3:
+            return
+        try:
+            result = json.loads(args[2])
+        except (ValueError, TypeError):
+            return
+        if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                or set(result) != {'name', 'command', 'error'}
+                or not isinstance(result['name'], str)
+                or not isinstance(result['command'], str)
+                or (result['error'] is not None and
+                    (not isinstance(result['error'], str)
+                     or result['error'] not in io_protocol.WRITE_ERRORS))
+                or (args[1] == 'ok') != (result['error'] is None)):
+            return
+        device['io_write'] = dict(result, status=args[1])
+        self._clear_io_timeout(device['uid'], 'write')
+        self.request(device['uid'], 'report')
+        self.broadcast('report', device)
+
+    def _handle_io_reinit(self, args, ip):
+        device = self._io_reply_device(args)
+        if device is None or len(args) != 3:
+            return
+        try:
+            result = json.loads(args[2])
+        except (ValueError, TypeError):
+            return
+        if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                or set(result) != {'name', 'error'}
+                or not isinstance(result['name'], str)
+                or result['error'] not in (None, 'invalid-arguments', 'unknown-command',
+                                           'no-bus', 'create-failed')
+                or (args[1] == 'ok') != (result['error'] is None)):
+            return
+        device.setdefault('io_reinit', {})[result['name']] = dict(result, status=args[1])
+        self._clear_io_timeout(device['uid'], 'reinit:' + result['name'])
+        self.request(device['uid'], 'report')
+        self.broadcast('report', device)
+
+    def _handle_io_stream(self, args, ip):
+        device = self._io_reply_device(args)
+        if device is None or len(args) != 3:
+            return
+        try:
+            result = json.loads(args[2])
+        except (ValueError, TypeError):
+            return
+        if (args[1] not in ('ok', 'err') or not isinstance(result, dict)
+                or set(result) != {'active', 'error'}
+                or type(result['active']) is not bool
+                or result['error'] not in (None, 'performance', 'invalid-arguments')
+                or (args[1] == 'ok') != (result['error'] is None)
+                or (result['error'] == 'performance' and result['active'])):
+            return
+        device['io_stream'] = dict(result, status=args[1])
+        if self.io_streams.uid == device['uid'] and not result['active']:
+            self.io_streams.close(send=False)
+        self.broadcast('report', device)
+
+    def _handle_io_error(self, args, ip):
+        device = self._io_reply_device(args)
+        if device is None or len(args) != 3:
+            return
+        name, reason = args[1:]
+        if (not isinstance(name, str) or not isinstance(reason, str)
+                or reason not in io_protocol.ERRORS):
+            return
+        device['io_error'] = {'name': name, 'error': reason}
+        # Health comes from the full registry/report, not the rejected
+        # request: a conflicting create can leave a live module healthy.
+        self.request(device['uid'], 'report')
+        self.broadcast('report', device)
+
+    def _handle_audio_config(self, args, ip):
+        if len(args) < 4:
+            return
+        uid, status, phase = str(args[0]), str(args[1]), str(args[2])
+        device = self.state.devices.get(uid)
+        if (device is None or device.get("virtual")
+                or status not in ("ok", "err")
+                or phase not in ("applied", "invalid", "rolled-back",
+                                 "rollback-failed")):
+            return
+        try:
+            audio = json.loads(args[3])
+        except (ValueError, TypeError):
+            return
+        if not isinstance(audio, dict):
+            return
+        timeout = self._audio_apply_timeouts.pop(uid, None)
+        if timeout:
+            timeout.cancel()
+        device.setdefault("report", {})["audio"] = audio
+        device["audio_apply"] = {
+            "status": status,
+            "phase": phase,
+            "at": time.time(),
+        }
+        self.broadcast("report", device)
+        self.request(uid, "report")
+
+    def _handle_wifi_config(self, args, ip):
+        if len(args) != 4:
+            return
+        uid, status, phase = map(str, args[:3])
+        device = self.state.devices.get(uid)
+        if (device is None or status not in ("ok", "err")
+                or phase not in ("applied", "invalid", "unavailable", "failed")
+                or (status == "ok") != (phase == "applied")):
+            return
+        try:
+            observed = wifi_config.redacted(json.loads(args[3]))
+        except (ValueError, TypeError):
+            return
+        if status == "ok" and not observed["managed"]:
+            return
+        timeout = self._wifi_apply_timeouts.pop(uid, None)
+        if timeout:
+            timeout.cancel()
+        sent = self._wifi_secret_sent.pop(uid, set())
+        if status == "ok":
+            self.wifi_applied(uid, sent)
+        if not isinstance(device.get("report"), dict):
+            device["report"] = {}
+        device["report"]["wifi"] = observed
+        device["wifi_apply"] = {"status": status, "phase": phase}
+        self.broadcast("report", device)
+
+    def _handle_log_config(self, args, ip):
+        if len(args) < 3:
+            return
+        uid, status = str(args[0]), str(args[1])
+        device = self.state.devices.get(uid)
+        if (device is None or device.get("virtual")
+                or status not in ("ok", "err")):
+            return
+        try:
+            log_config = json.loads(args[2])
+        except (ValueError, TypeError):
+            return
+        if not isinstance(log_config, dict):
+            return
+        timeout = self._log_apply_timeouts.pop(uid, None)
+        if timeout:
+            timeout.cancel()
+        device.setdefault("report", {})["log"] = log_config
+        device["log_apply"] = {
+            "status": status, "phase": "applied" if status == "ok" else "invalid",
+            "at": time.time(),
+        }
+        self.broadcast("report", device)
+
+    def _handle_params(self, args, ip):
+        device = self._device_for_reply("params", ip)
+        if not device:
+            return
+        device["active_asset_slots"] = None
+        active_asset_slots = None
+        io_modules = []
+        if args:
+            try:
+                manifest = json.loads(args[0])
+                declarations = manifest.get("params", [])
+            except (ValueError, TypeError, AttributeError):
+                log.warning("bad params declaration from %s", ip)
+                return
+            slots = manifest.get("slots", [])
+            if isinstance(slots, list) and all(isinstance(slot, str) for slot in slots):
+                active_asset_slots = list(dict.fromkeys(
+                    slot for slot in slots if slot))
+            device["undeclared"] = False
+            modules = manifest.get("io_modules", [])
+            if isinstance(modules, list):
+                io_modules = [row for row in modules if isinstance(row, dict)]
+        else:
+            declarations = LEGACY_DECLARATIONS
+            device["undeclared"] = True
+        device["declared"] = declarations
+        device["io_modules"] = io_modules
+        device["io_modules_patch"] = (device.get("report") or {}).get("patch")
+        self._replay_declared_params(device, declarations, active_asset_slots, ip)
+
+    def _replay_declared_params(self, device, declarations, active_asset_slots, ip):
+        seat = self.state.seat_for_uid(device["uid"])
+        editor = bool(device.get("editor"))
+        if editor:
+            device["params"] = dict(self.state.data.get("editor", {}).get("params", {}))
+        elif seat is not None:
+            device["params"] = dict(seat.get("params", {}))
+        try:
+            qualified = [(declaration, patch_manifest.qualify_param(declaration))
+                         for declaration in declarations]
+        except ValueError:
+            log.warning("invalid qualified params declaration from %s", ip)
+            return
+        device["active_asset_slots"] = active_asset_slots
+        supervisor_mode = self.state.data.get(
+            "supervisor", {}).get("mode", "off")
+        execution_owned = (
+            (bool(device.get("virtual"))
+             and supervisor_mode in {"simulate", "edit"})
+            or (not device.get("virtual") and supervisor_mode == "off"))
+        for declaration, identity in qualified:
+            if identity not in device["params"] and "default" in declaration:
+                device["params"][identity] = declaration["default"]
+                if seat is not None:
+                    seat["params"][identity] = declaration["default"]
+        # catch-up push: the dashboard's stored params are the mix of
+        # record, so a (re)declaring device gets them back (this is how a
+        # device offline during a live parameter update converges on reconnect);
+        # master rides along per the contract sec 4.1 catch-up rule
+        if editor and execution_owned:
+            for _declaration, identity in qualified:
+                if identity in device["params"]:
+                    self.set_param(int(device.get("id", 0)), identity,
+                                   device["params"][identity])
+            self.send_master(int(device.get("id", 0)))
+        elif seat is not None and execution_owned:
+            for _declaration, identity in qualified:
+                if identity in device["params"]:
+                    self.set_param(int(seat["id"]), identity,
+                                   device["params"][identity])
+            self.send_master(int(seat["id"]))
+            if self.state.data.get("points"):
+                self.send_points_frame()
+        self.broadcast("params_declaration", device)
+
+    def _handle_report(self, args, ip):
+        if not args:
+            return
+        try:
+            report = json.loads(args[0])
+        except (ValueError, TypeError):
+            return
+        if not isinstance(report, dict):
+            return
+        if 'io' in report:
+            try:
+                report['io'] = io_protocol.validate_io(report['io'])
+            except (ValueError, TypeError):
+                return
+        device = self._device_for_reply("report", ip, report)
+        if device:
+            device["report"] = report
+            self.converge_performance(device)
+            if isinstance(report.get("hostname"), str):
+                device["hostname"] = report["hostname"]
+            if isinstance(report.get("device_enabled"), bool):
+                device["enabled_observed"] = report["device_enabled"]
+            if isinstance(report.get("output_enabled"), bool):
+                device["output_enabled"] = report["output_enabled"]
+            if (isinstance(report.get("device_enabled"), bool)
+                    and isinstance(report.get("output_enabled"), bool)):
+                device["enabled_pending_at"] = None
+            reconcile_patch_switch_observation(device)
+            observed_groups = self._wire_group_ids(report.get("groups"))
+            if observed_groups is None:
+                seat = self.state.seat_for_uid(device["uid"])
+                if seat is not None and device.get("online"):
+                    self.send_groups(device["uid"])
+            else:
+                self._finish_groups(device["uid"], observed_groups, "report")
+            if (not device.get("virtual")
+                    and report.get("device_enabled")
+                    != self.state.device_enabled_for(device["uid"])):
+                device["enabled_pending_at"] = time.time()
+                self.set_device_enabled(
+                    device["uid"],
+                    self.state.device_enabled_for(device["uid"]))
+            self.broadcast("report", device)
+
+    def _handle_patches(self, args, ip):
+        if not args:
+            return
+        device = self._device_for_reply("patches", ip)
+        if not device:
+            return
+        try:
+            listing = json.loads(args[0])
+        except (ValueError, TypeError):
+            return
+        if not isinstance(listing, list):
+            return
+        cleaned = []
+        for patch in listing:
+            if not isinstance(patch, dict) or not isinstance(patch.get("name"), str):
+                continue
+            entry = {"name": patch["name"],
+                     "active": bool(patch.get("active")),
+                     "manifest": bool(patch.get("manifest"))}
+            # v1.4 additive content identity; absent (old node) stays absent
+            fingerprint = patch.get("fingerprint")
+            if isinstance(fingerprint, str) and re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+                entry["fingerprint"] = fingerprint
+            cleaned.append(entry)
+        device["patches"] = cleaned
+        reconcile_patch_switch_observation(device)
+        self.broadcast("patches", device)
+
+    def _handle_assets(self, args, ip):
+        device = self._device_for_reply("assets", ip)
+        if not device:
+            return
+        uid = device["uid"]
+        try:
+            listing = json.loads(args[0]) if args else None
+        except (ValueError, TypeError):
+            listing = None
+        if not isinstance(listing, list):
+            device["assets"] = None
+            device["assets_observed_at"] = None
+            device["assets_quarantine"] = [{"reason": "malformed top-level inventory"}]
+            self._cancel_asset_requery(uid)
+            log.warning("bad asset inventory from %s: expected JSON list", ip)
+            self.broadcast("assets", device)
+            return
+        cleaned, quarantine = self._clean_asset_inventory(listing, ip)
+        device["assets"] = cleaned
+        device["assets_observed_at"] = time.time()
+        device["assets_quarantine"] = quarantine
+        self.broadcast("assets", device)
+        self._schedule_asset_requery(uid)
+
+    @staticmethod
+    def _clean_asset_inventory(listing, ip):
+        cleaned, quarantine = [], []
+        for index, asset in enumerate(listing):
+            name = asset.get("name") if isinstance(asset, dict) else None
+            if (not isinstance(name, str) or not name or name.startswith(".")
+                    or "/" in name or "\\" in name or "\x00" in name):
+                quarantine.append({"index": index, "reason": "missing or unsafe name"})
+                log.warning("quarantined unnamed asset inventory entry %d from %s",
+                            index, ip)
+                continue
+            fingerprint = asset.get("fingerprint")
+            fingerprint_ok = (fingerprint is None or
+                              (isinstance(fingerprint, str) and
+                               re.fullmatch(r"[0-9a-f]{64}", fingerprint)))
+            files, size = asset.get("files"), asset.get("bytes")
+            counts_ok = (isinstance(files, int) and not isinstance(files, bool)
+                         and files >= 0 and isinstance(size, int)
+                         and not isinstance(size, bool) and size >= 0)
+            if not fingerprint_ok or not counts_ok:
+                cleaned.append({"name": name, "fingerprint": None,
+                                "files": None, "bytes": None, "unknown": True})
+                quarantine.append({"index": index, "name": name,
+                                   "reason": "malformed inventory facts"})
+                log.warning("quarantined malformed asset inventory entry %r from %s",
+                            name, ip)
+                continue
+            cleaned.append({"name": name, "fingerprint": fingerprint,
+                            "files": files, "bytes": size})
+        return cleaned, quarantine
+
+    def _handle_fetch_progress(self, args, ip):
+        if len(args) < 2:
+            return
+        slot, phase = str(args[0]), str(args[1])
+        record = self._fetch_record(slot, ip, phase)
+        if record and phase in ("queued", "fetching"):
+            record["phase"] = phase
+            record["updated_at"] = time.monotonic()
+            device = self.state.devices.get(record["uid"])
+            if device:
+                device.setdefault("fetch", {})[slot] = phase
+                self.broadcast("device_update", device)
+
+    def _handle_fetched(self, args, ip):
+        if len(args) < 2:
+            return
+        slot, status = str(args[0]), str(args[1])
+        record = self._fetch_record(slot, ip, "terminal")
+        if not record:
+            return
+        expired = record["phase"] == "expired"
+        pending = self.fetch_pending.get(slot)
+        try:
+            pending.remove(record)
+        except (AttributeError, ValueError):
+            pass
+        if not pending:
+            self.fetch_pending.pop(slot, None)
+        record.get("timeout") and record["timeout"].cancel()
+        if expired:
+            # With no request id, this terminal could be for the expired
+            # generation or its successor. Consume the tombstone, then
+            # resend that successor unchanged. The next terminal can only
+            # describe the successor's bytes and is safe to certify.
+            successor = next((candidate for candidate in pending or ()
+                              if candidate["uid"] == record["uid"]
+                              and candidate["phase"] != "expired"), None)
+            if successor is not None:
+                self._send_fetch_generation(slot, successor)
+            return
+        device = self.state.devices.get(record["uid"])
+        if device:
+            device.setdefault("fetch", {})[slot] = "ok" if status == "ok" else "err"
+            if status == "ok":
+                device.setdefault("distribution", {})[slot] = record["fingerprint"]
+                self.state.save_debounced()
+            self.broadcast("device_update", device)
+            if status == "ok" and slot.startswith("patch:"):
+                self.request(record["uid"], "patches")
+            elif not slot.startswith("patch:"):
+                self.request_assets(record["uid"])
+
+    def _handle_rev(self, args, ip):
+        if len(args) < 2:
+            return
+        device = None
+        if len(args) >= 3 and str(args[2]) in self.state.devices:
+            device = self.state.devices[str(args[2])]  # proposed uid extension
+        else:
+            matches = [item for item in self.state.devices.values() if item.get("ip") == ip]
+            device = matches[0] if len(matches) == 1 else None
+        if not device:
+            log.warning("unattributable /os/rev from %s: %r", ip, args)
+            return
+        receipt = {"sha": str(args[0]), "model": str(args[1]), "at": time.time()}
+        if len(args) >= 4:
+            receipt["status"] = str(args[3])
+            receipt["phase"] = str(args[4]) if len(args) >= 5 else "unknown"
+        device["rev"] = receipt
+        attempt = device.get("patch_switch")
+        if isinstance(attempt, dict) and receipt.get("status", "ok") == "ok":
+            attempt["status"] = "reconciling"
+            attempt["receipt_at"] = time.time()
+        self.broadcast("rev", device)
+        if receipt.get("status") == "err":
+            return
+        for member in ("patches", "params", "report"):
+            self.request(device["uid"], member)
+        self.request_assets(device["uid"])
+
+    def _fetch_record(self, slot, ip, phase):
+        records = self.fetch_pending.get(slot, ())
+        if not records:
+            return None
+        matches = [record for record in records
+                   if self.state.devices.get(record["uid"], {}).get("ip") == ip]
+        candidates = matches or list(records)
+        expected = ({"queued": "sent", "fetching": "queued"}.get(phase))
+        if expected:
+            return next((record for record in candidates
+                         if record["phase"] == expected), candidates[0])
+        if phase == "terminal":
+            expired = next((record for record in candidates
+                            if record["phase"] == "expired"), None)
+            if expired is not None:
+                return expired
+        return next((record for record in candidates
+                     if record["phase"] in ("fetching", "queued", "sent")), candidates[0])
+
+    def _expire_fetch(self, slot, record):
+        pending = self.fetch_pending.get(slot)
+        if not pending or record not in pending:
+            return
+        self._tombstone_fetch(slot, record)
+
+    def _tombstone_fetch(self, slot, record):
+        """Retire a generation from liveness, keeping it as an attribution barrier.
+
+        Keep the record ahead of any retry: v1.3 has no request id, so dropping
+        it could let a late receipt certify newer bytes falsely. A late terminal
+        still consumes it.
+        """
+        if record["phase"] == "expired":
+            return
+        record["phase"] = "expired"
+        device = self.state.devices.get(record["uid"])
+        if device:
+            device.setdefault("fetch", {})[slot] = "timeout"
+            self.broadcast("device_update", device)
+
+    def _fetch_live(self, record):
+        """Whether this generation can still plausibly be running on the node.
+
+        Deliberately answered on evidence rather than proof. The first pass
+        rejected liveness reasoning because an offline edge does not prove the
+        node restarted -- but that objection belongs to attribution, and
+        attribution never rests on this answer: a generation ruled out here is
+        demoted, not forgotten. Being wrong costs one coalesced re-request,
+        because a node keys its fetch jobs by (uri, slot) and joins a duplicate
+        to the running transfer. Being unable to be wrong cost a 30-minute
+        silent lockout on every push to the slot.
+        """
+        if record["phase"] == "expired":
+            return False
+        return time.monotonic() - record.get("updated_at", 0) < FETCH_STALL_SECONDS
+
+    def strand_device_fetches(self, uid):
+        """Retire a device's generations when it drops off the network.
+
+        Missing 30s of heartbeats means the node either finished and lost its
+        receipt or died with the transfer. Neither can be waited on, and both
+        otherwise hold the slot shut until the 1800s timeout.
+        """
+        for slot, records in list(self.fetch_pending.items()):
+            for record in list(records):
+                if record["uid"] == uid:
+                    self._tombstone_fetch(slot, record)
+
+    @staticmethod
+    def _sync_estimate(window):
+        # favour the low-RTT samples (least queuing delay, so least asymmetric
+        # one-way error -- NTP intuition), then median for robustness to WiFi
+        # jitter. Falls back to the whole window if the low-RTT band is empty.
+        offsets, rtts = list(window["offsets"]), list(window["rtts"])
+        floor = min(rtts) * SYNC_LOWRTT_BAND
+        best = [offset for offset, rtt in zip(offsets, rtts) if rtt <= floor]
+        return int(statistics.median(best or offsets))
+
+    def _invalidate_sync(self, uid):
+        route = self._sync_routes.pop(uid, None)
+        if route is not None:
+            route["device"].pop("sync", None)
+        device = self.state.devices.get(uid)
+        if device is not None:
+            device.pop("sync", None)
+        self._sync.pop(uid, None)
+        self._sync_reset_at[uid] = time.monotonic_ns()
+
+    def _sync_endpoint(self, uid):
+        device = self.state.devices.get(uid)
+        if not device or not device.get("online") or device.get("revoking_assignment"):
+            return None
+        mode = self.state.data.get("supervisor", {}).get("mode", "off")
+        virtual = bool(device.get("virtual"))
+        if (virtual and mode not in {"simulate", "edit"}) or (not virtual and mode != "off"):
+            return None
+        peer = device.get("ip")
+        try:
+            address = ipaddress.IPv4Address(peer)
+        except (ipaddress.AddressValueError, TypeError):
+            return None
+        if address.is_unspecified or address.is_multicast or str(address) == "255.255.255.255":
+            return None
+        seat = self.state.seat_for_uid(uid)
+        editor = self.state.data.get("editor", {})
+        if seat is None and virtual and mode == "edit" and device.get("editor") \
+                and editor.get("active"):
+            seat, selector = editor, 0
+        elif seat is not None:
+            selector = int(seat["id"])
+        else:
+            return None
+        if virtual:
+            if not address.is_loopback or not self._is_loopback_destination(self.destination):
+                return None
+            destination = self.destination
+        else:
+            destination = (str(address), self.physical_destination[1])
+        return {"device": device, "seat": seat, "id": selector,
+                "ip": str(address), "virtual": virtual, "mode": mode,
+                "generation": editor.get("generation") if virtual and mode == "edit" else None,
+                "destination": destination}
+
+    @staticmethod
+    def _same_sync_endpoint(left, right):
+        return (left["device"] is right["device"] and left["seat"] is right["seat"]
+                and all(left[key] == right[key] for key in
+                        ("id", "ip", "virtual", "mode", "generation", "destination")))
+
+    def _refresh_sync_routes(self):
+        # Bound retained routes to live endpoint generations, including removals
+        # that have no subsequent pong. Runs on the unchanged ~2 Hz ping tick.
+        for uid, route in tuple(self._sync_routes.items()):
+            endpoint = self._sync_endpoint(uid)
+            if endpoint is None or not self._same_sync_endpoint(route, endpoint):
+                self._invalidate_sync(uid)
+        for uid in tuple(self._sync_reset_at):
+            if uid not in self.state.devices:
+                self._sync_reset_at.pop(uid, None)
+
+    def handle_pong(self, args, ip):
+        if len(args) < 4:
+            return
+        # /sync/pong <seq> <leaderTimeNs> <uid> <deviceTimeNs>: the leader
+        # timestamps arrival, recovers its send time from the echoed leaderTime,
+        # and estimates offset = (deviceTime + oneWay) - leaderNow.
+        leader_now = time.monotonic_ns()
+        try:
+            send_time, uid, device_time = int(args[1]), str(args[2]), int(args[3])
+        except (TypeError, ValueError):
+            return
+        endpoint = self._sync_endpoint(uid)
+        route = self._sync_routes.get(uid)
+        if route is not None and (endpoint is None or not self._same_sync_endpoint(route, endpoint)):
+            self._invalidate_sync(uid)
+            route = None
+        if endpoint is None or str(ip) != endpoint["ip"]:
+            return
+        rtt = leader_now - send_time
+        if rtt < 0 or rtt > SYNC_RTT_CEILING_NS:
+            return  # bogus clock, or a pong too delayed to be usable
+        if route is None:
+            route = dict(endpoint, since=max(self._sync_generation_at,
+                                            self._sync_reset_at.get(uid, 0)),
+                         leader_time=None, device_time=None)
+            self._sync_routes[uid] = route
+        if send_time < route["since"]:
+            return  # pong from before this endpoint generation
+        if route["leader_time"] is not None:
+            if send_time < route["leader_time"]:
+                return  # reordered old reply, not evidence of a reboot
+            if send_time > route["leader_time"] and device_time < route["device_time"]:
+                # A quick same-IP reboot may happen between heartbeats. Only a
+                # newer probe with a backwards node clock starts a generation.
+                self._invalidate_sync(uid)
+                return
+        route.update(leader_time=send_time, device_time=device_time)
+        self._record_sync_sample(endpoint, uid, device_time, leader_now, rtt)
+
+    def _record_sync_sample(self, endpoint, uid, device_time, leader_now, rtt):
+        device = endpoint["device"]
+        one_way = rtt // 2
+        offset = (device_time + one_way) - leader_now
+        window = self._sync.setdefault(uid, {"offsets": deque(maxlen=SYNC_WINDOW),
+                                             "rtts": deque(maxlen=SYNC_WINDOW)})
+        window["offsets"].append(offset)
+        window["rtts"].append(rtt)
+        estimate = self._sync_estimate(window)
+        device["sync"] = {"offset": estimate, "rtt": rtt, "min_rtt": min(window["rtts"]),
+                          "samples": len(window["offsets"]), "at": time.time()}
+        if len(window["offsets"]) >= SYNC_MIN_SAMPLES:
+            if not endpoint["virtual"]:
+                self.observe_lan_peer(endpoint["ip"])
+            self._send_to(f"/{endpoint['id']}/sync/offset", [str(estimate)],
+                          endpoint["destination"],
+                          "execution" if endpoint["virtual"] else "physical")

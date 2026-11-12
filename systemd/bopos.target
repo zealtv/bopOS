@@ -1,0 +1,6 @@
+[Unit]
+Description=bopOS stack
+Wants=bopos.service bopos-io.service bopos-engine.service
+
+[Install]
+WantedBy=multi-user.target

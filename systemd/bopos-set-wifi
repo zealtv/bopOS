@@ -1,0 +1,300 @@
+#!/usr/bin/python3
+"""Root Wi-Fi helper: save profiles, print receipt, then load on stdin ack."""
+import json
+import configparser
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import uuid
+
+sys.path.insert(0, "/usr/local/lib/bopos")
+import wifi_config
+
+NMCLI = "/usr/bin/nmcli"
+IW = "/usr/sbin/iw"
+PROFILE_DIR = Path("/etc/NetworkManager/system-connections")
+COUNTRY_FILE = Path("/etc/modprobe.d/bopos-wifi-country.conf")
+MARKER = "bopos.wifi=1"
+
+
+class Unavailable(Exception):
+    pass
+
+
+class Invalid(Exception):
+    pass
+
+
+def run(argv, **kwargs):
+    # No caller PATH, locale, shell, terminal or inherited secret-bearing env.
+    return subprocess.run(argv, capture_output=True, text=True, timeout=10,
+                          env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"},
+                          **kwargs)
+
+
+def terse(line):
+    """nmcli -t escapes both colons and backslashes (including in SSIDs)."""
+    fields, field, escaped = [], "", False
+    for char in line:
+        if escaped:
+            field += char
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ":":
+            fields.append(field)
+            field = ""
+        else:
+            field += char
+    if escaped:
+        raise ValueError("invalid nmcli output")
+    return fields + [field]
+
+
+def key_string(value):
+    # GLib keyfile escaping, including significant leading/trailing spaces.
+    return (value.replace("\\", "\\\\").replace("\n", "\\n")
+            .replace("\r", "\\r").replace("\t", "\\t").replace(" ", "\\s"))
+
+
+def atomic_write(path, content):
+    # mkstemp is 0600 even before the first secret byte is written.
+    fd, name = tempfile.mkstemp(prefix=".bopos-", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+class NetworkManager:
+    def __init__(self, runner=run, profile_dir=PROFILE_DIR, country_file=COUNTRY_FILE):
+        self.runner = runner
+        self.profile_dir = Path(profile_dir)
+        self.country_file = Path(country_file)
+        self.pending = None
+
+    def command(self, *args, **kwargs):
+        try:
+            result = self.runner([NMCLI, "--wait", "5", *args], **kwargs)
+        except FileNotFoundError:
+            raise Unavailable() from None
+        if result.returncode:
+            # Never surface stderr or CalledProcessError: either may contain PSKs.
+            if result.returncode == 8:  # NetworkManager is not running
+                raise Unavailable()
+            raise RuntimeError("nmcli failed")
+        return result.stdout
+
+    def owns(self, ident):
+        # Use the exact filename prepare() writes, not <uuid>.nmconnection or
+        # connection.id. The keyfile has a direct [user] key, not a "data" key
+        # containing nmcli's rendered dictionary. NM's CLI user.data view is
+        # not needed, including on profiles with no user setting at all.
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            with (self.profile_dir / ("bopos-" + ident + ".nmconnection")).open() as stream:
+                parser.read_file(stream)
+        except FileNotFoundError:
+            return False
+        except configparser.Error:
+            # Parser exceptions can quote a PSK-bearing line. Never propagate it.
+            raise ValueError("invalid owned profile") from None
+        return (parser.get("connection", "uuid", fallback=None) == ident
+                and parser.get("user", "bopos.wifi", fallback=None) == "1")
+
+    def country(self):
+        try:
+            result = self.runner([IW, "reg", "get"])
+        except FileNotFoundError:
+            raise Unavailable() from None
+        if result.returncode:
+            raise RuntimeError("iw failed")
+        matches = re.findall(r"country ([A-Z]{2}):", result.stdout)
+        if not matches or matches[0] not in wifi_config.COUNTRIES:
+            raise Unavailable()
+        return matches[0]
+
+    def snapshot(self):
+        devices = [terse(line) for line in self.command(
+            "-t", "-f", "DEVICE,TYPE,STATE", "device", "status").splitlines()]
+        if any(len(row) != 3 for row in devices):
+            raise ValueError("invalid nmcli output")
+        if not any(row[1] == "wifi" and row[2] != "unmanaged" for row in devices):
+            raise Unavailable()
+        country = self.country()
+        profiles = []
+        for line in self.command("-t", "-f", "UUID,TYPE,ACTIVE", "connection", "show").splitlines():
+            ident, kind, active = terse(line)
+            if kind != "802-11-wireless":
+                continue
+            ident = str(uuid.UUID(ident))
+            fields = ("connection.id,802-11-wireless.ssid,802-11-wireless.hidden,"
+                      "connection.autoconnect,connection.autoconnect-priority,"
+                      "802-11-wireless-security.psk")
+            # A masked PSK is not evidence that a saved secret exists. Read it
+            # only in this root process and reduce it to a boolean immediately.
+            # Named fields also handle open/unmanaged profiles with no security
+            # setting, for which nmcli omits the PSK line altogether.
+            values = dict(terse(line) for line in self.command(
+                "--show-secrets", "-t", "-f", fields,
+                "connection", "show", "uuid", ident).splitlines())
+            ssid = values["802-11-wireless.ssid"]
+            hidden = values["802-11-wireless.hidden"]
+            enabled = values["connection.autoconnect"]
+            priority = values["connection.autoconnect-priority"]
+            secret = values.get("802-11-wireless-security.psk", "")
+            wifi_config.ssid(ssid)
+            profiles.append(dict(uuid=ident, ssid=ssid, hidden=hidden == "yes",
+                                 enabled=enabled == "yes", priority=int(priority),
+                                 secret=bool(secret and secret != "--"),
+                                 owned=self.owns(ident), active=active == "yes"))
+        return country, profiles
+
+    @staticmethod
+    def public(country, profiles):
+        owned = sorted((p for p in profiles if p["owned"]),
+                       key=lambda p: (-p["priority"], p["uuid"]))
+        return {"managed": True, "country": country,
+                "active": next((p["ssid"] for p in profiles if p["active"]), None),
+                "networks": [{key: p[key] for key in ("ssid", "hidden", "enabled", "secret")}
+                             for p in owned],
+                "unmanaged": sorted({p["ssid"] for p in profiles if not p["owned"]})}
+
+    def status(self):
+        return self.public(*self.snapshot())
+
+    def prepare(self, config):
+        country, profiles = self.snapshot()
+        # Resolve every keep-secret before ANY write (including adoption).
+        prepared, retained = [], set()
+        for index, row in enumerate(config["networks"]):
+            matches = sorted((p for p in profiles if p["ssid"] == row["ssid"]),
+                             key=lambda p: (not p["owned"], not p["active"], p["uuid"]))
+            existing = next((p for p in matches if p["secret"]), None)
+            secret = row["psk"]
+            if secret is None:
+                if existing is None:
+                    raise Invalid()
+                # Read back only inside the root helper, never through bopos.py.
+                secret = self.command("--show-secrets", "-t", "-g", "802-11-wireless-security.psk",
+                                      "connection", "show", "uuid", existing["uuid"])
+                secret = terse(secret.rstrip("\n"))[0]
+                if not secret or secret == "--":
+                    raise Invalid()
+            owned = next((p for p in matches if p["owned"]), None)
+            ident = owned["uuid"] if owned else str(uuid.uuid4())
+            retained.add(ident)
+            priority = 999 - index
+            raw = ("[connection]\nid=bopos-" + ident + "\nuuid=" + ident +
+                   "\ntype=wifi\nautoconnect=" + ("true" if row["enabled"] else "false") +
+                   "\nautoconnect-priority=" + str(priority) +
+                   "\n\n[wifi]\nmode=infrastructure\nssid=" +
+                   ";".join(str(byte) for byte in row["ssid"].encode("utf-8")) + ";" +
+                   "\nhidden=" + ("true" if row["hidden"] else "false") +
+                   "\n\n[wifi-security]\nkey-mgmt=wpa-psk\npsk-flags=0\npsk=" + key_string(secret) +
+                   "\n\n[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n\n[user]\n" + MARKER + "\n")
+            # nmcli validates/normalizes the keyfile over stdin, offline. Secrets
+            # never enter argv, the environment, a journal or a scratch file.
+            normalized = self.command("--offline", "connection", "modify",
+                                      "connection.id", "bopos-" + ident, input=raw)
+            prepared.append((ident, normalized, dict(row, uuid=ident, priority=priority,
+                                                    secret=True, owned=True, active=False)))
+        names = {row["ssid"] for row in config["networks"]}
+        removed = [p for p in profiles if p["uuid"] not in retained
+                   and (p["owned"] or p["ssid"] in names)]
+        # NM does not monitor keyfile edits. Save now, load only after receipt.
+        for ident, content, _ in prepared:
+            atomic_write(self.profile_dir / ("bopos-" + ident + ".nmconnection"), content)
+        self.pending = (prepared, removed, country, config["country"])
+        state = self.public(config["country"], [p for _, _, p in prepared])
+        state["active"] = next((p["ssid"] for p in profiles if p["active"]), None)
+        state["unmanaged"] = sorted({p["ssid"] for p in profiles
+                                     if not p["owned"] and p["ssid"] not in names})
+        return state
+
+    def activate(self):
+        if self.pending is None:
+            return
+        prepared, removed, old_country, country = self.pending
+        if country != old_country:
+            atomic_write(self.country_file, "options cfg80211 ieee80211_regdom=" + country + "\n")
+            result = self.runner([IW, "reg", "set", country])
+            if result.returncode:
+                raise RuntimeError("iw failed")
+        for ident, _, _ in prepared:
+            self.command("connection", "load", str(self.profile_dir / ("bopos-" + ident + ".nmconnection")))
+        # Loading settings does not reapply them to a live connection. Explicitly
+        # release only active removed/disabled profiles, never an unrelated link.
+        stop = {p["uuid"] for p in removed} | {p["uuid"] for _, _, p in prepared if not p["enabled"]}
+        for line in self.command("-t", "-f", "UUID,TYPE,ACTIVE", "connection", "show").splitlines():
+            ident, _, active = terse(line)
+            if ident in stop and active == "yes":
+                self.command("connection", "down", "uuid", ident)
+        # Only owned profiles or explicitly adopted SSIDs can reach deletion.
+        for profile in removed:
+            self.command("connection", "delete", "uuid", profile["uuid"])
+        self.pending = None
+
+
+def backend_status(backend=None):
+    try:
+        return (backend or NetworkManager()).status()
+    except (OSError, KeyError, ValueError, RuntimeError, Unavailable, subprocess.TimeoutExpired) as error:
+        # Only the class: exception text or nmcli stderr could contain secrets
+        # or private SSIDs. Keep the public JSON and the read-only path intact.
+        print("bopos-set-wifi status: " + type(error).__name__, file=sys.stderr)
+        return {"managed": False}
+
+
+def backend_apply(config, backend=None):
+    backend = backend or NetworkManager()
+    try:
+        return 0, backend.prepare(config)
+    except Unavailable:
+        return 3, {"managed": False}
+    except Invalid:
+        return 2, {"managed": False}
+    except (OSError, KeyError, ValueError, RuntimeError, subprocess.TimeoutExpired):
+        return 1, {"managed": False}
+
+
+def main():
+    if sys.argv[1:] == ["--status"]:
+        print(json.dumps(wifi_config.redacted(backend_status())))
+        return 0
+    if sys.argv[1:]:
+        print('{"managed":false}')
+        return 2
+    try:
+        # A newline terminates the request; the pipe remains open for the ack.
+        payload = sys.stdin.readline(65537)
+        if len(payload) > 65536:
+            raise ValueError("invalid")
+        config = wifi_config.validate(json.loads(payload))
+    except (ValueError, TypeError):
+        print('{"managed":false}')
+        return 2
+    backend = NetworkManager()
+    code, observed = backend_apply(config, backend)
+    print(json.dumps(wifi_config.redacted(observed)), flush=True)
+    if code == 0:
+        # The node closes stdin ONLY AFTER sendto(receipt). EOF also lets an
+        # operator use the ordinary one-shot JSON-on-stdin command directly.
+        sys.stdin.read(1)
+        try:
+            backend.activate()
+        except (OSError, ValueError, RuntimeError, Unavailable, subprocess.TimeoutExpired):
+            return 1
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

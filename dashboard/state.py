@@ -1,0 +1,1496 @@
+import asyncio
+import copy
+import csv
+import json
+import math
+import os
+import re
+import sys
+import tempfile
+import time
+
+REPO_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if REPO_DIR not in sys.path:
+    sys.path.insert(0, REPO_DIR)
+from python import wifi_config
+
+try:
+    from . import device_aliases, show_model
+except ImportError:
+    import device_aliases
+    import show_model
+
+
+SCHEMA = 1
+# A project always has a current show; this one is a new project's, and a
+# project stored before it had several opens it.
+DEFAULT_SHOW = "Show"
+FACILITATOR_COMMANDS = ("restart-engine", "updatebopos", "reboot", "shutdown")
+FINGERPRINT_RE = re.compile(r"[0-9a-f]{64}")
+# Same grammar as server.NAME_RE: a patch folder name.
+PATCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+MAX_GROUP_ID = 0x7fffffff
+GROUP_NAME_RE = re.compile(r"[a-z0-9_-]{1,32}")
+GROUP_NAME_RESERVED = frozenset({"all", "bop", "os", "io", "sync", "e", "p"})
+GROUP_NAME_ERROR = (
+    "Group names must use 1–32 lowercase letters, digits, _ or -. "
+    "Reserved names: all, bop, os, io, sync, e, p, all digits and g<digits>."
+)
+
+
+def observed_active_patch(device):
+    """Return the strongest currently observed active patch name."""
+    listing = device.get("patches")
+    if isinstance(listing, list):
+        active = next((patch.get("name") for patch in listing
+                       if isinstance(patch, dict) and patch.get("active")), None)
+        if active:
+            return active
+    report = device.get("report")
+    if isinstance(report, dict) and isinstance(report.get("patch"), str):
+        return report["patch"]
+    return None
+
+
+def reconcile_patch_switch_success(device):
+    """Clear an attempt only when observation proves its target is active."""
+    attempt = device.get("patch_switch")
+    if (isinstance(attempt, dict) and attempt.get("patch")
+            and observed_active_patch(device) == attempt["patch"]):
+        device["patch_switch"] = None
+        return True
+    return False
+
+
+def reconcile_patch_switch_observation(device):
+    """Apply a late terminal observation to an existing attempt."""
+    if reconcile_patch_switch_success(device):
+        return "success"
+    attempt = device.get("patch_switch")
+    active = observed_active_patch(device)
+    if (isinstance(attempt, dict) and attempt.get("status") == "timeout"
+            and active and active != attempt.get("patch")):
+        attempt.update(status="failed",
+                       reason=f"Observed active patch {active!r}, not {attempt['patch']!r}.")
+        return "failed"
+    return None
+
+
+def patch_badge(device, desired):
+    """Derive one device's fleet-patch convergence badge (fp-0 sec 3).
+
+    `desired` is {"name", "fingerprint"} — the staged fleet patch, with the
+    fingerprint resolved against the live host catalog when the host still
+    carries the patch — or None when no fleet patch is staged. Unset outranks
+    everything: with nothing staged there is nothing to converge on. Badges
+    are derived on every broadcast and never stored as a verdict.
+    """
+    if not desired or not desired.get("name"):
+        return "unset"
+    name = desired["name"]
+    if not device.get("online"):
+        return "unknown"
+    switch = device.get("patch_switch")
+    switch_status = switch.get("status") if isinstance(switch, dict) else None
+    if switch_status in ("failed", "timeout"):
+        if switch.get("patch") == name:
+            return switch_status
+        switch = None  # terminal attempt for a superseded/manual target
+    if device.get("patches") is None:
+        return "unknown"
+    fetch_phase = (device.get("fetch") or {}).get("patch:" + name)
+    if switch or fetch_phase in ("sent", "queued", "fetching"):
+        return "switching"
+    listing = device["patches"]
+    entry = next((patch for patch in listing if patch.get("name") == name), None)
+    if entry is None:
+        return "missing"
+    active = next((patch.get("name") for patch in listing if patch.get("active")), None)
+    if active != name:
+        return "mismatch"
+    node_fingerprint = entry.get("fingerprint")
+    if not node_fingerprint or not desired.get("fingerprint"):
+        return "stale_unverified"  # names match but identity cannot be checked
+    if node_fingerprint != desired["fingerprint"]:
+        return "stale"
+    return "current"
+
+
+class InstallationState:
+    # top-down floor plan in metres: origin top-left, x right, y down —
+    # the spatial-audio work consumes these coordinates, keep them explicit
+    DEFAULT_ROOM = {"width": 10.0, "depth": 8.0, "units": "m", "origin": [0.0, 0.0]}
+
+    def __init__(self, data_dir, devices_file=None, *, project=None, read_only=False):
+        self.data_dir = os.path.abspath(data_dir)
+        # show file path -> (stat identity, step count); see show_step_counts.
+        self._show_step_cache = {}
+        # Host-global session choice, never replaced by opening a project.
+        from python import performance_mode
+        self.performance_path = os.path.join(self.data_dir, "performance.json")
+        self.performance = performance_mode.load(self.performance_path)
+        self.current_path = os.path.join(self.data_dir, "current-project")
+        self.registry_path = os.path.join(self.data_dir, "devices.json")
+        self.project = "default"
+        selection_invalid = False
+        try:
+            if project is None:
+                with open(self.current_path, encoding="utf-8") as source:
+                    self.project = source.read().removesuffix("\n").removesuffix("\r")
+            else:
+                self.project = project
+            if not self.valid_site_name(self.project):
+                raise ValueError("Invalid current project")
+        except FileNotFoundError:
+            selection_invalid = os.path.lexists(self.current_path)
+        except (OSError, ValueError):
+            selection_invalid = True
+        self.path = os.path.join(self.data_dir, "projects",
+                                 self.project if not selection_invalid else "default",
+                                 "project.json")
+        self.data = {"schema": SCHEMA, "current_site": "default",
+                     "current_show": DEFAULT_SHOW, "positions": {}, "seats": {},
+                     "groups": {}, "next_group_id": 0,
+                     "devices": {}, "device_registry": {}, "muted": False,
+                     "room": dict(self.DEFAULT_ROOM), "master": 1.0,
+                     "event_lead_ms": 500,
+                     "facilitator_commands": [],
+                     "fleet_patch": None,
+                     "patches": [],
+                     "wifi": {"country": "GB", "networks": []},
+                     "listener": None,
+                     # Runtime-only operator notices. Adoption messages live
+                     # for this dashboard session and are never persisted.
+                     "notices": [],
+                     "simulation": {"active": False, "status": "off"},
+                     "points": {}}  # /pt geometry, runtime-only (not in durable())
+        self._save_task = None
+        self._load_invalid = False
+        self._registry_migrated = False
+        self._group_names_migrated = False
+        self._site_remaps = {}
+        # A project from before multiple shows: one show.json, no shows/.
+        # tools/migrate_shows.py converts it; until then the show is read-only.
+        self.show_unmigrated = False
+        if selection_invalid:
+            self._load_invalid = True
+            self._invalid_file_notice(self.current_path)
+        else:
+            self._load_registry()
+            self._load()
+            if not self._load_invalid:
+                self._load_site()
+        if self.data["listener"] is None:
+            self.data["listener"] = self.default_listener()
+        changed = self._registry_migrated or self._group_names_migrated
+        if (not self._load_invalid and not self.data["seats"] and devices_file
+                and os.path.exists(devices_file)):
+            self._import_seed(devices_file)
+            changed = True
+        if not self._load_invalid and not read_only:
+            for seat in self.seats.values():
+                uid = seat.get("bound")
+                if uid:
+                    _entry, created = self.ensure_device_alias(uid)
+                    changed = changed or created
+        if changed and not self._load_invalid and not read_only:
+            self.save()
+
+    @property
+    def devices(self):
+        return self.data["devices"]
+
+    @property
+    def seats(self):
+        return self.data["seats"]
+
+    @property
+    def device_registry(self):
+        return self.data["device_registry"]
+
+    @property
+    def show_path(self):
+        # The project's open show (66-projects/10-multiple-shows); its
+        # document is show_model's, this is only where it lives.
+        return self.show_file(self.data["current_show"])
+
+    @property
+    def legacy_show_path(self):
+        return os.path.join(os.path.dirname(self.path), "show.json")
+
+    def _load(self):
+        try:
+            with open(self.path, encoding="utf-8") as source:
+                loaded = json.load(source)
+            # Bob's 2026-07-13 ruling is a hard break: pre-seat state is not
+            # migrated or partially honoured.
+            if (isinstance(loaded, dict) and loaded.get("schema") == SCHEMA
+                    and isinstance(loaded.get("seats"), dict)):
+                adopted_groups, adoptions = self.adopt_group_names(
+                    loaded.get("groups", {}))
+                groups = self.clean_groups(adopted_groups)
+                next_group_id = self.clean_next_group_id(
+                    loaded.get("next_group_id"), groups,
+                    missing="next_group_id" not in loaded)
+                rebuilt = self.clean_seats(loaded["seats"], groups)
+                if groups is None or next_group_id is None or rebuilt is None:
+                    self._load_invalid = True
+                    self._invalid_file_notice(self.path)
+                    return
+                current_site = loaded.get("current_site", "default")
+                if (not self.valid_site_name(current_site) or any(key in loaded for key in ("room", "listener", "name"))
+                        or any("positions" in seat for seat in loaded["seats"].values())):
+                    self._load_invalid = True
+                    self._invalid_file_notice(self.path)
+                    return
+                current_show = loaded.get("current_show", DEFAULT_SHOW)
+                if not self.valid_site_name(current_show):
+                    self._load_invalid = True
+                    self._invalid_file_notice(self.path)
+                    return
+                # Keyed on the folder, not the pointer: projects converted
+                # from an installation can carry its stale `current_show`.
+                self.show_unmigrated = (os.path.lexists(self.legacy_show_path)
+                                        and not os.path.lexists(self.shows_dir()))
+                self.data["current_site"] = current_site
+                self.data["current_show"] = current_show
+                self.data["master"] = self.clean_master(loaded.get("master"))
+                self.data["event_lead_ms"] = self.clean_event_lead_ms(
+                    loaded.get("event_lead_ms"))
+                self.data["facilitator_commands"] = self.clean_facilitator_commands(
+                    loaded.get("facilitator_commands"))
+                self.data["fleet_patch"] = self.clean_fleet_patch(loaded.get("fleet_patch"))
+                self.data["patches"] = self.clean_patches(
+                    loaded.get("patches"), self.data["fleet_patch"])
+                self.data["wifi"] = wifi_config.clean_list(loaded.get("wifi"))
+                if self.data["fleet_patch"]:
+                    # simulation["patch"] is a read-through of the fleet choice
+                    self.data["simulation"]["patch"] = self.data["fleet_patch"]["name"]
+                self.data["seats"] = rebuilt
+                self.data["groups"] = groups
+                if adoptions:
+                    self._group_names_migrated = True
+                    self.data["notices"].append(
+                        self.group_name_adoption_notice(
+                            self.project, adoptions))
+                self.data["next_group_id"] = next_group_id
+            else:
+                self._load_invalid = True
+                self._invalid_file_notice(self.path)
+        except FileNotFoundError:
+            if os.path.lexists(self.path) or os.path.exists(self.current_path):
+                self._load_invalid = True
+                self._invalid_file_notice(self.path)
+        except (OSError, ValueError, TypeError):
+            self._load_invalid = True
+            self._invalid_file_notice(self.path)
+
+    def _load_registry(self):
+        try:
+            with open(self.registry_path, encoding="utf-8") as source:
+                loaded = json.load(source)
+            registry = device_aliases.clean_registry(loaded)
+            if registry is None:
+                raise ValueError("Invalid device registry")
+            self.data["device_registry"] = registry
+            self._registry_migrated = loaded != registry
+        except FileNotFoundError:
+            if os.path.lexists(self.registry_path):
+                self._load_invalid = True
+                self._invalid_file_notice(self.registry_path)
+        except (OSError, ValueError, TypeError):
+            self._load_invalid = True
+            self._invalid_file_notice(self.registry_path)
+
+    def _invalid_file_notice(self, path):
+        recovery = 'Repair the file and restart the dashboard before saving.'
+        notice = (f'State file "{path}" could not be fully loaded. '
+                  'The original file is preserved and saving is blocked. '
+                  + recovery)
+        if notice not in self.data["notices"]:
+            self.data["notices"].append(notice)
+
+    def _require_valid_load(self):
+        if self._load_invalid:
+            raise OSError(f"Refusing to save state that failed to load: {self.path}")
+
+    def _runtime_device(self, uid, values=None, virtual=False):
+        values = values or {}
+        return {
+            "uid": uid, "id": values.get("id", -1),
+            "hostname": values.get("hostname", ""), "virtual": bool(virtual),
+            "online": False, "last_seen": None, "ip": None, "version": None,
+            "revoking_assignment": False,
+            "engine_alive": None, "rssi": None, "report": None,
+            "declared": None, "undeclared": False, "rev": None,
+            # Last host-manifest fingerprint acknowledged by this node for each
+            # asset slot or patch:<name>. This is the strongest sync fact v1.3
+            # exposes: the node receipts success but does not report a hash.
+            "distribution": {},
+            "fetch": {},  # runtime phase by slot: queued/fetching/ok/err
+            # runtime bounded attempt: switching -> reconciling -> failed/timeout;
+            # a matching patch observation clears it on success
+            "patch_switch": None,
+            "patches": None,  # runtime /os/patches listing; None = not queried
+            # Runtime /os/assets observation. None means the node has not
+            # supplied a usable inventory (including older nodes which never
+            # reply); [] is an observed, genuinely empty assets root.
+            "assets": None,
+            "assets_observed_at": None,
+            "assets_quarantine": [],
+            "sync": None,  # runtime-only clock estimate: {offset, rtt, min_rtt, samples, at}
+            "params": {},  # runtime declaration/catch-up mirror; durable values live on seat
+            # Asset slots declared by the observed active patch manifest.
+            # None means /os/params has not supplied a valid manifest yet.
+            "active_asset_slots": None,
+            "group_sync": None,  # runtime full-state membership convergence
+            # Runtime observations for persistent physical Device enabled.
+            # Desired state lives in device_registry, never in a venue.
+            "enabled_observed": None,
+            "output_enabled": None,
+            "enabled_pending_at": None,
+        }
+
+    def _import_seed(self, path):
+        with open(path, newline="", encoding="utf-8") as source:
+            rows = csv.reader(source, skipinitialspace=True)
+            next(rows, None)
+            for row in rows:
+                if len(row) < 3:
+                    continue
+                uid, name = row[0].strip(), row[1].strip()
+                device_id = self.clean_seat_id(row[2].strip())
+                if device_id is None or not uid:
+                    continue
+                positions = []
+                for key, index in (("pos1", 3), ("pos2", 4)):
+                    if len(row) > index:
+                        try:
+                            positions.append([float(item) for item in row[index].split()])
+                        except ValueError:
+                            pass
+                if (device_id < 0 or str(device_id) in self.seats
+                        or any(seat.get("bound") == uid for seat in self.seats.values())):
+                    continue
+                self.seats[str(device_id)] = {"id": device_id, "name": name,
+                    "params": {}, "groups": [], "bound": uid}
+                self.data["positions"][str(device_id)] = positions
+
+    def ensure(self, uid):
+        if uid not in self.devices:
+            self.devices[uid] = self._runtime_device(uid)
+        return self.devices[uid]
+
+    @staticmethod
+    def virtual_alias_uid(uid):
+        return isinstance(uid, str) and re.fullmatch(r"audition-\d{4}", uid) is not None
+
+    def ensure_device_alias(self, uid):
+        """Return one registry entry and whether this call allocated it."""
+        if (not isinstance(uid, str) or not uid or self.virtual_alias_uid(uid)):
+            return None, False
+        entry = self.device_registry.get(uid)
+        if entry is not None:
+            return entry, False
+        entry = device_aliases.allocate(uid, self.device_registry)
+        self.device_registry[uid] = entry
+        return entry, True
+
+    def alias_for(self, uid):
+        entry = self.device_registry.get(uid)
+        return entry.get("alias") if isinstance(entry, dict) else None
+
+    def set_device_alias(self, uid, value):
+        if uid not in self.device_registry:
+            return None, "Unknown physical device."
+        entry, error = device_aliases.set_custom(self.device_registry, uid, value)
+        if error:
+            return None, error
+        previous = self.device_registry[uid]
+        self.device_registry[uid] = entry
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.device_registry[uid] = previous
+            return None, "Could not save the device alias."
+        return entry, None
+
+    def reset_device_alias(self, uid):
+        if uid not in self.device_registry:
+            return None, "Unknown physical device."
+        previous = self.device_registry[uid]
+        # A persisted generated alias is already reset. In particular, do not
+        # silently rename a v1 box merely because the host now allocates v2.
+        if previous.get("source") == "generated":
+            return previous, None
+        try:
+            entry = device_aliases.allocate(uid, self.device_registry)
+        except ValueError as error:
+            return None, str(error)
+        entry["device_enabled"] = bool(previous.get("device_enabled", True))
+        self.device_registry[uid] = entry
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.device_registry[uid] = previous
+            return None, "Could not save the generated device alias."
+        return entry, None
+
+    def remove_device_alias(self, uid):
+        """Remove and return an entry in memory; callers own transaction save."""
+        return self.device_registry.pop(uid, None)
+
+    def device_enabled_for(self, uid):
+        entry = self.device_registry.get(uid)
+        return bool(entry.get("device_enabled", True)) if isinstance(entry, dict) else True
+
+    def set_device_enabled(self, uid, value):
+        """Persist exact physical-box enable intent in the host-global registry."""
+        entry = self.device_registry.get(uid)
+        if not isinstance(entry, dict) or not isinstance(value, bool):
+            return False
+        previous = bool(entry.get("device_enabled", True))
+        entry["device_enabled"] = value
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            entry["device_enabled"] = previous
+            return False
+        return True
+
+    def public(self):
+        # Geometry is a derived view for map/inspector clients, never Seat storage.
+        return dict(self.data, project=self.project, patches=self.project_patches(),
+                    projects=self.project_summaries(), site_rooms=self.site_rooms(),
+                    sites=sorted(set(self.list_sites()) | {self.data["current_site"]}),
+                    shows=self.list_shows(), show_steps=self.show_step_counts(),
+                    seats={key: dict(seat, positions=self.positions_for(seat["id"]))
+                           for key, seat in self.seats.items()})
+
+    def durable(self):
+        return {"schema": SCHEMA, "current_site": self.data["current_site"],
+                "current_show": self.data["current_show"],
+                "master": self.data.get("master_destination", self.data.get("master", 1.0)),
+                "event_lead_ms": self.clean_event_lead_ms(
+                    self.data.get("event_lead_ms")),
+                "facilitator_commands": self.clean_facilitator_commands(
+                    self.data.get("facilitator_commands")),
+                "fleet_patch": self.clean_fleet_patch(self.data.get("fleet_patch")),
+                "patches": self.project_patches(),
+                "wifi": wifi_config.clean_list(self.data.get("wifi")),
+                "groups": {str(group["id"]): dict(group)
+                           for group in self.data.get("groups", {}).values()},
+                "next_group_id": self.data.get("next_group_id", 0),
+                "seats": {str(seat["id"]): self.clean_seat(seat)
+                          for seat in self.seats.values()}}
+
+    @staticmethod
+    def clean_positions(value):
+        if not isinstance(value, list):
+            return None
+        cleaned = []
+        for pair in value:
+            if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                return None
+            try:
+                point = [float(pair[0]), float(pair[1])]
+            except (TypeError, ValueError):
+                return None
+            if not all(math.isfinite(item) for item in point):
+                return None
+            cleaned.append(point)
+        return cleaned
+
+    def clean_seat(self, value):
+        if not isinstance(value, dict):
+            return None
+        seat_id = self.clean_seat_id(value.get("id"))
+        if seat_id is None:
+            return None
+        name = str(value.get("name", "")).strip()[:32]
+        # no per-seat patch: the desired patch is fleet-scoped (fp-0, Bob Q1);
+        # a "patch" key in an older state file is dropped silently here
+        params = value.get("params", {})
+        groups = self.clean_group_ids(value.get("groups", []))
+        bound = value.get("bound")
+        if bound is not None:
+            if not isinstance(bound, str) or not bound.strip():
+                return None
+            bound = bound.strip()
+        if groups is None:
+            return None
+        return {"id": seat_id, "name": name,
+                "params": dict(params) if isinstance(params, dict) else {},
+                "groups": groups,
+                "bound": bound}
+
+    @staticmethod
+    def clean_seat_id(value):
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if value >= 0 else None
+        if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value.strip()):
+            return int(value.strip())
+        return None
+
+    @staticmethod
+    def clean_group_id(value):
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, int):
+            return value if 0 <= value <= MAX_GROUP_ID else None
+        if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value.strip()):
+            parsed = int(value.strip())
+            return parsed if parsed <= MAX_GROUP_ID else None
+        return None
+
+    @classmethod
+    def clean_group_ids(cls, value):
+        if not isinstance(value, (list, tuple)):
+            return None
+        cleaned = []
+        for raw in value:
+            group_id = cls.clean_group_id(raw)
+            if group_id is None or group_id in cleaned:
+                return None
+            cleaned.append(group_id)
+        return sorted(cleaned)
+
+    @classmethod
+    def valid_group_name(cls, name):
+        """Whether a name is an unambiguous OSC target segment (no coercion)."""
+        return (isinstance(name, str) and GROUP_NAME_RE.fullmatch(name) is not None
+                and name not in GROUP_NAME_RESERVED
+                and re.fullmatch(r"g?[0-9]+", name) is None)
+
+    @classmethod
+    def convert_group_name(cls, name, group_id):
+        """Convert legacy text; prefix reserved targets with `group-`."""
+        name = re.sub(r"[^a-z0-9_-]", "_", name.strip().lower())[:32]
+        if not name:
+            return f"group-{group_id}"
+        if not cls.valid_group_name(name):
+            name = ("group-" + name)[:32]
+        return name
+
+    @classmethod
+    def clean_group(cls, value):
+        if not isinstance(value, dict):
+            return None
+        group_id = cls.clean_group_id(value.get("id"))
+        if group_id is None:
+            return None
+        name = value.get("name", "")
+        if not cls.valid_group_name(name):
+            return None
+        return {"id": group_id, "name": name}
+
+    @classmethod
+    def clean_groups(cls, value):
+        if not isinstance(value, dict):
+            return None
+        rebuilt, names = {}, set()
+        for key, raw in value.items():
+            group = cls.clean_group(raw)
+            if (group is None or str(group["id"]) != str(key)
+                    or str(group["id"]) in rebuilt or group["name"] in names):
+                return None
+            rebuilt[str(group["id"])] = group
+            names.add(group["name"])
+        return dict(sorted(rebuilt.items(), key=lambda item: int(item[0])))
+
+    @staticmethod
+    def _unique_group_name(base, unavailable):
+        """Return a <=32-char deterministic suffix variant not in unavailable."""
+        for suffix_number in range(2, MAX_GROUP_ID + 2):
+            suffix = f"-{suffix_number}"
+            candidate = base[:32 - len(suffix)] + suffix
+            if candidate not in unavailable:
+                return candidate
+        return None
+
+    @classmethod
+    def adopt_group_names(cls, value):
+        """Repair legacy group names into unique, addressable OSC targets.
+
+        Legal original names take priority over converted names. Suffixes avoid
+        every converted base too, so a repair cannot steal a later base name.
+        """
+        if not isinstance(value, dict):
+            return value, []
+        ordered = []
+        for key, raw in value.items():
+            if not isinstance(raw, dict):
+                return value, []
+            group_id = cls.clean_group_id(raw.get("id"))
+            name = raw.get("name", "")
+            if (group_id is None or str(group_id) != str(key)
+                    or not isinstance(name, str)):
+                return value, []
+            ordered.append((group_id, key, raw, name))
+        ordered.sort(key=lambda item: item[0])
+        originals = {name for _, _, _, name in ordered if cls.valid_group_name(name)}
+        reserved = {cls.convert_group_name(name, group_id)
+                    for group_id, _, _, name in ordered}
+        used, rebuilt, changes = set(), {}, []
+        for group_id, key, raw, original in ordered:
+            name = cls.convert_group_name(original, group_id)
+            if name in used or (name != original and name in originals):
+                unavailable = reserved | used
+                if name in unavailable:
+                    name = cls._unique_group_name(name, unavailable)
+                if name is None:
+                    return value, []
+            used.add(name)
+            group = dict(raw)
+            group["name"] = name
+            rebuilt[key] = group
+            if name != original:
+                changes.append({"id": group_id, "from": original, "to": name})
+        return rebuilt, changes
+
+    @staticmethod
+    def group_name_adoption_notice(project_name, changes):
+        renames = ", ".join(
+            f'g{change["id"]} '
+            f'{change["from"] if change["from"] else "(blank)"} → {change["to"]}'
+            for change in changes)
+        return (
+            f'Project "{project_name}" group names were repaired for OSC targets and portable Shows: '
+            f"{renames}."
+        )
+
+    def group_name_available(self, name, except_id=None):
+        return all(
+            group["name"] != name or group["id"] == except_id
+            for group in self.data.get("groups", {}).values()
+        )
+
+    @staticmethod
+    def clean_next_group_id(value, groups, missing=False):
+        if groups is None:
+            return None
+        floor = max((group["id"] for group in groups.values()), default=-1) + 1
+        if missing:
+            return floor
+        if (isinstance(value, bool) or not isinstance(value, int)
+                or value < floor or value > MAX_GROUP_ID + 1):
+            return None
+        return value
+
+    def clean_seats(self, value, groups=None):
+        if not isinstance(value, dict):
+            return None
+        groups = self.data.get("groups", {}) if groups is None else groups
+        if groups is None:
+            return None
+        known_groups = {int(group_id) for group_id in groups}
+        rebuilt, bound = {}, set()
+        for key, raw in value.items():
+            seat = self.clean_seat(raw)
+            if seat is None or str(seat["id"]) != str(key) or str(seat["id"]) in rebuilt:
+                return None
+            uid = seat.get("bound")
+            if uid and uid in bound:
+                return None
+            if not set(seat["groups"]).issubset(known_groups):
+                return None
+            uid and bound.add(uid)
+            rebuilt[str(seat["id"])] = seat
+        return rebuilt
+
+    def create_group(self, name=""):
+        """Create a never-reused canonical group ID and persist its allocator."""
+        cleaned = self.clean_group({"id": 0, "name": name})
+        if cleaned is None:
+            return None, GROUP_NAME_ERROR
+        if not self.group_name_available(cleaned["name"]):
+            return None, "Group names must be unique within the project."
+        group_id = self.clean_next_group_id(
+            self.data.get("next_group_id"), self.data.get("groups", {}))
+        if group_id is None or group_id > MAX_GROUP_ID:
+            return None, "No group IDs are available."
+        group = {"id": group_id, "name": cleaned["name"]}
+        previous = copy.deepcopy(self.data.get("groups", {}))
+        previous_next = self.data.get("next_group_id", 0)
+        self.data.setdefault("groups", {})[str(group_id)] = group
+        self.data["next_group_id"] = group_id + 1
+        self.data["groups"] = dict(sorted(
+            self.data["groups"].items(), key=lambda item: int(item[0])))
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"] = previous
+            self.data["next_group_id"] = previous_next
+            return None, "Could not save the group; no changes were made."
+        return group, None
+
+    def rename_group(self, group_id, name):
+        group_id = self.clean_group_id(group_id)
+        candidate = self.clean_group({"id": group_id, "name": name})
+        key = str(group_id)
+        if candidate is None:
+            return None, GROUP_NAME_ERROR
+        if key not in self.data.get("groups", {}):
+            return None, "Group no longer exists."
+        if not self.group_name_available(candidate["name"], except_id=group_id):
+            return None, "Group names must be unique within the project."
+        previous = dict(self.data["groups"][key])
+        self.data["groups"][key] = candidate
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"][key] = previous
+            return None, "Could not save the group; no changes were made."
+        return candidate, None
+
+    def delete_group(self, group_id):
+        group_id = self.clean_group_id(group_id)
+        key = str(group_id)
+        if group_id is None or key not in self.data.get("groups", {}):
+            return None, "Group no longer exists."
+        previous_groups = copy.deepcopy(self.data["groups"])
+        previous_memberships = {key: list(seat.get("groups", []))
+                                for key, seat in self.seats.items()}
+        removed = self.data["groups"].pop(key)
+        for seat in self.seats.values():
+            seat["groups"] = [item for item in seat.get("groups", [])
+                              if item != group_id]
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["groups"] = previous_groups
+            for seat_key, membership in previous_memberships.items():
+                self.seats[seat_key]["groups"] = membership
+            return None, "Could not delete the group; no changes were made."
+        return removed, None
+
+    def set_seat_groups(self, seat_id, group_ids):
+        seat_id = self.clean_seat_id(seat_id)
+        seat = self.seats.get(str(seat_id))
+        cleaned = self.clean_group_ids(group_ids)
+        if seat is None:
+            return None, "Seat no longer exists."
+        if (cleaned is None or not set(cleaned).issubset(
+                {group["id"] for group in self.data.get("groups", {}).values()})):
+            return None, "Choose existing groups without duplicates."
+        previous = list(seat.get("groups", []))
+        seat["groups"] = cleaned
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            seat["groups"] = previous
+            return None, "Could not save Seat membership; no changes were made."
+        return seat, None
+
+    def seats_for_group(self, group_id):
+        group_id = self.clean_group_id(group_id)
+        if group_id is None or str(group_id) not in self.data.get("groups", {}):
+            return []
+        return sorted((seat for seat in self.seats.values()
+                       if group_id in seat.get("groups", [])),
+                      key=lambda seat: seat["id"])
+
+    def set_group_param(self, group_id, name, value):
+        members = self.seats_for_group(group_id)
+        for seat in members:
+            seat.setdefault("params", {})[name] = value
+            uid = seat.get("bound")
+            if uid in self.devices:
+                self.devices[uid].setdefault("params", {})[name] = value
+            for device in self.devices.values():
+                if (device.get("virtual")
+                        and str(device.get("seat_id")) == str(seat["id"])):
+                    device.setdefault("params", {})[name] = value
+        return members
+
+    def reindex_seat(self, old_id, new_id):
+        old_id, new_id = self.clean_seat_id(old_id), self.clean_seat_id(new_id)
+        if old_id is None or new_id is None:
+            return None, "Seat IDs must be non-negative integers."
+        old_key, new_key = str(old_id), str(new_id)
+        if old_key not in self.seats:
+            return None, "Seat no longer exists."
+        if old_id == new_id:
+            return self.seats[old_key], None
+        if new_key in self.seats:
+            return None, f"Seat ID {new_id} already exists."
+        seats = copy.deepcopy(self.seats)
+        seat = seats.pop(old_key)
+        seat["id"] = new_id
+        seats[new_key] = seat
+        if self.clean_seats(seats) is None:
+            return None, "The reindexed Seat would make the installation invalid."
+        previous_seats = self.data["seats"]
+        self.data["seats"] = seats
+        self._site_remaps = {old_key: new_key}
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["seats"] = previous_seats
+            self._site_remaps = {}
+            return None, "Could not save the reindexed Seat; no changes were made."
+        return seat, None
+
+    def delete_seat(self, seat_id):
+        key = str(seat_id)
+        if key not in self.seats:
+            return None
+        seats = copy.deepcopy(self.seats)
+        seat = seats.pop(key)
+        previous_seats = self.data["seats"]
+        self.data["seats"] = seats
+        self._site_remaps = {key: None}
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["seats"] = previous_seats
+            self._site_remaps = {}
+            return None
+        return seat
+
+    def seat_for_uid(self, uid):
+        device = self.devices.get(uid)
+        if device and device.get("virtual") and device.get("seat_id") is not None:
+            return self.seats.get(str(device["seat_id"]))
+        return next((seat for seat in self.seats.values() if seat.get("bound") == uid), None)
+
+    # Audition falloff range floor/ceiling: the listener heading widget's
+    # pull-out tip distance IS the range (audition-falloff/2-range-widget).
+    LISTENER_RANGE_MIN = 0.5
+    LISTENER_RANGE_DEFAULT = 3.0
+
+    def room_diagonal(self):
+        room = self.data.get("room") or self.DEFAULT_ROOM
+        width, depth = float(room["width"]), float(room["depth"])
+        diagonal = math.hypot(width, depth)
+        return diagonal if math.isfinite(diagonal) and diagonal > 0 else self.LISTENER_RANGE_MIN
+
+    def default_range(self):
+        return min(max(self.LISTENER_RANGE_DEFAULT, self.LISTENER_RANGE_MIN),
+                   self.room_diagonal())
+
+    def default_listener(self):
+        room = self.data.get("room") or self.DEFAULT_ROOM
+        return {"x": float(room["width"]) / 2.0,
+                "y": float(room["depth"]) / 2.0,
+                "heading": 0.0,
+                "range": self.default_range()}
+
+    def clean_listener(self, value):
+        if not isinstance(value, dict):
+            return None
+        fields = []
+        for key in ("x", "y", "heading"):
+            raw = value.get(key)
+            if isinstance(raw, bool):
+                return None
+            try:
+                number = float(raw)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(number):
+                return None
+            fields.append(number)
+        room = self.data.get("room") or self.DEFAULT_ROOM
+        width, depth = float(room["width"]), float(room["depth"])
+        diagonal = self.room_diagonal()
+        # Missing/invalid range falls back to the sensible default (Bob,
+        # 2026-07-17) so the widget starts at a usable, on-canvas radius.
+        fallback = self.default_range()
+        raw_range = value.get("range")
+        if isinstance(raw_range, bool):
+            range_m = fallback
+        else:
+            try:
+                range_m = float(raw_range)
+            except (TypeError, ValueError):
+                range_m = fallback
+            else:
+                if not math.isfinite(range_m):
+                    range_m = fallback
+        range_m = min(max(range_m, self.LISTENER_RANGE_MIN), diagonal)
+        return {"x": min(max(fields[0], 0.0), width),
+                "y": min(max(fields[1], 0.0), depth),
+                "heading": fields[2] % 360.0,
+                "range": range_m}
+
+    @staticmethod
+    def clean_fleet_patch(value):
+        # one fleet-wide desired patch record (fp-0 sec 1): {name, fingerprint,
+        # staged_at}. Anything malformed collapses to None (unset).
+        if not isinstance(value, dict):
+            return None
+        name = str(value.get("name", "")).strip()
+        if not name:
+            return None
+
+        def fingerprint(raw):
+            return raw if isinstance(raw, str) and FINGERPRINT_RE.fullmatch(raw) else None
+
+        try:
+            staged_at = float(value.get("staged_at"))
+        except (TypeError, ValueError):
+            staged_at = None
+        return {"name": name, "fingerprint": fingerprint(value.get("fingerprint")),
+                "staged_at": staged_at}
+
+    @staticmethod
+    def clean_patches(value, fleet_patch=None):
+        # The project's patch folders (66-projects proposal sec 1): sorted,
+        # unique folder names, always including the Patch -- which seeds the
+        # list for a project stored before it had one.
+        names = {name for name in (value if isinstance(value, list) else [])
+                 if isinstance(name, str) and PATCH_NAME_RE.fullmatch(name)}
+        if fleet_patch and PATCH_NAME_RE.fullmatch(fleet_patch["name"]):
+            names.add(fleet_patch["name"])
+        return sorted(names)
+
+    def project_patches(self):
+        return self.clean_patches(self.data.get("patches"), self.data.get("fleet_patch"))
+
+    def add_project_patch(self, name):
+        """Add a patch folder to the project; True when the list changed."""
+        before = self.project_patches()
+        self.data["patches"] = self.clean_patches(before + [name], self.data.get("fleet_patch"))
+        return self.data["patches"] != before
+
+    def stage_fleet_patch(self, name, fingerprint):
+        # Set Live keeps the outgoing Patch among the project's versions.
+        self.data["patches"] = self.clean_patches(self.project_patches() + [name])
+        self.data["fleet_patch"] = {"name": name, "fingerprint": fingerprint,
+                                    "staged_at": time.time()}
+        # simulation["patch"] is a read-through of the fleet choice (fp-0 sec 1)
+        self.data["simulation"]["patch"] = name
+        return self.data["fleet_patch"]
+
+    def reset_fleet_params(self, defaults):
+        """Replace the one fleet schema on a patch-name transition.
+
+        Patch parameters are fleet-scoped authoring state even though their
+        values live per seat.  A new patch name means a new manifest schema:
+        old keys and coincidentally same-named values must not leak across it.
+        Runtime mirrors are updated with the same full replacement so the UI
+        cannot briefly present the previous schema while engines converge.
+        """
+        values = dict(defaults)
+        for seat in self.seats.values():
+            seat["params"] = dict(values)
+        for device in self.devices.values():
+            if self.seat_for_uid(device["uid"]) is not None:
+                device["params"] = dict(values)
+
+    def reconcile_fleet_params(self, patch_name, identities, defaults):
+        """Apply a staged same-patch schema revision without identity guesses.
+
+        Unchanged qualified identities retain their values, new identities use
+        declared defaults when present, and removed identities are pruned.
+        A patch-name transition remains a full reset via reset_fleet_params().
+        """
+        if (self.data.get("fleet_patch") or {}).get("name") != patch_name:
+            self.reset_fleet_params(defaults)
+            return
+        active = tuple(identities)
+        for seat in self.seats.values():
+            previous = seat.get("params", {})
+            seat["params"] = {
+                identity: previous.get(identity, defaults[identity])
+                for identity in active
+                if identity in previous or identity in defaults
+            }
+        for device in self.devices.values():
+            seat = self.seat_for_uid(device["uid"])
+            if seat is not None:
+                device["params"] = dict(seat["params"])
+
+    @staticmethod
+    def clean_facilitator_commands(value):
+        if not isinstance(value, list):
+            return []
+        # Project files written by hand may list commands in any order. Publish
+        # and persist one fixed order so the Remote controls never shuffle.
+        return [command for command in FACILITATOR_COMMANDS
+                if command in value]
+
+    def set_facilitator_commands(self, value):
+        """Persist the project's Remote verb allowlist transactionally."""
+        previous = list(self.data.get("facilitator_commands", ()))
+        self.data["facilitator_commands"] = self.clean_facilitator_commands(value)
+        try:
+            self.save()
+        except (OSError, TypeError, ValueError):
+            self.data["facilitator_commands"] = previous
+            return False
+        return True
+
+    @staticmethod
+    def clean_master(value):
+        try:
+            return min(max(float(value), 0.0), 1.0)
+        except (TypeError, ValueError):
+            return 1.0
+
+    @staticmethod
+    def clean_event_lead_ms(value):
+        if isinstance(value, bool):
+            return 500
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return 500
+        return min(max(value, 0), 10000)
+
+    @staticmethod
+    def clean_room(value):
+        if not isinstance(value, dict):
+            return None
+        dimensions = []
+        for key in ("width", "depth"):
+            raw = value.get(key)
+            if isinstance(raw, bool):
+                return None
+            try:
+                dimension = float(raw)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(dimension) or not 0 < dimension <= 1000:
+                return None
+            dimensions.append(dimension)
+        origin = value.get("origin", [0.0, 0.0])
+        if not isinstance(origin, (list, tuple)) or len(origin) < 2:
+            return None
+        offsets = []
+        for raw, limit in zip(origin[:2], dimensions):
+            if isinstance(raw, bool):
+                return None
+            try:
+                offset = float(raw)
+            except (TypeError, ValueError):
+                return None
+            if not math.isfinite(offset):
+                return None
+            offsets.append(min(max(offset, 0.0), limit))
+        return {"width": dimensions[0], "depth": dimensions[1], "units": "m",
+                "origin": offsets}
+
+    def save(self):
+        self._require_valid_load()
+        documents = {self.registry_path: self.device_registry, self.path: self.durable()}
+        allowed = set(self.seats) | set(self._site_remaps)
+        current = self.clean_site(self.site_document(), allowed)
+        for name in set(self.list_sites()) | {self.data["current_site"]}:
+            site = current if name == self.data["current_site"] else self.read_site(name, allowed)
+            positions = dict(site["positions"])
+            for old, new in self._site_remaps.items():
+                value = positions.pop(old, [])
+                if new is not None:
+                    positions[new] = value
+            mapped = {key: positions.get(key, []) for key in self.seats}
+            if name != self.data["current_site"] and site["positions"] == mapped:
+                continue
+            site["positions"] = mapped
+            documents[self.site_path(name)] = site
+        backups, written = {}, []
+        try:
+            # Serialize first, before any destination can change.
+            bodies = {path: json.dumps(doc, indent=2, sort_keys=True) + "\n"
+                      for path, doc in documents.items()}
+            for path in bodies:
+                if os.path.islink(path):
+                    raise OSError("Refusing to replace a symlink")
+                if os.path.exists(path):
+                    with open(path, "rb") as source:
+                        backups[path] = source.read()
+                else:
+                    backups[path] = None
+            for path in bodies:
+                self._write_json(path, documents[path])
+                written.append(path)
+            if not os.path.exists(self.current_path):
+                temporary = self.current_path + ".tmp"
+                with open(temporary, "w", encoding="utf-8") as target:
+                    target.write(self.project + "\n")
+                os.replace(temporary, self.current_path)
+        except Exception:
+            for path in reversed(written):
+                if backups[path] is None:
+                    os.unlink(path)
+                else:
+                    temporary = path + ".tmp"
+                    with open(temporary, "wb") as target:
+                        target.write(backups[path])
+                    os.replace(temporary, path)
+            raise
+        self.data["positions"] = documents[self.site_path()]["positions"]
+        self._site_remaps = {}
+
+    @staticmethod
+    def _write_json(path, data):
+        directory = os.path.dirname(os.path.abspath(path))
+        os.makedirs(directory, exist_ok=True)
+        temporary = path + ".tmp"
+        try:
+            with open(temporary, "w", encoding="utf-8") as target:
+                json.dump(data, target, indent=2, sort_keys=True)
+                target.write("\n")
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def save_debounced(self):
+        if self._load_invalid:
+            return
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+        self._save_task = asyncio.create_task(self._delayed_save())
+
+    async def _delayed_save(self):
+        try:
+            await asyncio.sleep(1)
+            self.save()
+        except asyncio.CancelledError:
+            pass
+
+    @staticmethod
+    def valid_site_name(name):
+        return (isinstance(name, str) and ".." not in name and not name.endswith(" ")
+                and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 ._-]*", name) is not None)
+
+    def sites_dir(self):
+        return os.path.join(os.path.dirname(self.path), "sites")
+
+    def site_path(self, name=None):
+        name = self.data["current_site"] if name is None else name
+        if not self.valid_site_name(name):
+            raise ValueError("Site")
+        return os.path.join(self.sites_dir(), name + ".json")
+
+    def project_directory(self, name):
+        if not self.valid_site_name(name):
+            raise ValueError("Project")
+        directory = os.path.join(self.data_dir, "projects", name)
+        if os.path.islink(directory):
+            raise ValueError("Project")
+        return directory
+
+    def list_projects(self):
+        root = os.path.join(self.data_dir, "projects")
+        try:
+            return sorted(name for name in os.listdir(root)
+                          if self.valid_site_name(name)
+                          and not os.path.islink(os.path.join(root, name))
+                          and os.path.isfile(os.path.join(root, name, "project.json")))
+        except OSError:
+            return []
+
+    def prepare_project(self, name):
+        directory = self.project_directory(name)
+        if not os.path.isfile(os.path.join(directory, "project.json")):
+            raise ValueError("Project")
+        candidate = InstallationState(self.data_dir, project=name, read_only=True)
+        candidate._require_valid_load()
+        return candidate
+
+    def project_summaries(self):
+        summaries = []
+        for name in sorted(set(self.list_projects()) | {self.project}):
+            try:
+                if name == self.project:
+                    seats = self.seats
+                else:
+                    with open(os.path.join(self.project_directory(name), "project.json"), encoding="utf-8") as source:
+                        seats = json.load(source)["seats"]
+                summaries.append({"name": name, "seats": len(seats),
+                    "devices": len({seat.get("bound") for seat in seats.values() if seat.get("bound")})})
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
+                summaries.append({"name": name, "seats": None, "devices": None})
+        return summaries
+
+    def site_rooms(self):
+        rooms = {self.data["current_site"]: self.data["room"]}
+        for name in self.list_sites():
+            if name != self.data["current_site"]:
+                try:
+                    rooms[name] = self.read_site(name)["room"]
+                except (OSError, ValueError, TypeError):
+                    rooms[name] = None
+        return rooms
+
+    def write_current_project(self, name):
+        if not self.valid_site_name(name) or os.path.islink(self.current_path):
+            raise ValueError("Project")
+        temporary = self.current_path + ".tmp"
+        try:
+            with open(temporary, "w", encoding="utf-8") as target:
+                target.write(name + "\n")
+            os.replace(temporary, self.current_path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    def create_project(self, name):
+        self._require_valid_load()
+        destination = self.project_directory(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Project")
+        root = os.path.dirname(destination)
+        os.makedirs(root, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".new-project-", dir=root) as staging:
+            empty = InstallationState(staging)
+            self._write_json(os.path.join(staging, "project.json"), empty.durable())
+            self._write_json(os.path.join(staging, "sites", "default.json"), empty.site_document())
+            show_model.save_show(os.path.join(staging, "shows", DEFAULT_SHOW + ".json"),
+                                 show_model.empty_show(DEFAULT_SHOW))
+            os.rename(staging, destination)
+        return self.prepare_project(name)
+
+    def rename_project(self, name):
+        self._require_valid_load()
+        if name == self.project:
+            return
+        destination = self.project_directory(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Project")
+        self.save()
+        source = os.path.dirname(self.path)
+        os.rename(source, destination)
+        try:
+            self.write_current_project(name)
+        except (OSError, ValueError):
+            os.rename(destination, source)
+            raise
+        self.project = name
+        self.path = os.path.join(destination, "project.json")
+
+    def adopt_project(self, candidate):
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+        candidate.data["devices"] = self.devices
+        candidate.data["device_registry"] = self.device_registry
+        for key in ("supervisor", "editor", "muted"):
+            if key in self.data:
+                candidate.data[key] = self.data[key]
+        self.project, self.path, self.data = candidate.project, candidate.path, candidate.data
+        self.show_unmigrated = candidate.show_unmigrated
+        self._load_invalid = False
+        self._site_remaps = {}
+        self._save_task = None
+
+    def select_project(self, candidate):
+        self.save()
+        self.write_current_project(candidate.project)
+        self.adopt_project(candidate)
+
+    def create_site(self, name, source=None):
+        self._require_valid_load()
+        path = self.site_path(name)
+        if os.path.lexists(path):
+            raise FileExistsError("Site")
+        if source is None:
+            room = self.data["room"]
+            try:
+                self.data["room"] = dict(self.DEFAULT_ROOM)
+                site = {"room": dict(self.DEFAULT_ROOM), "listener": self.default_listener(),
+                        "positions": {key: [] for key in self.seats}}
+            finally:
+                self.data["room"] = room
+        else:
+            site = self.site_document() if source == self.data["current_site"] else self.read_site(source)
+        self.save()
+        self._write_json(path, self.clean_site(site))
+        try:
+            self.select_site(name)
+        except (OSError, ValueError, TypeError):
+            os.unlink(path)
+            raise
+
+    def list_sites(self):
+        try:
+            return sorted(name[:-5] for name in os.listdir(self.sites_dir())
+                          if name.endswith(".json") and self.valid_site_name(name[:-5]))
+        except OSError:
+            return []
+
+    def positions_for(self, seat_id):
+        return self.data["positions"].get(str(seat_id), [])
+
+    def site_document(self):
+        return {"room": copy.deepcopy(self.data["room"]),
+                "listener": dict(self.data["listener"]),
+                "positions": copy.deepcopy(self.data["positions"])}
+
+    def clean_site(self, doc, seat_ids=None):
+        if not isinstance(doc, dict) or set(doc) != {"room", "listener", "positions"}:
+            raise ValueError("Site")
+        room = self.clean_room(doc["room"])
+        positions = doc["positions"]
+        allowed = set(self.seats) if seat_ids is None else set(seat_ids)
+        if room is None or not isinstance(positions, dict) or not set(positions).issubset(allowed):
+            raise ValueError("Site")
+        cleaned = {key: self.clean_positions(value) for key, value in positions.items()}
+        if any(value is None for value in cleaned.values()):
+            raise ValueError("Site")
+        previous = self.data["room"]
+        try:
+            self.data["room"] = room
+            listener = self.clean_listener(doc["listener"])
+        finally:
+            self.data["room"] = previous
+        if listener is None:
+            raise ValueError("Site")
+        return {"room": room, "listener": listener, "positions": cleaned}
+
+    def read_site(self, name, seat_ids=None):
+        with open(self.site_path(name), encoding="utf-8") as source:
+            return self.clean_site(json.load(source), seat_ids)
+
+    def _load_site(self):
+        try:
+            site = self.read_site(self.data["current_site"])
+            self.data.update(site)
+        except (OSError, ValueError, TypeError):
+            # A wholly new project can start with an empty default room.
+            if not os.path.lexists(self.path) and not os.path.lexists(self.site_path()):
+                return
+            self._load_invalid = True
+            self._invalid_file_notice(self.site_path())
+
+    def select_site(self, name):
+        self._require_valid_load()
+        if name == self.data["current_site"]:
+            return True
+        site = self.read_site(name)
+        # Flush the outgoing site's last edits before changing the pointer.
+        self.save()
+        previous = {key: self.data[key] for key in ("current_site", "room", "listener", "positions")}
+        self.data.update(site, current_site=name)
+        try:
+            self.save()
+        except (OSError, ValueError, TypeError):
+            self.data.update(previous)
+            raise
+        return True
+
+    def shows_dir(self):
+        return os.path.join(os.path.dirname(self.path), "shows")
+
+    def show_file(self, name):
+        if not self.valid_site_name(name):
+            raise ValueError("Show")
+        return os.path.join(self.shows_dir(), name + ".json")
+
+    def list_shows(self):
+        """The project's show names, always including the open one."""
+        try:
+            names = {name[:-5] for name in os.listdir(self.shows_dir())
+                     if name.endswith(".json") and self.valid_site_name(name[:-5])
+                     and os.path.isfile(os.path.join(self.shows_dir(), name))}
+        except OSError:
+            names = set()
+        return sorted(names | {self.data["current_show"]})
+
+    def show_step_counts(self):
+        """Steps per show for the project menu (dividers don't count); None
+        for a show that won't load. Every snapshot calls this, so a file is
+        only reloaded when its stat changes (an edit here or elsewhere)."""
+        counts, cache = {}, {}
+        for name in self.list_shows():
+            path = self.show_file(name)
+            try:
+                stat = os.stat(path)
+                identity = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+            except OSError:
+                identity = None
+            cached = self._show_step_cache.get(path)
+            if cached is not None and cached[0] == identity:
+                count = cached[1]
+            else:
+                doc, valid = show_model.load_show(path)
+                count = sum(item["kind"] == "step" for item in doc["items"]) if valid else None
+            counts[name] = count
+            cache[path] = (identity, count)
+        self._show_step_cache = cache
+        return counts
+
+    def _require_shows(self):
+        self._require_valid_load()
+        if self.show_unmigrated:
+            # Leaving show.json behind would orphan it; migrate it first.
+            raise OSError(f"Unmigrated show: {self.legacy_show_path}")
+
+    def _set_current_show(self, name):
+        previous = self.data["current_show"]
+        self.data["current_show"] = name
+        try:
+            self.save()
+        except (OSError, ValueError, TypeError):
+            self.data["current_show"] = previous
+            raise
+
+    def select_show(self, name):
+        """Point the project at another of its shows; the caller loads it."""
+        self._require_shows()
+        if name == self.data["current_show"]:
+            return
+        if not os.path.isfile(self.show_file(name)) or os.path.islink(self.show_file(name)):
+            raise FileNotFoundError("Show")
+        self._set_current_show(name)
+
+    def create_show(self, name, source=None):
+        """Write a new show, empty or a copy of `source`, and open it."""
+        self._require_shows()
+        path = self.show_file(name)
+        if os.path.lexists(path):
+            raise FileExistsError("Show")
+        if source is None:
+            doc = show_model.empty_show(name)
+        else:
+            source_path = self.show_file(source)
+            # The open show has no file until its first edit; it copies empty.
+            if source != self.data["current_show"] and not os.path.isfile(source_path):
+                raise FileNotFoundError("Show")
+            doc, valid = show_model.load_show(source_path)
+            if not valid:
+                raise ValueError("Show")
+            doc["name"] = name
+        show_model.save_show(path, doc)
+        try:
+            self._set_current_show(name)
+        except (OSError, ValueError, TypeError):
+            os.unlink(path)
+            raise
+
+    def rename_show(self, name):
+        """Rename the open show; its file name is its name."""
+        self._require_shows()
+        old = self.data["current_show"]
+        if name == old:
+            return
+        source, destination = self.show_file(old), self.show_file(name)
+        if os.path.lexists(destination):
+            raise FileExistsError("Show")
+        moved = os.path.isfile(source)
+        if moved:
+            os.rename(source, destination)
+        try:
+            self._set_current_show(name)
+        except (OSError, ValueError, TypeError):
+            if moved:
+                os.rename(destination, source)
+            raise
+
+    def delete_show(self, name):
+        """Delete one of the project's other shows."""
+        self._require_shows()
+        path = self.show_file(name)
+        if name == self.data["current_show"] or os.path.islink(path) or not os.path.isfile(path):
+            raise ValueError("Show")
+        os.unlink(path)
+
+    async def close(self):
+        if self._save_task and not self._save_task.done():
+            self._save_task.cancel()
+            if not self._load_invalid:
+                self.save()

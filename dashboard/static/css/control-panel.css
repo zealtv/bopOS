@@ -1,0 +1,1613 @@
+/* Control-panel token layer and chrome.
+
+   Design ratified 2026-07-27.
+
+   This file is loaded by BOTH hosts of the shared ControlSurface — the
+   dashboard (Device tab panel) and the facilitator page (the Control tab
+   iframe, and the standalone tablet view). One file rather than the usual
+   copy-paste between style.css and facilitator.css, because the whole point
+   of the token layer is that the two hosts cannot drift.
+
+   Scope discipline: the light-theme repaint is deliberately confined to the
+   control surface (`.live-card`, `.device-control`). The app-wide repaint is
+   a separate, later piece of work. In DARK
+   theme the panel token values are identical to the shipping ones, so dark is
+   a no-op here and only the chrome rules below change it.
+
+   LIGHT PALETTE CORRECTED 2026-07-30 (Bob, off the Excalidraw
+   mockup, which is not in this repository): "the pink is a little
+   heavy on the control panel — notice how it's used in the Excalidraw mockup.
+   It's a background that panels sit on, not the colour of panels themselves."
+   Sampled from the mockup: ground `#f8f0fc`, panel `#f8f9fa`, subpanel and
+   manual fill `#e9ecef`, inputs/buttons `#ffffff`, ink `#1e1e1e` — i.e. a
+   NEUTRAL grey scale on a pale pink ground, not a pink scale. The `--cp-*`
+   light column below is that palette; `--cp-bg` is the only pink token and it
+   paints the ground, never a panel. Cyan is unchanged (ratified 2026-07-27).
+   Supersedes the light column in `design-language.md` §1. */
+
+/* ---- 1. Palette tokens (design-language §1) ------------------------------
+   `--mod*`, `--value-fill` and `--hatch` are new and global: they name inks,
+   not surfaces, so nothing outside the panel is repainted by declaring them.
+   The `--cp-*` values are the panel-scoped base tokens applied in §3. */
+
+:root, :root[data-theme=dark] {
+  --mod:#4DEEE3;
+  --mod-fill:rgba(77,238,227,.26);
+  --mod-hatch:rgba(77,238,227,.45);
+  --mod-soft:rgba(77,238,227,.12);
+  --value-fill:rgba(255,255,255,.10);
+  --hatch:rgba(255,255,255,.16);
+  /* Dark panel base = the shipping dark values; listed so the two themes
+     read as one table. */
+  --cp-bg:#101316;--cp-panel:#191e23;--cp-subpanel:#12191e;--cp-input:#10161b;
+  --cp-control:#273039;--cp-hover:#252d34;--cp-line:#5e6a75;
+  --cp-control-line:#74818c;--cp-group-line:#3e4952;--cp-text:#e8edf1;
+  --cp-dim:#8f9ba5;--cp-accent:#8A82D8;
+  --cp-panel-strong:#1c242a;--cp-panel-soft:#141a1f;--cp-row:#171f25;
+  --cp-selected:#26303a;--cp-strong-line:#74818c;
+}
+
+@media (prefers-color-scheme:light) {
+  :root {
+    --mod:#0798BC;
+    --mod-fill:rgba(7,152,188,.20);
+    --mod-hatch:rgba(7,152,188,.42);
+    --mod-soft:rgba(7,152,188,.09);
+    --value-fill:rgba(33,37,41,.10);
+    --hatch:rgba(33,37,41,.18);
+    --cp-bg:#f8f0fc;--cp-panel:#f8f9fa;--cp-subpanel:#e9ecef;
+    --cp-input:#ffffff;--cp-control:#ffffff;--cp-hover:#f1f3f5;
+    --cp-line:#ced4da;--cp-control-line:#495057;--cp-group-line:#ced4da;
+    --cp-text:#212529;--cp-dim:#868e96;--cp-accent:#7A4FC8;
+    --cp-panel-strong:#f1f3f5;--cp-panel-soft:#f1f3f5;--cp-row:#f8f9fa;
+    --cp-selected:#e9ecef;--cp-strong-line:#495057;
+  }
+}
+
+:root[data-theme=light] {
+  --mod:#0798BC;
+  --mod-fill:rgba(7,152,188,.20);
+  --mod-hatch:rgba(7,152,188,.42);
+  --mod-soft:rgba(7,152,188,.09);
+  --value-fill:rgba(33,37,41,.10);
+  --hatch:rgba(33,37,41,.18);
+  --cp-bg:#f8f0fc;--cp-panel:#f8f9fa;--cp-subpanel:#e9ecef;
+  --cp-input:#ffffff;--cp-control:#ffffff;--cp-hover:#f1f3f5;
+  --cp-line:#ced4da;--cp-control-line:#495057;--cp-group-line:#ced4da;
+  --cp-text:#212529;--cp-dim:#868e96;--cp-accent:#7A4FC8;
+  --cp-panel-strong:#f1f3f5;--cp-panel-soft:#f1f3f5;--cp-row:#f8f9fa;
+  --cp-selected:#e9ecef;--cp-strong-line:#495057;
+}
+
+/* ---- 2. Metric tokens (design-language §4) ------------------------------
+   Theme-independent, and — since `02-component-unification/02-token-promotion`
+   — the WHOLE APP's metric layer, not just the panel's. The parallel
+   `--chrome-*` layer in `style.css` (32px controls, 12px gaps and pads) is
+   retired: `--chrome-radius-*` folded onto `--radius-*` (identical values),
+   `--chrome-control-height` onto `--row-h`, `--chrome-gap` onto `--gap`, and
+   the two padding tokens onto `--pad-control`/`--pad-panel` below. Both hosts
+   load this file, so this is the one place either can read them from. */
+
+:root {
+  --radius-panel:6px;
+  --radius-control:4px;
+  --radius-small:3px;
+  --radius-momentary:7px;   /* PD bang: momentary is round */
+  --radius-toggle:1px;      /* PD toggle: latching is square */
+  --row-h:24px;             /* a parameter row is never taller than this */
+  --gap:6px;
+  /* Padding, promoted for the app chrome. The panel derives its own padding
+     from `--gap` (§4 has no padding token because rows get their height from
+     `--row-h`); app chrome needs both a control pad and a panel pad, so they
+     are named here rather than sprinkled as literals. */
+  --pad-control:2px var(--gap);
+  --pad-panel:10px;
+  /* App header. A token because four rules and two `calc(100vh - …)` offsets
+     derive from it; when it was a literal 64px they could silently disagree. */
+  --header-h:40px;
+}
+
+/* The standalone facilitator is tablet-first: same row grammar, bigger touch
+   target. Coarse pointers get a taller row rather than a different layout. */
+@media (pointer:coarse) {
+  :root { --row-h:34px; }
+}
+
+/* ---- 3. Panel scope ------------------------------------------------------
+   The two containers that hold a ControlSurface. Rebinding the base tokens
+   locally repaints the panel without touching the page around it. */
+
+.live-card, .device-control {
+  --bg:var(--cp-bg);
+  --panel:var(--cp-panel);
+  --subpanel:var(--cp-subpanel);
+  --input:var(--cp-input);
+  --control:var(--cp-control);
+  --hover:var(--cp-hover);
+  --line:var(--cp-line);
+  --control-line:var(--cp-control-line);
+  --group-line:var(--cp-group-line);
+  --panel-strong:var(--cp-panel-strong);
+  --panel-soft:var(--cp-panel-soft);
+  --row:var(--cp-row);
+  --selected:var(--cp-selected);
+  --strong-line:var(--cp-strong-line);
+  --text:var(--cp-text);
+  --dim:var(--cp-dim);
+  --accent:var(--cp-accent);
+  /* Modulation is cyan. `--auto` is the shipping automation ink (markers,
+     glyphs, generator trace); inside the panel it IS the modulation ink. */
+  --auto:var(--mod);
+  color:var(--text);
+  accent-color:var(--accent);
+  /* The 320px drawer is an instrument face, not a responsive form. Its fixed
+     width plus the surrounding padding defines the smallest useful panel.
+     Narrow viewports scroll this intact face instead of rearranging it.
+     `.live-card` states its own below: since `3-iframe-retirement` the padding
+     around a card is the COLUMN's, so counting it here would count it twice. */
+  min-width:calc(320px + 2 * var(--pad-panel));
+}
+.live-card {
+  min-width:320px;
+}
+
+/* ---- 4. Focus (design-language §2) --------------------------------------
+   No user-agent focus colours inside the panel — purple, always. */
+
+.live-card :focus-visible,
+.device-control :focus-visible {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+/* The precision readout's purple focus ring and its border/radius moved onto the
+   component in `value-box.css` (05f). They were correct here and wrong in scope:
+   a cyan ring is wrong everywhere, not just inside the panel. */
+
+/* ---- 5. Button shapes (design-language §8) ------------------------------
+   Momentary = rounded 7px, latching = near-square. The radius keys off
+   `aria-pressed`, so a button's semantics and its shape cannot drift apart. */
+
+.live-card button,
+.device-control button {
+  border-radius:var(--radius-momentary);
+}
+.live-card button[aria-pressed],
+.device-control button[aria-pressed] {
+  border-radius:var(--radius-toggle);
+}
+/* A latching button that is ON wears the modulation ink. */
+.live-card button[aria-pressed=true],
+.device-control button[aria-pressed=true] {
+  background:var(--mod-fill);
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--mod);
+}
+
+/* ---- 6. The ∿ modulation icon (design-language §5) ----------------------
+   Always an 18px circle, exempt from the momentary/latching radii. The icon
+   is both the drawer disclosure and the row's modulation indicator, so it
+   lights on `aria-expanded` OR a running generator. (`4-row-regrind` emits
+   the markup; it replaced the `value ▸ gen` switch.) */
+
+/* ANCHORED ON THE GLYPH, NOT ITS HOSTS (05f). §5 says "always an 18px circle",
+   and "always" cannot be delivered by a rule scoped to two of the three
+   surfaces that draw one — that is why the Show inspector was able to diverge.
+   Doubled to hold the specificity the host prefix used to contribute, as in
+   `value-box.css` and §8. */
+.live-param-mod.live-param-mod {
+  flex:none;
+  display:inline-grid;
+  place-items:center;
+  width:18px;
+  min-width:18px;
+  height:18px;
+  /* `min-height` is not redundant: the app's generic `button` rule sets
+     `min-height:var(--row-h)` (24px), which beats a plain `height` and made
+     §5's "circle" an 18×24 oval in the panel for as long as it has shipped.
+     The Show inspector's now-deleted override happened to state this, so that
+     surface was the geometrically correct one while diverging on ink. Caught by
+     the §5 assertion added to `verify_show_generator_drawer.py` in 05f. */
+  min-height:18px;
+  padding:0;
+  border:1px solid var(--control-line);
+  border-radius:50%;
+  background:var(--input);
+  color:var(--dim);
+  font:inherit;
+  font-size:12px;
+  line-height:1;
+}
+.live-param-mod.live-param-mod[aria-expanded=true],
+.live-param.automated .live-param-mod.live-param-mod {
+  border-color:var(--mod);
+  background:var(--mod-soft);
+  color:var(--mod);
+}
+
+/* ---- 7. Value readout ink (design-panel Q1) -----------------------------
+   Cyan means modulation, so a value box is cyan ONLY under a generator. The
+   shipping surface painted every readout cyan. */
+
+.live-card .live-param output,
+.device-control .live-param output {
+  color:var(--text);
+}
+.live-card .live-param.automated output,
+.device-control .live-param.automated output {
+  color:var(--mod);
+}
+.live-card .live-param.mixed output,
+.device-control .live-param.mixed output {
+  color:var(--dim);
+}
+
+/* ---- 7b. Native widget inks ---------------------------------------------
+   Manual controls take the structural accent; cyan is reserved for
+   modulation and there is no third hue. (The numeric range track no longer
+   paints itself at all — §12 replaces it with the `--value-fill` fill +
+   marker line, and the 0/1 checkbox that used to be painted warm amber here
+   became the §15 latching button.) Text-entry appearance belongs to the text
+   row itself in §17, so it travels to every host. */
+
+.live-card .live-param input[type=range],
+.device-control .live-param input[type=range] {
+  accent-color:var(--accent);
+}
+
+/* ---- 8. Generator drawer chrome (design-language §7) --------------------
+   A `--subpanel` region indented 12px under its row. The waveform display and
+   mini-sliders are still the shipping ones; the kind tabs land in §13.
+
+   ANCHORED ON THE DRAWER, NOT ON ITS HOSTS (05c). Every drawer rule in this
+   file used to begin
+   `:is(.live-card,.device-control,.show-inspector-section)` — the three places
+   the drawer happens to be mounted. The drawer emits its own root
+   (`.live-param-gen`, `param-generator.js`), so a fourth mount point (the
+   patch editor in `06`, an extra column in `08`) would have silently lost all
+   68 rules at once. They are addressed by what the thing IS now.
+
+   `.live-param-gen.live-param-gen` is the deliberate doubling idiom from
+   `value-box.css`, not a typo. `:is(a,b,c)` weighs as its most specific
+   argument — one class — so the old prefix contributed exactly one class of
+   specificity. Doubling the root keeps every rule at its original weight,
+   which is load-bearing: `style.css` and `facilitator.css` each carry a
+   lower-specificity base layer for these same classes that these rules
+   deliberately override. */
+
+.live-param-gen.live-param-gen {
+  margin-left:12px;
+  padding:10px;
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-panel);
+  background:var(--subpanel);
+}
+.live-param-gen.live-param-gen input,
+.live-param-gen.live-param-gen select {
+  border-color:var(--control-line);
+  border-radius:var(--radius-control);
+}
+.live-param-gen.live-param-gen button.primary {
+  border-color:var(--accent);
+  background:var(--control);
+}
+
+/* ---- 12. The parameter row (design-language §5, §6) ---------------------
+   `4-row-regrind`. The ratified grammar is
+
+       [ value box 58px ][ name-in-slider (flexible) ][ ∿ 18px ]
+
+   The native `<input type=range>` stays the interactive element — every
+   pointer, keyboard, takeover and ARIA behaviour on it is unchanged — but it
+   is stripped to a transparent overlay: the trough, the fill, the marker line
+   and the parameter name are all painted by `.live-param-range-wrap` from the
+   `--v` custom property, which `control-surface.js` keeps in step with the
+   input's value.
+
+   Scoped with `:has(.live-param-range-wrap)` so only numeric rows regrind.
+   Strings and 0/1 toggles keep the shipping flex row until
+   `6-non-float-kinds`. */
+
+.live-card .live-param:has(.live-param-range-wrap),
+.device-control .live-param:has(.live-param-range-wrap) {
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr) 18px;
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+  white-space:nowrap;
+}
+
+/* --- the number box ---
+   There is ONE number box on this surface. The parameter row's value readout
+   and every numeric field in a generator drawer are the same object at the
+   same 58px, and only their height differs (design-language §4). Anything
+   numeric added later joins this selector rather than restating the paint —
+   a second box that is nearly the same is the incoherence this panel exists
+   to remove (Bob, 2026-07-27). */
+.live-card .live-param > output.live-param-value,
+.device-control .live-param > output.live-param-value,
+.live-param-gen .live-gen-num {
+  box-sizing:border-box;
+  width:58px;             /* the standardized number-box width */
+  min-width:0;
+  height:var(--row-h);
+  padding:0 5px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  font:inherit;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+  overflow:hidden;
+  /* NO `color` here. §7 paints an automated readout in the modulation ink
+     with equal specificity from further up the file, so a colour declared on
+     this rule would silently win and a generator-driven box would go back to
+     reading as a manual one. Ink is §7's; this rule owns the box. */
+  /* Alignment says the kind: floats left, integers right (Bob, 2026-07-27). */
+  justify-content:flex-start;
+  text-align:left;
+}
+.live-card .live-param > output.live-param-value,
+.device-control .live-param > output.live-param-value {
+  display:flex;
+  align-items:center;
+}
+.live-card .live-param > output.live-param-value[data-integer],
+.device-control .live-param > output.live-param-value[data-integer] {
+  justify-content:flex-end;
+  text-align:right;
+}
+/* Dots are a legend, not a number: they get the mixed row's tracking whether
+   they stand for disagreement or for a value the surface cannot sample. */
+.live-card .live-param > output.live-param-value[data-dots],
+.device-control .live-param > output.live-param-value[data-dots] {
+  letter-spacing:.12em;
+}
+/* The precision field swaps the box for a number input in the same 58px slot,
+   and needs no rule here to do it (05f): the row's first grid column IS 58px
+   (§12 above) and the component's own width is 58px, so `width:100%` was
+   restating the component's face from the surface. `flex:none` was inert in a
+   grid, and `box-sizing`/`height` duplicated `value-box.css`. */
+
+/* --- the slider: trough, fill, marker, name --- */
+.live-card .live-param .live-param-range-wrap,
+.device-control .live-param .live-param-range-wrap,
+.live-param-gen .live-gen-mini {
+  position:relative;
+  display:block;
+  min-width:0;
+  height:var(--row-h);
+  flex:1 1 auto;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+  cursor:ew-resize;
+}
+.live-card .live-param-fill,
+.device-control .live-param-fill,
+.live-param-gen .live-gen-mini-fill {
+  position:absolute;
+  inset:0;
+  width:calc(var(--v,0) * 100%);
+  background:var(--value-fill);
+  pointer-events:none;
+}
+.live-card .live-param.automated .live-param-fill,
+.device-control .live-param.automated .live-param-fill {
+  background:var(--mod-fill);
+}
+/* The manual marker line: 1.5px at the exact current value, on every slider. */
+.live-card .live-param .live-param-range-wrap::after,
+.device-control .live-param .live-param-range-wrap::after,
+.live-param-gen .live-gen-mini::after {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:calc(var(--v,0) * 100%);
+  width:1.5px;
+  margin-left:-.75px;
+  background:var(--control-line);
+  pointer-events:none;
+}
+.live-card .live-param.automated .live-param-range-wrap::after,
+.device-control .live-param.automated .live-param-range-wrap::after {
+  background:var(--mod);
+}
+/* The shipping cyan "automated" bar across the trough is superseded by the
+   fill: the fill IS the modulation indicator now. */
+.live-card .live-param.automated:not(.mixed) .live-param-range-wrap::before,
+.device-control .live-param.automated:not(.mixed) .live-param-range-wrap::before {
+  display:none;
+}
+/* The name lives inside the slider — PD's `label: value` idiom. */
+.live-card .live-param-range-wrap > .live-param-name,
+.device-control .live-param-range-wrap > .live-param-name,
+.live-param-gen .live-gen-mini-name {
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  padding:0 6px;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  pointer-events:none;
+}
+.live-card .live-param-range-wrap > .live-param-name .live-param-glyph,
+.device-control .live-param-range-wrap > .live-param-name .live-param-glyph {
+  margin-left:0;
+  font-size:12px;
+}
+
+/* --- the native range, stripped to a transparent overlay --- */
+.live-card .live-param-range-wrap input[type=range],
+.device-control .live-param-range-wrap input[type=range],
+.live-param-gen .live-gen-mini-input {
+  position:absolute;
+  inset:0;
+  z-index:3;
+  width:100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent;
+  cursor:ew-resize;
+}
+.live-card .live-param-range-wrap input[type=range]::-webkit-slider-runnable-track,
+.device-control .live-param-range-wrap input[type=range]::-webkit-slider-runnable-track,
+.live-param-gen .live-gen-mini-input::-webkit-slider-runnable-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-track,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-track,
+.live-param-gen .live-gen-mini-input::-moz-range-track {
+  height:100%;
+  background:transparent;
+  border:0;
+}
+/* A hairline thumb: the painted marker line is the value indicator, and a
+   1px thumb also makes the pointer position map to the fill position. */
+.live-card .live-param-range-wrap input[type=range]::-webkit-slider-thumb,
+.device-control .live-param-range-wrap input[type=range]::-webkit-slider-thumb,
+.live-param-gen .live-gen-mini-input::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-thumb,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-thumb,
+.live-param-gen .live-gen-mini-input::-moz-range-thumb {
+  width:1px;
+  height:100%;
+  background:transparent;
+  border:0;
+  border-radius:0;
+}
+.live-card .live-param-range-wrap input[type=range]::-moz-range-progress,
+.device-control .live-param-range-wrap input[type=range]::-moz-range-progress,
+.live-param-gen .live-gen-mini-input::-moz-range-progress {
+  background:transparent;
+}
+
+/* --- mixed: one 45° slash pattern, two inks (design-language §6) --- */
+.live-card .live-param.mixed .live-param-fill,
+.device-control .live-param.mixed .live-param-fill {
+  width:100%;
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--hatch) 4px 5.5px);
+}
+.live-card .live-param.mixed.mixed-mod .live-param-fill,
+.device-control .live-param.mixed.mixed-mod .live-param-fill {
+  background:repeating-linear-gradient(45deg,transparent 0 4px,var(--mod-hatch) 4px 5.5px);
+}
+/* Nothing is at "the" value, so no marker line. */
+.live-card .live-param.mixed .live-param-range-wrap::after,
+.device-control .live-param.mixed .live-param-range-wrap::after {
+  display:none;
+}
+/* The value box hatches too — with dots for the value it cannot state. */
+.live-card .live-param.mixed > output.live-param-value,
+.device-control .live-param.mixed > output.live-param-value {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+  letter-spacing:.12em;
+}
+.live-card .live-param.mixed.mixed-mod > output.live-param-value,
+.device-control .live-param.mixed.mixed-mod > output.live-param-value {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+/* The mixed slider is not dimmed or striped by the shipping treatment. */
+.live-card .live-param.mixed input[type=range],
+.device-control .live-param.mixed input[type=range] {
+  opacity:1;
+  background:transparent;
+}
+
+/* --- the animated generator marker ---
+   Under a periodic generator the marker element is the only thing that knows
+   where the value is between heartbeats, so it carries BOTH the marker line
+   (::after, at its own left edge) and the fill behind it (::before, extending
+   left to the trough edge and clipped by the wrap). The static fill and the
+   static marker step aside for it. */
+.live-card .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+.device-control .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+.live-card .live-param-range-wrap:has(.live-param-marker)::after,
+.device-control .live-param-range-wrap:has(.live-param-marker)::after {
+  display:none;
+}
+.live-card .live-param-marker,
+.device-control .live-param-marker {
+  top:0;
+  height:100%;
+  z-index:2;
+}
+.live-card .live-param-marker::after,
+.device-control .live-param-marker::after {
+  top:0;
+  left:0;
+  margin-left:-.75px;
+  width:1.5px;
+  height:100%;
+  border-radius:0;
+  background:var(--mod);
+}
+.live-card .live-param-marker::before,
+.device-control .live-param-marker::before {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  right:100%;
+  width:100vw;
+  background:var(--mod-fill);
+}
+/* A free-running LFO is off the fleet clock: the marker says so as a broken
+   line, which is what a 1.5px rule can still carry. */
+.live-card .live-param-marker.free::after,
+.device-control .live-param-marker.free::after {
+  background:repeating-linear-gradient(180deg,var(--mod) 0 3px,transparent 3px 6px);
+  border:0;
+}
+
+/* Reduced motion: the shipping rule hides the animated marker, which would
+   take the fill with it. The static fill steps back in — a stepped, per
+   heartbeat reading of the modulated value (design-language §10). */
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+  .device-control .live-param-range-wrap:has(.live-param-marker) > .live-param-fill,
+  .live-card .live-param-range-wrap:has(.live-param-marker)::after,
+  .device-control .live-param-range-wrap:has(.live-param-marker)::after {
+    display:block;
+  }
+}
+
+/* ---- 13. Generator drawer kind tabs (design-language §7) ----------------
+   `LFO | loop | fade` latching buttons replace the kind <select>. */
+
+.live-param-gen .live-param-gen-tabs {
+  display:flex;
+  flex:1;
+  gap:5px;
+  min-width:120px;
+}
+.live-param-gen .live-param-gen-tabs button {
+  flex:1;
+  min-height:20px;
+  padding:3px 0;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  font-weight:700;
+  line-height:1;
+}
+.live-param-gen .live-param-gen-tabs button[aria-pressed=true] {
+  background:var(--mod-soft);
+  border-color:var(--mod);
+  color:var(--mod);
+  box-shadow:none;
+}
+
+/* ---- 14. Hierarchy accordions (design-language §9) -----------------------
+   `5-hierarchy-and-persistence`. A nested address is a `<details>` whose
+   `<summary>` is the `▸ name` / `▾ name` disclosure row; children indent
+   12px, the same indent the generator drawer uses. The disclosure marker is
+   drawn by the summary's own `::before` so the two hosts get one glyph
+   whatever the user agent's default triangle looks like.
+
+   The shipping chrome (style.css / facilitator.css) drew branches as a
+   left-ruled `<section>` with an `<h3>` heading; both files now target
+   `> summary`, and the rule is retired here in favour of the indent. */
+
+.live-card details.live-param-branch,
+.device-control details.live-param-branch {
+  display:grid;
+  gap:var(--gap);
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.live-card details.live-param-branch > summary,
+.device-control details.live-param-branch > summary {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-height:20px;
+  color:var(--text);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:normal;
+  text-transform:none;
+  cursor:pointer;
+  list-style:none;
+}
+/* Safari draws its own triangle unless the webkit marker is suppressed. */
+.live-card details.live-param-branch > summary::-webkit-details-marker,
+.device-control details.live-param-branch > summary::-webkit-details-marker {
+  display:none;
+}
+.live-card details.live-param-branch > summary::before,
+.device-control details.live-param-branch > summary::before {
+  content:"▸";
+  color:var(--dim);
+  font-size:10px;
+}
+.live-card details.live-param-branch[open] > summary::before,
+.device-control details.live-param-branch[open] > summary::before {
+  content:"▾";
+}
+.live-card .live-param-branch-kids,
+.device-control .live-param-branch-kids {
+  display:grid;
+  gap:var(--gap);
+  margin-left:12px;       /* the drawer indent, reused (design-language §4) */
+}
+
+/* ---- 15. Non-float kinds (control-panel-design §2) ----------------------
+   `6-non-float-kinds`. Integers already ride the numeric row (step 1, a
+   right-aligned box); what lands here is the toggle box that replaced the
+   checkbox, the enum select, the string row, the event row, and the pulse
+   that stands in for a value no
+   control can honestly show (`8-kind-feedback-pass`).
+
+   They all keep the numeric row's column rhythm — first the control, then
+   the name, then the ∿ icon in the same 18px column down the whole panel —
+   which is why they are grids rather than the shipping flex row. */
+
+.live-card .live-param-toggle,
+.device-control .live-param-toggle,
+.live-card .live-param-enum,
+.device-control .live-param-enum {
+  display:grid;
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+}
+/* A box you click, with its label beside it (Bob, 2026-07-27) — the
+   full-width bar read as a banner, not a control. The box sits in the
+   value-box column, so a toggle row and a numeric row start their names at
+   the same x. The enum's select needs room for its widest option label, so
+   its first column is the mockup's 96px. */
+.live-card .live-param-toggle,
+.device-control .live-param-toggle {
+  grid-template-columns:58px minmax(0,1fr) 18px;
+}
+.live-card .live-param-enum,
+.device-control .live-param-enum {
+  grid-template-columns:96px minmax(0,1fr) 18px;
+}
+.live-card .live-param-toggle > .live-param-name,
+.device-control .live-param-toggle > .live-param-name,
+.live-card .live-param-enum > .live-param-name,
+.device-control .live-param-enum > .live-param-name {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+  color:var(--text);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* --- the toggle: a PD toggle box, square and marked ✕ when on --- */
+/* The PD toggle box, wherever it appears: the parameter row's toggle and the
+   fade drawer's `from` gate are the same control at two sizes. */
+.live-card .live-toggle,
+.device-control .live-toggle,
+.live-param-gen .live-gen-check {
+  box-sizing:border-box;
+  display:grid;
+  place-items:center;
+  width:var(--row-h);
+  height:var(--row-h);
+  padding:0;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:13px;
+  line-height:1;
+  cursor:pointer;
+}
+/* §5's generic `button[aria-pressed=true]` face is a 1px inset ring; a toggle
+   is a value display, so it takes the fill flat. */
+.live-card .live-toggle[aria-pressed=true],
+.device-control .live-toggle[aria-pressed=true] {
+  background:var(--value-fill);
+  box-shadow:none;
+}
+.live-card .live-param.automated .live-toggle,
+.device-control .live-param.automated .live-toggle {
+  border-color:var(--mod);
+  box-shadow:0 0 0 1px var(--mod);   /* double-outlined: driven, not idle */
+  color:var(--mod);
+}
+.live-card .live-param.automated .live-toggle[aria-pressed=true],
+.device-control .live-param.automated .live-toggle[aria-pressed=true] {
+  background:var(--mod-fill);
+}
+/* Mixed: the same 45° slash, the same two inks as every other control. */
+.live-card .live-param.mixed .live-toggle,
+.device-control .live-param.mixed .live-toggle {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+}
+.live-card .live-param.mixed.mixed-mod .live-toggle,
+.device-control .live-param.mixed.mixed-mod .live-toggle {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+
+/* --- the select: the enum row's, and every select in a drawer ---
+   Same rule as the number box's: one select on the surface, sized per place.
+   The enum row fills its column; a drawer's unit and shape pickers are as
+   wide as their content. */
+.live-card .live-enum,
+.device-control .live-enum,
+.live-param-gen .live-gen-unit,
+.live-param-gen .live-gen-shape select {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:var(--row-h);
+  padding:0 4px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+}
+.live-card .live-param.automated .live-enum,
+.device-control .live-param.automated .live-enum {
+  border-color:var(--mod);
+  color:var(--mod);
+  background:var(--mod-soft);
+}
+.live-card .live-param.mixed .live-enum,
+.device-control .live-param.mixed .live-enum {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+}
+.live-card .live-param.mixed.mixed-mod .live-enum,
+.device-control .live-param.mixed.mixed-mod .live-enum {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--mod-hatch) 4px 5.5px);
+  color:var(--mod);
+}
+
+/* --- the event row --- */
+.live-card .live-param-event,
+.device-control .live-param-event {
+  /* fire · elements · name, packed left in that order. Flex, not a grid:
+     the name hugs whichever box is last (Bob, 2026-07-27),
+     so the row must not hold empty element columns open. */
+  display:flex;
+  gap:4px;
+  align-items:center;
+  min-height:var(--row-h);
+  font-size:12px;
+}
+.live-card .live-event-box,
+.device-control .live-event-box {
+  box-sizing:border-box;
+  display:flex;
+  flex:none;
+  align-items:center;
+  width:58px;                 /* the panel's standard number-box width */
+  height:var(--row-h);
+  padding:0 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-variant-numeric:tabular-nums;
+}
+/* A field's control sits under its name; the fire button and the event name
+   keep the control row's baseline, so a zero-field event is unchanged. */
+.live-card .live-param-event,
+.device-control .live-param-event {
+  align-items:flex-end;
+}
+.live-card .live-event-field,
+.device-control .live-event-field {
+  display:grid;
+  flex:none;
+  gap:1px;
+  min-width:0;
+  max-width:140px;
+  color:var(--dim);
+  font-size:10px;
+}
+.live-card .live-event-field-name,
+.device-control .live-event-field-name {
+  overflow:hidden;
+  line-height:1.3;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.live-card .live-event-field-text .live-event-box,
+.device-control .live-event-field-text .live-event-box {
+  width:110px;
+}
+.live-card .live-event-field .live-enum,
+.device-control .live-event-field .live-enum {
+  width:auto;
+  min-width:58px;
+}
+.live-card .live-event-field [aria-invalid=true],
+.device-control .live-event-field [aria-invalid=true] {
+  border-color:var(--amber);
+}
+.live-card .live-param-event > .live-param-name,
+.device-control .live-param-event > .live-param-name {
+  line-height:var(--row-h);
+}
+/* The name takes the remaining width after the event's elements. */
+.live-card .live-param-event > .live-param-name,
+.device-control .live-param-event > .live-param-name {
+  flex:1 1 auto;
+  min-width:0;
+  margin-left:2px;            /* it hugs the last box, one hair off it */
+  color:var(--dim);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+/* The fire button is a top-level panel object, not chrome (Bob, 2026-07-28):
+   it takes the value box's 58px column and row height, `--input` fill and a
+   `--radius-momentary` corner, so an event row aligns with every parameter row
+   above it and the shape still says "momentary" per §5. */
+.live-card .live-event-send,
+.device-control .live-event-send {
+  position:relative;
+  overflow:hidden;
+  box-sizing:border-box;
+  flex:none;
+  display:grid;
+  place-items:center;
+  width:58px;                 /* the same column as a parameter's value box */
+  height:var(--row-h);
+  padding:0;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--input);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  line-height:1;
+  cursor:pointer;
+}
+/* Hover is a rest-state affordance only. While the button is sweeping or
+   flashing the hover fill competed with both (Bob, 2026-07-28) — the wash sat
+   on `--hover` instead of `--input`, and the cursor happens to be on the
+   button exactly when it fires, so it was muddying the moment it exists for. */
+.live-card .live-event-send:hover:not(:disabled):not(.firing):not(.fired),
+.device-control .live-event-send:hover:not(:disabled):not(.firing):not(.fired) {
+  background:var(--hover);
+}
+.live-card .live-event-send:disabled,
+.device-control .live-event-send:disabled {
+  color:var(--dim);
+  cursor:default;
+}
+.live-card .live-event-label,
+.device-control .live-event-label {
+  position:relative;
+  z-index:2;
+}
+/* The lead sweep: a wash crossing the button over exactly the lead the host
+   scheduled. `--event-lead-duration` is set per click. It is cyan, not the
+   neutral `--value-fill` the design session mocked: at 58px a low-contrast
+   wash did not read (Bob, 2026-07-28), and sweeping in the flash's own ink
+   makes the schedule one gesture — the fill builds, then the whole box lands
+   on it. */
+.live-card .live-event-sweep,
+.device-control .live-event-sweep {
+  position:absolute;
+  z-index:1;
+  inset:0;
+  transform:scaleX(0);
+  transform-origin:left;
+  background:var(--mod-fill);
+}
+.live-card .live-event-send.firing,
+.device-control .live-event-send.firing {
+  border-color:var(--mod);
+  background:var(--input);
+}
+.live-card .live-event-send.firing .live-event-sweep,
+.device-control .live-event-send.firing .live-event-sweep {
+  animation:event-lead-sweep var(--event-lead-duration,500ms) linear forwards;
+}
+@keyframes event-lead-sweep { from { transform:scaleX(0) } to { transform:scaleX(1) } }
+/* The flash: cyan, because an event is a generator driving this control —
+   just discretely rather than continuously (Bob, 2026-07-28). */
+.live-card .live-event-send.fired,
+.device-control .live-event-send.fired {
+  border-color:var(--mod);
+  background:var(--mod);
+  color:var(--input);
+}
+.live-card .live-event-send.fired .live-event-sweep,
+.device-control .live-event-send.fired .live-event-sweep {
+  transform:scaleX(0);
+}
+@media (prefers-reduced-motion:reduce) {
+  .live-card .live-event-send.firing .live-event-sweep,
+  .device-control .live-event-send.firing .live-event-sweep {
+    animation:none;
+    transform:scaleX(1);
+  }
+}
+.live-card .live-control-section,
+.device-control .live-control-section {
+  display:grid;
+  gap:var(--gap);
+}
+.live-card .live-control-section + .live-control-section,
+.device-control .live-control-section + .live-control-section {
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid var(--group-line);
+}
+.live-card .live-control-section > h3,
+.device-control .live-control-section > h3 {
+  margin:0;
+  color:var(--dim);
+  font-size:10px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+/* --- the text row: a text box at row height, name to its left ---
+   Component-owned: this row appears in Control, Device, Remote and the patch
+   editor, so its face is anchored on what it is rather than where it mounts. */
+.live-param-text {
+  display:grid;
+  grid-template-columns:minmax(58px,auto) minmax(0,1fr);
+  align-items:center;
+  gap:var(--gap);
+  min-height:var(--row-h);
+  font-size:12px;
+}
+.live-param-text > .live-param-name {
+  color:var(--text);
+  white-space:nowrap;
+}
+.live-param-text input[type=text] {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:var(--row-h);
+  min-height:0;
+  padding:0 6px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+}
+.live-param-text.mixed input[type=text] {
+  background:repeating-linear-gradient(45deg,var(--input) 0 4px,var(--hatch) 4px 5.5px);
+  color:var(--dim);
+}
+.live-param-text.mixed input[type=text]::placeholder {
+  color:var(--dim);
+  opacity:1;
+}
+
+/* --- the pulse: "modulated, value not shown" (Bob, 2026-07-27) -----------
+   A control whose generator value the surface cannot track — a toggle, an
+   enum, an LFO shape the runtime cannot sample — must not animate anything
+   that reads as a value. It pulses the modulation ink instead: the row says
+   "a generator owns this" without claiming to say what it is producing. The
+   number box beside it shows the mixed dots for the same reason. */
+.live-card .live-param.auto-pulse .live-toggle,
+.device-control .live-param.auto-pulse .live-toggle,
+.live-card .live-param.auto-pulse .live-enum,
+.device-control .live-param.auto-pulse .live-enum,
+.live-card .live-param.auto-pulse .live-param-range-wrap,
+.device-control .live-param.auto-pulse .live-param-range-wrap {
+  border-color:var(--mod);
+  animation:live-param-pulse var(--pulse-period,1400ms) ease-in-out infinite;
+  /* The row carries a shared wall-clock anchor; the negative delay makes the
+     pulse survive the heartbeat re-render in phase (§10's mechanism) and keeps
+     every pulsing row on the panel in step with the others. */
+  animation-delay:calc(-1 * var(--pulse-elapsed,0ms));
+}
+@keyframes live-param-pulse {
+  0%, 100% { box-shadow:0 0 0 0 var(--mod-soft) }
+  50%      { box-shadow:0 0 0 2px var(--mod) }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  /* A steady ring says the same thing without the motion. */
+  .live-card .live-param.auto-pulse .live-toggle,
+  .device-control .live-param.auto-pulse .live-toggle,
+  .live-card .live-param.auto-pulse .live-enum,
+  .device-control .live-param.auto-pulse .live-enum,
+  .live-card .live-param.auto-pulse .live-param-range-wrap,
+  .device-control .live-param.auto-pulse .live-param-range-wrap {
+    animation:none;
+    box-shadow:0 0 0 1px var(--mod);
+  }
+}
+
+/* ---- 17. The generator drawer body (design-language §7) ------------------
+   `9-generator-drawer-panel`. §8 gave the drawer its shell; this is its
+   interior, and it is the mockup's: a waveform display the drawer is built
+   around, a side column of mini-sliders, an args row, and one line per fade
+   segment. The fields themselves are the same fields — `panelFields()` emits
+   the identical `data-param-*` hooks the Show inspector's `fields()` does, so
+   only the layout changed. */
+
+.live-param-gen.live-param-gen {
+  position:relative;
+  display:grid;
+  gap:8px;
+}
+/* The pointer up to the row's ∿ icon: the drawer belongs to that row, and at
+   a glance in a long panel that is the only thing that says which. */
+.live-param-gen.live-param-gen::before {
+  content:"";
+  position:absolute;
+  top:-5px;
+  right:9px;
+  width:8px;
+  height:8px;
+  background:var(--subpanel);
+  border-left:1px solid var(--group-line);
+  border-top:1px solid var(--group-line);
+  transform:rotate(45deg);
+}
+
+.live-param-gen .live-gen-body {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 112px;
+  gap:8px;
+}
+
+/* --- the waveform display --- */
+.live-param-gen .live-gen-wave {
+  position:relative;
+  height:74px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-small);
+  overflow:hidden;
+}
+.live-param-gen .live-gen-wave svg {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+}
+.live-param-gen .live-gen-wave-line {
+  fill:none;
+  stroke:var(--mod);
+  stroke-width:1.5;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.live-param-gen .live-gen-wave-empty {
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  color:var(--dim);
+  font-size:11px;
+}
+/* The shape names what the display is showing, so it sits inside it. */
+.live-param-gen .live-gen-shape {
+  position:absolute;
+  right:4px;
+  bottom:4px;
+}
+.live-param-gen .live-gen-shape select {
+  min-height:18px;
+  padding:0 2px;
+  background:var(--input);
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-control);
+  color:var(--text);
+  font:inherit;
+  font-size:11px;
+}
+/* The playhead only exists when the surface knows the phase; `--gen-window` is
+   the duration of one traversal of the display (two cycles) and `--gen-elapsed`
+   anchors it through the heartbeat re-render, the marker's mechanism. */
+.live-param-gen .live-gen-playhead {
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:0;
+  width:1px;
+  background:var(--mod);
+  opacity:.85;
+  animation:live-gen-playhead var(--gen-window,2000ms) linear infinite;
+  animation-delay:calc(-1 * var(--gen-elapsed,0ms));
+}
+@keyframes live-gen-playhead {
+  from { left:0 }
+  to   { left:100% }
+}
+@media (prefers-reduced-motion:reduce) {
+  .live-param-gen .live-gen-playhead { display:none }
+}
+
+/* --- the side column: mini-sliders, then `free` --- */
+.live-param-gen .live-gen-side {
+  display:grid;
+  gap:6px;
+  align-content:start;
+}
+/* A mini-slider IS the row's slider at 16px — it joined every rule in §12
+   above (trough, fill, marker line, name-inside, stripped native range), so
+   what is left here is its height and the label ink a sub-control uses. */
+.live-param-gen .live-gen-mini {
+  display:block;
+  height:16px;
+}
+.live-param-gen .live-gen-mini-name {
+  gap:4px;
+  color:var(--dim);
+  font-size:11px;
+}
+.live-param-gen .live-gen-mini-name b {
+  color:var(--text);
+  font-weight:400;
+  font-variant-numeric:tabular-nums;
+}
+
+/* --- `free`: a latching control, so PD-sharp (design-language §8) --- */
+.live-param-gen .live-gen-pill {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:20px;
+  padding:2px 8px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-toggle);
+  background:var(--input);
+  color:var(--dim);
+  font-size:12px;
+  cursor:pointer;
+}
+.live-param-gen .live-gen-pill input {
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
+/* Latching, so it wears §5's latching face — the same ink as a pressed kind
+   tab, not a third treatment of its own. */
+.live-param-gen .live-gen-pill:has(input:checked) {
+  background:var(--mod-fill);
+  border-color:var(--mod);
+  color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--mod);
+}
+.live-param-gen .live-gen-pill:has(input:focus-visible) {
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+/* --- number boxes: the standardized 58px, wherever they appear --- */
+/* Drawer fields ARE the §12 number box; all that differs is the height — a
+   drawer arg is not a parameter row. Spinner suppression moved onto the
+   component in css/value-box.css (05b), so only the height and colour that are
+   genuinely drawer-local remain here. */
+.live-param-gen .live-gen-num {
+  height:20px;
+  /* An <input> does not inherit the panel's colour the way an <output> does,
+     so the drawer's boxes state it here rather than on the shared rule. */
+  color:var(--text);
+}
+/* The drawer's selects joined the §15 select rule; only their size differs —
+   they are as wide as their content, not as wide as a column. */
+.live-param-gen .live-gen-unit {
+  height:20px;
+  padding:0 2px;
+}
+/* Drawer args label above-left in `--dim` (design-language §5). Like the
+   segment lines, they are a statement of their own and need air under the
+   display rather than butting against it (Bob, 2026-07-27). */
+.live-param-gen .live-gen-args {
+  display:flex;
+  align-items:end;
+  gap:5px;
+  flex-wrap:nowrap;
+  margin-top:4px;
+}
+.live-param-gen .live-gen-field {
+  display:grid;
+  gap:2px;
+  color:var(--dim);
+  font-size:11px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+.live-param-gen .live-gen-field-inline {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+
+/* --- the fade's optional `from`, gated by an unlabelled PD toggle box --- */
+.live-param-gen .live-gen-from {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+/* The gate is the row's PD toggle box, smaller: it joined that rule in §15,
+   so only its size, the native-checkbox reset, and a lighter mark are here.
+   It gates a value, it does not act — hence a mark that reads as ticked
+   rather than struck out (Bob, 2026-07-27). */
+.live-param-gen .live-gen-check {
+  flex:none;
+  /* Same height as the number box it gates, so the pair reads as one control
+     (Bob, 2026-07-27). */
+  width:20px;
+  height:20px;
+  margin:0;
+  appearance:none;
+  -webkit-appearance:none;
+}
+/* The ✕ is the PD toggle's mark, drawn rather than typed so the box keeps its
+   size whatever the font does — hairline and dimmed, so a 13px box reads as
+   ticked rather than struck out. */
+.live-param-gen .live-gen-check:checked::after {
+  content:"";
+  display:block;
+  width:100%;
+  height:100%;
+  background:
+    linear-gradient(45deg,transparent calc(50% - .5px),var(--dim) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px)),
+    linear-gradient(-45deg,transparent calc(50% - .5px),var(--dim) calc(50% - .5px) calc(50% + .5px),transparent calc(50% + .5px));
+  background-size:56% 56%;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+.live-param-gen .live-gen-from input:disabled {
+  opacity:.5;
+}
+
+/* --- fade / loop segments: one line each --- */
+.live-param-gen .live-gen-segments {
+  display:grid;
+  gap:5px;
+  /* The `to … in …` lines are a separate statement from the display above
+     them, and read as crowding without their own air (Bob, 2026-07-27). */
+  margin-top:4px;
+}
+/* One line per segment, read as a sentence: `to <value> in <n> <unit>`. The
+   columns are sized to their contents and packed left — a segment row is a
+   phrase, not a table, so it must not stretch to the panel's width. */
+.live-param-gen .live-gen-seg {
+  display:grid;
+  /* The phrase packs left; `remove` is not part of the phrase, so it goes to
+     the right edge where the row's own controls live (Bob, 2026-07-27). */
+  grid-template-columns:auto 58px auto 58px auto minmax(0,1fr);
+  gap:5px;
+  align-items:center;
+  color:var(--dim);
+  font-size:11px;
+}
+.live-param-gen .live-gen-seg .live-gen-remove {
+  justify-self:end;
+}
+.live-param-gen .live-gen-seg-label {
+  color:var(--dim);
+}
+/* remove and add both act once — momentary, PD-bang rounded. */
+.live-param-gen .live-gen-remove,
+.live-param-gen .live-gen-add {
+  min-height:20px;
+  padding:1px 6px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:11px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+/* `add segment` acts on the list above it rather than belonging to it, so it
+   sits apart from the last segment line. */
+.live-param-gen .live-gen-add-row {
+  display:flex;
+  justify-content:flex-end;
+  margin-top:4px;
+}
+
+/* --- 17b. Drawer chrome the hosts still size for touch -------------------
+   `facilitator.css` gives every drawer input a 38px min-height and 100%
+   width, and every drawer button 36px — the tablet sizing from before the
+   panel had a language. The panel's own controls state their metrics here,
+   including the `min-height` the host rule would otherwise win with. */
+
+.live-param-gen .live-gen-num,
+.live-param-gen .live-gen-unit,
+.live-param-gen .live-gen-shape select {
+  min-height:20px;
+}
+.live-param-gen .live-gen-unit,
+.live-param-gen .live-gen-shape select {
+  width:auto;
+  min-width:0;
+}
+.live-param-gen .live-gen-mini-input {
+  min-height:0;
+}
+.live-param-gen .live-gen-check {
+  min-height:0;
+  width:20px;
+}
+/* Apply and Stop act once: momentary, and no taller than the tabs beside
+   them. They are the drawer's only commit path, so Apply keeps the accent. */
+.live-param-gen .live-param-gen-actions button {
+  min-height:20px;
+  padding:3px 4px;
+  border:1px solid var(--control-line);
+  border-radius:var(--radius-momentary);
+  background:var(--control);
+  color:var(--text);
+  font:inherit;
+  font-size:12px;
+  text-transform:none;
+  letter-spacing:normal;
+}
+.live-param-gen .live-param-gen-actions button.primary {
+  border-color:var(--accent);
+  background:var(--control);
+}
+.live-param-gen .live-param-gen-head {
+  align-items:center;
+  gap:6px;
+}
+
+/* --- 17c. Drawer proportions (Bob, 2026-07-27, against the Excalidraw) ----
+   The drawer is a fixed-size instrument face, not a block that stretches to
+   whatever the panel is wide. With Apply/Stop moved out of the head and into
+   the column beside the display, the head is tabs alone, and the whole drawer
+   holds the mockup's proportions: display ≈ 2/3, side column ≈ 1/3, each kind
+   tab about a third of the drawer's width. */
+
+.live-param-gen.live-param-gen {
+  /* Right-aligned, not indented from the left: the drawer's pointer sits
+     `right:9px` — the centre of the row's 18px ∿ column — so the drawer's
+     right edge has to be the row's right edge, or the pointer stops naming
+     the row it belongs to. The 12px indent from §8 gives way; the width cap
+     supplies the inset the indent used to.
+
+     `justify-self`, not an auto margin: the drawer is a grid item, and an
+     auto margin cancels the stretch, which sizes the drawer to its content
+     and squeezes the display down with it. */
+  justify-self:end;
+  /* Width is derived, not chosen: the Excalidraw draws its waveform display
+     at roughly 172x74 (2.3:1), and the display is what the drawer is built
+     around. 320px total leaves 180px for the display beside the 112px side
+     column, which lands on that ratio. */
+  width:320px;
+  min-width:320px;
+  margin-left:0;
+}
+.live-param-gen .live-param-gen-actions {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5px;
+}
+.live-param-gen .live-param-gen-actions:has(> :only-child) {
+  grid-template-columns:1fr;
+}
+
+.show-param-control.show-param-control {
+  min-width:320px;
+}
+.show-inspector-section[data-payload-builder=param]:has(.show-param-control) {
+  min-width:342px;
+}
+
+/* ---- 18. The card face (08-control-tab-columns/3-iframe-retirement) -------
+   `.live-card` is the control panel's own root, so this is where its face
+   belongs. It was never here: it lived in `css/facilitator.css`, a stylesheet
+   `index.html` does not load, and that was invisible only because the Control
+   tab was an iframe of the page that does. The moment the iframe went, the
+   card had no chrome in the parent document at all. Fourth occurrence of
+   `05e`'s pattern — component rules written onto a host stylesheet — and it is
+   fixed the same way rather than by copying the values across.
+
+   THE COLUMN IS THE CARD (1-columns-design D1, ratified 2026-07-31). The card
+   therefore paints nothing itself: `.control-column` in `control-column.css`
+   supplies the panel, border, radius and padding, and consecutive cards are
+   told apart by a rule between them rather than by two nested boxes. That also
+   settles what the old `.all-card` / `.group-card` border tints were reaching
+   for — a card that draws no border has none to tint.
+
+   Metrics are desktop (`--row-h`, `--gap`), not the tablet-first 44px/19px the
+   facilitator carried; see the header of `control-column.css`. */
+
+.live-card {
+  display:grid;
+  align-content:start;
+  gap:var(--gap);
+  background:transparent;
+  border:0;
+  border-radius:0;
+  padding:0;
+}
+.live-card + .live-card {
+  padding-top:var(--gap);
+  border-top:1px solid var(--group-line);
+}
+/* An empty target is a real, chosen state — dimmed, never hidden (D2). */
+.live-card.empty-group {
+  opacity:.72;
+}
+
+.live-card-head {
+  min-height:var(--row-h);
+  display:flex;
+  align-items:center;
+  gap:var(--gap);
+}
+.live-card .name {
+  min-width:0;
+  flex:1;
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  overflow:hidden;
+  font-size:12px;
+  font-weight:700;
+}
+.live-card .name strong {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.live-card .name small {
+  color:var(--dim);
+  font-weight:400;
+  white-space:nowrap;
+}
+/* Half the app-wide 10px dot: at 12px card names a 10px dot reads as a bullet
+   rather than a health light. `.dot` is declared in `style.css` for the two
+   rosters, and not at all on Remote, so both values are stated. */
+.live-card .dot {
+  width:7px;
+  height:7px;
+  flex:none;
+  border-radius:50%;
+  background:var(--offline-mark);
+}
+.live-card .dot.ok {
+  background:var(--green);
+}
+/* Remote: the Seat's dot identifies its device (83). The dot stays 7px; the
+   transparent button around it is the finger-sized target. Negative margins
+   keep the head's height unchanged. */
+.live-card .dot-identify {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:28px;
+  height:28px;
+  margin:-8px -8px -8px -10px;
+  padding:0;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  cursor:pointer;
+}
+.live-card .dot.identify-pulse {
+  animation:live-card-identify-pulse .6s ease-out 2;
+}
+@keyframes live-card-identify-pulse {
+  from { box-shadow:0 0 0 0 var(--accent-cyan); }
+  to { box-shadow:0 0 0 9px transparent; }
+}
+/* The card's overflow (D8, `08/4/3-chrome-demotions`). `Send all` used to be a
+   permanent button in the head, and on Control a `Device setup` disclosure sat
+   at the foot as well: six chrome controls per card, times three cards in a
+   mixture, times N columns. Both now live behind one ⋯.
+
+   The menu is ABSOLUTE, so opening it cannot reflow a 342px column or push the
+   parameter rows down — the same rule the generator face works under. */
+.live-card-overflow {
+  position:relative;
+  flex:none;
+}
+.live-card-overflow > summary {
+  min-width:var(--row-h);
+  min-height:var(--row-h);
+  justify-content:center;
+  border-radius:var(--radius-momentary);
+  color:var(--dim);
+  font-size:13px;
+  line-height:1;
+}
+/* No ▸/▾ here: the markup carries `icon-menu`, `style.css` §9's own opt-out
+   for a summary that IS an icon. */
+.live-card-overflow > summary:hover,
+.live-card-overflow[open] > summary {
+  background:var(--hover);
+  color:var(--text);
+}
+.live-card-overflow-menu {
+  position:absolute;
+  right:0;
+  top:calc(var(--row-h) + 2px);
+  z-index:3;
+  min-width:120px;
+  display:grid;
+  gap:var(--gap);
+  padding:var(--gap);
+  border:1px solid var(--group-line);
+  border-radius:var(--radius-control);
+  background:var(--panel-strong);
+  box-shadow:0 2px 8px rgb(0 0 0 / .28);
+}
+.live-card .send-all,
+.live-card .open-device {
+  min-width:0;
+  min-height:var(--row-h);
+  flex:none;
+  padding:var(--pad-control);
+  font-size:11px;
+  text-transform:none;
+  text-align:left;
+}
+.live-card .promoted-controls {
+  display:grid;
+  gap:var(--gap);
+}
+/* The per-card live region is RETIRED (08/4/1). A column announces through one
+   region of its own, prefixed with its target, because a card-level output
+   meant three announcements in a three-card column and no way to tell which of
+   two columns showing the same Seat had acted. Hosts with no region at all —
+   the Device panel, the patch editor — were already silent here; they now say
+   so by not passing `announce` rather than by rendering no element. */

@@ -1,0 +1,1465 @@
+#!/usr/bin/env python3
+"""Simulated bopOS fleet speaking the currently deployed OSC wire protocol.
+
+N fake devices heartbeat on 5550 and answer dashboard commands on 6660 exactly
+as a real Pi's sole LAN listener, bopos.py, does. Use it to develop the
+dashboard, clock-sync, and scene work with zero
+hardware:
+
+    python3 tools/simfleet.py --devices 5
+    python3 tools/simfleet.py --devices 5 --drop 0.05 --jitter-ms 30 --unresponsive 1
+    python3 tools/simfleet.py --devices 4 --devices-file bopos.devices --target 127.0.0.1
+
+--io-config <file> loads a ratified IO object as the fake bus/modules on every
+device. With scanned:false, its addresses seed the fake hardware inventory but
+remain absent from reports until io-scan. Default devices have no bus; writes
+are recorded in Device.io_writes, and configured errored modules return their
+reason. No real peripherals or value streaming are involved.
+
+Needs python-osc. docs/OSC-CONTRACT.md defines the ratified wire shapes;
+docs/OSC-REFERENCE.md lists the concrete messages. When a stitch changes an
+OSC message, extending this simulator is part of that stitch's deliverable.
+"""
+
+import argparse
+import copy
+import csv
+import datetime
+import hashlib
+import heapq
+import itertools
+import json
+import os
+import random
+import re
+import select
+import socket
+import sys
+import threading
+import time
+
+from pythonosc import osc_message, osc_message_builder
+from pythonosc.parsing import osc_types
+
+
+REPO_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+PATCHES_DIR = os.path.join(REPO_DIR, "patches")
+ASSETS_DIR = os.path.join(REPO_DIR, "assets")
+DEVICE_ASSETS_DIR = "/home/pi/bopOS/assets"
+DEFAULT_MANIFEST_PATH = os.path.join(REPO_DIR, "patches", "demo-pd", "bopos.patch.json")
+
+# the sim decomposes /pt with the same module the real helper uses, so the
+# two can never drift (contract sec 4.1)
+sys.path.append(os.path.join(REPO_DIR, "python"))
+import identity  # noqa: E402
+import manifest as patch_manifest  # noqa: E402
+import pointfield  # noqa: E402
+import groups as group_protocol  # noqa: E402
+import paramgen  # noqa: E402
+import audio_config  # noqa: E402
+import log_config  # noqa: E402
+import wifi_config  # noqa: E402
+import node_protocol  # noqa: E402
+import io_protocol  # noqa: E402
+import performance_mode  # noqa: E402
+import io_stream  # noqa: E402
+from pyOSC3 import OSCBundle, OSCMessage
+
+HOSTNAME_RE = node_protocol.HOSTNAME_RE
+
+
+def device_log_state(device):
+    # Effective mirrors the real node: usb only if chosen *and* the stick is
+    # present; otherwise internal (the visible fallback).
+    effective = ("usb" if device.log_destination == "usb" and device.usb_present
+                 else "internal")
+    if getattr(device, "performance", False):
+        effective = "ram"
+    return {
+        "destination": device.log_destination,
+        "effective": effective,
+        "usb_present": bool(device.usb_present),
+    }
+
+
+def load_manifest(path):
+    """Return verbatim text and canonical declared parameter identities."""
+    if os.path.basename(path) != patch_manifest.MANIFEST_NAME:
+        return None, set()
+    try:
+        with open(path) as source:
+            text = source.read()
+        validated, _error = patch_manifest.load(os.path.dirname(os.path.abspath(path)))
+        if validated is None:
+            return None, set()
+        identities = [patch_manifest.qualify_param(param) for param in validated.get("params", [])]
+        return text, set(identities)
+    except (OSError, ValueError, TypeError, KeyError, UnicodeEncodeError):
+        return None, set()
+
+
+def manifest_declarations(text):
+    if text is None:
+        return {}
+    try:
+        params = json.loads(text).get("params", [])
+        return {patch_manifest.qualify_param(item): item for item in params}
+    except (ValueError, TypeError, AttributeError):
+        return {}
+
+
+DEFAULT_MANIFEST_TEXT, _DEFAULT_DECLARED_PARAMS = load_manifest(DEFAULT_MANIFEST_PATH)
+
+
+def host_patch_fingerprint(name):
+    # captured *now*, not at listing time: a device's copy is whatever the
+    # host held when it converged, so a later host edit reads as stale.
+    # Purely fake patches that the sim never fetches get a stable
+    # fake identity so dashboards can still exercise match/mismatch.
+    path = os.path.join(PATCHES_DIR, name)
+    if os.path.isdir(path) and not os.path.islink(path):
+        try:
+            return identity.fingerprint(path)
+        except OSError:
+            pass
+    return hashlib.sha256(name.encode()).hexdigest()
+
+
+def host_asset_facts(root, name):
+    """Snapshot the host slot using the catalog's canonical identity rules."""
+    path = os.path.join(root, name)
+    if os.path.isdir(path) and not os.path.islink(path):
+        try:
+            manifest = identity.directory_manifest(path)
+            files = manifest["files"]
+            return {
+                "fingerprint": identity.manifest_fingerprint(manifest),
+                "files": len(files),
+                "bytes": sum(item["size"] for item in files),
+            }
+        except OSError:
+            pass
+    # Arbitrary file:/ test sources have no host catalog entry. Keep those
+    # useful to the simulator with a valid, stable synthetic content identity.
+    return {"fingerprint": hashlib.sha256(name.encode()).hexdigest(),
+            "files": 0, "bytes": 0}
+
+
+class ContractProtocol:
+    """The OSC byte boundary for contract-v1 framework messages."""
+
+    @staticmethod
+    def decode(datagram):
+        message = osc_message.OscMessage(datagram)
+        return message.address, list(message.params)
+
+    @staticmethod
+    def matches(selector, device_id, memberships=()):
+        return group_protocol.selector_matches(selector, device_id, memberships)
+
+    @staticmethod
+    def heartbeat(device):
+        builder = osc_message_builder.OscMessageBuilder(address="/hb")
+        builder.add_arg(device.mac, arg_type="s")
+        builder.add_arg(int(device.device_id), arg_type="i")
+        builder.add_arg(device.version, arg_type="s")
+        builder.add_arg(device.engine_alive(), arg_type="i")
+        if not device.wired:
+            device.rssi = max(-80, min(-35, device.rssi + random.randint(-2, 2)))
+            builder.add_arg(device.rssi, arg_type="i")
+        return builder.build().dgram
+
+    @staticmethod
+    def pong(token, uid, tag=None):
+        address, values, tags = node_protocol.pong(uid, token, tag)
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        for value, value_tag in zip(values, tags):
+            builder.add_arg(value, arg_type=value_tag)
+        return builder.build().dgram
+
+
+class Device:
+    def __init__(self, mac, hostname, device_id, version, unresponsive=False,
+                 wired=False, engine_dead=False, ephemeral=False,
+                 release=None):
+        self.mac = mac
+        self.hostname = hostname
+        self.ephemeral = ephemeral
+        self.device_id = device_id
+        self.version = version
+        # Display version for /os/report; None simulates an older node that
+        # does not report one (contract 1.26).
+        self.release = release
+        self.unresponsive = unresponsive
+        self.state = "booting"
+        self.gain = 0.0
+        self.gain2 = 0.0
+        self.backing = 0.0
+        self.params = {}
+        self.active_patch = "demo-pd"
+        self.patches = {
+            "demo-pd": {"manifest": DEFAULT_MANIFEST_TEXT is not None,
+                        "fingerprint": host_patch_fingerprint("demo-pd")}
+        }
+        # Installed slots are snapshots: later host edits must not silently
+        # alter a simulated node until another fetch converges that slot.
+        self.asset_slots = {}
+        # Launch-time engine context is a snapshot, not a live view of
+        # inventory. It refreshes only on the simulated engine-start edges.
+        self.engine_asset_paths = []
+        self.reports = {}
+        # Node-side log streams (contract sec 4.2 /log): stream name -> list of
+        # (stamp, values) appended entries. In-memory parity for the real
+        # node's append-only files; a verify harness inspects this.
+        self.log_streams = {}
+        # Log destination (contract sec 4.2 log-config): the bounded choice and
+        # a simulated USB presence a verify harness can flip. Effective mirrors
+        # the real node -- usb only if chosen *and* the stick is present.
+        self.log_destination = "internal"
+        self.performance = False
+        self.usb_present = False
+        self.io = io_protocol.empty_io()
+        self.io_addresses = []
+        self.io_writes = []
+        self.io_stream = io_stream.Lease()
+        self.io_stream_generation = 0
+        self.io_stream_next = 0.0
+        self.io_poll_rate = 10.0
+        self.io_samples = 0
+        self.wifi = ({"managed": False} if wired else {
+            "managed": True, "country": "GB", "active": "imager-net",
+            "networks": [], "unmanaged": ["imager-net"]})
+        self.last_hb = None
+        self.last_command = "-"
+        self.wired = wired
+        self.engine_dead = engine_dead
+        self.engine_restart_until = 0.0
+        self.rssi = random.randint(-70, -45)
+        self.device_enabled = True
+        self.mute_all = False
+        self.output_enabled = True
+        self.audio_config = {
+            "card": "Simulated", "mixer_control": "Master",
+            "sample_rate": 44100, "period_size": 512, "nperiods": 2,
+        }
+        self.audio_active = dict(self.audio_config)
+        self.audio_status = "active"
+        self.audio_error = None
+        self.ident_until = 0.0
+        # clock-sync (contract sec 3.1): a fixed fake skew vs the leader's
+        # clock, plus the offset the leader has pushed for event conversion
+        self.sync_skew_ns = 0
+        self.sync_offset_ns = 0
+        self.sync_synced = False
+        # /pt decomposition (contract sec 4.1): element positions from the
+        # assignment (one [x, y] per element) and the held point field
+        self.elements = []
+        self.points = {}
+        self.groups = ()
+
+    def engine_alive(self):
+        return int(not self.engine_dead
+                   and self.state in ("booting", "running")
+                   and time.monotonic() >= self.engine_restart_until)
+
+    def capture_engine_context(self):
+        self.engine_asset_paths = [
+            os.path.join(DEVICE_ASSETS_DIR, name)
+            for name in sorted(self.asset_slots)
+        ]
+
+    def display_state(self):
+        return "unresponsive" if self.unresponsive and self.state != "off" else self.state
+
+    def state_file(self, state_dir):
+        return os.path.join(state_dir, self.mac.replace(":", "-") + ".json")
+
+    def performance_file(self, state_dir):
+        return self.state_file(state_dir) + ".performance"
+
+    def load_assignment(self, state_dir):
+        self.performance = performance_mode.load(self.performance_file(state_dir))
+        # boot resolution, node-side: persisted assignment wins over the seed;
+        # ephemeral devices sacrifice persistence and re-hello each boot
+        if self.ephemeral:
+            self.device_id = -1
+            return
+        try:
+            with open(self.state_file(state_dir)) as source:
+                assignment = json.load(source)
+            self.device_id = int(assignment["id"])
+            self.hostname = str(assignment.get("name", self.hostname))
+            positions = assignment.get("positions") or []
+            self.elements = [[float(positions[i]), float(positions[i + 1])]
+                             for i in range(0, len(positions) - 1, 2)]
+            self.groups = group_protocol.stored_group_ids(assignment.get("groups", []))
+            legacy_enabled = "device_enabled" not in assignment
+            if not legacy_enabled:
+                self.device_enabled = bool(assignment["device_enabled"])
+            else:
+                self.device_enabled = not bool(
+                    assignment.get("device_muted", False))
+            self.output_enabled = bool(
+                self.device_enabled and not self.mute_all)
+            if legacy_enabled:
+                flat_positions = [
+                    coordinate for element in self.elements
+                    for coordinate in element]
+                self.save_assignment(state_dir, flat_positions)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+    def save_assignment(self, state_dir, positions, *, device_id=None, hostname=None,
+                        memberships=None):
+        if self.ephemeral or state_dir is None:
+            return True
+        saved_id = self.device_id if device_id is None else device_id
+        saved_name = self.hostname if hostname is None else hostname
+        saved_groups = self.groups if memberships is None else memberships
+        try:
+            os.makedirs(state_dir, exist_ok=True)
+            tmp = self.state_file(state_dir) + ".tmp"
+            with open(tmp, "w") as target:
+                json.dump({"id": saved_id, "name": saved_name,
+                           "positions": positions,
+                           "groups": list(saved_groups),
+                           "device_enabled": bool(self.device_enabled)}, target)
+            os.replace(tmp, self.state_file(state_dir))
+            return True
+        except OSError as error:
+            print(f"simfleet: could not persist assignment: {error}", file=sys.stderr)
+            return False
+
+
+class _DeviceSyncState:
+    def __init__(self, device):
+        self.device = device
+
+    def offset(self):
+        return self.device.sync_offset_ns
+
+    def synced(self):
+        return self.device.sync_synced
+
+
+class SimFleet:
+    # Each device's param generator ticks on its own thread, and tests build
+    # fleets without __init__; one class-level lock guards the shared stdout.
+    log_lock = threading.Lock()
+
+    def __init__(self, args, devices):
+        self.args = args
+        self.devices = devices
+        self.protocol = ContractProtocol()
+        self.manifest_text, self.declared_params = load_manifest(
+            getattr(args, "manifest", None) or DEFAULT_MANIFEST_PATH)
+        self.param_declarations = manifest_declarations(self.manifest_text)
+        self.assets_dir = os.path.realpath(getattr(args, "assets_dir", ASSETS_DIR))
+        self.events = []
+        self.fetch_jobs = {}
+        self.fetch_active = {}
+        self.fetch_pending = {}
+        self.sequence = itertools.count()
+        self.running = True
+        self.start_monotonic = time.monotonic()
+        self.tty = sys.stdout.isatty()
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):
+            try:
+                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except OSError:
+                pass
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.bind(("", args.cmd_port))
+        self.sock.setblocking(False)
+        self.target = (args.target, args.report_port)
+        # each device gets a fixed clock skew in [-skew, +skew] so a correct
+        # leader-pushed offset (contract sec 3.1) has something to cancel
+        skew_ns = int(getattr(self.args, "sync_skew_ms", 0.0) * 1e6)
+        for device in self.devices:
+            device.sync_skew_ns = random.randint(-skew_ns, skew_ns) if skew_ns else 0
+            if skew_ns:
+                self.log(device, f"sync_skew={device.sync_skew_ns}ns")
+            device.param_generator = paramgen.GeneratorEngine(
+                lambda member, values, target=device: self.emit_param(target, member, values),
+                _DeviceSyncState(device),
+                lambda target=device: self.device_now_ns(target))
+
+    def emit_param(self, device, member, values):
+        if device.unresponsive or not device.engine_alive() or not values:
+            return
+        value = values[0]
+        device.params[member] = value
+        if member in ("gain", "gain2", "backing"):
+            try:
+                setattr(device, member, float(value))
+            except (TypeError, ValueError):
+                pass
+        self.log(device, f"p/{member}={format_token(value)}")
+
+    def schedule(self, delay, callback, *values):
+        heapq.heappush(
+            self.events,
+            (time.monotonic() + max(0.0, delay), next(self.sequence), callback, values),
+        )
+
+    def log(self, device, message):
+        if not self.tty:
+            stamp = time.strftime("%H:%M:%S")
+            line = f"{stamp} {device.hostname} id={device.device_id:g} {message}\n"
+            # print() writes the text and its newline separately, so two
+            # generator threads could splice lines ("p/mode=0" + "10:45:12 ...")
+            # and a log reader would see a bogus value. One write per line.
+            with SimFleet.log_lock:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+
+    def set_state(self, device, state):
+        if device.state != state:
+            device.state = state
+            self.log(device, f"state={device.display_state()}")
+
+    def queue_datagram(self, datagram, heartbeat_device=None):
+        if random.random() < self.args.drop:
+            return
+        delay = random.uniform(0.0, self.args.jitter_ms / 1000.0)
+        self.schedule(delay, self.send_datagram, datagram, heartbeat_device)
+
+    def send_datagram(self, datagram, heartbeat_device):
+        try:
+            self.sock.sendto(datagram, self.target)
+            if heartbeat_device is not None:
+                heartbeat_device.last_hb = time.monotonic()
+        except OSError as error:
+            print(f"simfleet: send failed: {error}", file=sys.stderr)
+
+    def heartbeat(self, device, reschedule=True):
+        if device.state in ("booting", "running"):
+            self.queue_datagram(self.protocol.heartbeat(device), device)
+        if reschedule:
+            interval = 2.0 if device.device_id == -1 else self.args.hb_interval
+            self.schedule(interval, self.heartbeat, device)
+
+    def promote_running(self, device):
+        if device.state == "booting":
+            self.create_manifest_modules(device)
+            self.set_state(device, "running")
+
+    def create_manifest_modules(self, device):
+        """Model per-device declaration presence using the fake bus inventory."""
+        patch_dir = os.path.join(getattr(self.args, 'patches_dir', PATCHES_DIR), device.active_patch)
+        manifest, _error = patch_manifest.load(patch_dir)
+        if manifest is None:
+            manifest = json.loads(getattr(self, 'manifest_text', None) or '{}')
+        rows = manifest.get('io_modules', [])
+        previous = getattr(device, 'declared_io_names', set())
+        for name in previous:
+            device.io['modules'].pop(name, None)
+        device.declared_io_names = {row['name'] for row in rows}
+        present = {row['address'] for row in device.io_addresses}
+        for row in rows:
+            state = 'running' if device.io['bus'] == 1 and row['address'] in present else 'missing'
+            device.io['modules'][row['name']] = dict(
+                type=row['type'], address=row['address'], state=state, error=None)
+
+    def bump(self, device):
+        device.version = f"{(int(device.version, 16) + 1) & 0xfffffff:07x}"
+
+    def finish_boot(self, device, bump_version=False):
+        if bump_version:
+            self.bump(device)
+        device.capture_engine_context()
+        self.set_state(device, "booting")
+        self.schedule(1.0, self.promote_running, device)
+        self.schedule(0.0, self.heartbeat, device, False)
+
+    def reboot_after_silence(self, device, bump_version=False):
+        duration = self.args.boot_secs * random.uniform(0.7, 1.3)
+        self.set_state(device, "rebooting")
+        self.schedule(duration, self.finish_boot, device, bump_version)
+
+    def send_rev(self, device, source, status=None, phase=None):
+        try:
+            self.send_protocol_reply(source, node_protocol.revision(device.version,
+                'ephemeral' if device.ephemeral else 'persistent', device.mac, status, phase))
+        except OSError as error:
+            print(f"simfleet: rev reply failed: {error}", file=sys.stderr)
+
+    def send_patch_list(self, device, source):
+        listing = []
+        for name, facts in sorted(device.patches.items()):
+            entry = node_protocol.patch_row(name, name == device.active_patch,
+                                            facts['manifest'], facts.get('fingerprint'))
+            listing.append(entry)
+        builder = osc_message_builder.OscMessageBuilder(address="/os/patches")
+        builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def send_asset_list(self, device, source):
+        listing = [{"name": name, **facts}
+                   for name, facts in sorted(device.asset_slots.items())]
+        builder = osc_message_builder.OscMessageBuilder(address="/os/assets")
+        builder.add_arg(json.dumps(listing, separators=(",", ":")), arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def send_protocol_reply(self, source, reply):
+        address, values, tags = reply
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        for value, tag in zip(values, tags):
+            builder.add_arg(value, arg_type=tag)
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def send_report(self, device, source):
+        audio = {
+            "configured": dict(device.audio_config),
+            "active": dict(device.audio_active),
+            "cards": [{
+                "id": "Simulated", "index": 0,
+                "label": "Simulated stereo output",
+                "mixer_controls": ["Master"],
+            }],
+            "status": device.audio_status,
+            "error": device.audio_error,
+        }
+        reply = node_protocol.report(
+            uid=device.mac,
+            hostname=device.hostname,
+            engine="pd",
+            has_i2c=device.io['bus'] is not None,
+            has_wifi=not device.wired,
+            audio_channels=2,
+            screen=False,
+            patch=device.active_patch,
+            uptime=int(time.monotonic() - self.start_monotonic),
+            git_rev=device.version,
+            release=device.release,
+            update_model="ephemeral" if device.ephemeral else "persistent",
+            groups=list(device.groups),
+            device_enabled=bool(device.device_enabled),
+            mute_all=bool(device.mute_all),
+            output_enabled=bool(device.output_enabled),
+            performance=bool(device.performance),
+            audio=audio,
+            log=device_log_state(device),
+            wifi=wifi_config.redacted(device.wifi),
+            io=copy.deepcopy(device.io),
+        )
+        self.send_protocol_reply(source, reply)
+
+    def send_io(self, device, address, values, target):
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        for value in (device.mac, *values):
+            builder.add_arg(value, arg_type='s')
+        self.sock.sendto(builder.build().dgram, (target, self.args.report_port))
+
+    def stream_io(self, device, generation):
+        if (generation != device.io_stream_generation or not device.io_stream.active
+                or device.performance or device.unresponsive
+                or device.state not in ('booting', 'running')):
+            return
+        bundle = OSCBundle()
+        device.io_samples += 1
+        sample = device.io_samples
+        rows = {name: row for name, row in device.io['modules'].items()
+                if row['state'] == 'running'}
+        for name, row in rows.items():
+            kind = row['type']
+            if kind in ('ads1015', 'ads1115'):
+                values = [((sample + index * 5) % 33) / 10.0 for index in range(4)]
+            elif kind == 'lis3dh':
+                values = [float((sample + index * 60) % 180 - 90) for index in range(3)]
+                values += [float((sample + index * 13) % 39 - 19) for index in range(3)]
+            elif kind == 'mpr121':
+                values = [(sample + index * 50) % 1024 for index in range(12)]
+            elif kind == 'switch':
+                values = [int(sample % 20 < 10), int(sample % 20 == 0), 0]
+            else:  # Output-only drivers emit a bare module message, like the bridge.
+                values = []
+            message = OSCMessage('/' + name)
+            for value in values:
+                message.append(value)
+            bundle.append(message)
+        if rows:
+            packet = io_stream.stream_packet(device.mac, bundle.getBinary())
+            try:
+                self.sock.sendto(packet, (device.io_stream.destination,
+                                         getattr(self.args, 'stream_port', 5551)))
+            except OSError as error:
+                print(f'simfleet: IO stream send failed: {error}', file=sys.stderr)
+        interval = 1.0 / device.io_poll_rate
+        device.io_stream_next = time.monotonic() + interval
+        self.schedule(interval, self.stream_io, device, generation)
+
+    def uid_admin(self, device, member, args, source):
+        if member == 'io-stream':
+            result = device.io_stream.request(args, source[0],
+                performance_mode.allows(device.performance, member))
+            self.send_io(device, '/os/io-stream',
+                         ['err' if result['error'] else 'ok', json.dumps(result)], source[0])
+            if result['error'] != 'invalid-arguments':
+                device.io_stream_generation += 1
+                if result['active']:
+                    self.schedule(max(0.0, device.io_stream_next - time.monotonic()),
+                                  self.stream_io, device, device.io_stream_generation)
+            return
+        if member != 'io-write' and not performance_mode.allows(device.performance, member):
+            if member == "wifi-config":
+                self.send_protocol_reply(source, node_protocol.json_reply('/os/wifi-config',
+                    wifi_config.redacted(device.wifi), device.mac, 'err', 'performance'))
+            return
+        allowed = node_protocol.UID_ADMIN_VERBS
+        if member == 'io-reinit':
+            name = args[0] if len(args) == 1 and isinstance(args[0], str) else 'bridge'
+            reason = None
+            if len(args) != 1 or not io_protocol.valid_name(name):
+                reason = 'invalid-arguments'
+            else:
+                patch_dir = os.path.join(getattr(self.args, 'patches_dir', PATCHES_DIR), device.active_patch)
+                manifest, _error = patch_manifest.load(patch_dir)
+                if manifest is None:
+                    manifest = json.loads(getattr(self, 'manifest_text', None) or '{}')
+                row = next((row for row in manifest.get('io_modules', []) if row['name'] == name), None)
+                if row is None:
+                    reason = 'unknown-command'
+                else:
+                    reason = ('no-bus' if device.io['bus'] is None else
+                              'create-failed' if row['address'] not in
+                              {item['address'] for item in device.io_addresses} else None)
+                    device.io['modules'][name] = dict(type=row['type'], address=row['address'],
+                        state='missing' if reason else 'running', error=None)
+            self.send_protocol_reply(source,
+                node_protocol.io_reply(device.mac, 'reinit', {'name': name}, reason))
+            if reason and reason != 'invalid-arguments':
+                self.send_io(device, '/os/io-error', [name, reason], self.args.target)
+            return
+        if member == 'io-scan' and not args:
+            device.io['scanned'] = True
+            device.io['addresses'] = (copy.deepcopy(device.io_addresses)
+                                      if device.io['bus'] is not None else [])
+            self.send_io(device, '/os/io-scan', [json.dumps(device.io)], source[0])
+            return
+        if member == 'io-write' and len(args) == 1:
+            payload, reason = node_protocol.write_payload(args[0])
+            if reason is None:
+                row = device.io['modules'].get(payload['name'])
+                reason = ('performance' if not performance_mode.allows(device.performance, member) else
+                          'unknown-command' if row is None or row['state'] == 'missing' else
+                          'no-bus' if device.io['bus'] is None else
+                          row['error'] if row['state'] != 'running' else None)
+                reason = reason or ('write-failed' if row is not None and row['state'] != 'running' else None)
+                if reason is None:
+                    device.io_writes.append(payload)
+            self.send_protocol_reply(source, node_protocol.io_reply(device.mac, 'write', payload, reason))
+            result = payload
+            if reason and reason not in ('invalid-arguments', 'performance'):
+                row = device.io['modules'].get(result['name'])
+                if row is not None and row['state'] != 'missing':
+                    row.update(state='errored', error=reason)
+                self.send_io(device, '/os/io-error', [result['name'], reason],
+                             self.args.target)
+            return
+        if member == "enabled" and len(args) == 1:
+            value = node_protocol.switch(args[0])
+            if value is None:
+                return
+            previous = device.device_enabled
+            device.device_enabled = bool(value)
+            positions = [coordinate for element in device.elements for coordinate in element]
+            if not device.save_assignment(self.args.state_dir, positions):
+                device.device_enabled = previous
+                return
+            device.output_enabled = bool(
+                device.device_enabled and not device.mute_all)
+            self.send_protocol_reply(source,
+                node_protocol.enabled(device.mac, value, device.output_enabled))
+            self.log(
+                device,
+                f"device_enabled={value} output={int(device.output_enabled)}")
+            return
+        if member == "hostname" and len(args) == 1:
+            hostname = str(args[0])
+            if HOSTNAME_RE.fullmatch(hostname) is None:
+                return
+            positions = [coordinate for element in device.elements for coordinate in element]
+            status = "ok" if device.save_assignment(
+                self.args.state_dir, positions, hostname=hostname) else "err"
+            if status == "ok":
+                device.hostname = hostname
+            self.send_protocol_reply(source, node_protocol.hostname(device.mac, hostname, status))
+            if status == "ok":
+                self.heartbeat(device, reschedule=False)
+            self.log(device, f"hostname={hostname} {status}")
+            return
+        if member == "audio-config" and len(args) == 1:
+            cards = [{
+                "id": "Simulated", "index": 0,
+                "label": "Simulated stereo output",
+                "mixer_controls": ["Master"],
+            }]
+            try:
+                candidate = audio_config.validate(json.loads(str(args[0])), cards)
+                device.audio_config = candidate
+                device.audio_active = dict(candidate)
+                device.audio_status = "active"
+                device.audio_error = None
+                status, phase = "ok", "applied"
+            except (ValueError, TypeError) as error:
+                device.audio_status = "error"
+                device.audio_error = str(error)
+                status, phase = "err", "invalid"
+            payload = {
+                "configured": dict(device.audio_config),
+                "active": dict(device.audio_active),
+                "cards": cards,
+                "status": device.audio_status,
+                "error": device.audio_error,
+            }
+            self.send_protocol_reply(source,
+                node_protocol.json_reply('/os/audio-config', payload, device.mac, status, phase))
+            return
+        if member == "log-config" and len(args) == 1:
+            try:
+                candidate = log_config.validate(json.loads(str(args[0])))
+                device.log_destination = candidate["destination"]
+                status = "ok"
+            except (ValueError, TypeError):
+                status = "err"
+            self.send_protocol_reply(source,
+                node_protocol.json_reply('/os/log-config', device_log_state(device), device.mac, status))
+            self.log(device, f"log-config {device.log_destination} {status}")
+            return
+        if member == "wifi-config" and len(args) == 1:
+            status, phase = "err", "unavailable"
+            if device.wifi["managed"]:
+                try:
+                    existing = {row["ssid"] for row in device.wifi["networks"] if row["secret"]} | set(device.wifi["unmanaged"])
+                    candidate = wifi_config.validate(json.loads(args[0]), existing)
+                    names = {row["ssid"] for row in candidate["networks"]}
+                    device.wifi = {"managed": True, "country": candidate["country"],
+                                   "active": next(row["ssid"] for row in candidate["networks"] if row["enabled"]),
+                                   "networks": [dict(row, secret=True) for row in wifi_config.metadata(candidate)["networks"]],
+                                   "unmanaged": [name for name in device.wifi["unmanaged"] if name not in names]}
+                    status, phase = "ok", "applied"
+                except (ValueError, TypeError):
+                    phase = "invalid"
+            self.send_protocol_reply(source,
+                node_protocol.json_reply('/os/wifi-config', device.wifi, device.mac, status, phase))
+            return
+        if member not in allowed or args:
+            return
+        if member == "identify":
+            device.ident_until = time.monotonic() + 3.0
+            self.log(device, "identify")
+        elif member == "report":
+            self.send_report(device, source)
+        elif member == "unassign":
+            if not device.save_assignment(self.args.state_dir, [], device_id=-1,
+                                          memberships=()):
+                return
+            device.groups = ()
+            device.device_id = -1
+            device.elements = []
+            self.log(device, "unassigned")
+            self.heartbeat(device, reschedule=False)
+        else:
+            self.admin_verb(device, member, [], source)
+
+    def send_fetch_state(self, source, slot, state):
+        builder = osc_message_builder.OscMessageBuilder(address="/os/fetch-progress")
+        builder.add_arg(slot, arg_type="s")
+        builder.add_arg(state, arg_type="s")
+        self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+
+    def begin_fetch(self, key):
+        job = self.fetch_jobs.get(key)
+        if job is None:
+            return
+        job["phase"] = "fetching"
+        if job["active"]:
+            job["device"].engine_restart_until = float("inf")
+        for source in job["requesters"]:
+            self.send_fetch_state(source, job["slot"], "fetching")
+        self.schedule(getattr(self.args, "fetch_seconds", 0.9), self.finish_fetch, key)
+
+    def finish_fetch(self, key):
+        job = self.fetch_jobs.pop(key, None)
+        if job is None:
+            return
+        device, slot = job["device"], job["slot"]
+        if job["active"]:
+            device.capture_engine_context()
+            device.engine_restart_until = 0.0
+        ok = job["ok"] and (not slot.startswith("patch:")
+                            or performance_mode.allows(device.performance, "patch-fetch"))
+        if ok:
+            if slot.startswith("patch:"):
+                name = slot.split(":", 1)[1]
+                # fetch converged the copy to the host's current content
+                device.patches[name] = {"manifest": True,
+                                        "fingerprint": host_patch_fingerprint(name)}
+            else:
+                device.asset_slots[slot] = host_asset_facts(self.assets_dir, slot)
+        for source in job["requesters"]:
+            builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
+            builder.add_arg(slot, arg_type="s")
+            builder.add_arg("ok" if ok else "err", arg_type="s")
+            self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+        mac = device.mac
+        if self.fetch_active.get(mac) == key:
+            self.fetch_active.pop(mac, None)
+        pending = self.fetch_pending.get(mac, [])
+        if pending:
+            next_key = pending.pop(0)
+            self.fetch_active[mac] = next_key
+            self.schedule(0.1, self.begin_fetch, next_key)
+        else:
+            self.fetch_pending.pop(mac, None)
+
+    def queue_fetch(self, device, source, uri, slot):
+        key = (device.mac, uri, slot)
+        existing = self.fetch_jobs.get(key)
+        if existing is not None:
+            existing["requesters"].append(source)
+            self.send_fetch_state(source, slot, existing["phase"])
+            return
+        job = {
+            "device": device,
+            "requesters": [source],
+            "slot": slot,
+            "phase": "queued",
+            "active": slot == "patch:" + device.active_patch,
+            "ok": True,
+        }
+        self.fetch_jobs[key] = job
+        self.send_fetch_state(source, slot, "queued")
+        if device.mac not in self.fetch_active:
+            self.fetch_active[device.mac] = key
+            self.schedule(0.1, self.begin_fetch, key)
+        else:
+            self.fetch_pending.setdefault(device.mac, []).append(key)
+
+    def finish_patch_switch(self, device, source):
+        self.create_manifest_modules(device)
+        device.capture_engine_context()
+        device.engine_restart_until = 0.0
+        self.send_rev(device, source, "ok", "switched")
+
+    def finish_engine_restart(self, device):
+        self.create_manifest_modules(device)
+        device.capture_engine_context()
+        device.engine_restart_until = 0.0
+
+    def admin_verb(self, device, member, args, source):
+        if not performance_mode.allows(device.performance, member):
+            self.send_rev(device, source, "err", "performance")
+            return
+        # bopos.py owns these, so a dead engine still answers
+        self.log(device, f"os/{member} {' '.join(format_token(item) for item in args)}".rstrip())
+        provisioning = member in ("updatebopos", "checkout", "patch",
+                                  "droppatch",
+                                  "dropassets")
+        if provisioning and device.ephemeral:
+            # ephemeral: honest no-op, receipt still sent (contract sec 7)
+            self.send_rev(device, source)
+            return
+        if member == "reboot":
+            self.send_rev(device, source)  # lifecycle replies before executing
+            self.schedule(0.5, self.reboot_after_silence, device)
+        elif member == "shutdown":
+            self.send_rev(device, source)
+            self.schedule(0.5, self.set_state, device, "off")
+        elif member == "restart-engine":
+            self.send_rev(device, source)
+            device.engine_restart_until = float("inf")
+            self.schedule(3.0, self.finish_engine_restart, device)
+        elif member == "updatebopos" or (member == "checkout" and args):
+            # the pull lands (sha bumps), the receipt goes out, then the reboot
+            self.set_state(device, "updating")
+            self.bump(device)
+            self.schedule(2.0, self.send_rev, device, source, "ok", "converged")
+            self.schedule(5.0, self.reboot_after_silence, device, False)
+        elif member == "patch":
+            if not args:
+                self.send_rev(device, source, "err", "invalid-name")
+                return
+            name = str(args[0])
+            if name not in device.patches or not device.patches[name]["manifest"]:
+                self.send_rev(device, source, "err", "not-found")
+                return
+            device.active_patch = name
+            device.engine_restart_until = float("inf")
+            self.schedule(2.0, self.finish_patch_switch, device, source)
+        elif member == "droppatch":
+            if not args:
+                self.send_rev(device, source, "err", "invalid-name")
+                return
+            name = str(args[0])
+            if name == device.active_patch:
+                self.send_rev(device, source, "err", "active-patch")
+                return
+            device.patches.pop(name, None)
+            self.send_rev(device, source, "ok", "dropped")
+        elif member == "dropassets":
+            if not args or not identity.valid_asset_slot(str(args[0])):
+                self.send_rev(device, source, "err", "invalid-name")
+                return
+            device.asset_slots.pop(str(args[0]), None)
+            self.send_rev(device, source, "ok", "dropped")
+        else:
+            # malformed args change nothing; the receipt is still the honest state
+            self.send_rev(device, source)
+
+    def device_now_ns(self, device, jitter=False):
+        # the device's own monotonic clock = leader's clock + its fixed skew;
+        # a pong may add per-reply measurement noise
+        value = time.monotonic_ns() + device.sync_skew_ns
+        if jitter and self.args.sync_jitter_ms > 0:
+            span = int(self.args.sync_jitter_ms * 1e6)
+            value += random.randint(-span, span)
+        return value
+
+    def handle_ping(self, args, source):
+        # bopos.py answers /sync/ping unicast, echoing seq+leaderTime so the
+        # leader stays stateless (contract sec 3.1)
+        if not node_protocol.sync_ping(args):
+            return
+        for device in self.devices:
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if random.random() < self.args.drop:
+                continue
+            try:
+                self.send_protocol_reply(source,
+                    node_protocol.sync_pong(device.mac, args, self.device_now_ns(device, jitter=True)))
+            except OSError as error:
+                print(f"simfleet: pong failed: {error}", file=sys.stderr)
+
+    def handle_offset(self, selector, args):
+        # /<id>/sync/offset: absolute best-estimate offset, idempotent. A real
+        # node slews toward it; the sim stores the target directly.
+        if not args:
+            return
+        try:
+            offset = int(str(args[0]))
+        except (TypeError, ValueError):
+            return
+        for device in self.devices:
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if not self.protocol.matches(selector, device.device_id, device.groups):
+                continue
+            device.sync_offset_ns = offset
+            device.sync_synced = True
+            self.log(device, f"sync offset={offset}ns")
+
+    def apply_points(self, device, parts, args):
+        # node-side decomposition (contract sec 4.1) via the shared helper
+        # module: proximity per point per element, "delivered" by logging
+        # `pt <id> el<n> v=<value>` (the fake device has no engine). The log
+        # is the verify's test surface for node-computed values.
+        parsed = pointfield.parse_wire(parts, args)
+        if parsed is None:
+            return
+        kind, payload = parsed
+        if kind == "frame":
+            removed = set(device.points) - set(payload)
+            device.points = payload
+            changed = payload
+        elif kind == "set":
+            point_id, point = payload
+            device.points[point_id] = point
+            removed = set()
+            changed = {point_id: point}
+        else:  # clear
+            removed = {payload} if payload in device.points else set()
+            device.points.pop(payload, None)
+            changed = {}
+        if not device.elements:
+            return
+        entries = pointfield.decompose(changed, device.elements)
+        for point_id in sorted(removed):
+            for index in range(len(device.elements)):
+                entries.append((point_id, index, 0.0))
+        for point_id, element, value in entries:
+            self.log(device, f"pt {point_id} el{element} v={value:.6f}")
+
+    def handle_event(self, parts, args):
+        identity_parts = parts[2:]
+        identity = "/".join(identity_parts)
+        if (len(identity_parts) > patch_manifest.MAX_PARAM_SEGMENTS
+                or any(patch_manifest.PARAM_NAME.fullmatch(part) is None
+                       for part in identity_parts)
+                or len(identity.encode("ascii")) > patch_manifest.MAX_PARAM_IDENTITY_BYTES
+                or not 1 <= len(args) <= patch_manifest.MAX_EVENT_FIELDS + 1
+                or not isinstance(args[0], str)):
+            return
+        try:
+            elements = patch_manifest.event_values(args[1:])
+            shared = int(args[0])
+        except (TypeError, ValueError):
+            return
+        selector = parts[0]
+        for device in self.devices:
+            if (device.unresponsive or device.state not in ("booting", "running")
+                    or random.random() < self.args.drop
+                    or not self.protocol.matches(
+                        selector, device.device_id, device.groups)):
+                continue
+            if args[0] == "0":
+                self.fire_event(device, identity, elements, 0, False)
+                continue
+            deadline_dev = shared + device.sync_offset_ns
+            delay = (
+                deadline_dev - device.sync_skew_ns - time.monotonic_ns()) / 1e9
+            self.schedule(max(0.0, delay), self.fire_event, device, identity,
+                          elements, deadline_dev, delay < 0)
+
+    def fire_event(self, device, identity, elements, deadline_dev, late):
+        values = " ".join(format_token(value) for value in elements)
+        suffix = f" elements={values}" if values else ""
+        self.log(device, f"event {identity} fired dev_deadline={deadline_dev} "
+                         f"fire_mono={time.monotonic_ns()}{suffix}"
+                         + (" LATE" if late else ""))
+
+    ADMIN_ACTIONS = ("update-bopos", "shutdown", "reboot")
+
+    def admin_request(self, device, action):
+        # a real node's engine sends /admin <action> to bopos.py on localhost
+        # 7770 (contract sec 4.2, v1.7); that channel is per-node and never
+        # touches the LAN wire this simulator answers on 5550/6660. N
+        # simulated devices share one process, so unlike N real Pis they
+        # cannot each bind a private localhost 7770 -- there is no socket
+        # for this method to listen on. It exists as the direct call a
+        # verify harness drives to exercise the same log/record-only,
+        # never-execute contract bopos.py's admin_callback implements
+        # (never actually reboot/shutdown/update the sim host; unknown
+        # actions are logged and otherwise ignored).
+        if action not in self.ADMIN_ACTIONS:
+            self.log(device, f"admin unknown-action={action}")
+            return
+        self.log(device, f"admin {action}")
+
+    def log_request(self, device, stream, values):
+        # a real node's engine sends /log <stream> <values...> to bopos.py on
+        # localhost 7770 (contract sec 4.2); like /admin, that per-node
+        # channel never touches the LAN wire this simulator answers on, and N
+        # simulated devices share one process with no private 7770 to bind.
+        # This is the direct call a verify harness drives to exercise the same
+        # stamp/append/validate contract nodelog.append implements. Invalid
+        # stream names are dropped with a logged warning, never fatal; the
+        # node stamps at receipt.
+        stream = str(stream)
+        if re.fullmatch(r"[A-Za-z0-9_-]+", stream) is None:
+            self.log(device, f"log invalid-stream={stream!r}")
+            return
+        stamp = datetime.datetime.now().astimezone().isoformat(
+            timespec="milliseconds")
+        payload = " ".join(format_token(value) for value in values)
+        device.log_streams.setdefault(stream, []).append((stamp, list(values)))
+        self.log(device, f"log {stream} {payload}".rstrip())
+
+    def receive(self):
+        while True:
+            try:
+                datagram, source = self.sock.recvfrom(65535)
+            except BlockingIOError:
+                return
+            self.receive_contract(datagram, source)
+
+    def receive_contract(self, datagram, source):
+        try:
+            address, args = self.protocol.decode(datagram)
+            _address, tag_offset = osc_types.get_string(datagram, 0)
+            token_tag = osc_types.get_string(datagram, tag_offset)[0][1:2]
+        except Exception:
+            return
+        parts = [part for part in address.split("/") if part]
+        # Clock-sync ping omits the selector; events are targetable and offsets
+        # are per-device.
+        if parts == ["sync", "ping"]:
+            self.handle_ping(args, source)
+            return
+        if len(parts) >= 3 and parts[1] == "e":
+            self.handle_event(parts, args)
+            return
+        if len(parts) == 3 and parts[1] == "sync" and parts[2] == "offset":
+            self.handle_offset(parts[0], args)
+            return
+        if parts and parts[0] == "pt":
+            # /pt plane: selector-less broadcast geometry; each device's own
+            # radio may drop it independently (silence = hold covers the gap
+            # until the next frame)
+            for device in self.devices:
+                if device.unresponsive or device.state not in ("booting", "running"):
+                    continue
+                if random.random() < self.args.drop:
+                    continue
+                self.apply_points(device, parts, args)
+            return
+        if parts == ["all", "os", "to"]:
+            if len(args) < 2:
+                return
+            uid = args[0]
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or device.mac != uid or random.random() < self.args.drop):
+                    continue
+                envelope = node_protocol.uid_envelope(device.mac, args)
+                if envelope is not None:
+                    self.uid_admin(device, *envelope, source)
+            return
+        if parts == ["all", "os", "performance"]:
+            if len(args) != 1 or type(args[0]) not in (int, float) or args[0] not in (0, 1):
+                return
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or random.random() < self.args.drop):
+                    continue
+                active = bool(args[0])
+                state_dir = getattr(self.args, "state_dir", None)
+                try:
+                    if state_dir:
+                        performance_mode.save(device.performance_file(state_dir), active)
+                except OSError:
+                    self.send_report(device, source)
+                    continue
+                device.performance = active
+                if active:
+                    device.io_stream.close()
+                    device.io_stream_generation += 1
+                self.send_report(device, source)
+            return
+        if parts == ["all", "os", "groups"]:
+            if not args or not isinstance(args[0], str):
+                return
+            memberships = group_protocol.group_ids(args[1:])
+            if memberships is None:
+                return
+            for device in self.devices:
+                if (device.unresponsive or device.state not in ("booting", "running")
+                        or device.mac != args[0] or random.random() < self.args.drop):
+                    continue
+                positions = [coordinate for element in device.elements for coordinate in element]
+                if not device.save_assignment(self.args.state_dir, positions,
+                                              memberships=memberships):
+                    continue
+                device.groups = memberships
+                self.send_protocol_reply(source, node_protocol.memberships(device.mac, memberships))
+            return
+        if len(parts) < 3 or parts[1] not in ("os", "p"):
+            return
+        selector, plane = parts[:2]
+        if plane == "os" and len(parts) != 3:
+            return
+        member = "/".join(parts[2:])
+        for device in self.devices:
+            # bopos.py answers these, so the box must be up (booting counts:
+            # helper starts before the engine) and its radio listening
+            if device.unresponsive or device.state not in ("booting", "running"):
+                continue
+            if (random.random() < self.args.drop
+                    or not self.protocol.matches(selector, device.device_id, device.groups)):
+                continue
+            if plane == "p":
+                # the patch plane goes straight to PD — a dead engine applies nothing
+                if not args or not device.engine_alive():
+                    continue
+                if member not in self.declared_params and member not in ("gain", "gain2", "backing"):
+                    self.log(device, f"p/{member} undeclared, dropped")
+                    continue
+                declaration = getattr(self, "param_declarations", {}).get(member)
+                param_type = patch_manifest.param_wire_type(declaration)
+                if param_type in ("f", "i"):
+                    try:
+                        spec = paramgen.parse_message(args, param_type)
+                    except paramgen.ParamGrammarError as error:
+                        self.log(device, f"p/{member} grammar error: {error}")
+                        continue
+                    device.param_generator.apply(member, spec, declaration)
+                else:
+                    self.emit_param(device, member, args)
+                continue
+            if member == "ping" and args:
+                try:
+                    self.sock.sendto(self.protocol.pong(args[0], device.mac, token_tag),
+                                     (source[0], self.args.report_port))
+                except OSError as error:
+                    print(f"simfleet: pong failed: {error}", file=sys.stderr)
+            elif member == "assign" and len(args) >= 3:
+                if selector != "all":
+                    continue
+                if str(args[0]) != device.mac:
+                    continue
+                parsed = node_protocol.assignment(args)
+                if parsed is None:
+                    continue
+                _uid, new_id, hostname, elements = parsed
+                positions = [coordinate for element in elements for coordinate in element]
+                memberships = device.groups if new_id == device.device_id else ()
+                if not device.save_assignment(self.args.state_dir, positions,
+                                              device_id=new_id, hostname=hostname,
+                                              memberships=memberships):
+                    continue
+                device.groups = memberships
+                device.device_id = new_id
+                device.hostname = hostname
+                device.elements = [[positions[i], positions[i + 1]]
+                                   for i in range(0, len(positions) - 1, 2)]
+                # Preview relay tests need the ordered element state but the
+                # protocol simulator must not pretend to render audio.
+                preview_positions = json.dumps(device.elements, separators=(",", ":"))
+                self.log(device, f"assigned id={device.device_id:g} name={device.hostname} "
+                         f"positions={preview_positions}")
+                # the ack is an immediate heartbeat at the new id; the running
+                # schedule picks up the new cadence on its own
+                self.heartbeat(device, reschedule=False)
+            elif member == "identify" and (not args or str(args[0]) == device.mac):
+                device.ident_until = time.monotonic() + 3.0
+                self.log(device, "identify")
+            elif member == "mute" and args:
+                try:
+                    value = int(args[0])
+                except (TypeError, ValueError):
+                    continue
+                if value in (0, 1):
+                    requested_mute = bool(value)
+                    device.output_enabled = bool(
+                        device.device_enabled and not requested_mute)
+                    device.mute_all = requested_mute
+                    self.log(
+                        device,
+                        f"mute_all={value} output={int(device.output_enabled)}")
+            elif member == "master" and args:
+                # provided term (contract sec 4.1): a real node's OS layer
+                # routes this to the engine's named receive; the fake device
+                # has no engine, so delivery is just logged
+                try:
+                    self.log(device, f"os/master {float(args[0]):g}")
+                except (TypeError, ValueError):
+                    pass
+            elif member == "params":
+                builder = osc_message_builder.OscMessageBuilder(address="/os/params")
+                if self.manifest_text is not None:
+                    builder.add_arg(self.manifest_text, arg_type="s")
+                self.sock.sendto(builder.build().dgram, (source[0], self.args.report_port))
+            elif member == "patches":
+                self.send_patch_list(device, source)
+            elif member == "assets":
+                self.send_asset_list(device, source)
+            elif member == "fetch":
+                uri = str(args[0]) if args else ""
+                slot = str(args[1]) if len(args) > 1 else ""
+                scheme = uri.split(":", 1)[0].lower() if ":" in uri else ""
+                patch_name = slot.split(":", 1)[1] if slot.startswith("patch:") else None
+                valid_slot = (re.fullmatch(r"[A-Za-z0-9_-]+", patch_name) is not None
+                              if patch_name is not None
+                              else identity.valid_asset_slot(slot))
+                ok = (scheme in ("http", "https", "file") and valid_slot
+                      and (patch_name is None
+                           or performance_mode.allows(device.performance, "patch-fetch")))
+                self.log(device, f"fetch {uri} {slot}")
+                if ok:
+                    self.queue_fetch(device, source, uri, slot)
+                else:
+                    builder = osc_message_builder.OscMessageBuilder(address="/os/fetched")
+                    builder.add_arg(slot, arg_type="s")
+                    builder.add_arg("err", arg_type="s")
+                    self.sock.sendto(builder.build().dgram,
+                                     (source[0], self.args.report_port))
+            elif member in ("reboot", "shutdown", "restart-engine", "updatebopos",
+                            "checkout", "patch",
+                            "droppatch", "dropassets"):
+                self.admin_verb(device, member, list(args), source)
+            elif member == "report":
+                self.send_report(device, source)
+            elif member == "probe" and args:
+                if not performance_mode.allows(device.performance, "probe"):
+                    continue
+                what = str(args[0])
+                values = device.reports.get(what)
+                if values is None:
+                    values = {
+                        "id": (int(device.device_id),),
+                        "uid": (str(device.mac),),
+                        "version": (str(device.version),),
+                        "update_model": ("ephemeral" if device.ephemeral else "persistent",),
+                    }.get(what)
+                if values is not None:
+                    builder = osc_message_builder.OscMessageBuilder(address="/os/probe")
+                    builder.add_arg(int(device.device_id), arg_type="i")
+                    builder.add_arg(what, arg_type="s")
+                    for value in values:
+                        builder.add_arg(value)
+                    self.sock.sendto(builder.build().dgram,
+                                     (source[0], self.args.report_port))
+
+    def display(self):
+        now = time.monotonic()
+        print("\033[H\033[2J", end="")
+        print("ID   HOSTNAME       MAC                STATE          VER      GAIN   GAIN2  BACK   OUT  IDENT HB AGE  LAST COMMAND")
+        for device in self.devices:
+            age = "-" if device.last_hb is None else f"{now - device.last_hb:.1f}s"
+            print(
+                f"{device.device_id:4g} {device.hostname:14.14} {device.mac:17} "
+                f"{device.display_state():14.14} {str(device.version):7.7} "
+                f"{device.gain:6g} {device.gain2:6g} {device.backing:6g} "
+                f"{'on' if device.output_enabled else 'off':4} "
+                f"{'IDENT' if device.ident_until > now else '-':5} {age:7} {device.last_command}"
+            )
+        sys.stdout.flush()
+        self.schedule(0.5, self.display)
+
+    def run(self):
+        for index, device in enumerate(self.devices):
+            phase = 0.0 if len(self.devices) == 1 else 2.0 * index / (len(self.devices) - 1)
+            self.schedule(phase, self.heartbeat, device)
+            self.schedule(1.0, self.promote_running, device)
+            self.log(device, f"state={device.display_state()}")
+        if self.tty:
+            print("\033[?25l", end="", flush=True)
+            self.schedule(0.0, self.display)
+
+        try:
+            while self.running:
+                now = time.monotonic()
+                while self.events and self.events[0][0] <= now:
+                    _when, _order, callback, values = heapq.heappop(self.events)
+                    callback(*values)
+                    now = time.monotonic()
+                timeout = min(0.5, max(0.0, self.events[0][0] - now)) if self.events else 0.5
+                readable, _, _ = select.select([self.sock], [], [], timeout)
+                if readable:
+                    self.receive()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            for device in self.devices:
+                generator = getattr(device, "param_generator", None)
+                if generator is not None:
+                    generator.close()
+            self.sock.close()
+            if self.tty:
+                print("\033[?25h\n", end="", flush=True)
+
+
+def format_token(value):
+    return f"{value:g}" if isinstance(value, (int, float)) else str(value)
+
+
+def load_devices(args):
+    identities = []
+    if args.devices_file:
+        with open(args.devices_file, newline="", encoding="utf-8") as source:
+            rows = csv.reader(source, skipinitialspace=True)
+            next(rows, None)
+            for row in rows:
+                if len(row) >= 3 and len(identities) < args.devices:
+                    identities.append((row[0].strip(), row[1].strip(), float(row[2])))
+        if len(identities) < args.devices:
+            raise ValueError(f"devices file contains only {len(identities)} usable rows")
+    else:
+        for index in range(1, args.devices + 1):
+            identities.append((f"02:53:49:4d:{(index >> 8) & 255:02x}:{index & 255:02x}",
+                               f"sim{index}", float(index)))
+
+    first_unresponsive = len(identities) - args.unresponsive
+    first_unassigned = len(identities) - args.unassigned
+    first_wired = len(identities) - args.wired
+    first_engine_dead = len(identities) - args.engine_dead
+    first_ephemeral = len(identities) - args.ephemeral
+    version = args.version
+    releases = getattr(args, "release", None) or [None]
+    devices = [Device(mac, hostname, -1 if index >= first_unassigned else device_id,
+                      version, index >= first_unresponsive, index >= first_wired,
+                      index >= first_engine_dead, index >= first_ephemeral,
+                      release=releases[index % len(releases)])
+               for index, (mac, hostname, device_id) in enumerate(identities)]
+    if getattr(args, 'io_config', None):
+        with open(args.io_config) as source:
+            fake_io = io_protocol.validate_io(json.load(source))
+        for device in devices:
+            device.io = copy.deepcopy(fake_io)
+            device.io_addresses = copy.deepcopy(fake_io['addresses'])
+            if not device.io['scanned']:
+                device.io['addresses'] = []
+    if args.protocol == "v1" and args.state_dir:
+        for device in devices:
+            device.load_assignment(args.state_dir)
+    return devices
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--devices", type=int, default=5)
+    parser.add_argument("--drop", type=float, default=0.0)
+    parser.add_argument("--jitter-ms", type=float, default=0.0)
+    parser.add_argument("--unresponsive", type=int, default=0)
+    parser.add_argument("--unassigned", type=int, default=0)
+    parser.add_argument("--wired", type=int, default=0)
+    parser.add_argument("--engine-dead", type=int, default=0)
+    parser.add_argument("--ephemeral", type=int, default=0)
+    parser.add_argument("--state-dir")
+    parser.add_argument("--devices-file")
+    parser.add_argument('--io-config', help='JSON IO object defining a fake bus/modules for each device')
+    parser.add_argument("--hb-interval", type=float, default=10.0)
+    parser.add_argument("--boot-secs", type=float, default=15.0)
+    parser.add_argument("--fetch-seconds", type=float, default=0.9,
+                        help="simulated duration of one patch/asset fetch")
+    parser.add_argument("--target", default="255.255.255.255")
+    parser.add_argument("--report-port", type=int, default=5550)
+    parser.add_argument("--stream-port", type=int, default=5551)
+    parser.add_argument("--cmd-port", type=int, default=6660)
+    parser.add_argument("--protocol", choices=("v1",), default="v1")
+    parser.add_argument("--manifest",
+                        help="bopos.patch.json served on /os/params (default: patches/demo-pd)")
+    parser.add_argument("--patches-dir", default=PATCHES_DIR,
+                        help="host patch root used for simulated content fingerprints")
+    parser.add_argument("--assets-dir", default=ASSETS_DIR,
+                        help="host asset root used for simulated content fingerprints")
+    parser.add_argument("--sync-skew-ms", type=float, default=0.0,
+                        help="max abs fake clock skew vs leader, random +/- per device")
+    parser.add_argument("--sync-jitter-ms", type=float, default=0.0,
+                        help="per-pong measurement noise added to deviceTime")
+    parser.add_argument("--version", default=None)
+    parser.add_argument("--release", default=None,
+                        help="comma-separated display versions for /os/report, handed out "
+                             "to devices in turn, for example "
+                             "'1.0.0,1.0.0+dev.12.gabc1234,-'; '-' simulates a node "
+                             "that does not report one (default: none report)")
+    args = parser.parse_args()
+    counts = (args.unresponsive, args.unassigned, args.wired, args.engine_dead, args.ephemeral)
+    if args.devices < 0 or any(value < 0 or value > args.devices for value in counts):
+        parser.error("device counts must satisfy 0 <= count <= devices")
+    if not 0.0 <= args.drop <= 1.0:
+        parser.error("--drop must be between 0 and 1")
+    if (args.jitter_ms < 0 or args.hb_interval <= 0 or args.boot_secs < 0
+            or args.fetch_seconds < 0
+            or args.sync_skew_ms < 0 or args.sync_jitter_ms < 0):
+        parser.error("timing values must be non-negative (heartbeat interval must be positive)")
+    if args.version is None:
+        args.version = "a1b2c3d"
+    if not re.fullmatch(r"[0-9a-fA-F]{1,7}", args.version):
+        parser.error("v1 --version must be a hexadecimal short-SHA-looking value")
+    args.version = args.version.lower().zfill(7)
+    if args.release is not None:
+        args.release = [None if part.strip() == "-" else part.strip()
+                        for part in args.release.split(",")]
+        if any(part == "" for part in args.release):
+            parser.error("--release values must be display versions or '-'")
+    return args
+
+
+def main():
+    global PATCHES_DIR
+    args = parse_args()
+    PATCHES_DIR = os.path.realpath(args.patches_dir)
+    try:
+        devices = load_devices(args)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"simfleet: {error}") from error
+    SimFleet(args, devices).run()
+
+
+if __name__ == "__main__":
+    main()

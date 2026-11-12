@@ -1,0 +1,243 @@
+# Composing for bopOS
+
+The complete path from an idea to sound on the fleet: create a patch on
+your laptop, hear it in simulation, and deploy it from the dashboard. **No
+Git knowledge is needed anywhere in this guide** — version control is an
+optional advanced workflow with [its own section](#advanced-workflow-with-git)
+at the end.
+
+## What is a patch?
+
+A patch is **one folder** holding your piece: the program your sound engine
+runs, plus a small manifest file telling bopOS how to start it and what can
+be controlled.
+
+```text
+patches/
+  my-piece/
+    bopos.patch.json    ← the manifest (required)
+    main.pd             ← your entry point (any name; declared in the manifest)
+    …anything else your piece needs
+```
+
+Pure Data is the reference engine; SuperCollider works through exactly the
+same boundary. The repository ships two copyable starting points:
+[`patches/demo-pd/`](../patches/demo-pd/) and
+[`patches/demo-sc/`](../patches/demo-sc/).
+
+## What you need running locally
+
+| tool | why |
+|---|---|
+| the bopOS repo + dashboard | authoring, audition, and deployment all happen here — setup is in [Getting started](GETTING-STARTED.md) |
+| Pure Data (vanilla) | to edit your patch and to hear it in simulation |
+| your ears | simulation runs real engine instances on the laptop, spatially mixed |
+
+You do **not** need a Raspberry Pi to compose. The fleet can be simulated
+until the day you deploy.
+
+## Step 1 — create the patch
+
+Two equally good ways:
+
+**Copy a demo** (in your file manager or a terminal):
+
+```sh
+cp -r patches/demo-pd patches/my-piece
+```
+
+then list it in your project with **Add Existing…** on the **Patches** tab.
+
+**Or let the dashboard scaffold it:** open the **Patches** tab and press
+**New patch…**. It creates the folder, writes a valid manifest, copies
+the Pure Data template stub as your `main.pd`, and lists it in the project.
+
+Your folder under `patches/` is yours — the bopOS repository deliberately
+ignores it, so nothing you do there can tangle with the framework.
+
+## Step 2 — declare what it is (the manifest)
+
+`bopos.patch.json` is the single source of truth for your patch. The
+dashboard's **Patches** tab edits it with a form (press **Save manifest**
+when done), or edit the JSON directly:
+
+```json
+{
+  "engine": "pd",
+  "entrypoint": "main.pd",
+  "params": [
+    { "name": "density", "kind": "float", "min": 0, "max": 1,
+      "default": 0.5, "dashboard": true }
+  ],
+  "events": [
+    { "name": "snap", "fields": [], "description": "Fire the snap gesture" }
+  ],
+  "caps": [],
+  "slots": []
+}
+```
+
+![Patches tab: the project's patches beside the selected patch and its manifest editor](images/tab-patches.png)
+
+Line by line:
+
+- **`engine` / `entrypoint`** — what starts your patch. `"pd"` +
+  `"main.pd"` for Pure Data; `"sc"` patches declare their own entry point.
+- **`params`** — every control the dashboard may offer. Each declared
+  parameter becomes a rendered control on the desktop **Control** tab and
+  Device control panel; the dashboard never invents sliders. Add
+  `"dashboard": true` to also promote a parameter onto the simplified
+  standalone facilitator/iPad view. An optional `"path"`
+  array nests parameters (`{"path": ["texture"], "name": "density"}`
+  arrives as `/p/texture/density`). Declare each control explicitly as
+  `float`, `int`, `toggle`, `enum`, or `text` with its `kind` field.
+- **`events`** — named actions your patch responds to. Declared events appear
+  as synchronized trigger buttons in the dashboard and fire tightly across
+  the whole fleet.
+- **`slots`** — names of the [asset slots](#step-6--big-media-assets) your
+  patch reads.
+
+A missing or invalid manifest fails launch **loudly** — there is no silent
+fallback, so a typo shows up on your laptop, not at the venue.
+
+## Step 3 — write the music
+
+Open your entry point in Pure Data. Everything bopOS gives your patch
+arrives through the `[bopos~]` abstraction (from `pd/bopos~.pd`), which
+exposes labelled buses instead of raw networking:
+
+| bus | what arrives |
+|---|---|
+| `bopos-param` | your declared parameters, e.g. `density 0.5` |
+| `bopos-point` | spatial proximity per moving point and element, 0→1 |
+| `bopos-event` | named event fires with typed fields, already synchronized |
+| `bopos-master` | the venue master level |
+| `bopos-context` | seed, run ID, patch name, asset-slot folder list — at launch |
+| `bopos-io` | I2C sensor data and control replies; keyboard and mouse input (`io key …`, `io mouse …`) |
+
+Finish your signal chain through the two signal inlets of `[bopos~]`: it
+applies master level and audition preview at the output boundary. If you use
+`[throw~ bopos-0]` / `[throw~ bopos-1]`, connect matching `[catch~]` objects
+to those inlets.
+
+The live reference is **right-click `[bopos~]` → Help**
+(`bopos~-help.pd` in `pd/`, still to be built). Until it lands, the bus
+spellings in this guide and in `docs/OSC-REFERENCE.md` are the reference.
+The event and context buses currently want a `[list trim]` after their
+`[r]`, for example `[r bopos-event] → [list trim] → [route <name>]`.
+
+Two habits that keep patches portable:
+
+- **Consume only what you use.** Ignoring a bus is legal — a patch that
+  doesn't read `bopos-point` simply isn't spatial, and nothing errors.
+- **The value is yours to interpret.** Point proximity can drive gain, a
+  filter, a rhythm — bopOS provides the number and never decides what it
+  means.
+
+The full engine surface (and how non-PD engines consume it) is contract
+[§4.2](OSC-CONTRACT.md).
+
+## Step 4 — hear it
+
+In the dashboard header, switch the **Execution target** from **Live
+fleet** to **Simulation** and confirm. The dashboard launches real engine
+instances of the selected patch on your laptop — one per simulated seat —
+and mixes them spatially. Drag the white listener puck around the **Seats**
+map to hear the room from any position; edit its heading above the map.
+
+While simulating, every dashboard control behaves exactly as it will at the
+venue: parameters, cues, points, master. Live fleet devices are never
+driven in this mode.
+
+In Patch edit, Point preview targets element 0 or 1 because devices currently
+carry one or two elements; positions themselves support any number, and the
+editor limit should widen when a device needs more.
+
+> macOS (CoreAudio) is the well-trodden audition platform; Linux uses JACK
+> and is less exercised. Real-room acoustics are, of course, not simulated.
+
+## Step 5 — put it on the fleet
+
+When real nodes are on the network (see [INSTALL.md](INSTALL.md)) and the
+Execution target is **Live**:
+
+1. Open the **Patches** tab.
+2. Select your patch in the list. (Not there? **Add Existing…**. Just edited
+   files outside the browser? Refresh the catalog with **↻** first.)
+3. Press **Set Live** — **Push** if it is already the live patch — and confirm.
+
+The dashboard converges every online assigned device to your exact bytes —
+transfers are diff-based, resumable, and hash-verified — then restarts
+their engines into the new patch. Row badges show each node's convergence,
+and selecting a row shows its observed inventory with **Retry** /
+**Re-switch** if a node needs another nudge.
+
+The whole fleet plays one patch; per-device patch mixtures are deliberately
+not a supported mode.
+
+## Step 6 — big media (assets)
+
+Sample libraries and other large media don't live inside your patch folder.
+Put them in a named **slot** under `assets/` on the dashboard machine:
+
+```text
+assets/
+  my-piece-samples/
+    voices/
+    textures/
+```
+
+Declare the slot in your manifest (`"slots": ["my-piece-samples"]`), send it
+from the **Assets** tab (one device at a time — select the target device,
+then **Send**), and select its absolute folder path from the asset-slot list
+that arrives on `bopos-context` at launch. Adding or removing a slot changes
+that list on the next engine start; updating files inside an already-listed
+slot remains visible in place. Keeping media out of the patch keeps deploys
+fast: sending a one-line patch fix never re-ships gigabytes.
+
+[assets/README.md](../assets/README.md) covers slot naming, updating in
+place, and safe side-by-side revisions.
+
+## Step 7 — perform
+
+The **Control** tab is the full show surface: every declared
+parameter, and declared events. The three controls that belong to the
+whole installation — **master**, **MUTE ALL**, and the event lead time — live
+together in the **Globals** panel of the Monitor dock, reachable from any tab.
+**Open standalone dashboard**
+provides the simplified tablet view with only parameters marked
+`"dashboard": true`. A target filter at the top scopes either surface to All,
+Groups, or one Seat. Any visible
+numeric row can switch from `value` to `gen` to author a generator inline.
+
+![Dashboard tab with per-Seat live controls](images/tab-dashboard-seats.png)
+
+Nodes persist everything they've been given — assignment, patch, values —
+so once configured, the installation runs with the dashboard (and the whole
+network) switched off.
+
+## Advanced workflow with Git
+
+Everything above works with plain folders. If you want version control for
+your patch, your patch folder can also be an independent Git repository —
+useful for collaboration and history, never required.
+
+- Your repo lives at `patches/my-piece/` as before; bopOS ignores it either
+  way. Author, commit, and push however you like.
+Patches reach devices only through dashboard push, including patches previously
+cloned on a device: a successful staged, validated replacement removes local
+Git metadata; failures preserve or restore the existing copy. Host Git metadata
+is excluded from distribution and fingerprints.
+
+## Quick reference
+
+| I want to… | where |
+|---|---|
+| start a new patch | **Patches → New patch…**, or copy `patches/demo-pd/` |
+| see every Pd bus and a live example | right-click `[bopos~]` → **Help** (`bopos~-help.pd` in `pd/`, pending); this guide meanwhile |
+| declare a control | manifest `params` (+ `"dashboard": true` for live use) |
+| hear my patch now | Execution target → **Simulation** |
+| try changes while the fleet plays | **Patches → New Version** |
+| ship to the fleet | **Patches →** select **→ Set Live** |
+| ship big media | `assets/<slot>/` + **Assets → Send** |
+| fire a synchronized event | manifest `events` + the Dashboard event trigger |

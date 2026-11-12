@@ -1,0 +1,515 @@
+#!/usr/bin/env python3
+from dashboard_process import launch_dashboard
+from project_fixture import project_path, data_root
+"""Verify manifest parameter visibility across bopOS control surfaces.
+
+The desktop Control tab and Device control panel expose the complete manifest.
+The standalone facilitator page exposes only declarations marked
+``dashboard: true``. The persisted compatibility field keeps its old name,
+while the Patch-tab authoring label describes its narrowed meaning.
+"""
+
+import json
+import os
+import random
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+from playwright.sync_api import sync_playwright
+
+sys.dont_write_bytecode = True
+ROOT = os.path.realpath(os.path.dirname(__file__))
+while not os.path.isfile(os.path.join(ROOT, "tools", "simfleet.py")):
+    parent = os.path.dirname(ROOT)
+    if parent == ROOT:
+        raise SystemExit("cannot locate bopOS repository")
+    ROOT = parent
+
+FAILURES = []
+RESERVED = set()
+UID = "02:53:49:4d:00:01"
+
+
+def check(label, condition, detail=""):
+    print("[{}] {}{}".format(
+        "PASS" if condition else "FAIL", label,
+        " -- " + detail if detail and not condition else ""), flush=True)
+    if not condition:
+        FAILURES.append(label)
+
+
+def free_port(kind):
+    for _attempt in range(256):
+        port = random.SystemRandom().randrange(20000, 60000)
+        if (kind, port) in RESERVED:
+            continue
+        probe = socket.socket(socket.AF_INET, kind)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError:
+            probe.close()
+            continue
+        probe.close()
+        RESERVED.add((kind, port))
+        return port
+    raise RuntimeError("could not reserve a local port")
+
+
+def stop(process):
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def wait_http(url, process):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError("dashboard exited before serving HTTP")
+        try:
+            urllib.request.urlopen(url, timeout=.5).close()
+            return
+        except OSError:
+            time.sleep(.1)
+    raise RuntimeError("dashboard did not serve HTTP")
+
+
+PARAMS = [
+    {"name": "gain", "kind": "float", "min": 0, "max": 1, "default": .5,
+     "dashboard": True},
+    {"path": ["texture"], "name": "density", "kind": "float",
+     "min": 0, "max": 1, "default": .2, "dashboard": False},
+    {"path": ["texture"], "name": "rate", "kind": "int",
+     "min": 1, "max": 8, "default": 3},
+]
+EVENTS = [
+    {"name": "strike", "fields": [{"name": "element0", "kind": "float", "default": 1.0}], "dashboard": True},
+    {"name": "release", "fields": [], "dashboard": True},
+]
+
+
+def write_fixture(temp):
+    patches = os.path.join(temp, "patches")
+    assets = os.path.join(temp, "assets")
+    patch = os.path.join(patches, "alpha")
+    os.makedirs(patch)
+    os.makedirs(assets)
+    with open(os.path.join(patch, "main.bin"), "wb") as target:
+        target.write(b"manifest-visibility")
+    manifest = os.path.join(patch, "bopos.patch.json")
+    with open(manifest, "w", encoding="utf-8") as target:
+        json.dump({"engine": "test", "entrypoint": "main.bin",
+                   "params": PARAMS, "events": EVENTS,
+                   "caps": [], "slots": []},
+                  target)
+    state_path = str(project_path(temp))
+    with open(state_path, "w", encoding="utf-8") as target:
+        json.dump({
+            "schema": 1, "name": "Manifest visibility rig",
+            "facilitator_commands": ["restart-engine"],
+            "fleet_patch": {"name": "alpha", "fingerprint": "a" * 64,
+                            "staged_at": time.time()},
+            "seats": {
+                "1": {"id": 1, "name": "Finn", "positions": [[1, 1]],
+                      "bound": UID,
+                      "params": {"gain": .5, "texture/density": .2,
+                                 "texture/rate": 3}},
+            },
+        }, target)
+    return state_path, patches, assets, manifest
+
+
+def identities(locator):
+    return sorted(locator.evaluate_all(
+        "nodes => nodes.map(node => node.dataset.paramPath)"))
+
+
+def ordered_identities(locator):
+    return locator.evaluate_all(
+        "nodes => nodes.map(node => node.dataset.paramPath)")
+
+
+def drag_before(page, handle, target):
+    """Pointer-drag one handle just above a row; callers scroll explicitly."""
+    handle.evaluate(
+        "(element) => element.scrollIntoView({block:'center',inline:'center'})")
+    # Heartbeats may replace either row. Read both rectangles together from
+    # connected nodes, retrying only before the gesture starts.
+    boxes = None
+    deadline = time.monotonic() + 5
+    while boxes is None and time.monotonic() < deadline:
+        handle.wait_for(state="visible", timeout=5000)
+        target.wait_for(state="visible", timeout=5000)
+        source_node, target_node = handle.element_handle(), target.element_handle()
+        try:
+            boxes = page.evaluate("""([source, target]) => {
+              if (!source?.isConnected || !target?.isConnected) return null;
+              const a = source.getBoundingClientRect(), b = target.getBoundingClientRect();
+              if (!a.width || !a.height || !b.width || !b.height) return null;
+              return [a.toJSON(), b.toJSON()];
+            }""", [source_node, target_node])
+        finally:
+            for node in (source_node, target_node):
+                if node is not None:
+                    node.dispose()
+    if boxes is None:
+        raise RuntimeError("manifest drag endpoint has no bounding box")
+    source_box, target_box = boxes
+    start_x = source_box["x"] + source_box["width"] / 2
+    start_y = source_box["y"] + source_box["height"] / 2
+    end_x = target_box["x"] + target_box["width"] / 2
+    end_y = target_box["y"] + target_box["height"] / 4
+    page.mouse.move(start_x, start_y)
+    page.mouse.down()
+    page.mouse.move(end_x, end_y, steps=8)
+    page.mouse.up()
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="bopos-param-visibility-") as temp:
+        state_path, patches, assets, manifest = write_fixture(temp)
+        http_port = free_port(socket.SOCK_STREAM)
+        listen_port = free_port(socket.SOCK_DGRAM)
+        send_port = free_port(socket.SOCK_DGRAM)
+        base_url = f"http://127.0.0.1:{http_port}"
+        server_log = open(os.path.join(temp, "server.log"), "w",
+                          encoding="utf-8")
+        fleet_log = open(os.path.join(temp, "fleet.log"), "w",
+                         encoding="utf-8")
+        server = fleet = None
+        try:
+            server = launch_dashboard([
+                sys.executable, os.path.join(ROOT, "dashboard", "server.py"),
+                "--host", "127.0.0.1", "--port", str(http_port),
+                "--listen-port", str(listen_port),
+                "--send-port", str(send_port),
+                "--osc-target", "127.0.0.1", "--data-dir", data_root(state_path),
+                "--assets-dir", assets, "--patches-dir", patches,
+                "--public-url", base_url, "--sim-no-engine",
+            ], cwd=ROOT, stdout=server_log, stderr=subprocess.STDOUT)
+            wait_http(base_url, server)
+            fleet = subprocess.Popen([
+                sys.executable, os.path.join(ROOT, "tools", "simfleet.py"),
+                "--devices", "1", "--target", "127.0.0.1",
+                "--report-port", str(listen_port),
+                "--cmd-port", str(send_port), "--hb-interval", "0.3",
+                "--boot-secs", "0.2", "--manifest", manifest,
+                "--patches-dir", patches, "--assets-dir", assets,
+            ], cwd=ROOT, stdout=fleet_log, stderr=subprocess.STDOUT)
+
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1440,
+                                                  "height": 1100})
+                errors = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("dialog", lambda dialog: dialog.accept())
+                page.goto(base_url)
+                page.wait_for_selector("#ws-status.online")
+                page.click("#tab-button-control")
+                # One document since `3-iframe-retirement`; scope to the Control host.
+                frame = page.locator("#control-column-host")
+                controls = frame.locator("[data-live-param]")
+                controls.first.wait_for()
+                expected = ["gain", "texture/density", "texture/rate"]
+                check("Control tab shows every manifest parameter",
+                      identities(controls) == expected, repr(identities(controls)))
+                check("Control preserves the nested texture branch",
+                      frame.locator("details.live-param-branch > summary",
+                                    has_text="texture").count() >= 1)
+                check("unflagged numeric params retain generator authoring",
+                      frame.locator(
+                          '.live-param[data-param-path="texture/density"]'
+                          ' [data-gen-toggle]'
+                      ).count() >= 1)
+
+                facilitator = browser.new_page()
+                facilitator_errors = []
+                facilitator.on(
+                    "pageerror",
+                    lambda error: facilitator_errors.append(str(error)))
+                facilitator.goto(base_url + "/facilitator")
+                facilitator.locator("[data-live-param]").first.wait_for()
+                cards = facilitator.locator("#control-column-host .live-card")
+                cards.first.wait_for()
+                visible = [identities(card.locator("[data-live-param]"))
+                           for card in cards.all()]
+                check("every Remote target card shows each flagged parameter once",
+                      visible == [["gain"], ["gain"]], repr(visible))
+
+                page.click("#tab-button-devices")
+                page.wait_for_function(
+                    "uid => installation.devices[uid]?.online === true",
+                    arg=UID)
+                page.click(
+                    f'#device-roster .device-row[data-uid="{UID}"]')
+                page.click("#device-control-toggle")
+                device_controls = page.locator(
+                    "#device-control-body [data-live-param]")
+                device_controls.first.wait_for()
+                check("Device control shows every manifest parameter",
+                      identities(device_controls) == expected,
+                      repr(identities(device_controls)))
+                desktop_actions = page.locator("#detail [data-action]")
+                check("desktop Device Actions ignore the Remote allowlist",
+                      sorted(desktop_actions.evaluate_all(
+                          "nodes => nodes.map(node => node.dataset.action)"))
+                      == ["reboot", "restart-engine", "shutdown", "updatebopos"])
+
+                page.click("#tab-button-patches")
+                remote_editor = page.locator("#remote-command-editor")
+                check("Remote command editor is a visible venue sibling",
+                      remote_editor.is_visible()
+                      and remote_editor.locator("p", has_text="Project setting").count() == 1
+                      and page.evaluate(
+                          "() => !document.querySelector('#remote-command-editor')"
+                          ".closest('#manifest-editor')"))
+                check("project command choices reflect installation state",
+                      remote_editor.locator(
+                          '[data-remote-command="restart-engine"]'
+                      ).is_checked()
+                      and not remote_editor.locator(
+                          '[data-remote-command="reboot"]'
+                      ).is_checked())
+                remote_editor.locator(
+                    '[data-remote-command="reboot"]').check()
+                remote_editor.locator(
+                    '[data-remote-command="shutdown"]').check()
+                check("Remote commands save on click, with no Save button",
+                      remote_editor.locator("button").count() == 0)
+                page.wait_for_function(
+                    "() => (installation.facilitator_commands||[]).join(',')"
+                    " === 'restart-engine,reboot,shutdown'")
+                page.wait_for_function(
+                    "() => document.querySelector('#remote-command-feedback')"
+                    "?.textContent === 'Saved project setting.'")
+                check("project command save does not dirty or rewrite the manifest",
+                      page.evaluate("() => manifestDirty === false"))
+                with open(manifest, encoding="utf-8") as source:
+                    before_manifest_edit = json.load(source)
+                check("project command save leaves patch content untouched",
+                      before_manifest_edit["params"] == PARAMS
+                      and before_manifest_edit["events"] == EVENTS)
+                facilitator.wait_for_function(
+                    "() => (installation.facilitator_commands||[]).join(',')"
+                    " === 'restart-engine,reboot,shutdown'")
+                remote_cards = facilitator.locator(".live-card")
+                card_commands = [
+                    card.locator("[data-target-command]").evaluate_all(
+                        "nodes => nodes.map(node => ({verb:node.dataset.targetCommand,"
+                        " scope:node.dataset.liveScope,id:node.dataset.liveId||null}))")
+                    for card in remote_cards.all()
+                ]
+                check("Remote puts the venue subset on every target card",
+                      len(card_commands) == 2
+                      and [entry["verb"] for entry in card_commands[0]]
+                      == ["restart-engine", "reboot", "shutdown"]
+                      and [entry["verb"] for entry in card_commands[1]]
+                      == ["restart-engine", "reboot", "shutdown"]
+                      and {entry["scope"] for entry in card_commands[0]} == {"all"}
+                      and {entry["scope"] for entry in card_commands[1]} == {"seat"}
+                      and {entry["id"] for entry in card_commands[1]} == {"1"},
+                      repr(card_commands))
+                check("Remote has no command strip outside its target cards",
+                      facilitator.locator("#facilitator-commands").count() == 0)
+
+                page.reload()
+                page.wait_for_selector("#ws-status.online")
+                page.wait_for_selector("#remote-command-editor")
+                check("project command choices survive dashboard reload",
+                      page.locator(
+                          '#remote-command-editor [data-remote-command="shutdown"]'
+                      ).is_checked()
+                      and not page.locator(
+                          '#remote-command-editor [data-remote-command="updatebopos"]'
+                      ).is_checked())
+                page.wait_for_selector("#manifest-params .manifest-check")
+                kind_options = page.locator(
+                    '#manifest-params select[data-manifest-field="kind"]'
+                ).first.locator("option").all_text_contents()
+                check("Patch-tab declaration editor uses the explicit kind grammar",
+                      kind_options == ["float", "int", "toggle", "enum", "text"])
+                check("Patch-tab declaration editor has no legacy type selector",
+                      page.locator(
+                          '#manifest-params [data-manifest-field="type"]'
+                      ).count() == 0)
+                kind_change = page.evaluate("""() => {
+                  const enumParam = {kind:"int", min:0, max:8, default:2};
+                  setManifestParamKind(enumParam, "enum");
+                  const toggleParam = {kind:"int", min:0, max:1, default:1};
+                  setManifestParamKind(toggleParam, "toggle");
+                  return {enumParam, toggleParam};
+                }""")
+                check("kind changes replace inferred enum and toggle fields",
+                      kind_change == {
+                          "enumParam": {
+                              "kind": "enum",
+                              "default": 0,
+                              "options": ["option 0", "option 1"],
+                          },
+                          "toggleParam": {"kind": "toggle", "default": 1},
+                      }, repr(kind_change))
+                # "Facilitator" until 2026-07-30, when Bob named the standalone
+                # view **Remote** and ruled the manifest checkboxes follow it
+                # (desktop-ui-overhaul/02-component-unification). The flag still
+                # gates only that view; only its label changed.
+                check("Patch-tab checkbox is labelled Remote",
+                      page.locator(
+                          "#manifest-params .manifest-check").first.inner_text(
+                          ).strip() == "Remote")
+
+                # Reordering is an ordinary dirty manifest edit. Keep the
+                # nested texture declarations together so the tree renderer's
+                # visible row order can be asserted directly.
+                stop(fleet)
+                fleet = None
+                page.click("#patch-edit")
+                page.wait_for_function(
+                    "() => installation.supervisor?.mode === 'edit'"
+                    " && installation.editor?.patch === 'alpha'")
+                page.locator(
+                    '#manifest-params [data-manifest-drag="params"]'
+                ).first.wait_for(state="visible")
+                page.wait_for_function(
+                    "() => !document.querySelector("
+                    "'#manifest-params [data-manifest-drag=\"params\"]'"
+                    ").disabled")
+
+                check("host driver catalog is available without hardware imports",
+                      page.evaluate("() => Object.keys(installation.io_types||{}).length") == 7)
+                page.click('#manifest-add-io')
+                module_row = page.locator('#manifest-io .manifest-io').first
+                module_row.locator('[data-io-field="name"]').fill('tilt')
+                module_row.locator('[data-io-field="type"]').select_option('lis3dh')
+                module_row.locator('[data-io-field="address"]').fill('0x1A')
+                module_row.locator('[data-io-field="optional"]').check()
+                # Optional: BOPOS_MANIFEST_SCREENSHOTS=<dir> saves the IO editor.
+                if os.environ.get('BOPOS_MANIFEST_SCREENSHOTS'):
+                    page.locator('#manifest-editor').screenshot(path=os.path.join(
+                        os.environ['BOPOS_MANIFEST_SCREENSHOTS'], 'manifest-io.png'))
+
+                param_rows = page.locator("#manifest-params .manifest-param")
+                drag_before(
+                    page,
+                    param_rows.nth(2).locator(
+                        '[data-manifest-drag="params"]'),
+                    param_rows.nth(1))
+                param_order = page.evaluate(
+                    "() => manifestDraft.params.map(paramIdentity)")
+                check("parameter drag changes only presentation order",
+                      param_order == ["gain", "texture/rate",
+                                      "texture/density"],
+                      repr(param_order))
+
+                event_rows = page.locator("#manifest-events .manifest-event")
+                drag_before(
+                    page,
+                    event_rows.nth(1).locator(
+                        '[data-manifest-drag="events"]'),
+                    event_rows.nth(0))
+                event_order = page.evaluate(
+                    "() => manifestDraft.events.map(item => item.name)")
+                check("event drag reorders within the Events section",
+                      event_order == ["release", "strike"],
+                      repr(event_order))
+
+                # A parameter released over Events is not accepted as an
+                # Events insertion (and does not disturb either list).
+                parameter_handle = page.locator(
+                    '#manifest-params [data-manifest-drag="params"]').first
+                event_target = page.locator(
+                    "#manifest-events .manifest-event").first
+                drag_before(page, parameter_handle, event_target)
+                cross_section = page.evaluate(
+                    "() => ({params:manifestDraft.params.map(paramIdentity),"
+                    " events:manifestDraft.events.map(item => item.name)})")
+                check("cross-section drag is a no-op",
+                      cross_section == {
+                          "params": ["gain", "texture/rate",
+                                     "texture/density"],
+                          "events": ["release", "strike"],
+                      }, repr(cross_section))
+
+                page.click("#manifest-save")
+                page.wait_for_function(
+                    "() => { const text=document.querySelector("
+                    "'#manifest-feedback')?.textContent||''; const lower=text.toLowerCase();"
+                    " return !text.includes('Saving manifest')"
+                    " && (lower.includes('saved')"
+                    " || text.startsWith('Not saved:')); }")
+                feedback = page.locator("#manifest-feedback").inner_text()
+                with open(manifest, encoding="utf-8") as source:
+                    saved = json.load(source)
+                check("saved manifest persists parameter and event order",
+                      [item["name"] for item in saved["params"]]
+                      == ["gain", "rate", "density"]
+                      and [item["name"] for item in saved["events"]]
+                      == ["release", "strike"],
+                      f"feedback={feedback!r} manifest={saved!r}")
+                check("IO module name, type, normalized address and optional flag save atomically",
+                      saved.get('io_modules') == [{'name': 'tilt', 'type': 'lis3dh',
+                                                   'address': '0x1a', 'optional': True}])
+                page.reload()
+                page.wait_for_selector('#manifest-io .manifest-io')
+                module_row = page.locator('#manifest-io .manifest-io').first
+                check("IO declarations survive reload",
+                      module_row.locator('[data-io-field="name"]').input_value() == 'tilt'
+                      and module_row.locator('[data-io-field="optional"]').is_checked())
+                module_row.locator('[data-io-field="address"]').fill('0x78')
+                page.click('#manifest-save')
+                page.wait_for_function("() => document.querySelector('#manifest-feedback').textContent.includes('Not saved:')")
+                with open(manifest, encoding='utf-8') as source:
+                    check("invalid IO edits leave the previous manifest intact",
+                          json.load(source)['io_modules'] == saved['io_modules'])
+                page.reload()
+                page.wait_for_selector('#manifest-io .manifest-io')
+                page.locator('[data-remove-io]').click()
+                page.click('#manifest-save')
+                page.wait_for_function("() => !manifestDirty")
+                with open(manifest, encoding='utf-8') as source:
+                    check("IO declaration removal persists", json.load(source)['io_modules'] == [])
+
+                page.click("#tab-button-control")
+                frame.locator(
+                    '[data-param-path="texture/rate"]').first.wait_for(
+                        state="attached")
+                control_order = ordered_identities(
+                    frame.locator("[data-live-param]"))
+                check("Control panel follows the saved parameter order",
+                      control_order == [
+                          "gain", "texture/rate", "texture/density"],
+                      repr(control_order))
+                control_event_order = ordered_identities(
+                    frame.locator(".live-param-event"))
+                check("Control panel follows the saved event order",
+                      control_event_order == ["release", "strike"],
+                      repr(control_event_order))
+                check("browser surfaces emitted no page errors",
+                      not errors and not facilitator_errors,
+                      repr(errors + facilitator_errors))
+                browser.close()
+        finally:
+            stop(fleet)
+            stop(server)
+            server_log.close()
+            fleet_log.close()
+
+    print()
+    if FAILURES:
+        print("FAILED: " + "; ".join(FAILURES))
+        return 1
+    print("Manifest parameter visibility checks passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

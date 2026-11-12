@@ -1,0 +1,574 @@
+#!/usr/bin/env python3
+"""Living tests for the Show document model and tolerant persistence."""
+
+import asyncio
+import json
+import os
+import sys
+import tempfile
+import unittest
+from copy import deepcopy
+from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
+
+sys.dont_write_bytecode = True
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "dashboard"))
+sys.path.insert(0, str(REPO / "tests"))
+
+from project_fixture import project_path, data_root  # noqa: E402
+import show_model  # noqa: E402
+from server import Dashboard  # noqa: E402
+from show_engine import ShowEngine  # noqa: E402
+from state import InstallationState  # noqa: E402
+
+
+def message(uid="b0000001", target="all", **extra):
+    return {
+        "uid": uid,
+        "alias": None,
+        "address": "/p/gain",
+        "args": [{"type": "f", "value": 0.5}],
+        "target": target,
+        **extra,
+    }
+
+
+def step(uid="a0000001", messages=None, **extra):
+    return {
+        "kind": "step",
+        "uid": uid,
+        "alias": None,
+        "messages": list(messages or []),
+        "duration_s": 2,
+        "play_count": 1,
+        "then_actions": [{"type": "stop"}],
+        **extra,
+    }
+
+
+def document(items=None, name="opening-set", **extra):
+    return {
+        "schema": 1,
+        "name": name,
+        "items": list(items or []),
+        **extra,
+    }
+
+
+class ShowSchemaTests(unittest.TestCase):
+    def test_cleaning_normalizes_legacy_targets_and_ignores_additive_fields(self):
+        cleaned = show_model.clean_show(document([
+            step(messages=[
+                message(
+                    target="3",
+                    future_message_fact={"supported": "later"},
+                )
+            ], future_step_fact=True),
+            {
+                "kind": "divider",
+                "uid": "d0000001",
+                "future_divider_fact": 7,
+            },
+        ], future_document_fact="ignored"))
+
+        self.assertEqual(
+            cleaned["items"][0]["messages"][0]["target"],
+            ["3"],
+        )
+        self.assertEqual(cleaned["items"][1]["alias"], None)
+        self.assertNotIn("future_document_fact", cleaned)
+        self.assertNotIn("future_step_fact", cleaned["items"][0])
+
+    def test_typed_arguments_and_targets_reject_ambiguous_values(self):
+        valid = message(
+            target=["g3", "3", "g3"],
+            args=[
+                {"type": "i", "value": 2},
+                {"type": "f", "value": 0.25},
+                {"type": "s", "value": "warm"},
+            ],
+        )
+        cleaned = show_model.clean_message(valid)
+        self.assertEqual(cleaned["target"], ["g3", "3"])
+        self.assertEqual(
+            cleaned["args"],
+            [
+                {"type": "i", "value": 2},
+                {"type": "f", "value": 0.25},
+                {"type": "s", "value": "warm"},
+            ],
+        )
+
+        for bad in (
+            message(target=[]),
+            message(target=["seat3"]),
+            message(args=[{"type": "i", "value": True}]),
+            message(args=[{"type": "f", "value": float("nan")}]),
+            message(address="gain"),
+        ):
+            with self.subTest(bad=bad):
+                self.assertIsNone(show_model.clean_message(bad))
+
+    def test_numeric_arguments_are_checked_against_their_wire_type_not_coerced(self):
+        for raw, expected in (
+            ({"type": "i", "value": 2147483647}, 2147483647),
+            ({"type": "i", "value": -2147483648}, -2147483648),
+            ({"type": "i", "value": 2.0}, 2),
+            ({"type": "f", "value": 3}, 3.0),
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(show_model.clean_arg(raw), {"type": raw["type"], "value": expected})
+                self.assertIs(type(show_model.clean_arg(raw)["value"]), type(expected))
+        for raw in (
+            {"type": "i", "value": 1.9},
+            {"type": "i", "value": "12"},
+            {"type": "i", "value": 2 ** 31},
+            {"type": "i", "value": -2 ** 31 - 1},
+            {"type": "i", "value": float("inf")},
+            {"type": "f", "value": "1e5"},
+            {"type": "f", "value": 1e39},
+            {"type": "f", "value": int("9" * 400)},
+        ):
+            with self.subTest(raw=raw):
+                self.assertIsNone(show_model.clean_arg(raw))
+
+    def test_addresses_follow_osc_address_rules(self):
+        for address in ("/pt", "/p/gain0", "/e/notes/on", "/all/os/master"):
+            with self.subTest(address=address):
+                self.assertIsNotNone(show_model.clean_message(message(address=address)))
+        for address in ("/", "//", "/a b#", "/x//y", "/x/", "/a*", "/p/{a,b}", "/p\t", "/é"):
+            with self.subTest(address=address):
+                self.assertIsNone(show_model.clean_message(message(address=address)))
+        show = document([step(messages=[message()])])
+        new_show, _, error = show_model.update_message(show, "b0000001", {"address": "/x//y"})
+        self.assertIs(new_show, show)
+        self.assertEqual(error, "address must be a non-empty OSC address.")
+
+    def test_out_of_range_edits_return_an_error_and_leave_the_show(self):
+        show = document([step(messages=[message()])])
+        for result in (
+            show_model.update_step(show, "a0000001", {"duration_s": 10 ** 400}),
+            show_model.add_message(show, "a0000001", message(
+                "b0000002", args=[{"type": "i", "value": float("inf")}])),
+            show_model.update_message(show, "b0000001", {"args": [{"type": "i", "value": 2 ** 31}]}),
+        ):
+            new_show, item, error = result
+            self.assertIs(new_show, show)
+            self.assertIsNone(item)
+            self.assertTrue(error)
+
+    def test_patch_errors_keep_their_text_and_priority(self):
+        show = show_model.clean_show(document([step(messages=[message()])]))
+        before = deepcopy(show)
+        cases = (
+            (show_model.update_step, "a0000001", [
+                ({"alias": 1, "duration_s": -1}, "alias must be text or null."),
+                ({"duration_s": -1, "play_count": 0}, "duration_s must be a number >= 0."),
+                ({"play_count": 0, "then_actions": None}, "play_count must be a positive integer or null."),
+                ({"then_actions": None}, "then_actions must be a list."),
+                ({"then_actions": [{}], "duration_s": 0, "play_count": None}, "invalid then_action."),
+                ({"duration_s": 0, "play_count": None}, "duration_s == 0 requires a finite play_count."),
+            ]),
+            (show_model.update_message, "b0000001", [
+                ({"alias": 1, "address": "bad"}, "alias must be text or null."),
+                ({"address": "bad", "args": None}, "address must be a non-empty OSC address."),
+                ({"args": None, "target": []}, "args must be a list."),
+                ({"args": [{}], "target": []}, "invalid arg."),
+                ({"target": [], "kind": "bad"}, "invalid target."),
+                ({"kind": "bad"}, "invalid message."),
+            ]),
+        )
+        for update, uid, patches in cases:
+            for patch, expected in patches:
+                with self.subTest(update=update.__name__, patch=patch):
+                    changed, result, error = update(show, uid, patch)
+                    self.assertIs(changed, show)
+                    self.assertIsNone(result)
+                    self.assertEqual(error, expected)
+                    self.assertEqual(show, before)
+
+    def test_patch_fields_preserve_identity_and_message_ownership(self):
+        show = show_model.clean_show(document([step(messages=[message()])]))
+        changed, result, error = show_model.update_step(show, "a0000001", {
+            "uid": "a0000002", "kind": "divider", "messages": [],
+            "duration_s": 0, "play_count": 2, "then_actions": [],
+        })
+        self.assertIsNone(error)
+        self.assertEqual(result["uid"], "a0000001")
+        self.assertEqual(result["messages"], show["items"][0]["messages"])
+        self.assertEqual(result["then_actions"], [{"type": "stop"}])
+        _, result, error = show_model.update_message(changed, "b0000001", {
+            "uid": "b0000002", "target": ["g3", "all"],
+            "args": [{"type": "i", "value": 2.0}],
+        })
+        self.assertIsNone(error)
+        self.assertEqual(result["uid"], "b0000001")
+        self.assertEqual(result["target"], ["all"])
+        self.assertIs(type(result["args"][0]["value"]), int)
+
+    def test_uids_are_unique_with_separate_item_and_message_namespaces(self):
+        shared = "a0000001"
+        valid = document([
+            step(shared, [message(shared)]),
+        ])
+        self.assertIsNotNone(show_model.clean_show(valid))
+
+        duplicate_items = document([
+            step(shared),
+            {"kind": "divider", "uid": shared},
+        ])
+        self.assertIsNone(show_model.clean_show(duplicate_items))
+
+        duplicate_messages = document([
+            step("a0000001", [message("b0000001")]),
+            step("a0000002", [message("b0000001")]),
+        ])
+        self.assertIsNone(show_model.clean_show(duplicate_messages))
+
+    def test_zero_duration_requires_a_finite_play_count(self):
+        self.assertIsNotNone(show_model.clean_step(
+            step(duration_s=0, play_count=1)
+        ))
+        self.assertIsNone(show_model.clean_step(
+            step(duration_s=0, play_count=None)
+        ))
+        self.assertIsNotNone(show_model.clean_step(
+            step(duration_s=1, play_count=None)
+        ))
+
+    def test_sections_are_maximal_step_runs_without_empty_gaps(self):
+        first, second = step("a0000001"), step("a0000002")
+        third = step("a0000003")
+        show = document([
+            {"kind": "divider", "uid": "d0000001"},
+            first,
+            second,
+            {"kind": "divider", "uid": "d0000002"},
+            {"kind": "divider", "uid": "d0000003"},
+            third,
+            {"kind": "divider", "uid": "d0000004"},
+        ])
+        self.assertEqual(
+            show_model.sections(show),
+            [[first, second], [third]],
+        )
+
+    def test_edits_are_copy_on_write_and_duplicate_mints_nested_identities(self):
+        original = document([step(messages=[message()])])
+        before = deepcopy(original)
+        minted = iter(("a0000002", "b0000002"))
+
+        with mock.patch.object(
+            show_model, "mint_uid", side_effect=lambda _existing: next(minted)
+        ):
+            updated, duplicate, error = show_model.duplicate_item(
+                original, "a0000001"
+            )
+
+        self.assertIsNone(error)
+        self.assertEqual(original, before)
+        self.assertEqual(
+            [item["uid"] for item in updated["items"]],
+            ["a0000001", "a0000002"],
+        )
+        self.assertEqual(duplicate["messages"][0]["uid"], "b0000002")
+
+    def test_literal_payload_survives_duplicate_move_and_persistence(self):
+        args = [{"type": "f", "value": 0.25}]
+        original = show_model.clean_show(document([
+            step("a0000001", [message("b0000001", args=args)]),
+            step("a0000002"),
+        ]))
+        minted = iter(("a0000003", "b0000002"))
+        with mock.patch.object(show_model, "mint_uid", side_effect=lambda _existing: next(minted)):
+            duplicated, clone, error = show_model.duplicate_item(original, "a0000001")
+        self.assertIsNone(error)
+        self.assertEqual(clone["messages"][0]["args"], args)
+        moved, result, error = show_model.move_message(duplicated, "b0000001", "a0000002")
+        self.assertIsNone(error)
+        self.assertEqual(result["args"], args)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = os.path.join(temporary, "show.json")
+            show_model.save_show(path, moved)
+            loaded, _valid = show_model.load_show(path)
+        self.assertEqual(loaded["items"][1]["messages"][0]["args"], args)
+
+    def test_unsupported_message_kind_is_rejected(self):
+        self.assertIsNone(show_model.clean_message(message(kind="reference")))
+
+    def test_named_group_targets_resolve_with_non_blocking_warnings(self):
+        groups = [
+            {"id": 7, "name": "Front"},
+            {"id": 9, "name": "Twin"},
+            {"id": 10, "name": "Twin"},
+        ]
+        resolved, warnings = show_model.resolve_targets(
+            ["3", "group:Front", "group:Missing", "group:Twin"], groups
+        )
+        self.assertEqual(resolved, ["3", "g7"])
+        self.assertEqual(
+            [warning["code"] for warning in warnings],
+            ["missing_group", "ambiguous_group"],
+        )
+
+    def test_playback_uses_dashboard_resolved_group_wire_selector(self):
+        bridge = mock.Mock()
+        groups = {"7": {"id": 7, "name": "Front"}}
+        engine = ShowEngine(
+            bridge,
+            mock.AsyncMock(),
+            resolve_targets=lambda targets: show_model.resolve_targets(
+                targets, groups)[0],
+        )
+        engine._send_message(show_model.clean_message(
+            message(target=["group:Front"])
+        ))
+        bridge.set_param.assert_called_once_with("g7", "gain", [0.5])
+
+class ShowUndoTests(unittest.IsolatedAsyncioTestCase):
+    async def test_literal_playback_preserves_authored_message_order(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock())
+        await engine._emit_messages(show_model.clean_step(step(messages=[
+            message(args=[{"type": "f", "value": 0.25}]),
+            message(uid="b0000002", args=[{"type": "f", "value": 0.9}]),
+        ])))
+        self.assertEqual(bridge.set_param.call_args_list, [
+            mock.call("all", "gain", [0.25]),
+            mock.call("all", "gain", [0.9]),
+        ])
+
+    async def test_literal_update_and_undo_restore_one_persisted_snapshot(self):
+        original = show_model.clean_show(document([
+            step(messages=[message()]),
+        ]))
+        dashboard = object.__new__(Dashboard)
+        dashboard.show_edit_lock = asyncio.Lock()
+        dashboard.show_undo = []
+        dashboard.show = original
+        dashboard.show_engine = ShowEngine(mock.Mock(), mock.AsyncMock())
+        dashboard.show_engine.show = original
+        dashboard.broadcast = mock.AsyncMock()
+        dashboard.show_load_invalid = False
+
+        with tempfile.TemporaryDirectory() as temporary:
+            dashboard.state = SimpleNamespace(
+                data={"groups": {}},
+                show_path=os.path.join(temporary, "show.json"),
+                _require_valid_load=lambda: None,
+            )
+            show_model.save_show(dashboard.state.show_path, original)
+            await dashboard.apply_show_mutation(
+                None, show_model.update_message, "b0000001",
+                {"args": [{"type": "f", "value": 0.75}]},
+            )
+            self.assertEqual(len(dashboard.show_undo), 1)
+            self.assertEqual(
+                dashboard.show["items"][0]["messages"][0]["args"],
+                [{"type": "f", "value": 0.75}],
+            )
+            await dashboard.undo_show(None)
+            self.assertEqual(
+                dashboard.show["items"][0]["messages"][0]["kind"],
+                "osc",
+            )
+            self.assertNotIn(
+                "reference", dashboard.show["items"][0]["messages"][0]
+            )
+
+    async def test_damaged_show_loads_read_only_with_the_invalid_file_notice(self):
+        # Same rule as project.json: an empty show stands in, the original
+        # bytes stay, the operator is told, and no edit or undo writes.
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(temporary)
+            state.save()
+            damaged = b'{"schema": 1, "name": "test", "items": [  '
+            Path(state.show_path).parent.mkdir()
+            Path(state.show_path).write_bytes(damaged)
+            dashboard = object.__new__(Dashboard)
+            dashboard.state = state
+            dashboard.show_edit_lock = asyncio.Lock()
+            dashboard.broadcast = mock.AsyncMock()
+            dashboard.ws_error = mock.AsyncMock()
+            dashboard.load_project_show()
+            dashboard.show_engine = SimpleNamespace(show=dashboard.show)
+            dashboard.show_undo = [show_model.empty_show("earlier")]
+
+            self.assertEqual(dashboard.show, show_model.empty_show("Show"))
+            self.assertTrue(any(state.show_path in notice and "saving is blocked" in notice
+                                for notice in state.data["notices"]))
+            await dashboard.apply_show_mutation(None, show_model.add_step, None)
+            await dashboard.undo_show(None)
+            self.assertEqual(dashboard.ws_error.await_count, 2)
+            self.assertEqual(dashboard.show, show_model.empty_show("Show"))
+            self.assertEqual(Path(state.show_path).read_bytes(), damaged)
+
+            # A missing show file is simply a new, writable, empty show.
+            os.remove(state.show_path)
+            dashboard.load_project_show()
+            self.assertFalse(dashboard.show_load_invalid)
+
+
+class ShowPlaybackConsistencyTests(unittest.IsolatedAsyncioTestCase):
+    """67/25: a playback entry always names a step that exists and is timing."""
+
+    async def test_expiry_drops_a_step_the_show_no_longer_has(self):
+        engine = ShowEngine(mock.Mock(), mock.AsyncMock())
+        engine.show = show_model.clean_show(document([step(duration_s=0.02)]))
+        await engine.step_start("a0000001")
+        engine.show = show_model.clean_show(document())
+        await asyncio.sleep(0.08)
+        self.assertEqual(engine.playback, {})
+
+    async def test_tiny_durations_rearm_no_faster_than_the_floor(self):
+        bridge = mock.Mock()
+        engine = ShowEngine(bridge, mock.AsyncMock())
+        engine.show = show_model.clean_show(document([
+            step(messages=[message()], duration_s=1e-9, play_count=None)]))
+        await engine.step_start("a0000001")
+        await asyncio.sleep(0.1)
+        await engine.stop_all_steps()
+        self.assertLess(bridge.set_param.call_count, 20)  # was ~3,000
+
+
+class GroupNameInvariantTests(unittest.TestCase):
+    def test_osc_target_grammar_is_enforced_by_create_and_rename(self):
+        invalid = ["", "Front", " front", "front ", "two words", "café", "x/y",
+                   "x" * 33, "12", "g12", "all", "bop", "os", "io", "sync", "e", "p", None, 12]
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(data_root(str(project_path(temporary))))
+            group, error = state.create_group("spot_1-a")
+            self.assertIsNone(error)
+            for name in invalid:
+                with self.subTest(name=name):
+                    self.assertFalse(state.valid_group_name(name))
+                    self.assertIsNone(state.create_group(name)[0])
+                    self.assertIsNone(state.rename_group(group["id"], name)[0])
+                    self.assertEqual(state.data["groups"], {"0": group})
+            for name in ["g", "g12a", "12a", "_", "-", "a" * 32]:
+                self.assertTrue(state.valid_group_name(name), name)
+
+    def test_conversion_preserves_legal_names_and_reserves_suffixes(self):
+        names = ["Front", "front", "front-2", "all", "bop", "os", "io", "sync", "e", "p",
+                 "123", "g12", "", "Two Words!", "a" * 40, "a" * 39 + "b", "café"]
+        groups = {str(i): {"id": i, "name": name} for i, name in enumerate(names)}
+        adopted, changes = InstallationState.adopt_group_names(groups)
+        converted = [group["name"] for group in adopted.values()]
+        self.assertEqual(converted[:3], ["front-3", "front", "front-2"])
+        self.assertEqual(converted[3:14], ["group-all", "group-bop", "group-os", "group-io",
+                                         "group-sync", "group-e", "group-p", "group-123",
+                                         "group-g12", "group-12", "two_words_"])
+        self.assertEqual(converted[14:], ["a" * 32, "a" * 30 + "-2", "caf_"])
+        self.assertEqual(len(set(converted)), len(names))
+        self.assertTrue(all(InstallationState.valid_group_name(name) for name in converted))
+        self.assertIsNotNone(InstallationState.clean_groups(adopted))
+        self.assertEqual(InstallationState.adopt_group_names(adopted), (adopted, []))
+        self.assertTrue(changes)
+
+    @staticmethod
+    def state_document(groups, next_group_id=4):
+        return {
+            "schema": 1,
+            "name": "Legacy room",
+            "seats": {},
+            "groups": groups,
+            "next_group_id": next_group_id,
+            "device_registry": {},
+        }
+
+    def test_existing_blank_and_duplicate_names_are_repaired_once(self):
+        groups = {
+            "0": {"id": 0, "name": ""},
+            "1": {"id": 1, "name": "Front"},
+            "2": {"id": 2, "name": "Front"},
+            "3": {"id": 3, "name": "Front-2"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = project_path(temporary)
+            path.write_text(json.dumps(self.state_document(groups)))
+            state = InstallationState(data_root(str(path)))
+            self.assertEqual(
+                [group["name"] for group in state.data["groups"].values()],
+                ["group-0", "front", "front-3", "front-2"],
+            )
+            self.assertIn("repaired for OSC targets and portable Shows", state.data["notices"][0])
+
+            reloaded = InstallationState(data_root(str(path)))
+            self.assertEqual(reloaded.data["notices"], [])
+            self.assertEqual(
+                [group["name"] for group in reloaded.data["groups"].values()],
+                ["group-0", "front", "front-3", "front-2"],
+            )
+
+    def test_create_and_rename_enforce_non_empty_unique_names(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = InstallationState(data_root(str(project_path(temporary))))
+            front, error = state.create_group("front")
+            self.assertIsNone(error)
+            self.assertIsNone(state.create_group(" ")[0])
+            self.assertIn("1–32", state.create_group(" ")[1])
+            self.assertIn("unique", state.create_group("front")[1])
+            rear, error = state.create_group("rear")
+            self.assertIsNone(error)
+            self.assertIn("unique", state.rename_group(rear["id"], "front")[1])
+            renamed, error = state.rename_group(front["id"], "front")
+            self.assertIsNone(error)
+            self.assertEqual(renamed["name"], "front")
+
+
+class ShowPersistenceTests(unittest.TestCase):
+    def test_round_trip_preserves_item_and_message_order_without_temp_residue(self):
+        show = show_model.clean_show(document([
+            step("a0000001", [
+                message("b0000001"),
+                message("b0000002", address="/p/pan"),
+            ]),
+            {"kind": "divider", "uid": "d0000001", "alias": "Act II"},
+            step("a0000002"),
+        ]))
+        with tempfile.TemporaryDirectory() as temporary:
+            path = os.path.join(temporary, "show.json")
+            show_model.save_show(path, show)
+            self.assertNotIn("name", json.loads(Path(path).read_text()))
+            self.assertEqual(show_model.load_show(path), (dict(show, name=""), True))
+            self.assertEqual(show["name"], "opening-set")
+            self.assertFalse(
+                any(path.suffix == ".tmp" for path in Path(temporary).iterdir())
+            )
+
+    def test_legacy_name_remains_readable_for_migration(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "show.json"
+            path.write_text(json.dumps(document(name="Legacy")))
+            self.assertEqual(show_model.load_show(str(path)),
+                             (show_model.empty_show("Legacy"), True))
+
+    def test_missing_loads_empty_and_damaged_documents_load_empty_but_invalid(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            expected = show_model.empty_show()
+            path = Path(temporary) / "show.json"
+            self.assertEqual(show_model.load_show(path), (expected, True))
+            for content in (
+                "",
+                "{not json",
+                json.dumps({"schema": 99, "name": "broken", "items": []}),
+                json.dumps(document([
+                    step("a0000001"),
+                    step("a0000001"),
+                ], name="broken")),
+                json.dumps(document([step(duration_s=1e999)])),
+                json.dumps(document([step(duration_s=10 ** 400)])),
+                json.dumps(document([step(messages=[message(
+                    args=[{"type": "i", "value": float("inf")}])])])),
+                json.dumps(document([step(messages=[message(
+                    args=[{"type": "f", "value": 10 ** 400}])])])),
+            ):
+                with self.subTest(content=content):
+                    path.write_text(content)
+                    self.assertEqual(show_model.load_show(path), (expected, False))
+
+if __name__ == "__main__":
+    unittest.main()

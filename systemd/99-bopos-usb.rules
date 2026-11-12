@@ -1,0 +1,9 @@
+# bopOS USB auto-mount (thread 42-node-logging).
+#
+# Match USB block partitions (a whole disk sdX has no trailing digit; a
+# partition sdX1..sdX9 does) and hand each to the templated mount unit, which
+# mounts the first stick at the stable path /media/bopos-usb. TAG+="systemd"
+# plus SYSTEMD_WANTS ties the .device unit to bopos-usb@%k.service so removal
+# stops it (BindsTo) and its ExecStop unmounts. One stick at a time; the unit's
+# own guard ignores further partitions and further sticks.
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="sd[a-z][0-9]", ENV{ID_BUS}=="usb", TAG+="systemd", ENV{SYSTEMD_WANTS}+="bopos-usb@%k.service"

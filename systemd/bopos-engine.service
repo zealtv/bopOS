@@ -1,0 +1,25 @@
+[Unit]
+Description=bopOS engine instance and JACK
+PartOf=bopos.target
+After=bopos.service sound.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=forking
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/bopOS
+Environment=HOME=/home/pi
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/default/locale
+Slice=system.slice
+KillMode=control-group
+ExecStart=/home/pi/bopOS/bash/run/engine.sh
+Restart=no
+RuntimeDirectory=bopos-engine
+PIDFile=/run/bopos-engine/engine.pid
+ExecStartPost=/usr/bin/touch /run/bopos-engine/active
+LimitRTPRIO=95
+LimitMEMLOCK=infinity
+TimeoutStartSec=120
+TimeoutStopSec=15s
